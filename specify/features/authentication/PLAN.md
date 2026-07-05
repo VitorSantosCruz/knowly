@@ -23,6 +23,19 @@
   provisioned).
 - CAPTCHA request-velocity tracking also lives in Redis
   (`login-velocity:{ip}`, sliding counter with TTL).
+- Login-request throttling (`LoginRequestThrottleService`, new): cooldown
+  key `auth:login-code-cooldown:{email}` (TTL = cooldown) and an abuse
+  counter `auth:login-request-count:{email}` (TTL = same window as the
+  abuse lockout duration, so it can't accumulate forever). Both keyed by
+  the *submitted* email regardless of whether it's a real account — same
+  reasoning as `FailedAttemptService`, so this can run synchronously in
+  `AuthController` (before publishing to RabbitMQ) without reopening the
+  timing side-channel REQ-3a closed: cooldown/abuse state doesn't depend
+  on account existence, only on the submitted string.
+- `FailedAttemptService` gains `lockForAbuse(email)`, setting the *same*
+  lockout key `verifyCode`/`verifyPassword` already check, just with a
+  longer TTL — reuses `isLocked()` as-is, no changes needed on the
+  verification side beyond resetting the new abuse counter on any attempt.
 - CAPTCHA verification calls Cloudflare Turnstile's `siteverify` REST
   endpoint server-side using Spring's `RestClient` (no new HTTP client
   dependency needed).
@@ -133,12 +146,15 @@ knowly:
     login-code:
       length: 6
       ttl: 10m
+      resend-cooldown: 30s
     one-time-password:
       length: 12
       ttl: 15d
     lockout:
       max-attempts: 3
       duration: 15m
+      abuse-request-threshold: 5
+      abuse-duration: 1h
     captcha:
       velocity-threshold: 5
       velocity-window: 5m
@@ -155,6 +171,7 @@ src/main/java/br/com/conectabyte/knowly/auth/
   LoginCodeService.java          # Redis: generate/verify/invalidate codes
   OneTimePasswordService.java    # generate/verify/rotate on User
   FailedAttemptService.java      # Redis: counters + lockout
+  LoginRequestThrottleService.java # Redis: resend cooldown + abuse counter
   CaptchaService.java            # Turnstile siteverify call
   MailService.java               # sends code/new-password emails via jte
   LoginRequestedEvent.java       # RabbitMQ message payload (email)
@@ -196,6 +213,10 @@ src/main/jte/mail/
 - `LoginRequestListenerTest`: unit/slice test asserting the listener looks
   up the user, generates a code, and calls `MailService` — independent of
   the HTTP layer.
+- `LoginRequestThrottleServiceTest`: unit test against real Redis
+  (Testcontainers) covering cooldown suppression, abuse-counter
+  accumulation and reset, and triggering `FailedAttemptService.lockForAbuse`
+  at the threshold.
 - `CaptchaServiceTest`: unit test with a mocked Turnstile HTTP response
   (WireMock or a fake `RestClient`), since we don't want tests hitting
   Cloudflare's real API.

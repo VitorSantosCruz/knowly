@@ -58,3 +58,21 @@
        to assert immediate response + poll (Awaitility) for the async
        side effect (Red → Green).
 - [x] 20. Run `./mvnw verify` and confirm it's green.
+- [ ] 21. Add `resend-cooldown` to `login-code` config and
+       `abuse-request-threshold`/`abuse-duration` to `lockout` config +
+       update `AuthPropertiesTest`.
+- [ ] 22. Add `FailedAttemptService.lockForAbuse(email)` + test (Red →
+       Green): same lockout key as the 3-strikes case, configurable
+       duration.
+- [ ] 23. Write `LoginRequestThrottleServiceTest` covering cooldown
+       suppression, abuse counter accumulation, reset on any verify
+       attempt, and triggering `lockForAbuse` at the threshold (Red), then
+       implement `LoginRequestThrottleService` (Green).
+- [ ] 24. Wire `LoginRequestThrottleService` into `AuthController`:
+       `requestLogin` checks cooldown/lockout before publishing and calls
+       `recordRequest` after; `verifyCode`/`verifyPassword` call
+       `recordVerifyAttempt` on every attempt. Update
+       `AuthControllerIntegrationTest` with cases for REQ-4a–REQ-4c (Red →
+       Green).
+- [ ] 25. Run `./mvnw verify` and confirm it's green.
+- [ ] 26. Update `PLAN.md` if any decision changed during implementation.

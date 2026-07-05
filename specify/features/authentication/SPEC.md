@@ -41,6 +41,22 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   the email exists (code generation, hashing, email dispatch) — that work
   happens asynchronously, off the request/response cycle, so response
   timing cannot be used to infer whether an email is registered.
+- **REQ-4a [State-Driven]** While an email is within its resend cooldown
+  (30 seconds since its last generated code), the system shall respond to
+  a new login request with the same generic success response (REQ-1)
+  without generating or sending a new code — applied identically whether
+  or not the email corresponds to a real account.
+- **REQ-4b [Event-Driven]** When an email accumulates 5 login requests
+  (REQ-1) that actually resulted in a new code being generated (i.e., not
+  suppressed by REQ-4a) without a single login-code or one-time-password
+  verification attempt (REQ-5, REQ-6, REQ-7, REQ-8) in between, the system
+  shall lock that email (same lockout as REQ-10) for an extended duration
+  (1 hour).
+- **REQ-4c [Unwanted Behavior]** If any login-code or one-time-password
+  verification is attempted for an email (REQ-5, REQ-6, REQ-7, REQ-8),
+  then the system shall reset that email's request-without-verification
+  counter (REQ-4b) to zero, regardless of whether the verification
+  succeeded.
 - **REQ-4 [Event-Driven]** When the request volume/velocity from a given
   source exceeds the configured threshold, the system shall require a
   valid CAPTCHA (Cloudflare Turnstile) token on the request, and shall
@@ -139,6 +155,13 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
 - [ ] The login-request endpoint responds before the email-existence check
       and code generation/dispatch happen, so response time doesn't
       correlate with account existence.
+- [ ] Requesting a code twice for the same email within 30 seconds only
+      generates/sends a code the first time; the second request still gets
+      the generic success response.
+- [ ] 5 code requests for the same email with no verification attempt in
+      between lock that email for 1 hour (not just the usual 15 minutes).
+- [ ] Attempting to verify a code or password — successfully or not —
+      resets that email's request-without-verification counter.
 - [ ] Correct, unexpired code logs the user in and sets a session cookie.
 - [ ] Correct, unexpired one-time password logs the user in, invalidates
       that password, and emails a new 12-character one-time password.
