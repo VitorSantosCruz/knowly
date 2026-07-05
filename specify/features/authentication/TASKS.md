@@ -48,13 +48,13 @@
 - [x] 16. Run `./mvnw verify` (Spotless + full suite) and confirm it's
        green.
 - [x] 17. Update `PLAN.md` if any decision changed during implementation.
-- [ ] 18. Write `LoginRequestListenerTest` (Red), then implement
+- [x] 18. Write `LoginRequestListenerTest` (Red), then implement
        `LoginRequestedEvent`, `AuthRabbitConfig` (queue + JSON converter),
        `LoginRequestPublisher`, and `LoginRequestListener` (Green) — moves
        REQ-2's lookup/generate/send work off the request thread.
-- [ ] 19. Update `AuthController.requestLogin` to publish via
+- [x] 19. Update `AuthController.requestLogin` to publish via
        `LoginRequestPublisher` and return immediately after the CAPTCHA
        check; update `AuthControllerIntegrationTest`'s login-request cases
        to assert immediate response + poll (Awaitility) for the async
        side effect (Red → Green).
-- [ ] 20. Run `./mvnw verify` and confirm it's green.
+- [x] 20. Run `./mvnw verify` and confirm it's green.
