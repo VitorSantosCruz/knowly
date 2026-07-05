@@ -57,4 +57,15 @@ class FailedAttemptServiceTest {
 
         assertThat(failedAttemptService.isLocked(email)).isFalse();
     }
+
+    @Test
+    void lockForAbuseLocksTheEmailImmediately() {
+        String email = "abusive-requester@example.com";
+
+        assertThat(failedAttemptService.isLocked(email)).isFalse();
+
+        failedAttemptService.lockForAbuse(email);
+
+        assertThat(failedAttemptService.isLocked(email)).isTrue();
+    }
 }

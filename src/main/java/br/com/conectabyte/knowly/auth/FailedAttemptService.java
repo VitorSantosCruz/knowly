@@ -37,6 +37,12 @@ public class FailedAttemptService {
         }
     }
 
+    public void lockForAbuse(String email) {
+        redisTemplate
+                .opsForValue()
+                .set(lockoutKey(email), "1", properties.lockout().abuseDuration());
+    }
+
     public void recordSuccess(String email) {
         redisTemplate.delete(attemptsKey(email));
         redisTemplate.delete(lockoutKey(email));
