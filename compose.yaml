@@ -34,6 +34,25 @@ services:
           cpus: '1'
           memory: 1g
 
+  mailhog:
+    <<: *security-defaults
+    image: 'mailhog/mailhog:v1.0.1'
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+    networks:
+      - knowly-net
+    healthcheck:
+      test: ['CMD', 'nc', '-z', '127.0.0.1', '1025']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m
+
   pgvector:
     <<: *security-defaults
     image: 'pgvector/pgvector:pg18'
