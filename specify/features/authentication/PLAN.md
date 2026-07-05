@@ -34,6 +34,16 @@
   `spring-boot-starter-mail` (already a dependency), rendered with `jte`
   templates (already a dependency, currently used for web views — reused
   here for email bodies to avoid adding a second templating engine).
+- Local SMTP: MailHog, added to `compose.yaml` as a proper managed service
+  (it existed before only as an unmanaged orphan container) —
+  `spring.mail.host`/`port` default to `localhost:1025` and are
+  env-var-overridable for real SMTP in other environments.
+- `management.health.mail.enabled=false`: Spring Boot's mail health
+  contributor only recognizes concrete `JavaMailSenderImpl` beans; a
+  Mockito-mocked `JavaMailSender` in tests breaks it (`'beans' must not be
+  empty`). We don't want per-dependency health exposed under our
+  restricted Actuator policy anyway, so it's off globally, not just in
+  tests.
 
 ## New dependency
 

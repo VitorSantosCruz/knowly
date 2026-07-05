@@ -16,18 +16,18 @@
 - [x] 5. Create `User` entity (`@Audited`, JPA auditing fields) +
       `UserRepository` + repository test (Testcontainers) asserting the
       unique case-insensitive email index.
-- [ ] 6. Write `LoginCodeServiceTest` covering generate/verify/invalidate/
+- [x] 6. Write `LoginCodeServiceTest` covering generate/verify/invalidate/
       expiry (Red), then implement `LoginCodeService` (Redis-backed)
       (Green).
-- [ ] 7. Write `FailedAttemptServiceTest` covering counter increment,
+- [x] 7. Write `FailedAttemptServiceTest` covering counter increment,
       lockout at 3, reset on success, shared counter across mechanisms
       (Red), then implement `FailedAttemptService` (Green).
-- [ ] 8. Write `OneTimePasswordServiceTest` covering
+- [x] 8. Write `OneTimePasswordServiceTest` covering
       generate/verify/rotate-on-use/15-day-expiry (Red), then implement
       `OneTimePasswordService` (Green).
-- [ ] 9. Write `CaptchaServiceTest` with a mocked Turnstile HTTP response
+- [x] 9. Write `CaptchaServiceTest` with a mocked Turnstile HTTP response
       (Red), then implement `CaptchaService` (Green).
-- [ ] 10. Write `MailServiceTest` (Red), then implement `MailService` +
+- [x] 10. Write `MailServiceTest` (Red), then implement `MailService` +
        `login-code.jte` and `new-one-time-password.jte` templates (Green).
 - [ ] 11. Write `AuthControllerIntegrationTest` cases for REQ-1–REQ-4
        (`POST /login-request`, including indistinguishable response and
