@@ -4,16 +4,16 @@
 > per constitution). Follow TDAD: test first (Red), then minimal code
 > (Green), for every task that touches behavior.
 
-- [ ] 1. Add `hibernate-envers` dependency to `pom.xml`.
-- [ ] 2. Add `knowly.auth.*` configuration properties (login code, one-time
+- [x] 1. Add `hibernate-envers` dependency to `pom.xml`.
+- [x] 2. Add `knowly.auth.*` configuration properties (login code, one-time
       password, lockout, captcha) to `application.yaml` + a
       `@ConfigurationProperties` class with a test asserting binding.
-- [ ] 3. Create `JpaAuditingConfig` (`@EnableJpaAuditing` +
+- [x] 3. Create `JpaAuditingConfig` (`@EnableJpaAuditing` +
       `AuditorAware<String>`) + test.
-- [ ] 4. Write Flyway migration `V1__create_users_table.sql` and
+- [x] 4. Write Flyway migration `V1__create_users_table.sql` and
       `V2__create_envers_audit_tables.sql`; set
       `spring.jpa.hibernate.ddl-auto=validate`.
-- [ ] 5. Create `User` entity (`@Audited`, JPA auditing fields) +
+- [x] 5. Create `User` entity (`@Audited`, JPA auditing fields) +
       `UserRepository` + repository test (Testcontainers) asserting the
       unique case-insensitive email index.
 - [ ] 6. Write `LoginCodeServiceTest` covering generate/verify/invalidate/

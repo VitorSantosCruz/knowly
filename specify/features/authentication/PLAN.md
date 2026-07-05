@@ -58,10 +58,20 @@ CREATE TABLE users (
 CREATE UNIQUE INDEX ux_users_email_lower ON users (LOWER(email));
 ```
 
-Flyway migration `V2__create_envers_audit_tables.sql`: Envers' `REVINFO`
-table plus `users_AUD` (mirroring `users` + `REV`/`REVTYPE` columns).
+Flyway migration `V2__create_envers_audit_tables.sql`: Envers' `revinfo`
+table plus `users_aud` (mirroring `users` + `rev`/`revtype` columns).
 `spring.jpa.hibernate.ddl-auto` is set to `validate` — schema is always
 Flyway-owned, Hibernate never auto-generates DDL, including for Envers.
+
+Verified against a real Postgres (Testcontainers) — two details not
+obvious up front, now load-bearing:
+- `revinfo.rev` must come from an explicit sequence named `revinfo_seq`
+  (Envers' default generator looks it up by that exact name — a
+  `BIGSERIAL`'s implicit sequence has a different name and fails schema
+  validation).
+- That sequence must be `INCREMENT BY 50`, matching Hibernate's default
+  allocation size for Envers' revision id generator (a mismatch here also
+  fails validation, with a very literal error message pointing at it).
 
 ## API contracts
 
