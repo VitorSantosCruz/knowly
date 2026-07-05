@@ -35,6 +35,7 @@ public class AuthController {
     private final FailedAttemptService failedAttemptService;
     private final MailService mailService;
     private final CaptchaService captchaService;
+    private final LoginRequestPublisher loginRequestPublisher;
 
     public AuthController(
             UserRepository userRepository,
@@ -42,13 +43,15 @@ public class AuthController {
             OneTimePasswordService oneTimePasswordService,
             FailedAttemptService failedAttemptService,
             MailService mailService,
-            CaptchaService captchaService) {
+            CaptchaService captchaService,
+            LoginRequestPublisher loginRequestPublisher) {
         this.userRepository = userRepository;
         this.loginCodeService = loginCodeService;
         this.oneTimePasswordService = oneTimePasswordService;
         this.failedAttemptService = failedAttemptService;
         this.mailService = mailService;
         this.captchaService = captchaService;
+        this.loginRequestPublisher = loginRequestPublisher;
     }
 
     @PostMapping("/login-request")
@@ -62,18 +65,7 @@ public class AuthController {
             throw new CaptchaRequiredException();
         }
 
-        boolean accountExists =
-                userRepository
-                        .findByEmailIgnoreCase(request.email())
-                        .map(
-                                user -> {
-                                    String code = loginCodeService.generate(user.getEmail());
-                                    mailService.sendLoginCode(user.getEmail(), code);
-                                    return true;
-                                })
-                        .orElse(false);
-
-        log.info("auth.login_request email={} accountExists={}", request.email(), accountExists);
+        loginRequestPublisher.publish(request.email());
 
         return ResponseEntity.ok().build();
     }

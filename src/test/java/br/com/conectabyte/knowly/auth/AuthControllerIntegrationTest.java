@@ -1,6 +1,9 @@
 package br.com.conectabyte.knowly.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +12,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
+import java.time.Duration;
 import java.util.Properties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,7 +74,11 @@ class AuthControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"known@example.com\"}");
 
+        // The response returns before the email-existence-dependent work runs (REQ-3a), so the
+        // side effect is asserted asynchronously here, not the response itself.
         assertThat(response).hasStatus(HttpStatus.OK);
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> verify(mailSender).send(any(MimeMessage.class)));
     }
 
     @Test
@@ -82,6 +90,7 @@ class AuthControllerIntegrationTest {
                         .content("{\"email\":\"nobody@example.com\"}");
 
         assertThat(response).hasStatus(HttpStatus.OK);
+        verify(mailSender, after(1000).never()).send(any(MimeMessage.class));
     }
 
     @Test
