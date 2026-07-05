@@ -1,0 +1,18 @@
+#!/bin/sh
+# Enforces Conventional Commits on the commit message subject line.
+# Enable once per clone with: git config core.hooksPath .githooks
+
+commit_msg_file="$1"
+subject=$(head -n1 "$commit_msg_file")
+
+pattern='^(feat|fix|refactor|test|chore|docs|style|perf|build|ci|revert)(\([a-z0-9.-]+\))?!?: .+'
+
+if ! echo "$subject" | grep -qE "$pattern"; then
+  echo "Commit message does not follow Conventional Commits:"
+  echo "  \"$subject\""
+  echo
+  echo "Expected format: <type>(<optional-scope>): <description>"
+  echo "Allowed types: feat, fix, refactor, test, chore, docs, style, perf, build, ci, revert"
+  echo "Example: feat(tags): add tag creation endpoint"
+  exit 1
+fi
