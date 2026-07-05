@@ -36,6 +36,7 @@ public class AuthController {
     private final MailService mailService;
     private final CaptchaService captchaService;
     private final LoginRequestPublisher loginRequestPublisher;
+    private final LoginRequestThrottleService loginRequestThrottleService;
 
     public AuthController(
             UserRepository userRepository,
@@ -44,7 +45,8 @@ public class AuthController {
             FailedAttemptService failedAttemptService,
             MailService mailService,
             CaptchaService captchaService,
-            LoginRequestPublisher loginRequestPublisher) {
+            LoginRequestPublisher loginRequestPublisher,
+            LoginRequestThrottleService loginRequestThrottleService) {
         this.userRepository = userRepository;
         this.loginCodeService = loginCodeService;
         this.oneTimePasswordService = oneTimePasswordService;
@@ -52,6 +54,7 @@ public class AuthController {
         this.mailService = mailService;
         this.captchaService = captchaService;
         this.loginRequestPublisher = loginRequestPublisher;
+        this.loginRequestThrottleService = loginRequestThrottleService;
     }
 
     @PostMapping("/login-request")
@@ -65,7 +68,11 @@ public class AuthController {
             throw new CaptchaRequiredException();
         }
 
-        loginRequestPublisher.publish(request.email());
+        if (!failedAttemptService.isLocked(request.email())
+                && !loginRequestThrottleService.isInCooldown(request.email())) {
+            loginRequestThrottleService.recordRequest(request.email());
+            loginRequestPublisher.publish(request.email());
+        }
 
         return ResponseEntity.ok().build();
     }
@@ -75,6 +82,8 @@ public class AuthController {
             @Valid @RequestBody VerifyCodeRequestDto request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
+        loginRequestThrottleService.recordVerifyAttempt(request.email());
+
         if (failedAttemptService.isLocked(request.email())) {
             log.warn("auth.login_code_verify email={} outcome=locked", request.email());
             throw new AccountLockedException();
@@ -109,6 +118,8 @@ public class AuthController {
             @Valid @RequestBody VerifyPasswordRequestDto request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
+        loginRequestThrottleService.recordVerifyAttempt(request.email());
+
         if (failedAttemptService.isLocked(request.email())) {
             log.warn("auth.login_password_verify email={} outcome=locked", request.email());
             throw new AccountLockedException();

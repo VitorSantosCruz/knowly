@@ -44,6 +44,10 @@ class AuthControllerIntegrationTest {
 
     @Autowired private OneTimePasswordService oneTimePasswordService;
 
+    @Autowired private FailedAttemptService failedAttemptService;
+
+    @Autowired private LoginRequestThrottleService loginRequestThrottleService;
+
     @MockitoBean private JavaMailSender mailSender;
 
     private ListAppender<ILoggingEvent> logAppender;
@@ -90,7 +94,7 @@ class AuthControllerIntegrationTest {
                         .content("{\"email\":\"nobody@example.com\"}");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        verify(mailSender, after(1000).never()).send(any(MimeMessage.class));
+        verify(mailSender, after(3000).never()).send(any(MimeMessage.class));
     }
 
     @Test
@@ -294,5 +298,72 @@ class AuthControllerIntegrationTest {
                         event ->
                                 event.getFormattedMessage().contains(email)
                                         && event.getFormattedMessage().contains("outcome=locked"));
+    }
+
+    @Test
+    void aSecondLoginRequestWithinTheCooldownDoesNotSendAnotherCode() throws Exception {
+        userRepository.saveAndFlush(new User("cooldown-http@example.com"));
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        String body = "{\"email\":\"cooldown-http@example.com\"}";
+
+        assertThat(
+                        mockMvc.post()
+                                .uri("/api/auth/login-request")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .hasStatus(HttpStatus.OK);
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> verify(mailSender).send(any(MimeMessage.class)));
+
+        assertThat(
+                        mockMvc.post()
+                                .uri("/api/auth/login-request")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .hasStatus(HttpStatus.OK);
+
+        verify(mailSender, after(3000).times(1)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void loginRequestSkipsGeneratingACodeWhenTheEmailIsAlreadyLocked() throws Exception {
+        String email = "already-locked@example.com";
+        userRepository.saveAndFlush(new User(email));
+        failedAttemptService.lockForAbuse(email);
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/auth/login-request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\"}");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        verify(mailSender, after(3000).never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void verifyingACodeResetsTheRequestAbuseCounter() {
+        String email = "resets-abuse-counter@example.com";
+        userRepository.saveAndFlush(new User(email));
+
+        for (int i = 0; i < 4; i++) {
+            loginRequestThrottleService.recordRequest(email);
+        }
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"code\":\"000000\"}")
+                .exchange();
+
+        for (int i = 0; i < 4; i++) {
+            loginRequestThrottleService.recordRequest(email);
+        }
+
+        assertThat(failedAttemptService.isLocked(email)).isFalse();
     }
 }
