@@ -5,10 +5,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import java.util.Properties;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -36,6 +41,22 @@ class AuthControllerIntegrationTest {
     @Autowired private OneTimePasswordService oneTimePasswordService;
 
     @MockitoBean private JavaMailSender mailSender;
+
+    private ListAppender<ILoggingEvent> logAppender;
+
+    @BeforeEach
+    void attachLogAppender() {
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AuthController.class))
+                .addAppender(logAppender);
+    }
+
+    @AfterEach
+    void detachLogAppender() {
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AuthController.class))
+                .detachAppender(logAppender);
+    }
 
     @Test
     void loginRequestForAnExistingEmailReturnsGenericSuccessAndSendsACode() throws Exception {
@@ -198,5 +219,71 @@ class AuthControllerIntegrationTest {
                         .content(body);
 
         assertThat(fourthAttempt).hasStatus(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    void logsAnAuditEventOnSuccessfulCodeVerification() {
+        userRepository.saveAndFlush(new User("audit-success@example.com"));
+        String code = loginCodeService.generate("audit-success@example.com");
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"audit-success@example.com\",\"code\":\"" + code + "\"}")
+                .exchange();
+
+        assertThat(logAppender.list)
+                .anyMatch(
+                        event ->
+                                event.getFormattedMessage().contains("audit-success@example.com")
+                                        && event.getFormattedMessage().contains("outcome=success"));
+    }
+
+    @Test
+    void logsAnAuditEventOnFailedCodeVerification() {
+        userRepository.saveAndFlush(new User("audit-fail@example.com"));
+        loginCodeService.generate("audit-fail@example.com");
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"audit-fail@example.com\",\"code\":\"000000\"}")
+                .exchange();
+
+        assertThat(logAppender.list)
+                .anyMatch(
+                        event ->
+                                event.getFormattedMessage().contains("audit-fail@example.com")
+                                        && event.getFormattedMessage()
+                                                .contains("outcome=invalid_code"));
+    }
+
+    @Test
+    void logsAnAuditEventWhenAccountIsLocked() {
+        String email = "audit-locked@example.com";
+        String body = "{\"email\":\"" + email + "\",\"code\":\"000000\"}";
+
+        for (int i = 0; i < 3; i++) {
+            mockMvc.post()
+                    .uri("/api/auth/login-code/verify")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)
+                    .exchange();
+        }
+        logAppender.list.clear();
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+
+        assertThat(logAppender.list)
+                .anyMatch(
+                        event ->
+                                event.getFormattedMessage().contains(email)
+                                        && event.getFormattedMessage().contains("outcome=locked"));
     }
 }

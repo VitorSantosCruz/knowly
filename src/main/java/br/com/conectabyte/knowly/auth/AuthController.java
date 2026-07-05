@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -24,6 +26,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final UserRepository userRepository;
     private final LoginCodeService loginCodeService;
@@ -54,16 +58,22 @@ public class AuthController {
                 captchaService.recordRequestAndIsVelocityExceeded(httpRequest.getRemoteAddr());
 
         if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
+            log.warn("auth.login_request email={} outcome=captcha_required", request.email());
             throw new CaptchaRequiredException();
         }
 
-        userRepository
-                .findByEmailIgnoreCase(request.email())
-                .ifPresent(
-                        user -> {
-                            String code = loginCodeService.generate(user.getEmail());
-                            mailService.sendLoginCode(user.getEmail(), code);
-                        });
+        boolean accountExists =
+                userRepository
+                        .findByEmailIgnoreCase(request.email())
+                        .map(
+                                user -> {
+                                    String code = loginCodeService.generate(user.getEmail());
+                                    mailService.sendLoginCode(user.getEmail(), code);
+                                    return true;
+                                })
+                        .orElse(false);
+
+        log.info("auth.login_request email={} accountExists={}", request.email(), accountExists);
 
         return ResponseEntity.ok().build();
     }
@@ -74,11 +84,13 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         if (failedAttemptService.isLocked(request.email())) {
+            log.warn("auth.login_code_verify email={} outcome=locked", request.email());
             throw new AccountLockedException();
         }
 
         if (!loginCodeService.verify(request.email(), request.code())) {
             failedAttemptService.recordFailure(request.email());
+            log.warn("auth.login_code_verify email={} outcome=invalid_code", request.email());
             throw new InvalidCredentialsException();
         }
 
@@ -95,6 +107,7 @@ public class AuthController {
                         });
 
         establishSession(request.email(), httpRequest, httpResponse);
+        log.info("auth.login_code_verify email={} outcome=success", request.email());
 
         return ResponseEntity.ok().build();
     }
@@ -105,6 +118,7 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         if (failedAttemptService.isLocked(request.email())) {
+            log.warn("auth.login_password_verify email={} outcome=locked", request.email());
             throw new AccountLockedException();
         }
 
@@ -118,12 +132,16 @@ public class AuthController {
 
         if (newPassword.isEmpty()) {
             failedAttemptService.recordFailure(request.email());
+            log.warn(
+                    "auth.login_password_verify email={} outcome=invalid_password",
+                    request.email());
             throw new InvalidCredentialsException();
         }
 
         failedAttemptService.recordSuccess(request.email());
         mailService.sendNewOneTimePassword(request.email(), newPassword.get());
         establishSession(request.email(), httpRequest, httpResponse);
+        log.info("auth.login_password_verify email={} outcome=success", request.email());
 
         return ResponseEntity.ok().build();
     }
