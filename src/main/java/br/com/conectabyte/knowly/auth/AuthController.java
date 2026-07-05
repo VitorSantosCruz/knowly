@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.auth;
 
 import br.com.conectabyte.knowly.auth.dto.LoginRequestDto;
 import br.com.conectabyte.knowly.auth.dto.VerifyCodeRequestDto;
+import br.com.conectabyte.knowly.auth.dto.VerifyPasswordRequestDto;
 import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
 import br.com.conectabyte.knowly.auth.exception.CaptchaRequiredException;
 import br.com.conectabyte.knowly.auth.exception.InvalidCredentialsException;
@@ -9,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -92,6 +94,35 @@ public class AuthController {
                             }
                         });
 
+        establishSession(request.email(), httpRequest, httpResponse);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/login-password/verify")
+    public ResponseEntity<Void> verifyPassword(
+            @Valid @RequestBody VerifyPasswordRequestDto request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+        if (failedAttemptService.isLocked(request.email())) {
+            throw new AccountLockedException();
+        }
+
+        Optional<String> newPassword =
+                userRepository
+                        .findByEmailIgnoreCase(request.email())
+                        .flatMap(
+                                user ->
+                                        oneTimePasswordService.verifyAndRotate(
+                                                user, request.password()));
+
+        if (newPassword.isEmpty()) {
+            failedAttemptService.recordFailure(request.email());
+            throw new InvalidCredentialsException();
+        }
+
+        failedAttemptService.recordSuccess(request.email());
+        mailService.sendNewOneTimePassword(request.email(), newPassword.get());
         establishSession(request.email(), httpRequest, httpResponse);
 
         return ResponseEntity.ok().build();

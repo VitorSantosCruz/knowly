@@ -33,6 +33,8 @@ class AuthControllerIntegrationTest {
 
     @Autowired private LoginCodeService loginCodeService;
 
+    @Autowired private OneTimePasswordService oneTimePasswordService;
+
     @MockitoBean private JavaMailSender mailSender;
 
     @Test
@@ -122,6 +124,76 @@ class AuthControllerIntegrationTest {
         var fourthAttempt =
                 mockMvc.post()
                         .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body);
+
+        assertThat(fourthAttempt).hasStatus(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    void verifyPasswordWithCorrectPasswordLogsInRotatesAndEmailsANewOne() throws Exception {
+        User user = userRepository.saveAndFlush(new User("password-ok@example.com"));
+        String password = oneTimePasswordService.generateFor(user);
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        var result =
+                mockMvc.post()
+                        .uri("/api/auth/login-password/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"password-ok@example.com\",\"password\":\""
+                                        + password
+                                        + "\"}")
+                        .exchange();
+
+        assertThat(result).hasStatus(HttpStatus.OK);
+        assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE)).contains("SESSION");
+        verify(mailSender).send((MimeMessage) org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void verifyPasswordWithWrongPasswordReturnsInvalidCredentials() {
+        userRepository.saveAndFlush(new User("password-wrong@example.com"));
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/auth/login-password/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"password-wrong@example.com\",\"password\":\"nope\"}");
+
+        assertThat(response).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void verifyPasswordForANonExistingEmailAlsoReturnsInvalidCredentials() {
+        var response =
+                mockMvc.post()
+                        .uri("/api/auth/login-password/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"nobody-pw@example.com\",\"password\":\"whatever\"}");
+
+        assertThat(response).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void locksOutAfterThreeWrongPasswordAttempts() {
+        userRepository.saveAndFlush(new User("password-lockout@example.com"));
+        String body = "{\"email\":\"password-lockout@example.com\",\"password\":\"wrong\"}";
+
+        for (int i = 0; i < 3; i++) {
+            assertThat(
+                            mockMvc.post()
+                                    .uri("/api/auth/login-password/verify")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                    .hasStatus(HttpStatus.UNAUTHORIZED);
+        }
+
+        var fourthAttempt =
+                mockMvc.post()
+                        .uri("/api/auth/login-password/verify")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body);
 
