@@ -34,9 +34,13 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   expires after 10 minutes, single-use, stored hashed) and email it to that
   address.
 - **REQ-3 [Unwanted Behavior]** If the submitted email does not exist in
-  the system, then the system shall not send any email, but shall take the
-  same amount of time and update the same internal counters as if it had
-  (see REQ-9), so the response is indistinguishable from REQ-2's case.
+  the system, then the system shall not send any email, so the response is
+  indistinguishable from REQ-2's case.
+- **REQ-3a [Ubiquitous]** The system shall respond to a login request
+  (REQ-1) before performing any of the work that differs based on whether
+  the email exists (code generation, hashing, email dispatch) — that work
+  happens asynchronously, off the request/response cycle, so response
+  timing cannot be used to infer whether an email is registered.
 - **REQ-4 [Event-Driven]** When the request volume/velocity from a given
   source exceeds the configured threshold, the system shall require a
   valid CAPTCHA (Cloudflare Turnstile) token on the request, and shall
@@ -119,14 +123,22 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
 - Abuse prevention: CAPTCHA verification and per-email counters must be
   implemented without introducing new persistent infrastructure — reuse the
   existing Redis instance already provisioned in `compose.yaml`.
+- Timing side-channel: the login-request endpoint (REQ-1) must not let an
+  attacker infer account existence by measuring response time. Implemented
+  by returning the response before doing any email-existence-dependent
+  work (REQ-3a) — reuses the existing RabbitMQ instance already provisioned
+  in `compose.yaml`, no new infrastructure.
 
 ## Acceptance criteria
 
 - [ ] Submitting an existing email sends a 6-digit code by email; response
-      is identical (shape, generic wording, timing) to submitting a
-      non-existing email.
+      is identical (shape, generic wording) to submitting a non-existing
+      email.
 - [ ] Submitting a non-existing email sends no email, but behaves
       identically from the client's perspective.
+- [ ] The login-request endpoint responds before the email-existence check
+      and code generation/dispatch happen, so response time doesn't
+      correlate with account existence.
 - [ ] Correct, unexpired code logs the user in and sets a session cookie.
 - [ ] Correct, unexpired one-time password logs the user in, invalidates
       that password, and emails a new 12-character one-time password.

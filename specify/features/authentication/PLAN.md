@@ -42,6 +42,16 @@
   `spring-boot-starter-mail` (already a dependency), rendered with `jte`
   templates (already a dependency, currently used for web views — reused
   here for email bodies to avoid adding a second templating engine).
+- Login-request processing (email lookup, code generation, email dispatch)
+  runs asynchronously via RabbitMQ (already a dependency and already
+  provisioned in `compose.yaml`, unused until now): `AuthController`
+  publishes a `LoginRequestedEvent(email)` to a durable queue and returns
+  `200` immediately; a `@RabbitListener` consumer does the actual
+  email-existence-dependent work. This is what makes REQ-3a hold: the HTTP
+  response time is now identical for existing and non-existing emails,
+  because it no longer includes any of the work that differs between them.
+  The CAPTCHA velocity check (REQ-4) still runs synchronously before
+  publishing, since it doesn't depend on whether the email exists.
 - Local SMTP: MailHog, added to `compose.yaml` as a proper managed service
   (it existed before only as an unmanaged orphan container) —
   `spring.mail.host`/`port` default to `localhost:1025` and are
@@ -147,6 +157,9 @@ src/main/java/br/com/conectabyte/knowly/auth/
   FailedAttemptService.java      # Redis: counters + lockout
   CaptchaService.java            # Turnstile siteverify call
   MailService.java               # sends code/new-password emails via jte
+  LoginRequestedEvent.java       # RabbitMQ message payload (email)
+  LoginRequestPublisher.java     # publishes LoginRequestedEvent
+  LoginRequestListener.java      # @RabbitListener: lookup + generate + send
   dto/LoginRequestDto.java
   dto/VerifyCodeRequestDto.java
   dto/VerifyPasswordRequestDto.java
@@ -157,6 +170,7 @@ src/main/java/br/com/conectabyte/knowly/auth/
   exception/AuthExceptionHandler.java   # @RestControllerAdvice → HTTP status mapping
 config/
   JpaAuditingConfig.java          # @EnableJpaAuditing + AuditorAware<String> bean
+  AuthRabbitConfig.java           # declares the login-requested queue + JSON message converter
 src/main/resources/db/migration/
   V1__create_users_table.sql
   V2__create_envers_audit_tables.sql
@@ -175,6 +189,13 @@ src/main/jte/mail/
   every REQ end to end, including the indistinguishability requirements
   (REQ-3, lockout behavior identical for existing/non-existing emails) and
   the audit log assertions (structured log/event emitted per attempt).
+  Login-request assertions on email dispatch now poll (Awaitility) since
+  the work happens on a `@RabbitListener` thread, not inline with the HTTP
+  request — the response itself is asserted synchronously and immediately
+  (that's the point of REQ-3a).
+- `LoginRequestListenerTest`: unit/slice test asserting the listener looks
+  up the user, generates a code, and calls `MailService` — independent of
+  the HTTP layer.
 - `CaptchaServiceTest`: unit test with a mocked Turnstile HTTP response
   (WireMock or a fake `RestClient`), since we don't want tests hitting
   Cloudflare's real API.
