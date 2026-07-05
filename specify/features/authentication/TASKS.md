@@ -29,22 +29,22 @@
       (Red), then implement `CaptchaService` (Green).
 - [x] 10. Write `MailServiceTest` (Red), then implement `MailService` +
        `login-code.jte` and `new-one-time-password.jte` templates (Green).
-- [ ] 11. Write `AuthControllerIntegrationTest` cases for REQ-1–REQ-4
-       (`POST /login-request`, including indistinguishable response and
-       `CAPTCHA_REQUIRED`) (Red), then implement that endpoint (Green).
-- [ ] 12. Write `AuthControllerIntegrationTest` cases for REQ-5, REQ-6,
-       REQ-9, REQ-10, REQ-11, REQ-14, REQ-15 (`POST /login-code/verify`)
-       (Red), then implement that endpoint (Green).
-- [ ] 13. Write `AuthControllerIntegrationTest` cases for REQ-7, REQ-8,
-       REQ-9, REQ-10, REQ-11, REQ-13 (`POST /login-password/verify`) (Red),
-       then implement that endpoint (Green).
-- [ ] 14. Write a test for `AuthExceptionHandler` asserting each custom
+- [x] 14. Write a test for `AuthExceptionHandler` asserting each custom
        exception maps to the correct HTTP status/code (Red), then
        implement it (Green).
-- [ ] 15. Add structured audit logging (trace id, email, outcome) to every
+- [x] 11. Write `AuthControllerIntegrationTest` cases for REQ-1–REQ-4
+       (`POST /login-request`, including indistinguishable response and
+       `CAPTCHA_REQUIRED`) (Red), then implement that endpoint (Green).
+- [x] 12. Write `AuthControllerIntegrationTest` cases for REQ-5, REQ-6,
+       REQ-9, REQ-10, REQ-11, REQ-14, REQ-15 (`POST /login-code/verify`)
+       (Red), then implement that endpoint (Green).
+- [x] 13. Write `AuthControllerIntegrationTest` cases for REQ-7, REQ-8,
+       REQ-9, REQ-10, REQ-11, REQ-13 (`POST /login-password/verify`) (Red),
+       then implement that endpoint (Green).
+- [x] 15. Add structured audit logging (trace id, email, outcome) to every
        decision point in `AuthController`/services; add a test asserting
        the log/audit event is emitted for at least one success and one
        failure path.
-- [ ] 16. Run `./mvnw verify` (Spotless + full suite) and confirm it's
+- [x] 16. Run `./mvnw verify` (Spotless + full suite) and confirm it's
        green.
-- [ ] 17. Update `PLAN.md` if any decision changed during implementation.
+- [x] 17. Update `PLAN.md` if any decision changed during implementation.

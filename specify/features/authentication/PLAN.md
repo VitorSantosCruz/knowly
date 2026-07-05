@@ -27,7 +27,15 @@
   endpoint server-side using Spring's `RestClient` (no new HTTP client
   dependency needed).
 - Sessions use `spring-boot-starter-session-data-redis` (already a
-  dependency) — no new session mechanism to build.
+  dependency) — no new session mechanism to build. Concretely: on success,
+  `AuthController` builds a `UsernamePasswordAuthenticationToken(email, null,
+  List.of())`, sets it on a fresh `SecurityContext`, and persists it via
+  `HttpSessionSecurityContextRepository#saveContext`, which creates the
+  `HttpSession` (backed by Redis) and sets the `SESSION` cookie. No custom
+  `UserDetails`/`AuthenticationProvider` was needed since there's no
+  password-based `AuthenticationManager` flow to hook into here.
+- `SecurityConfig` permits `/api/auth/**` (`permitAll`) and exempts it from
+  CSRF — these endpoints run before any session/CSRF token exists.
 - Passwords/codes are hashed with `PasswordEncoder` (BCrypt, already
   available via `spring-boot-starter-security`).
 - Emails (login code, new one-time password) are sent via
