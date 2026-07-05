@@ -1,0 +1,4 @@
+spring:
+  ai:
+    openai:
+      api-key: sk-test-dummy-0000000000000000000000000000000000000000

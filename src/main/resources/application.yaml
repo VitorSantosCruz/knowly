@@ -1,0 +1,16 @@
+gg:
+  jte:
+    development-mode: true
+
+spring:
+  application:
+    name: knowly
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
