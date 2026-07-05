@@ -8,6 +8,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
 
 management:
   endpoints:
@@ -17,8 +22,13 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    mail:
+      enabled: false
 
 knowly:
+  mail:
+    from: no-reply@conectabyte.com.br
   auth:
     login-code:
       length: 6
