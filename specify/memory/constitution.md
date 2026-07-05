@@ -42,6 +42,60 @@ wins.
   still comes from an environment variable (`.env`/secret), never
   committed.
 
+## Observability and audit (non-negotiable)
+
+This project must be fully auditable: for any user, whether they made 300
+or 300,000 requests, it must be possible to reconstruct their complete
+activity timeline — what they did, when, and across which requests and
+sessions.
+
+- **JPA Auditing** (`@CreatedBy`/`@CreatedDate`/`@LastModifiedBy`/`@LastModifiedDate`,
+  via `@EnableJpaAuditing`) is mandatory on every entity that represents
+  user-modifiable state.
+- **Hibernate Envers** (`@Audited`) is mandatory on every entity holding
+  security-sensitive or business-critical state (starting with `User` and
+  anything related to authentication), so every historical revision is
+  queryable.
+- **Distributed tracing** via OpenTelemetry (already provisioned:
+  `spring-boot-starter-opentelemetry` + the Grafana LGTM stack in
+  `compose.yaml` — Tempo for traces, Loki for logs, Prometheus for
+  metrics). No new infrastructure should be introduced for this; use what's
+  already there.
+- **Structured logs**: every log line must carry, via MDC/context
+  propagation, the trace id, the authenticated user id (when there is one),
+  and the tenant id (once multi-tenancy exists). This is what makes it
+  possible to filter "everything user X did" in Loki regardless of how many
+  separate requests/connections were involved.
+- **What must log** (replaces any vague "log coverage" percentage, which
+  isn't a measurable metric): every state-changing action (create, update,
+  delete) and every authentication/authorization decision (success,
+  failure, lockout, permission denial) must emit a structured log/audit
+  event with the actor, the action, and the outcome. This is reviewable in
+  code review today, and should eventually be enforced with an
+  architecture test (e.g. ArchUnit) that flags service-layer methods with
+  no corresponding log/audit call.
+
+## Security conventions for authentication and abuse prevention
+
+- Never lock out or throttle based solely on IP address. IP is a weak
+  signal: shared/NAT'd networks (corporate, mobile carriers) cause
+  legitimate users to suffer collateral damage, and attackers trivially
+  rotate IPs to bypass it.
+- Brute-force protection on a known account (wrong OTP/password) must be
+  keyed by the **account identifier** (e.g. email), not by IP — this stops
+  the attack regardless of how many source IPs are used.
+- Enumeration protection (many different, mostly non-existent, identifiers
+  being tried) cannot be solved by per-account counters, since each guess
+  only happens once. Use a human-verification challenge (CAPTCHA — Cloudflare
+  Turnstile, no new paid infrastructure) triggered by request volume/velocity
+  instead of a hard block.
+- Responses must never reveal whether an identifier (e.g. email) exists in
+  the system. Timing, error messages, and lockout behavior must be
+  indistinguishable between an existing and a non-existing account.
+- One-time secrets (codes, single-use passwords) are always stored hashed,
+  never in plaintext, and are single-use by construction (invalidated on
+  first use or expiry, whichever comes first).
+
 ## Integration with the frontend (knowly-app)
 
 - The backend exposes its APIs under the `/api` prefix (convention, not a
