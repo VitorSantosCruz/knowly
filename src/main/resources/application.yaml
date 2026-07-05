@@ -33,12 +33,15 @@ knowly:
     login-code:
       length: 6
       ttl: 10m
+      resend-cooldown: 30s
     one-time-password:
       length: 12
       ttl: 15d
     lockout:
       max-attempts: 3
       duration: 15m
+      abuse-request-threshold: 5
+      abuse-duration: 1h
     captcha:
       velocity-threshold: 5
       velocity-window: 5m
