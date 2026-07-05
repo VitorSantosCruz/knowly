@@ -20,18 +20,19 @@ public class SecurityConfig {
     }
 
     /**
-     * httpBasic is a placeholder: it ensures protected endpoints respond 401 (REST convention)
-     * instead of the default Http403ForbiddenEntryPoint's 403. It should be replaced by the real
-     * mechanism (e.g. JWT) once the authentication SPEC is written.
+     * httpBasic is a placeholder for endpoints other than /api/auth/**: it ensures they respond 401
+     * (REST convention) instead of the default Http403ForbiddenEntryPoint's 403. It should be
+     * replaced by the real session-aware mechanism once there are protected endpoints to guard.
      */
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers("/actuator/health")
+                                auth.requestMatchers("/actuator/health", "/api/auth/**")
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**"))
                 .httpBasic(withDefaults());
 
         return http.build();
