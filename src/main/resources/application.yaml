@@ -14,3 +14,19 @@ management:
   endpoint:
     health:
       show-details: never
+
+knowly:
+  auth:
+    login-code:
+      length: 6
+      ttl: 10m
+    one-time-password:
+      length: 12
+      ttl: 15d
+    lockout:
+      max-attempts: 3
+      duration: 15m
+    captcha:
+      velocity-threshold: 5
+      velocity-window: 5m
+      turnstile-secret: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}

@@ -2,3 +2,8 @@ spring:
   ai:
     openai:
       api-key: sk-test-dummy-0000000000000000000000000000000000000000
+
+knowly:
+  auth:
+    captcha:
+      turnstile-secret: test-dummy-turnstile-secret
