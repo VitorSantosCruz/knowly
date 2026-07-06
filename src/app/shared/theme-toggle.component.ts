@@ -10,6 +10,7 @@ import { ThemeService } from '../core/theme.service';
       [attr.aria-label]="
         themeService.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
       "
+      class="rounded-full px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
     >
       {{ themeService.theme() === 'dark' ? '☀️' : '🌙' }}
     </button>

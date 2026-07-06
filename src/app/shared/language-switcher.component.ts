@@ -9,7 +9,12 @@ const OTHER_LANG: Record<string, string> = {
 @Component({
   selector: 'app-language-switcher',
   template: `
-    <button type="button" (click)="switch()" [attr.aria-label]="'Change language'">
+    <button
+      type="button"
+      (click)="switch()"
+      [attr.aria-label]="'Change language'"
+      class="rounded-full px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+    >
       {{ languageService.currentLang() === 'pt-BR' ? 'PT' : 'EN' }}
     </button>
   `,

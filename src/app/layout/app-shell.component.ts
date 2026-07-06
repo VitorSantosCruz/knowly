@@ -7,11 +7,13 @@ import { ThemeToggleComponent } from '../shared/theme-toggle.component';
   selector: 'app-shell',
   imports: [RouterOutlet, LanguageSwitcherComponent, ThemeToggleComponent],
   template: `
-    <div class="fixed top-4 right-4 z-10 flex items-center gap-2">
-      <app-language-switcher />
-      <app-theme-toggle />
+    <div class="min-h-dvh bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <div class="fixed top-4 right-4 z-10 flex items-center gap-2">
+        <app-language-switcher />
+        <app-theme-toggle />
+      </div>
+      <router-outlet />
     </div>
-    <router-outlet />
   `,
 })
 export class AppShellComponent {}

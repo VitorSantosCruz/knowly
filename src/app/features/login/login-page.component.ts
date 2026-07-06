@@ -12,10 +12,13 @@ type CredentialTab = 'code' | 'password';
   selector: 'app-login-page',
   imports: [TranslocoPipe],
   template: `
-    <div class="flex min-h-dvh items-center justify-center">
+    <div class="flex min-h-dvh items-center justify-center p-4">
       @if (step() === 'email') {
-        <form class="flex w-full max-w-sm flex-col gap-4" (submit)="onSubmitEmail($event)">
-          <label for="email">{{ 'login.emailLabel' | transloco }}</label>
+        <form
+          class="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+          (submit)="onSubmitEmail($event)"
+        >
+          <label for="email" [class]="labelClass">{{ 'login.emailLabel' | transloco }}</label>
           <input
             id="email"
             name="email"
@@ -24,21 +27,29 @@ type CredentialTab = 'code' | 'password';
             [value]="email()"
             (input)="email.set($any($event.target).value)"
             placeholder="{{ 'login.emailPlaceholder' | transloco }}"
+            [class]="inputClass"
           />
           @if (captchaRequired()) {
             <div
-              class="cf-turnstile"
+              class="cf-turnstile mb-4"
               [attr.data-sitekey]="turnstileSiteKey"
               [attr.data-callback]="callbackName"
             ></div>
           }
-          <button type="submit" [disabled]="submitting() || (captchaRequired() && !captchaToken())">
+          <button
+            type="submit"
+            [disabled]="submitting() || (captchaRequired() && !captchaToken())"
+            [class]="buttonClass"
+          >
             {{ 'login.continue' | transloco }}
           </button>
         </form>
       } @else if (step() === 'credential') {
-        <div data-testid="credential-step" class="flex w-full max-w-sm flex-col gap-4">
-          <div role="tablist" class="flex gap-2">
+        <div
+          data-testid="credential-step"
+          class="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+        >
+          <div role="tablist" class="mb-6 flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
             <button
               type="button"
               role="tab"
@@ -47,6 +58,7 @@ type CredentialTab = 'code' | 'password';
               [attr.aria-selected]="activeTab() === 'code'"
               (click)="selectTab('code')"
               (keydown)="onTabKeydown($event)"
+              [class]="tabClass('code')"
             >
               {{ 'login.codeTab' | transloco }}
             </button>
@@ -58,6 +70,7 @@ type CredentialTab = 'code' | 'password';
               [attr.aria-selected]="activeTab() === 'password'"
               (click)="selectTab('password')"
               (keydown)="onTabKeydown($event)"
+              [class]="tabClass('password')"
             >
               {{ 'login.passwordTab' | transloco }}
             </button>
@@ -70,7 +83,7 @@ type CredentialTab = 'code' | 'password';
               aria-labelledby="tab-code"
               (submit)="onSubmitCode($event)"
             >
-              <label for="code">{{ 'login.codeLabel' | transloco }}</label>
+              <label for="code" [class]="labelClass">{{ 'login.codeLabel' | transloco }}</label>
               <input
                 id="code"
                 name="code"
@@ -79,16 +92,22 @@ type CredentialTab = 'code' | 'password';
                 [value]="code()"
                 [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
                 (input)="code.set($any($event.target).value)"
+                [class]="inputClass"
               />
               @if (errorCode(); as code) {
-                <p id="credential-error" role="alert" [attr.data-error-code]="code">
+                <p
+                  id="credential-error"
+                  role="alert"
+                  [attr.data-error-code]="code"
+                  class="-mt-2 mb-4 text-sm text-red-600 dark:text-red-400"
+                >
                   {{
                     (code === 'ACCOUNT_LOCKED' ? 'login.accountLocked' : 'login.invalidCredentials')
                       | transloco
                   }}
                 </p>
               }
-              <button type="submit" [disabled]="submitting()">
+              <button type="submit" [disabled]="submitting()" [class]="buttonClass">
                 {{ 'login.continue' | transloco }}
               </button>
             </form>
@@ -99,7 +118,9 @@ type CredentialTab = 'code' | 'password';
               aria-labelledby="tab-password"
               (submit)="onSubmitPassword($event)"
             >
-              <label for="password">{{ 'login.passwordLabel' | transloco }}</label>
+              <label for="password" [class]="labelClass">{{
+                'login.passwordLabel' | transloco
+              }}</label>
               <input
                 id="password"
                 name="password"
@@ -108,16 +129,22 @@ type CredentialTab = 'code' | 'password';
                 [value]="password()"
                 [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
                 (input)="password.set($any($event.target).value)"
+                [class]="inputClass"
               />
               @if (errorCode(); as code) {
-                <p id="credential-error" role="alert" [attr.data-error-code]="code">
+                <p
+                  id="credential-error"
+                  role="alert"
+                  [attr.data-error-code]="code"
+                  class="-mt-2 mb-4 text-sm text-red-600 dark:text-red-400"
+                >
                   {{
                     (code === 'ACCOUNT_LOCKED' ? 'login.accountLocked' : 'login.invalidCredentials')
                       | transloco
                   }}
                 </p>
               }
-              <button type="submit" [disabled]="submitting()">
+              <button type="submit" [disabled]="submitting()" [class]="buttonClass">
                 {{ 'login.continue' | transloco }}
               </button>
             </form>
@@ -149,8 +176,21 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly code = signal('');
   protected readonly password = signal('');
 
+  protected readonly labelClass = 'mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300';
+  protected readonly inputClass =
+    'mb-4 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100';
+  protected readonly buttonClass =
+    'w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600';
+
   ngOnDestroy(): void {
     delete (window as unknown as Record<string, unknown>)[this.callbackName];
+  }
+
+  tabClass(tab: CredentialTab): string {
+    const base = 'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition';
+    return this.activeTab() === tab
+      ? `${base} bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100`
+      : `${base} text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200`;
   }
 
   selectTab(tab: CredentialTab): void {
