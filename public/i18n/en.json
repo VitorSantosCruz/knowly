@@ -1,5 +1,7 @@
 {
   "login": {
+    "title": "knowly",
+    "subtitle": "Sign in to continue",
     "emailLabel": "Email",
     "emailPlaceholder": "you@example.com",
     "continue": "Continue",

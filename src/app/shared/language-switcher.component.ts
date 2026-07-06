@@ -13,7 +13,7 @@ const OTHER_LANG: Record<string, string> = {
       type="button"
       (click)="switch()"
       [attr.aria-label]="'Change language'"
-      class="rounded-full px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+      class="rounded-full px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-slate-800"
     >
       {{ languageService.currentLang() === 'pt-BR' ? 'PT' : 'EN' }}
     </button>

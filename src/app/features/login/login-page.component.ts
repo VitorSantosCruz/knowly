@@ -12,12 +12,17 @@ type CredentialTab = 'code' | 'password';
   selector: 'app-login-page',
   imports: [TranslocoPipe],
   template: `
-    <div class="flex min-h-dvh items-center justify-center p-4">
+    <div class="flex min-h-dvh items-center justify-center p-4 sm:p-6">
       @if (step() === 'email') {
-        <form
-          class="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-          (submit)="onSubmitEmail($event)"
-        >
+        <form [class]="cardClass" (submit)="onSubmitEmail($event)">
+          <div class="mb-8 text-center">
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {{ 'login.title' | transloco }}
+            </h1>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {{ 'login.subtitle' | transloco }}
+            </p>
+          </div>
           <label for="email" [class]="labelClass">{{ 'login.emailLabel' | transloco }}</label>
           <input
             id="email"
@@ -31,7 +36,7 @@ type CredentialTab = 'code' | 'password';
           />
           @if (captchaRequired()) {
             <div
-              class="cf-turnstile mb-4"
+              class="cf-turnstile mb-6"
               [attr.data-sitekey]="turnstileSiteKey"
               [attr.data-callback]="callbackName"
             ></div>
@@ -45,11 +50,8 @@ type CredentialTab = 'code' | 'password';
           </button>
         </form>
       } @else if (step() === 'credential') {
-        <div
-          data-testid="credential-step"
-          class="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-        >
-          <div role="tablist" class="mb-6 flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+        <div data-testid="credential-step" [class]="cardClass">
+          <div role="tablist" class="mb-8 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
               role="tab"
@@ -99,7 +101,7 @@ type CredentialTab = 'code' | 'password';
                   id="credential-error"
                   role="alert"
                   [attr.data-error-code]="code"
-                  class="-mt-2 mb-4 text-sm text-red-600 dark:text-red-400"
+                  [class]="errorClass"
                 >
                   {{
                     (code === 'ACCOUNT_LOCKED' ? 'login.accountLocked' : 'login.invalidCredentials')
@@ -136,7 +138,7 @@ type CredentialTab = 'code' | 'password';
                   id="credential-error"
                   role="alert"
                   [attr.data-error-code]="code"
-                  class="-mt-2 mb-4 text-sm text-red-600 dark:text-red-400"
+                  [class]="errorClass"
                 >
                   {{
                     (code === 'ACCOUNT_LOCKED' ? 'login.accountLocked' : 'login.invalidCredentials')
@@ -176,21 +178,26 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly code = signal('');
   protected readonly password = signal('');
 
-  protected readonly labelClass = 'mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300';
+  protected readonly cardClass =
+    'w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none';
+  protected readonly labelClass =
+    'mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300';
   protected readonly inputClass =
-    'mb-4 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100';
+    'mb-6 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:disabled:bg-slate-900';
   protected readonly buttonClass =
-    'w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600';
+    'w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:bg-indigo-700 active:bg-indigo-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:bg-slate-700';
+  protected readonly errorClass =
+    'mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400';
 
   ngOnDestroy(): void {
     delete (window as unknown as Record<string, unknown>)[this.callbackName];
   }
 
   tabClass(tab: CredentialTab): string {
-    const base = 'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition';
+    const base = 'flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition';
     return this.activeTab() === tab
-      ? `${base} bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100`
-      : `${base} text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200`;
+      ? `${base} bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white`
+      : `${base} text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200`;
   }
 
   selectTab(tab: CredentialTab): void {

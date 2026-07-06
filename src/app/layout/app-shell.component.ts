@@ -7,8 +7,10 @@ import { ThemeToggleComponent } from '../shared/theme-toggle.component';
   selector: 'app-shell',
   imports: [RouterOutlet, LanguageSwitcherComponent, ThemeToggleComponent],
   template: `
-    <div class="min-h-dvh bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-      <div class="fixed top-4 right-4 z-10 flex items-center gap-2">
+    <div
+      class="min-h-dvh bg-slate-100 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100"
+    >
+      <div class="fixed top-4 right-4 z-10 flex items-center gap-1">
         <app-language-switcher />
         <app-theme-toggle />
       </div>
