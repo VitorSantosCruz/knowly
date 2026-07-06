@@ -2,6 +2,12 @@ gg:
   jte:
     development-mode: true
 
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
+
 server:
   forward-headers-strategy: framework
   servlet:

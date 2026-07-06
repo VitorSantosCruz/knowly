@@ -2,10 +2,12 @@
 
 ## Architectural decisions
 
-- `org.springdoc:springdoc-openapi-starter-webmvc-ui` (new dependency) —
-  generates OpenAPI 3 docs from existing Spring MVC annotations
-  (`@PostMapping`, `@RequestBody`, DTOs), no per-endpoint annotation
-  required for basic coverage.
+- `org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6` (new
+  dependency, latest available on Maven Central at implementation time —
+  no 3.x release exists yet) — generates OpenAPI 3 docs from existing
+  Spring MVC annotations (`@PostMapping`, `@RequestBody`, DTOs), no
+  per-endpoint annotation required for basic coverage. Verified working
+  against Spring Boot 4.0.7/Spring Framework 7 via a real integration test.
 - Disabled by default via `springdoc.api-docs.enabled` and
   `springdoc.swagger-ui.enabled`, both bound to a single
   `API_DOCS_ENABLED` env var (default `false`) — one switch, not two to
@@ -36,8 +38,12 @@ src/main/resources/application.yaml  # + springdoc.* config
 
 ## Testing strategy
 
-- `ApiDocsSecurityTest`: with default config (docs disabled), asserts
-  `/v3/api-docs` and `/swagger-ui/index.html` are not served. With
-  `API_DOCS_ENABLED=true` (via `@TestPropertySource`/context override) and
-  no authentication, asserts 401. Confirms REQ-2/3/4 hold without relying
-  on manually re-verifying every future endpoint's inclusion.
+- `ApiDocsSecurityTest`: two `@Nested` `@SpringBootTest` contexts.
+  `WhenDisabledByDefault` logs a real user in via `/api/auth/login-code/verify`
+  to get an authenticated `SESSION` cookie, then asserts both doc endpoints
+  still 404 with that cookie attached — proving REQ-2 holds even for an
+  authenticated session, not just unauthenticated ones. `WhenEnabled` (docs
+  turned on via `@DynamicPropertySource`) asserts 401 without a session and
+  200 with one obtained the same way. Together these confirm REQ-2/3/4 hold
+  without relying on manually re-verifying every future endpoint's
+  inclusion.
