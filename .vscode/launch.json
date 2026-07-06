@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Current File",
+            "request": "launch",
+            "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "KnowlyApplication",
+            "request": "launch",
+            "mainClass": "br.com.conectabyte.knowly.KnowlyApplication",
+            "projectName": "knowly",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "type": "java",
+            "name": "TestKnowlyApplication",
+            "request": "launch",
+            "mainClass": "br.com.conectabyte.knowly.TestKnowlyApplication",
+            "projectName": "knowly"
+        }
+    ]
+}
