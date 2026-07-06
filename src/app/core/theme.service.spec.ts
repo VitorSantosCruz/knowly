@@ -1,18 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ThemeService } from './theme.service';
-
-function mockMatchMedia(prefersDark: boolean) {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    configurable: true,
-    value: (query: string) => ({
-      matches: query === '(prefers-color-scheme: dark)' && prefersDark,
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }),
-  });
-}
+import { mockMatchMedia } from '../testing/mock-match-media';
 
 describe('ThemeService', () => {
   beforeEach(() => {

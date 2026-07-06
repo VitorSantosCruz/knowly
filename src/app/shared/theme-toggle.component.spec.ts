@@ -1,21 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { ThemeToggleComponent } from './theme-toggle.component';
 import { ThemeService } from '../core/theme.service';
+import { mockMatchMedia } from '../testing/mock-match-media';
 
 describe('ThemeToggleComponent', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.classList.remove('dark');
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: () => ({
-        matches: false,
-        media: '',
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      }),
-    });
+    mockMatchMedia();
 
     TestBed.configureTestingModule({
       imports: [ThemeToggleComponent],
