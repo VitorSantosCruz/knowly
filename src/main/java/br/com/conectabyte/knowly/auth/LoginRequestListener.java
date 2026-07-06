@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.auth;
 
 import br.com.conectabyte.knowly.config.AuthRabbitConfig;
+import br.com.conectabyte.knowly.observability.PiiMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -37,6 +38,9 @@ public class LoginRequestListener {
                                 })
                         .orElse(false);
 
-        log.info("auth.login_request email={} accountExists={}", event.email(), accountExists);
+        log.info(
+                "auth.login_request email={} accountExists={}",
+                PiiMasker.maskEmail(event.email()),
+                accountExists);
     }
 }

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.observability.PiiMasker;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.mail.Session;
@@ -257,8 +258,14 @@ class AuthControllerIntegrationTest {
         assertThat(logAppender.list)
                 .anyMatch(
                         event ->
-                                event.getFormattedMessage().contains("audit-success@example.com")
+                                event.getFormattedMessage()
+                                                .contains(
+                                                        PiiMasker.maskEmail(
+                                                                "audit-success@example.com"))
                                         && event.getFormattedMessage().contains("outcome=success"));
+        assertThat(logAppender.list)
+                .noneMatch(
+                        event -> event.getFormattedMessage().contains("audit-success@example.com"));
     }
 
     @Test
@@ -275,9 +282,14 @@ class AuthControllerIntegrationTest {
         assertThat(logAppender.list)
                 .anyMatch(
                         event ->
-                                event.getFormattedMessage().contains("audit-fail@example.com")
+                                event.getFormattedMessage()
+                                                .contains(
+                                                        PiiMasker.maskEmail(
+                                                                "audit-fail@example.com"))
                                         && event.getFormattedMessage()
                                                 .contains("outcome=invalid_code"));
+        assertThat(logAppender.list)
+                .noneMatch(event -> event.getFormattedMessage().contains("audit-fail@example.com"));
     }
 
     @Test
@@ -303,8 +315,10 @@ class AuthControllerIntegrationTest {
         assertThat(logAppender.list)
                 .anyMatch(
                         event ->
-                                event.getFormattedMessage().contains(email)
+                                event.getFormattedMessage().contains(PiiMasker.maskEmail(email))
                                         && event.getFormattedMessage().contains("outcome=locked"));
+        assertThat(logAppender.list)
+                .noneMatch(event -> event.getFormattedMessage().contains(email));
     }
 
     @Test

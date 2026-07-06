@@ -74,6 +74,13 @@ sessions.
   code review today, and should eventually be enforced with an
   architecture test (e.g. ArchUnit) that flags service-layer methods with
   no corresponding log/audit call.
+- **PII in logs**: never log a raw email (or other direct PII) — use
+  `br.com.conectabyte.knowly.observability.PiiMasker#maskEmail`, which
+  keeps a stable per-address fingerprint (so "everything user X did" is
+  still filterable in Loki) without ever printing the address itself.
+  This matters beyond the auth log lines it started with: it applies to
+  every future feature that logs anything tied to a person, including
+  conversation/chat history once that exists.
 
 ## Security conventions for authentication and abuse prevention
 

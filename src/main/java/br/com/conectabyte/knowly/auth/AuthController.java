@@ -6,6 +6,7 @@ import br.com.conectabyte.knowly.auth.dto.VerifyPasswordRequestDto;
 import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
 import br.com.conectabyte.knowly.auth.exception.CaptchaRequiredException;
 import br.com.conectabyte.knowly.auth.exception.InvalidCredentialsException;
+import br.com.conectabyte.knowly.observability.PiiMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -70,7 +71,9 @@ public class AuthController {
                         properties.captcha().velocityThreshold());
 
         if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
-            log.warn("auth.login_request email={} outcome=captcha_required", request.email());
+            log.warn(
+                    "auth.login_request email={} outcome=captcha_required",
+                    PiiMasker.maskEmail(request.email()));
             throw new CaptchaRequiredException();
         }
 
@@ -97,18 +100,24 @@ public class AuthController {
                         properties.captcha().verifyVelocityThreshold());
 
         if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
-            log.warn("auth.login_code_verify email={} outcome=captcha_required", request.email());
+            log.warn(
+                    "auth.login_code_verify email={} outcome=captcha_required",
+                    PiiMasker.maskEmail(request.email()));
             throw new CaptchaRequiredException();
         }
 
         if (failedAttemptService.isLocked(request.email())) {
-            log.warn("auth.login_code_verify email={} outcome=locked", request.email());
+            log.warn(
+                    "auth.login_code_verify email={} outcome=locked",
+                    PiiMasker.maskEmail(request.email()));
             throw new AccountLockedException();
         }
 
         if (!loginCodeService.verify(request.email(), request.code())) {
             failedAttemptService.recordFailure(request.email());
-            log.warn("auth.login_code_verify email={} outcome=invalid_code", request.email());
+            log.warn(
+                    "auth.login_code_verify email={} outcome=invalid_code",
+                    PiiMasker.maskEmail(request.email()));
             throw new InvalidCredentialsException();
         }
 
@@ -125,7 +134,9 @@ public class AuthController {
                         });
 
         establishSession(request.email(), httpRequest, httpResponse);
-        log.info("auth.login_code_verify email={} outcome=success", request.email());
+        log.info(
+                "auth.login_code_verify email={} outcome=success",
+                PiiMasker.maskEmail(request.email()));
 
         return ResponseEntity.ok().build();
     }
@@ -146,12 +157,14 @@ public class AuthController {
         if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
             log.warn(
                     "auth.login_password_verify email={} outcome=captcha_required",
-                    request.email());
+                    PiiMasker.maskEmail(request.email()));
             throw new CaptchaRequiredException();
         }
 
         if (failedAttemptService.isLocked(request.email())) {
-            log.warn("auth.login_password_verify email={} outcome=locked", request.email());
+            log.warn(
+                    "auth.login_password_verify email={} outcome=locked",
+                    PiiMasker.maskEmail(request.email()));
             throw new AccountLockedException();
         }
 
@@ -163,14 +176,16 @@ public class AuthController {
             failedAttemptService.recordFailure(request.email());
             log.warn(
                     "auth.login_password_verify email={} outcome=invalid_password",
-                    request.email());
+                    PiiMasker.maskEmail(request.email()));
             throw new InvalidCredentialsException();
         }
 
         failedAttemptService.recordSuccess(request.email());
         mailService.sendNewOneTimePassword(request.email(), newPassword.get());
         establishSession(request.email(), httpRequest, httpResponse);
-        log.info("auth.login_password_verify email={} outcome=success", request.email());
+        log.info(
+                "auth.login_password_verify email={} outcome=success",
+                PiiMasker.maskEmail(request.email()));
 
         return ResponseEntity.ok().build();
     }
