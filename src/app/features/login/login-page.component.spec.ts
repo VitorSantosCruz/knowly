@@ -213,5 +213,102 @@ describe('LoginPageComponent', () => {
       );
       expect(fixture.nativeElement.querySelector('[data-testid="logged-in"]')).toBeTruthy();
     });
+
+    it('shows an invalid-credentials tooltip without clearing the code input', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(
+        throwError(
+          () => new HttpErrorResponse({ status: 401, error: { code: 'INVALID_CREDENTIALS' } }),
+        ),
+      );
+
+      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
+      codeInput.value = '000000';
+      codeInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      const tooltip: HTMLElement = fixture.nativeElement.querySelector('[role="alert"]');
+      expect(tooltip).toBeTruthy();
+      expect(tooltip.textContent).not.toContain('locked');
+      expect(codeInput.value).toBe('000000');
+    });
+
+    it('shows a distinct account-locked tooltip', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 429, error: { code: 'ACCOUNT_LOCKED' } })),
+      );
+
+      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
+      codeInput.value = '000000';
+      codeInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      const tooltip: HTMLElement = fixture.nativeElement.querySelector('[role="alert"]');
+      expect(tooltip).toBeTruthy();
+      expect(tooltip.getAttribute('data-error-code')).toBe('ACCOUNT_LOCKED');
+    });
+
+    it('associates the tooltip with the input via aria-describedby', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(
+        throwError(
+          () => new HttpErrorResponse({ status: 401, error: { code: 'INVALID_CREDENTIALS' } }),
+        ),
+      );
+
+      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      const tooltip: HTMLElement = fixture.nativeElement.querySelector('[role="alert"]');
+      expect(codeInput.getAttribute('aria-describedby')).toBe(tooltip.id);
+    });
+
+    it('clears the tooltip when switching tabs', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(
+        throwError(
+          () => new HttpErrorResponse({ status: 401, error: { code: 'INVALID_CREDENTIALS' } }),
+        ),
+      );
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeTruthy();
+
+      const tabs: NodeListOf<HTMLButtonElement> =
+        fixture.nativeElement.querySelectorAll('[role="tab"]');
+      tabs[1].click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeFalsy();
+    });
   });
 });

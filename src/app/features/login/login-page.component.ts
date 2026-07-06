@@ -77,8 +77,17 @@ type CredentialTab = 'code' | 'password';
                 type="text"
                 required
                 [value]="code()"
+                [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
                 (input)="code.set($any($event.target).value)"
               />
+              @if (errorCode(); as code) {
+                <p id="credential-error" role="alert" [attr.data-error-code]="code">
+                  {{
+                    (code === 'ACCOUNT_LOCKED' ? 'login.accountLocked' : 'login.invalidCredentials')
+                      | transloco
+                  }}
+                </p>
+              }
               <button type="submit" [disabled]="submitting()">
                 {{ 'login.continue' | transloco }}
               </button>
@@ -97,8 +106,17 @@ type CredentialTab = 'code' | 'password';
                 type="password"
                 required
                 [value]="password()"
+                [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
                 (input)="password.set($any($event.target).value)"
               />
+              @if (errorCode(); as code) {
+                <p id="credential-error" role="alert" [attr.data-error-code]="code">
+                  {{
+                    (code === 'ACCOUNT_LOCKED' ? 'login.accountLocked' : 'login.invalidCredentials')
+                      | transloco
+                  }}
+                </p>
+              }
               <button type="submit" [disabled]="submitting()">
                 {{ 'login.continue' | transloco }}
               </button>

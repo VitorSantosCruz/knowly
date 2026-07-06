@@ -6,6 +6,8 @@
     "codeTab": "Código",
     "passwordTab": "Senha",
     "codeLabel": "Código de uso único",
-    "passwordLabel": "Senha de uso único"
+    "passwordLabel": "Senha de uso único",
+    "invalidCredentials": "Algo está errado com o que você digitou. Tente novamente.",
+    "accountLocked": "Muitas tentativas. Tente novamente mais tarde."
   }
 }

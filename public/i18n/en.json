@@ -6,6 +6,8 @@
     "codeTab": "Code",
     "passwordTab": "Password",
     "codeLabel": "One-time code",
-    "passwordLabel": "One-time password"
+    "passwordLabel": "One-time password",
+    "invalidCredentials": "Something's wrong with what you entered. Please try again.",
+    "accountLocked": "Too many attempts. Please try again later."
   }
 }
