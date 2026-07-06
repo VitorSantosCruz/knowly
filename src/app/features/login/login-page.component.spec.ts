@@ -32,6 +32,17 @@ function setup() {
   return fixture;
 }
 
+function submitEmail(fixture: ReturnType<typeof setup>, email: string) {
+  const input: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
+  input.value = email;
+  input.dispatchEvent(new Event('input'));
+  fixture.detectChanges();
+
+  const form: HTMLFormElement = fixture.nativeElement.querySelector('form');
+  form.dispatchEvent(new Event('submit'));
+  fixture.detectChanges();
+}
+
 describe('LoginPageComponent', () => {
   it('renders the email step with a centered email input as the primary action', () => {
     const fixture = setup();
@@ -45,14 +56,7 @@ describe('LoginPageComponent', () => {
     const authService = TestBed.inject(AuthService);
     vi.spyOn(authService, 'requestLogin').mockReturnValue(of(undefined));
 
-    const input: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
-    input.value = 'user@example.com';
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    const form: HTMLFormElement = fixture.nativeElement.querySelector('form');
-    form.dispatchEvent(new Event('submit'));
-    fixture.detectChanges();
+    submitEmail(fixture, 'user@example.com');
 
     expect(authService.requestLogin).toHaveBeenCalledWith('user@example.com', undefined);
     expect(fixture.nativeElement.querySelector('[data-testid="credential-step"]')).toBeTruthy();
@@ -66,15 +70,64 @@ describe('LoginPageComponent', () => {
       throwError(() => new HttpErrorResponse({ status: 500 })),
     );
 
-    const input: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
-    input.value = 'user@example.com';
-    input.dispatchEvent(new Event('input'));
+    submitEmail(fixture, 'user@example.com');
+
+    expect(fixture.nativeElement.querySelector('input[type="email"]')).toBeTruthy();
+  });
+
+  it('renders the Turnstile widget when the backend requires a CAPTCHA', () => {
+    const fixture = setup();
+    const authService = TestBed.inject(AuthService);
+    vi.spyOn(authService, 'requestLogin').mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 400, error: { code: 'CAPTCHA_REQUIRED' } })),
+    );
+
+    submitEmail(fixture, 'user@example.com');
+
+    const widget: HTMLElement = fixture.nativeElement.querySelector('.cf-turnstile');
+    expect(widget).toBeTruthy();
+    expect(widget.getAttribute('data-sitekey')).toBeDefined();
+  });
+
+  it('keeps the submit button disabled until the CAPTCHA is solved', () => {
+    const fixture = setup();
+    const authService = TestBed.inject(AuthService);
+    vi.spyOn(authService, 'requestLogin').mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 400, error: { code: 'CAPTCHA_REQUIRED' } })),
+    );
+
+    submitEmail(fixture, 'user@example.com');
+
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
+    expect(button.disabled).toBe(true);
+
+    const widget: HTMLElement = fixture.nativeElement.querySelector('.cf-turnstile');
+    const callbackName = widget.getAttribute('data-callback')!;
+    (window as unknown as Record<string, (token: string) => void>)[callbackName]('solved-token');
     fixture.detectChanges();
 
+    expect(button.disabled).toBe(false);
+  });
+
+  it('resubmits with the solved CAPTCHA token', () => {
+    const fixture = setup();
+    const authService = TestBed.inject(AuthService);
+    vi.spyOn(authService, 'requestLogin').mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 400, error: { code: 'CAPTCHA_REQUIRED' } })),
+    );
+
+    submitEmail(fixture, 'user@example.com');
+
+    const widget: HTMLElement = fixture.nativeElement.querySelector('.cf-turnstile');
+    const callbackName = widget.getAttribute('data-callback')!;
+    (window as unknown as Record<string, (token: string) => void>)[callbackName]('solved-token');
+    fixture.detectChanges();
+
+    vi.spyOn(authService, 'requestLogin').mockReturnValue(of(undefined));
     const form: HTMLFormElement = fixture.nativeElement.querySelector('form');
     form.dispatchEvent(new Event('submit'));
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('input[type="email"]')).toBeTruthy();
+    expect(authService.requestLogin).toHaveBeenCalledWith('user@example.com', 'solved-token');
   });
 });
