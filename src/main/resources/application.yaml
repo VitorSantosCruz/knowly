@@ -20,6 +20,11 @@ server:
 spring:
   application:
     name: knowly
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  data:
+    redis:
+      password: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}

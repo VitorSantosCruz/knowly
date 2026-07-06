@@ -124,6 +124,13 @@ services:
       - '${REDIS_PASSWORD:?REDIS_PASSWORD is required}'
       - '--save'
       - '""'
+    labels:
+      # spring-boot-docker-compose's auto-detected connection details for redis never read a
+      # password (it only ever builds host:port), so without this label it silently creates a
+      # passwordless connection that wins over spring.data.redis.password in application.yaml —
+      # every session write then fails with NOAUTH. This label makes Spring Boot ignore the
+      # service entirely for connection-detection, so our explicit property config is used.
+      - 'org.springframework.boot.ignore=true'
     read_only: true
     tmpfs:
       - /data

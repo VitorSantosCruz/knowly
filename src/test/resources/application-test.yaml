@@ -1,4 +1,7 @@
 spring:
+  data:
+    redis:
+      password: ''
   ai:
     openai:
       api-key: sk-test-dummy-0000000000000000000000000000000000000000
