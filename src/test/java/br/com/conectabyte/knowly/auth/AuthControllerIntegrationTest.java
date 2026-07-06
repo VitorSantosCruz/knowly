@@ -391,6 +391,41 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
+    void verifyCodeChangesTheSessionIdToPreventFixation() {
+        userRepository.saveAndFlush(new User("fixation-seed@example.com"));
+        userRepository.saveAndFlush(new User("fixation@example.com"));
+        String seedCode = loginCodeService.generate("fixation-seed@example.com");
+        String code = loginCodeService.generate("fixation@example.com");
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        // Simulates an attacker who obtained a valid (but unauthenticated) session id and
+        // tricked the victim into using it, e.g. via a fixed SESSION cookie.
+        var seedResult =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"fixation-seed@example.com\",\"code\":\""
+                                        + seedCode
+                                        + "\"}")
+                        .exchange();
+        String preLoginCookie = seedResult.getResponse().getCookie("SESSION").getValue();
+
+        var result =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"fixation@example.com\",\"code\":\"" + code + "\"}")
+                        .cookie(new jakarta.servlet.http.Cookie("SESSION", preLoginCookie))
+                        .exchange();
+
+        assertThat(result).hasStatus(HttpStatus.OK);
+        String postLoginCookie = result.getResponse().getCookie("SESSION").getValue();
+        assertThat(postLoginCookie).isNotEqualTo(preLoginCookie);
+    }
+
+    @Test
     void verifyPasswordRequiresCaptchaWhenVelocityExceeded() {
         doReturn(true)
                 .when(captchaService)

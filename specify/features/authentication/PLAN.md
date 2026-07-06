@@ -74,13 +74,21 @@
   `AuthController.verifyPassword` no longer short-circuits via
   `Optional#flatMap` when the user doesn't exist; it now always calls
   `verifyAndRotate` (which accepts a nullable `User`), for the same reason.
-- CAPTCHA/velocity on verify endpoints: both `verifyCode` and
-  `verifyPassword` now call the *same*
-  `CaptchaService.recordRequestAndIsVelocityExceeded(ip)` counter already
-  used by `login-request` — one shared per-IP budget across all three
-  endpoints, not a separate/second CAPTCHA concept. Turnstile's "managed"
-  mode resolves silently for most real users; the visible challenge only
-  surfaces under actual abuse-level volume.
+- CAPTCHA/velocity on verify endpoints: `verifyCode` and `verifyPassword`
+  reuse the *same* `CaptchaService.recordRequestAndIsVelocityExceeded`
+  mechanism as `login-request` — not a separate/second CAPTCHA concept —
+  but each endpoint gets its own Redis counter, keyed by an `action`
+  string (`login-request`, `login-code-verify`, `login-password-verify`),
+  and the threshold is a parameter rather than a single shared property.
+  This was a correction made during implementation: an initial version
+  shared one per-IP counter and threshold across all three endpoints,
+  which caused normal verify-retry traffic (and, in tests, ordinary test
+  traffic) to trip the same budget tuned for the much-less-frequent
+  `login-request` call. Verify endpoints get a higher threshold
+  (`verify-velocity-threshold: 20` vs `velocity-threshold: 5`) since
+  they're legitimately called more often per session. Turnstile's
+  "managed" mode resolves silently for most real users; the visible
+  challenge only surfaces under actual abuse-level volume.
 - Passwords/codes are hashed with `PasswordEncoder` (BCrypt, already
   available via `spring-boot-starter-security`).
 - Emails (login code, new one-time password) are sent via
@@ -193,6 +201,7 @@ knowly:
       abuse-duration: 1h
     captcha:
       velocity-threshold: 5
+      verify-velocity-threshold: 20
       velocity-window: 5m
       turnstile-secret: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}
 ```

@@ -88,14 +88,14 @@
        `VerifyPasswordRequestDto`; `verifyCode`/`verifyPassword` call the
        existing `CaptchaService.recordRequestAndIsVelocityExceeded(ip)`.
        Tests first, then implement.
-- [ ] 29. Fix session fixation (REQ-12a): `establishSession` calls
+- [x] 29. Fix session fixation (REQ-12a): `establishSession` calls
        `HttpServletRequest#changeSessionId()` when a session already
        exists. Test: pre-seed a session, log in, assert the session id
        changed.
-- [ ] 30. Scope the CSRF exemption to the three concrete auth paths
+- [x] 30. Scope the CSRF exemption to the three concrete auth paths
        (REQ-12b) instead of the `/api/auth/**` wildcard in `SecurityConfig`.
-- [ ] 31. Add cookie hardening config (`server.forward-headers-strategy`,
+- [x] 31. Add cookie hardening config (`server.forward-headers-strategy`,
        `server.servlet.session.cookie.same-site`/`http-only`) to
        `application.yaml`.
-- [ ] 32. Run `./mvnw verify` and confirm it's green.
-- [ ] 33. Update `PLAN.md` if any decision changed during implementation.
+- [x] 32. Run `./mvnw verify` and confirm it's green.
+- [x] 33. Update `PLAN.md` if any decision changed during implementation.

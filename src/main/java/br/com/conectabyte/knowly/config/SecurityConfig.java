@@ -32,7 +32,12 @@ public class SecurityConfig {
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**"))
+                .csrf(
+                        csrf ->
+                                csrf.ignoringRequestMatchers(
+                                        "/api/auth/login-request",
+                                        "/api/auth/login-code/verify",
+                                        "/api/auth/login-password/verify"))
                 .httpBasic(withDefaults());
 
         return http.build();

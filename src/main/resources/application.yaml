@@ -2,6 +2,14 @@ gg:
   jte:
     development-mode: true
 
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+
 spring:
   application:
     name: knowly

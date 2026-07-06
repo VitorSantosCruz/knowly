@@ -177,6 +177,10 @@ public class AuthController {
 
     private void establishSession(
             String email, HttpServletRequest request, HttpServletResponse response) {
+        if (request.getSession(false) != null) {
+            request.changeSessionId();
+        }
+
         var authentication = new UsernamePasswordAuthenticationToken(email, null, List.of());
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
