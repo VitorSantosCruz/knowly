@@ -44,8 +44,21 @@ public class LoginRequestThrottleService {
         }
     }
 
+    /**
+     * A verify attempt (even with a wrong code) shows genuine intent to log in, so it offsets the
+     * abuse counter — but only by one, not a full reset. A full reset would let an attacker send N
+     * requests just under the threshold, throw away one verify call, and repeat indefinitely
+     * without ever triggering the abuse lockout; decrementing means that gaming pattern still
+     * converges on the threshold, while a genuine user who requests-then-tries-once per code isn't
+     * penalized.
+     */
     public void recordVerifyAttempt(String email) {
-        redisTemplate.delete(requestCountKey(email));
+        String countKey = requestCountKey(email);
+        Long count = redisTemplate.opsForValue().decrement(countKey);
+
+        if (count != null && count <= 0) {
+            redisTemplate.delete(countKey);
+        }
     }
 
     private String cooldownKey(String email) {

@@ -44,7 +44,7 @@ class LoginRequestThrottleServiceTest {
     }
 
     @Test
-    void aVerificationAttemptResetsTheAbuseCounter() {
+    void aVerificationAttemptOnlyPartiallyOffsetsTheAbuseCounter() {
         String email = "legitimate-retry@example.com";
 
         for (int i = 0; i < 4; i++) {
@@ -52,8 +52,32 @@ class LoginRequestThrottleServiceTest {
         }
         throttleService.recordVerifyAttempt(email);
 
-        for (int i = 0; i < 4; i++) {
+        throttleService.recordRequest(email);
+
+        assertThat(failedAttemptService.isLocked(email)).isFalse();
+    }
+
+    @Test
+    void repeatedRequestThenVerifyCyclesStillLockDespiteThePartialOffset() {
+        String email = "gaming-attempt@example.com";
+
+        for (int cycle = 0; cycle < 2; cycle++) {
+            for (int i = 0; i < 4; i++) {
+                throttleService.recordRequest(email);
+            }
+            throttleService.recordVerifyAttempt(email);
+        }
+
+        assertThat(failedAttemptService.isLocked(email)).isTrue();
+    }
+
+    @Test
+    void alternatingOneRequestAndOneVerifyNeverLocks() {
+        String email = "one-to-one-retry@example.com";
+
+        for (int i = 0; i < 10; i++) {
             throttleService.recordRequest(email);
+            throttleService.recordVerifyAttempt(email);
         }
 
         assertThat(failedAttemptService.isLocked(email)).isFalse();

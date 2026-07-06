@@ -353,7 +353,7 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void verifyingACodeResetsTheRequestAbuseCounter() {
+    void verifyingACodePartiallyOffsetsTheRequestAbuseCounter() {
         String email = "resets-abuse-counter@example.com";
         userRepository.saveAndFlush(new User(email));
 
@@ -367,9 +367,10 @@ class AuthControllerIntegrationTest {
                 .content("{\"email\":\"" + email + "\",\"code\":\"000000\"}")
                 .exchange();
 
-        for (int i = 0; i < 4; i++) {
-            loginRequestThrottleService.recordRequest(email);
-        }
+        // A single verify attempt offsets the abuse counter by one, not a full reset (REQ-4c) —
+        // so one more request stays under the threshold, but repeating the request-then-verify
+        // cycle would still converge on it.
+        loginRequestThrottleService.recordRequest(email);
 
         assertThat(failedAttemptService.isLocked(email)).isFalse();
     }

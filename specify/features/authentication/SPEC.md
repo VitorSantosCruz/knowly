@@ -54,9 +54,14 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   (1 hour).
 - **REQ-4c [Unwanted Behavior]** If any login-code or one-time-password
   verification is attempted for an email (REQ-5, REQ-6, REQ-7, REQ-8),
-  then the system shall reset that email's request-without-verification
-  counter (REQ-4b) to zero, regardless of whether the verification
-  succeeded.
+  then the system shall decrement that email's request-without-verification
+  counter (REQ-4b) by one, regardless of whether the verification
+  succeeded — a full reset to zero would let an attacker send requests
+  just under the REQ-4b threshold, throw away one verification attempt to
+  clear the counter, and repeat indefinitely without ever triggering the
+  lockout; a one-for-one decrement still lets a genuine user retry without
+  being punished, while a request-heavy/verify-light pattern still
+  converges on the threshold.
 - **REQ-4 [Event-Driven]** When the request volume/velocity from a given
   source exceeds the configured threshold, the system shall require a
   valid CAPTCHA (Cloudflare Turnstile) token on the request, and shall
