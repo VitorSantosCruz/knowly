@@ -9,3 +9,4 @@ dist/
 .angular/
 specify/
 *.md
+public/config.json

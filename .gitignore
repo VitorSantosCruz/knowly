@@ -42,3 +42,8 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Runtime config (per-environment, public values but not meant to be committed —
+# see public/config.example.json). Generated from public/config.template.json at
+# container startup in Docker; copy config.example.json here for local dev.
+/public/config.json

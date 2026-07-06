@@ -18,10 +18,26 @@ any feature, read
 
 ```sh
 npm install
+cp public/config.example.json public/config.json   # fill in real values
 npm start        # ng serve, with proxy to the backend at /api
 ```
 
 Open `http://localhost:4200`.
+
+## Runtime configuration
+
+Per-environment public values (currently just the Cloudflare Turnstile site
+key — public by design, unlike the backend's secret key) are **not** baked
+into the JS bundle at build time. Instead, the app fetches `/config.json` at
+startup:
+
+- **Locally**: copy `public/config.example.json` to `public/config.json`
+  (gitignored) and fill in real values.
+- **Docker**: `public/config.json` is generated at container start from
+  `public/config.template.json` via `envsubst`, reading environment
+  variables passed to the container (`docker run -e TURNSTILE_SITE_KEY=...`)
+  — see `docker-entrypoint.sh`. This means the same built image can be
+  promoted across environments with different keys, without a rebuild.
 
 ## Tests and build
 

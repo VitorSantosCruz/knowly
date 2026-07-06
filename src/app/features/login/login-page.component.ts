@@ -2,8 +2,8 @@ import { Component, OnDestroy, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { inject } from '@angular/core';
 import { AuthService, AuthErrorCode } from '../../core/auth.service';
+import { ConfigService } from '../../core/config.service';
 import { loadTurnstileScript } from '../../core/turnstile-loader';
-import { TURNSTILE_SITE_KEY } from '../../core/turnstile.config';
 
 type Step = 'email' | 'credential' | 'loggedIn';
 type CredentialTab = 'code' | 'password';
@@ -131,8 +131,11 @@ type CredentialTab = 'code' | 'password';
 })
 export class LoginPageComponent implements OnDestroy {
   private readonly authService = inject(AuthService);
+  private readonly configService = inject(ConfigService);
 
-  protected readonly turnstileSiteKey = TURNSTILE_SITE_KEY;
+  protected get turnstileSiteKey(): string {
+    return this.configService.turnstileSiteKey;
+  }
   protected readonly callbackName = `onTurnstileVerified_${crypto.randomUUID().replaceAll('-', '')}`;
 
   protected readonly step = signal<Step>('email');
