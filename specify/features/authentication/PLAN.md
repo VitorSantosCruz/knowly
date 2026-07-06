@@ -47,8 +47,40 @@
   `HttpSession` (backed by Redis) and sets the `SESSION` cookie. No custom
   `UserDetails`/`AuthenticationProvider` was needed since there's no
   password-based `AuthenticationManager` flow to hook into here.
-- `SecurityConfig` permits `/api/auth/**` (`permitAll`) and exempts it from
-  CSRF — these endpoints run before any session/CSRF token exists.
+- `SecurityConfig` permits `/api/auth/**` (`permitAll`), but the CSRF
+  exemption is scoped to the three concrete paths (`/api/auth/login-request`,
+  `/api/auth/login-code/verify`, `/api/auth/login-password/verify`), not
+  the wildcard — a future endpoint under `/api/auth/**` (e.g. logout)
+  should not silently inherit CSRF exemption.
+- Session fixation: `establishSession` calls `HttpServletRequest#changeSessionId()`
+  when a session already exists before building the new authenticated
+  `SecurityContext` — Spring Session's Redis-backed session supports this
+  natively (creates a new id, carries attributes over, expires the old
+  id). No-op when there's no pre-existing session (the normal case), since
+  `HttpSessionSecurityContextRepository` creates a fresh one regardless.
+- Cookie hardening: `server.servlet.session.cookie.same-site=lax` and
+  `http-only` explicit (already the default, made explicit for clarity),
+  plus `server.forward-headers-strategy=framework` so the `Secure`
+  attribute (auto-detected from the request scheme) is correct behind a
+  reverse proxy in production. `Secure` is intentionally left on
+  auto-detection rather than hardcoded `true`, so local HTTP dev keeps
+  working.
+- Timing-safety on verify endpoints: `LoginCodeService.verify` and
+  `OneTimePasswordService.verifyAndRotate` now always call
+  `PasswordEncoder#matches` — against a real hash when one exists, against
+  a constant dummy hash (computed once, at construction) otherwise — so
+  the expensive BCrypt comparison always runs and response time no longer
+  reveals whether a real code/password existed to compare against.
+  `AuthController.verifyPassword` no longer short-circuits via
+  `Optional#flatMap` when the user doesn't exist; it now always calls
+  `verifyAndRotate` (which accepts a nullable `User`), for the same reason.
+- CAPTCHA/velocity on verify endpoints: both `verifyCode` and
+  `verifyPassword` now call the *same*
+  `CaptchaService.recordRequestAndIsVelocityExceeded(ip)` counter already
+  used by `login-request` — one shared per-IP budget across all three
+  endpoints, not a separate/second CAPTCHA concept. Turnstile's "managed"
+  mode resolves silently for most real users; the visible challenge only
+  surfaces under actual abuse-level volume.
 - Passwords/codes are hashed with `PasswordEncoder` (BCrypt, already
   available via `spring-boot-starter-security`).
 - Emails (login code, new one-time password) are sent via
@@ -126,13 +158,17 @@ constitution's frontend-integration section).
   - `400` `CAPTCHA_REQUIRED`: velocity threshold exceeded, no/invalid token
     (REQ-4).
 - `POST /api/auth/login-code/verify`
-  - Body: `{ "email": string, "code": string }`
+  - Body: `{ "email": string, "code": string, "captchaToken"?: string }`
   - `200`: session cookie set (REQ-5).
+  - `400` `CAPTCHA_REQUIRED`: velocity threshold exceeded, no/invalid token
+    (REQ-6b).
   - `401` `INVALID_CREDENTIALS` (REQ-6).
   - `429` `ACCOUNT_LOCKED` (REQ-10).
 - `POST /api/auth/login-password/verify`
-  - Body: `{ "email": string, "password": string }`
+  - Body: `{ "email": string, "password": string, "captchaToken"?: string }`
   - `200`: session cookie set (REQ-7).
+  - `400` `CAPTCHA_REQUIRED`: velocity threshold exceeded, no/invalid token
+    (REQ-8b).
   - `401` `INVALID_CREDENTIALS` (REQ-8).
   - `429` `ACCOUNT_LOCKED` (REQ-10).
 
@@ -159,6 +195,18 @@ knowly:
       velocity-threshold: 5
       velocity-window: 5m
       turnstile-secret: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}
+```
+
+Standard Spring properties (not under `knowly.*`), for cookie hardening:
+
+```yaml
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
 ```
 
 ## Package/file structure
@@ -220,3 +268,16 @@ src/main/jte/mail/
 - `CaptchaServiceTest`: unit test with a mocked Turnstile HTTP response
   (WireMock or a fake `RestClient`), since we don't want tests hitting
   Cloudflare's real API.
+- Timing-safety tests (`LoginCodeServiceTest`, `OneTimePasswordServiceTest`):
+  assert that a miss (no code/password) and a real-but-wrong comparison
+  both invoke `PasswordEncoder#matches` — verified via a `PasswordEncoder`
+  spy/mock rather than by measuring wall-clock time (timing assertions in
+  a test suite are inherently flaky; asserting the *call happened* is what
+  actually matters).
+- `AuthControllerIntegrationTest` additions: session-id rotation (compare
+  the session cookie value before/after login when a pre-login session
+  exists), CSRF exemption scoped to exactly the three endpoints (a fourth,
+  made-up protected POST endpoint would still require a CSRF token — or,
+  simpler, assert the `SecurityFilterChain`'s configured exemption list
+  directly), and CAPTCHA-required responses from both verify endpoints
+  under simulated high velocity.

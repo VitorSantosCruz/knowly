@@ -72,6 +72,14 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   the email has no pending code (including when the email doesn't exist),
   then the system shall respond with the same generic "invalid credentials"
   error code and increment that email's failed-attempt counter (REQ-9).
+- **REQ-6a [Ubiquitous]** The system shall take the same amount of time to
+  reject a wrong code regardless of whether the email has a pending code —
+  the password-hash comparison always runs, against a constant dummy hash
+  when there is no real one, so response time cannot be used to infer
+  whether the email has an account or a pending code.
+- **REQ-6b [Event-Driven]** When the request volume/velocity from a given
+  source exceeds the configured threshold, the system shall require a
+  valid CAPTCHA token on the code-verification request, same as REQ-4.
 
 ### Verifying a one-time password
 
@@ -86,6 +94,12 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   exist), then the system shall respond with the same generic "invalid
   credentials" error code as REQ-6 and increment that email's
   failed-attempt counter (REQ-9).
+- **REQ-8a [Ubiquitous]** The system shall take the same amount of time to
+  reject a wrong password regardless of whether the email exists or has a
+  valid password on file — same mechanism and reasoning as REQ-6a.
+- **REQ-8b [Event-Driven]** When the request volume/velocity from a given
+  source exceeds the configured threshold, the system shall require a
+  valid CAPTCHA token on the password-verification request, same as REQ-4.
 
 ### Abuse prevention
 
@@ -107,6 +121,15 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
 - **REQ-12 [Ubiquitous]** On successful authentication (REQ-5 or REQ-7),
   the system shall establish a server-side session (Redis-backed) and set
   an httpOnly, secure session cookie on the response.
+- **REQ-12a [Unwanted Behavior]** If a session already exists at the time
+  of successful authentication (e.g., an anonymous pre-login session),
+  then the system shall rotate its identifier before establishing the
+  authenticated session, preventing session fixation.
+- **REQ-12b [Ubiquitous]** The system shall exempt only the three
+  authentication endpoints (`login-request`, `login-code/verify`,
+  `login-password/verify`) from CSRF protection — no other endpoint,
+  present or future, shall inherit this exemption via a shared path
+  prefix.
 
 ### One-time password lifecycle
 
@@ -143,7 +166,14 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   attacker infer account existence by measuring response time. Implemented
   by returning the response before doing any email-existence-dependent
   work (REQ-3a) — reuses the existing RabbitMQ instance already provisioned
-  in `compose.yaml`, no new infrastructure.
+  in `compose.yaml`, no new infrastructure. The same class of leak is
+  closed on both verification endpoints via REQ-6a/REQ-8a — otherwise an
+  attacker could recover the same information login-request now protects,
+  just through a different endpoint.
+- Session cookie: `HttpOnly` always; `SameSite=Lax` and `Secure`
+  auto-detected correctly behind a reverse proxy (requires
+  `server.forward-headers-strategy=framework`) — explicit rather than
+  relying on framework defaults nobody re-checks.
 
 ## Acceptance criteria
 
@@ -170,8 +200,16 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
       with the correct code/password — is rejected during the lockout.
 - [ ] The lockout and error behavior for a non-existing email is
       indistinguishable from a real, existing email.
-- [ ] After a configured request volume/velocity threshold, the login
-      request endpoint requires a valid Turnstile token.
+- [ ] After a configured request volume/velocity threshold, all three
+      authentication endpoints (login-request and both verify endpoints)
+      require a valid Turnstile token.
+- [ ] Rejecting a wrong code/password takes the same amount of time
+      whether or not the email has a real pending code/password.
+- [ ] A pre-existing (pre-login) session's identifier changes after a
+      successful login.
+- [ ] Only the three authentication endpoints are exempt from CSRF; a
+      request to any other endpoint without a CSRF token is rejected as
+      before.
 - [ ] A one-time password stops working 15 days after being issued.
 - [ ] Logging in via code while holding no valid one-time password (never
       had one, or it expired) triggers issuing and emailing a new one.
