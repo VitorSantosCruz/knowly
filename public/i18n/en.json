@@ -1,0 +1,7 @@
+{
+  "login": {
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "continue": "Continue"
+  }
+}
