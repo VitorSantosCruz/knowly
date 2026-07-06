@@ -10,6 +10,7 @@ springdoc:
 
 server:
   forward-headers-strategy: framework
+  shutdown: graceful
   servlet:
     session:
       cookie:
@@ -53,6 +54,8 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
   health:
     mail:
       enabled: false
