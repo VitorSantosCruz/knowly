@@ -1,15 +1,7 @@
-import { Injectable } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TranslocoLoader, TranslocoService, provideTransloco } from '@jsverse/transloco';
-import { of } from 'rxjs';
+import { TranslocoService, provideTransloco } from '@jsverse/transloco';
 import { LanguageService } from './language.service';
-
-@Injectable()
-class FakeTranslocoLoader implements TranslocoLoader {
-  getTranslation() {
-    return of({});
-  }
-}
+import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
 
 describe('LanguageService', () => {
   beforeEach(() => {

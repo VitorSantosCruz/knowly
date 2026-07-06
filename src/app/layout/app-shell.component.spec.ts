@@ -1,17 +1,9 @@
-import { Injectable } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { TranslocoLoader, provideTransloco } from '@jsverse/transloco';
-import { of } from 'rxjs';
+import { provideTransloco } from '@jsverse/transloco';
 import { AppShellComponent } from './app-shell.component';
 import { mockMatchMedia } from '../testing/mock-match-media';
-
-@Injectable()
-class FakeTranslocoLoader implements TranslocoLoader {
-  getTranslation() {
-    return of({});
-  }
-}
+import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
 
 describe('AppShellComponent', () => {
   beforeEach(() => {

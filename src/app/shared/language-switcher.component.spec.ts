@@ -1,16 +1,8 @@
-import { Injectable } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TranslocoLoader, provideTransloco } from '@jsverse/transloco';
-import { of } from 'rxjs';
+import { provideTransloco } from '@jsverse/transloco';
 import { LanguageSwitcherComponent } from './language-switcher.component';
 import { LanguageService } from '../core/language.service';
-
-@Injectable()
-class FakeTranslocoLoader implements TranslocoLoader {
-  getTranslation() {
-    return of({});
-  }
-}
+import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
 
 describe('LanguageSwitcherComponent', () => {
   beforeEach(() => {

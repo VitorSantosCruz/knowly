@@ -2,6 +2,10 @@
   "login": {
     "emailLabel": "E-mail",
     "emailPlaceholder": "voce@exemplo.com",
-    "continue": "Continuar"
+    "continue": "Continuar",
+    "codeTab": "Código",
+    "passwordTab": "Senha",
+    "codeLabel": "Código de uso único",
+    "passwordLabel": "Senha de uso único"
   }
 }

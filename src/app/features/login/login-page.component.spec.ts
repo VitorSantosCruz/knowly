@@ -1,18 +1,11 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { Injectable } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TranslocoLoader, provideTransloco } from '@jsverse/transloco';
+import { provideTransloco } from '@jsverse/transloco';
 import { of, throwError } from 'rxjs';
 import { LoginPageComponent } from './login-page.component';
 import { AuthService } from '../../core/auth.service';
-
-@Injectable()
-class FakeTranslocoLoader implements TranslocoLoader {
-  getTranslation() {
-    return of({});
-  }
-}
+import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 
 function setup() {
   TestBed.configureTestingModule({
@@ -129,5 +122,96 @@ describe('LoginPageComponent', () => {
     fixture.detectChanges();
 
     expect(authService.requestLogin).toHaveBeenCalledWith('user@example.com', 'solved-token');
+  });
+
+  describe('credential step', () => {
+    function goToCredentialStep(fixture: ReturnType<typeof setup>) {
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'requestLogin').mockReturnValue(of(undefined));
+      submitEmail(fixture, 'user@example.com');
+    }
+
+    it('renders Code and Password tabs', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+
+      const tabs: NodeListOf<HTMLElement> = fixture.nativeElement.querySelectorAll('[role="tab"]');
+      expect(tabs.length).toBe(2);
+      expect(tabs[0].textContent).toContain('Code');
+      expect(tabs[1].textContent).toContain('Password');
+    });
+
+    it('shows the code input on the Code tab by default', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+
+      expect(fixture.nativeElement.querySelector('input[name="code"]')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('input[name="password"]')).toBeFalsy();
+    });
+
+    it('shows the password input when the Password tab is selected', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+
+      const tabs: NodeListOf<HTMLButtonElement> =
+        fixture.nativeElement.querySelectorAll('[role="tab"]');
+      tabs[1].click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('input[name="password"]')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('input[name="code"]')).toBeFalsy();
+    });
+
+    it('logs the user in when the code is correct', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(of(undefined));
+
+      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
+      codeInput.value = '123456';
+      codeInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      expect(authService.verifyCode).toHaveBeenCalledWith('user@example.com', '123456', undefined);
+      expect(fixture.nativeElement.querySelector('[data-testid="logged-in"]')).toBeTruthy();
+    });
+
+    it('logs the user in when the password is correct', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      vi.spyOn(authService, 'verifyPassword').mockReturnValue(of(undefined));
+
+      const tabs: NodeListOf<HTMLButtonElement> =
+        fixture.nativeElement.querySelectorAll('[role="tab"]');
+      tabs[1].click();
+      fixture.detectChanges();
+
+      const passwordInput: HTMLInputElement =
+        fixture.nativeElement.querySelector('input[name="password"]');
+      passwordInput.value = 'abc123456789';
+      passwordInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      expect(authService.verifyPassword).toHaveBeenCalledWith(
+        'user@example.com',
+        'abc123456789',
+        undefined,
+      );
+      expect(fixture.nativeElement.querySelector('[data-testid="logged-in"]')).toBeTruthy();
+    });
   });
 });
