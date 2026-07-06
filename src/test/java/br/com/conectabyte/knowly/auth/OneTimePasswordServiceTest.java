@@ -1,6 +1,9 @@
 package br.com.conectabyte.knowly.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import java.time.Instant;
@@ -9,7 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -19,6 +24,8 @@ class OneTimePasswordServiceTest {
     @Autowired private OneTimePasswordService oneTimePasswordService;
 
     @Autowired private UserRepository userRepository;
+
+    @MockitoSpyBean private PasswordEncoder passwordEncoder;
 
     @Test
     void generatesAndPersistsAHashedPasswordOfTheConfiguredLength() {
@@ -68,5 +75,21 @@ class OneTimePasswordServiceTest {
 
         assertThat(oneTimePasswordService.hasValidPassword(user)).isFalse();
         assertThat(oneTimePasswordService.verifyAndRotate(user, original)).isEmpty();
+    }
+
+    @Test
+    void comparesAgainstADummyHashWhenTheUserHasNoValidPassword() {
+        User user = userRepository.saveAndFlush(new User("no-password-timing@example.com"));
+
+        oneTimePasswordService.verifyAndRotate(user, "whatever");
+
+        verify(passwordEncoder).matches(eq("whatever"), any());
+    }
+
+    @Test
+    void comparesAgainstADummyHashWhenTheUserIsNull() {
+        oneTimePasswordService.verifyAndRotate(null, "whatever");
+
+        verify(passwordEncoder).matches(eq("whatever"), any());
     }
 }

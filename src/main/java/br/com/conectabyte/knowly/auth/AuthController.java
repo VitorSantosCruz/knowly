@@ -125,13 +125,9 @@ public class AuthController {
             throw new AccountLockedException();
         }
 
+        User user = userRepository.findByEmailIgnoreCase(request.email()).orElse(null);
         Optional<String> newPassword =
-                userRepository
-                        .findByEmailIgnoreCase(request.email())
-                        .flatMap(
-                                user ->
-                                        oneTimePasswordService.verifyAndRotate(
-                                                user, request.password()));
+                oneTimePasswordService.verifyAndRotate(user, request.password());
 
         if (newPassword.isEmpty()) {
             failedAttemptService.recordFailure(request.email());

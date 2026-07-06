@@ -1,13 +1,18 @@
 package br.com.conectabyte.knowly.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -15,6 +20,8 @@ import org.springframework.test.context.ActiveProfiles;
 class LoginCodeServiceTest {
 
     @Autowired private LoginCodeService loginCodeService;
+
+    @MockitoSpyBean private PasswordEncoder passwordEncoder;
 
     @Test
     void generatesANumericCodeOfTheConfiguredLength() {
@@ -42,5 +49,12 @@ class LoginCodeServiceTest {
     @Test
     void rejectsVerificationWhenNoCodeWasGenerated() {
         assertThat(loginCodeService.verify("nobody@example.com", "123456")).isFalse();
+    }
+
+    @Test
+    void comparesAgainstADummyHashWhenNoCodeExists() {
+        loginCodeService.verify("no-code-timing@example.com", "123456");
+
+        verify(passwordEncoder).matches(eq("123456"), any());
     }
 }

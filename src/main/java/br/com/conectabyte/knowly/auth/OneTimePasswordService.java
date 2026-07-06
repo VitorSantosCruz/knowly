@@ -17,6 +17,7 @@ public class OneTimePasswordService {
     private final PasswordEncoder passwordEncoder;
     private final AuthProperties properties;
     private final SecureRandom random = new SecureRandom();
+    private final String dummyHash;
 
     public OneTimePasswordService(
             UserRepository userRepository,
@@ -25,6 +26,7 @@ public class OneTimePasswordService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
+        this.dummyHash = passwordEncoder.encode("dummy-constant-for-timing-safety");
     }
 
     public String generateFor(User user) {
@@ -46,8 +48,14 @@ public class OneTimePasswordService {
     }
 
     public Optional<String> verifyAndRotate(User user, String password) {
-        if (!hasValidPassword(user)
-                || !passwordEncoder.matches(password, user.getOneTimePasswordHash())) {
+        boolean valid = user != null && hasValidPassword(user);
+        String hashToCheck = valid ? user.getOneTimePasswordHash() : dummyHash;
+
+        // Always compare — real or dummy — so response time doesn't reveal whether the
+        // account/password exists.
+        boolean matches = passwordEncoder.matches(password, hashToCheck);
+
+        if (!valid || !matches) {
             return Optional.empty();
         }
 

@@ -15,6 +15,7 @@ public class LoginCodeService {
     private final PasswordEncoder passwordEncoder;
     private final AuthProperties properties;
     private final SecureRandom random = new SecureRandom();
+    private final String dummyHash;
 
     public LoginCodeService(
             StringRedisTemplate redisTemplate,
@@ -23,6 +24,7 @@ public class LoginCodeService {
         this.redisTemplate = redisTemplate;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
+        this.dummyHash = passwordEncoder.encode("dummy-constant-for-timing-safety");
     }
 
     public String generate(String email) {
@@ -42,17 +44,15 @@ public class LoginCodeService {
     public boolean verify(String email, String code) {
         String hash = redisTemplate.opsForValue().get(key(email));
 
-        if (hash == null) {
-            return false;
-        }
+        // Always compare against a hash — real or dummy — so response time doesn't reveal
+        // whether a code was pending for this email.
+        boolean matches = passwordEncoder.matches(code, hash != null ? hash : dummyHash);
 
-        boolean matches = passwordEncoder.matches(code, hash);
-
-        if (matches) {
+        if (hash != null && matches) {
             redisTemplate.delete(key(email));
         }
 
-        return matches;
+        return hash != null && matches;
     }
 
     private String key(String email) {
