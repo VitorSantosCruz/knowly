@@ -38,7 +38,7 @@ class CaptchaServiceTest {
                         null,
                         null,
                         null,
-                        new AuthProperties.Captcha(5, Duration.ofMinutes(5), "test-secret"));
+                        new AuthProperties.Captcha(5, 20, Duration.ofMinutes(5), "test-secret"));
 
         captchaService = new CaptchaService(builder, redisTemplate, properties);
     }
@@ -69,13 +69,15 @@ class CaptchaServiceTest {
     void doesNotExceedVelocityBelowTheThreshold() {
         when(valueOperations.increment(anyString())).thenReturn(1L);
 
-        assertThat(captchaService.recordRequestAndIsVelocityExceeded("1.2.3.4")).isFalse();
+        assertThat(captchaService.recordRequestAndIsVelocityExceeded("1.2.3.4", "login-request", 5))
+                .isFalse();
     }
 
     @Test
     void exceedsVelocityAboveTheThreshold() {
         when(valueOperations.increment(anyString())).thenReturn(6L);
 
-        assertThat(captchaService.recordRequestAndIsVelocityExceeded("1.2.3.4")).isTrue();
+        assertThat(captchaService.recordRequestAndIsVelocityExceeded("1.2.3.4", "login-request", 5))
+                .isTrue();
     }
 }

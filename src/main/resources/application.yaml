@@ -44,5 +44,6 @@ knowly:
       abuse-duration: 1h
     captcha:
       velocity-threshold: 5
+      verify-velocity-threshold: 20
       velocity-window: 5m
       turnstile-secret: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}

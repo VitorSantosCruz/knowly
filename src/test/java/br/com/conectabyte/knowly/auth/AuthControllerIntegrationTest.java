@@ -3,7 +3,10 @@ package br.com.conectabyte.knowly.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 @Import(TestcontainersConfiguration.class)
@@ -48,6 +52,8 @@ class AuthControllerIntegrationTest {
 
     @Autowired private LoginRequestThrottleService loginRequestThrottleService;
 
+    @MockitoSpyBean private CaptchaService captchaService;
+
     @MockitoBean private JavaMailSender mailSender;
 
     private ListAppender<ILoggingEvent> logAppender;
@@ -64,6 +70,7 @@ class AuthControllerIntegrationTest {
     void detachLogAppender() {
         ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AuthController.class))
                 .detachAppender(logAppender);
+        org.mockito.Mockito.reset(captchaService);
     }
 
     @Test
@@ -365,5 +372,37 @@ class AuthControllerIntegrationTest {
         }
 
         assertThat(failedAttemptService.isLocked(email)).isFalse();
+    }
+
+    @Test
+    void verifyCodeRequiresCaptchaWhenVelocityExceeded() {
+        doReturn(true)
+                .when(captchaService)
+                .recordRequestAndIsVelocityExceeded(any(), eq("login-code-verify"), anyInt());
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"captcha-verify-code@example.com\",\"code\":\"000000\"}");
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void verifyPasswordRequiresCaptchaWhenVelocityExceeded() {
+        doReturn(true)
+                .when(captchaService)
+                .recordRequestAndIsVelocityExceeded(any(), eq("login-password-verify"), anyInt());
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/auth/login-password/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"captcha-verify-password@example.com\",\"password\":\"wrong\"}");
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
     }
 }

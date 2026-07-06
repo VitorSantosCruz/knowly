@@ -83,7 +83,7 @@
        accept a nullable `User`; update `AuthController.verifyPassword` to
        stop short-circuiting via `Optional#flatMap`. Tests first (assert
        `matches` is invoked on the miss path too), then implement.
-- [ ] 28. Add CAPTCHA/velocity to verify endpoints (REQ-6b/REQ-8b):
+- [x] 28. Add CAPTCHA/velocity to verify endpoints (REQ-6b/REQ-8b):
        `captchaToken` field on `VerifyCodeRequestDto`/
        `VerifyPasswordRequestDto`; `verifyCode`/`verifyPassword` call the
        existing `CaptchaService.recordRequestAndIsVelocityExceeded(ip)`.

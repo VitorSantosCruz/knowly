@@ -37,6 +37,7 @@ public class AuthController {
     private final CaptchaService captchaService;
     private final LoginRequestPublisher loginRequestPublisher;
     private final LoginRequestThrottleService loginRequestThrottleService;
+    private final AuthProperties properties;
 
     public AuthController(
             UserRepository userRepository,
@@ -46,7 +47,8 @@ public class AuthController {
             MailService mailService,
             CaptchaService captchaService,
             LoginRequestPublisher loginRequestPublisher,
-            LoginRequestThrottleService loginRequestThrottleService) {
+            LoginRequestThrottleService loginRequestThrottleService,
+            AuthProperties properties) {
         this.userRepository = userRepository;
         this.loginCodeService = loginCodeService;
         this.oneTimePasswordService = oneTimePasswordService;
@@ -55,13 +57,17 @@ public class AuthController {
         this.captchaService = captchaService;
         this.loginRequestPublisher = loginRequestPublisher;
         this.loginRequestThrottleService = loginRequestThrottleService;
+        this.properties = properties;
     }
 
     @PostMapping("/login-request")
     public ResponseEntity<Void> requestLogin(
             @Valid @RequestBody LoginRequestDto request, HttpServletRequest httpRequest) {
         boolean velocityExceeded =
-                captchaService.recordRequestAndIsVelocityExceeded(httpRequest.getRemoteAddr());
+                captchaService.recordRequestAndIsVelocityExceeded(
+                        httpRequest.getRemoteAddr(),
+                        "login-request",
+                        properties.captcha().velocityThreshold());
 
         if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
             log.warn("auth.login_request email={} outcome=captcha_required", request.email());
@@ -83,6 +89,17 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         loginRequestThrottleService.recordVerifyAttempt(request.email());
+
+        boolean velocityExceeded =
+                captchaService.recordRequestAndIsVelocityExceeded(
+                        httpRequest.getRemoteAddr(),
+                        "login-code-verify",
+                        properties.captcha().verifyVelocityThreshold());
+
+        if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
+            log.warn("auth.login_code_verify email={} outcome=captcha_required", request.email());
+            throw new CaptchaRequiredException();
+        }
 
         if (failedAttemptService.isLocked(request.email())) {
             log.warn("auth.login_code_verify email={} outcome=locked", request.email());
@@ -119,6 +136,19 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         loginRequestThrottleService.recordVerifyAttempt(request.email());
+
+        boolean velocityExceeded =
+                captchaService.recordRequestAndIsVelocityExceeded(
+                        httpRequest.getRemoteAddr(),
+                        "login-password-verify",
+                        properties.captcha().verifyVelocityThreshold());
+
+        if (velocityExceeded && !captchaService.verify(request.captchaToken())) {
+            log.warn(
+                    "auth.login_password_verify email={} outcome=captcha_required",
+                    request.email());
+            throw new CaptchaRequiredException();
+        }
 
         if (failedAttemptService.isLocked(request.email())) {
             log.warn("auth.login_password_verify email={} outcome=locked", request.email());

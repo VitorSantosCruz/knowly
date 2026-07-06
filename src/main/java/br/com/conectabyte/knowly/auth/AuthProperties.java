@@ -17,5 +17,9 @@ public record AuthProperties(
             int abuseRequestThreshold,
             Duration abuseDuration) {}
 
-    public record Captcha(int velocityThreshold, Duration velocityWindow, String turnstileSecret) {}
+    public record Captcha(
+            int velocityThreshold,
+            int verifyVelocityThreshold,
+            Duration velocityWindow,
+            String turnstileSecret) {}
 }

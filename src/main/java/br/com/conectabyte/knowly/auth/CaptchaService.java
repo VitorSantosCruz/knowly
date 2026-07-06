@@ -24,18 +24,22 @@ public class CaptchaService {
     }
 
     /**
-     * Records one login-request attempt from {@code ip} and reports whether the configured
-     * request-velocity threshold has been exceeded, meaning a CAPTCHA should now be required.
+     * Records one attempt of the given {@code action} from {@code ip} and reports whether {@code
+     * threshold} has been exceeded for that action, meaning a CAPTCHA should now be required. Each
+     * action has its own counter — a burst on one endpoint (e.g. retrying a code) must not trigger
+     * CAPTCHA on an unrelated one (e.g. requesting a new login). The threshold is a parameter, not
+     * a single shared property, because verify endpoints are legitimately called far more often per
+     * session than the initial login request.
      */
-    public boolean recordRequestAndIsVelocityExceeded(String ip) {
-        String key = VELOCITY_KEY_PREFIX + ip;
+    public boolean recordRequestAndIsVelocityExceeded(String ip, String action, int threshold) {
+        String key = VELOCITY_KEY_PREFIX + action + ":" + ip;
         Long count = redisTemplate.opsForValue().increment(key);
 
         if (count != null && count == 1) {
             redisTemplate.expire(key, properties.captcha().velocityWindow());
         }
 
-        return count != null && count > properties.captcha().velocityThreshold();
+        return count != null && count > threshold;
     }
 
     public boolean verify(String token) {

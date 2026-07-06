@@ -23,6 +23,7 @@ class AuthPropertiesTest {
                             "knowly.auth.lockout.abuse-request-threshold=5",
                             "knowly.auth.lockout.abuse-duration=1h",
                             "knowly.auth.captcha.velocity-threshold=5",
+                            "knowly.auth.captcha.verify-velocity-threshold=20",
                             "knowly.auth.captcha.velocity-window=5m",
                             "knowly.auth.captcha.turnstile-secret=test-secret");
 
@@ -46,6 +47,7 @@ class AuthPropertiesTest {
                     assertThat(properties.lockout().abuseRequestThreshold()).isEqualTo(5);
                     assertThat(properties.lockout().abuseDuration()).isEqualTo(Duration.ofHours(1));
                     assertThat(properties.captcha().velocityThreshold()).isEqualTo(5);
+                    assertThat(properties.captcha().verifyVelocityThreshold()).isEqualTo(20);
                     assertThat(properties.captcha().velocityWindow())
                             .isEqualTo(Duration.ofMinutes(5));
                     assertThat(properties.captcha().turnstileSecret()).isEqualTo("test-secret");
