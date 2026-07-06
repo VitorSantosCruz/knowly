@@ -28,6 +28,31 @@ wins.
   **GitHub Container Registry** on every push to `main` (tags: `latest`
   and `sha-<commit>`).
 
+## Observability
+
+This project must be fully auditable end to end. The backend owns the
+audit trail (JPA Auditing, Envers, structured logs — see the backend
+constitution), but the frontend has a role too:
+
+- Every backend response includes a trace id (via OpenTelemetry
+  propagation). The frontend must surface it in error states (e.g. in a
+  support-facing error detail) so a user's report can be correlated with
+  backend logs/traces.
+- Never log or display sensitive data (codes, one-time passwords, session
+  identifiers) in the browser console or in error messages shown to the
+  user.
+
+## Global UI conventions
+
+- Language selection and light/dark theme are global, persistent user
+  preferences: once set, they apply across every screen in the app, not
+  just where they were changed (persist in `localStorage`, restored on
+  load).
+- The backend always returns messages/error codes in English. The backend
+  contract is stable identifiers (error codes), never free text meant for
+  end users — the frontend is the only layer that renders user-facing text,
+  localized to the user's selected language.
+
 ## Integration with the backend (knowly)
 
 - In development, all API calls use the `/api` prefix and are proxied to
