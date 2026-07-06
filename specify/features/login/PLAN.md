@@ -28,6 +28,41 @@
   relative `/api/auth/...` paths (proxied in dev, same-origin in prod per
   constitution).
 
+## Emergent decisions (recorded during implementation)
+
+- `LoginPageComponent`'s `step` signal has a third value, `'loggedIn'`,
+  beyond the two named in the original plan (`'email' | 'credential'`).
+  REQ-9 requires the system to "consider the user logged in and navigate
+  into the app" once a code/password is verified, but any actual
+  post-login screen is explicitly out of scope — so `'loggedIn'` renders
+  an empty `data-testid="logged-in"` placeholder for now, giving REQ-9 a
+  concrete, testable outcome without inventing out-of-scope UI.
+- Turnstile's site key (public by design, unlike the secret key which
+  stays server-side) lives in `core/turnstile.config.ts` as a placeholder
+  empty-string constant, with a comment marking it as required before any
+  environment where CAPTCHA should actually render. No environment-file
+  infrastructure was introduced for this single value (YAGNI) — revisit
+  if/when other environment-specific config is needed.
+- The Code/Password tabs use one shared `#credential-error` element
+  (singular, not per-tab) for the REQ-10/REQ-11 tooltip: only one tab is
+  ever visible at a time, so a single `role="alert"` paragraph, linked via
+  `aria-describedby` on whichever input is currently shown, is sufficient
+  and avoids duplicating the same markup per tab. Switching tabs clears
+  `errorCode`, so the tooltip never survives into the other tab.
+- Tab keyboard navigation (arrow keys, per the SPEC's non-functional
+  accessibility requirement) is handled by a single `onTabKeydown` handler
+  bound to both tab buttons, toggling between the two known tab values and
+  moving focus to the newly active tab button — sufficient for exactly two
+  tabs; would need generalizing (e.g. a list of tab ids) if a third tab
+  were ever added.
+- A shared `FakeTranslocoLoader` test double (`src/app/testing/`) backs
+  its translations with the real `public/i18n/*.json` dictionaries
+  (imported directly, via `resolveJsonModule` added to
+  `tsconfig.spec.json`) instead of returning `{}`. This means component
+  specs assert against actual rendered copy, not raw translation keys,
+  and a missing/renamed key fails a test instead of silently rendering
+  `login.someKey` in production.
+
 ## Components and routes
 
 - `AppShellComponent` (root layout): hosts `LanguageSwitcherComponent`,
