@@ -134,6 +134,14 @@
   `User`, and now `Tenant`/`TenantMembership`/etc).
 - `spring-boot-starter-aspectj` (Spring Boot 4's renamed AOP starter) is
   a new dependency — nothing in the project uses AOP yet.
+- Gotcha confirmed while testing `PermissionAspect`: this starter
+  defaults `spring.aop.proxy-target-class=true` (CGLIB), unlike the old
+  `spring-boot-starter-aop`'s JDK-proxy default. CGLIB can't subclass a
+  lambda (it's a final class), so a `@Bean` method returning a lambda
+  implementation of an annotated interface silently gets **no proxy at
+  all** — the aspect never runs, no error, no log. Every
+  `@RequiresPermission`/`@AuditLog`-annotated bean in this codebase (and
+  any test doubles for them) must be a real class, never a lambda.
 
 ### Audit event storage
 
