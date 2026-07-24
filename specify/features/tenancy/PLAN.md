@@ -106,18 +106,42 @@
   holds: a method with no `@RequiresPermission` and no other check
   denies nothing by *design* — the convention this PLAN establishes is
   that every tenant-scoped write/read handler must carry one.
-- Hibernate `@Filter` (`tenantFilter`, parameter `tenantId`) declared on
-  every tenant-scoped entity (`TenantMembership`, `AccessGroup`, and
-  every entity future features add — `Article` included, once it
-  exists). Enabled per-`Session` by `TenantContextFilter` right after it
-  resolves `TenantContext`: if an active tenant exists, enable the
-  filter with that id; if not (pending-selection or staff-no-tenant),
-  enable it with an id that can never match a real tenant (`-1`) —
-  belt-and-suspenders under the `@RequiresPermission` check: even a
-  handler that forgot its annotation still can't read another tenant's
-  rows, because the ORM itself won't return them. This is what the
-  SPEC's "fails closed... not by remembering to add `WHERE tenant_id =
-  ?`" NFR means concretely.
+- Hibernate `@Filter` (`tenantFilter`, parameter `tenantId`, defined once
+  via `@FilterDef` on `TenantMembership`, referenced by name on
+  `AccessGroup` and every entity future features add — `Article`
+  included, once it exists) — implemented and verified in
+  `TenantIsolationIntegrationTest`. If an active tenant exists, the
+  filter is enabled with that id; if not (pending-selection), it's
+  enabled with an id that can never match a real tenant (`-1`,
+  `TenantFilter.NO_ACTIVE_TENANT_SENTINEL`) — belt-and-suspenders under
+  the `@RequiresPermission` check: even a handler that forgot its
+  annotation still can't read another tenant's rows, because the ORM
+  itself won't return them. Staff with no active tenant get the filter
+  *disabled* entirely (cross-tenant support access); staff who set one
+  are scoped identically to a normal member. This is what the SPEC's
+  "fails closed... not by remembering to add `WHERE tenant_id = ?`" NFR
+  means concretely.
+  - **Enforcement point, corrected during implementation**: the filter
+    is enabled by `TenantFilterAspect`, an `@Around` advice on
+    `@Transactional`-annotated **service** methods — not on repository
+    interface executions as originally planned here. Tested and
+    confirmed: Spring Data repository proxies get their transactional
+    behavior from their own dedicated proxy-creation pipeline
+    (`RepositoryFactorySupport`), a layer that always sits *inside* the
+    general Spring AOP auto-proxy chain regardless of `@Order`. An
+    aspect targeting repository executions runs *before* that inner
+    transaction opens, so `entityManager.unwrap(Session.class)` at that
+    point resolves to a throwaway, non-transactional session that's
+    discarded before the real query runs — the filter setting silently
+    has zero effect. Targeting `@Transactional` service methods instead
+    puts this aspect on the same, single, `@Order`-controlled proxy as
+    the transaction advisor (`TransactionManagementConfig`,
+    `@EnableTransactionManagement(order = 0)` forces the transaction to
+    be outermost), so ordering actually holds. **Consequence for every
+    future feature**: any code path that reads/writes a
+    `@Filter`-annotated entity must go through a `@Transactional`
+    service method — a bare repository call from a controller or test
+    is not filtered.
 - `@AuditLog(action = "...", resourceType = "...")` + `AuditLogAspect`
   (`@Around`): writes one `AuditEvent` row after the method returns
   (`outcome = SUCCESS`) or throws (`outcome = ERROR`/`DENIED` depending

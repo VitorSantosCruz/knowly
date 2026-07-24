@@ -17,6 +17,9 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.ParamDef;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -30,6 +33,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "tenant_id"}))
 @Audited
 @EntityListeners(AuditingEntityListener.class)
+@FilterDef(
+        name = TenantFilter.NAME,
+        parameters = @ParamDef(name = TenantFilter.PARAMETER, type = Long.class))
+@Filter(name = TenantFilter.NAME, condition = "tenant_id = :" + TenantFilter.PARAMETER)
 @Getter
 @Setter
 @NoArgsConstructor
