@@ -35,9 +35,17 @@ describe('DashboardPageComponent', () => {
     httpMock.verify();
   });
 
+  function flushMetricRequests() {
+    httpMock.expectOne('/api/tenants/metrics/articles').flush({ totalCount: 0 });
+    httpMock.expectOne('/api/tenants/metrics/articles/usage').flush({ articles: [] });
+    httpMock.expectOne('/api/tenants/metrics/conversations').flush({ startedCount: 0 });
+    httpMock.expectOne('/api/tenants/metrics/messages').flush({ sentCount: 0, receivedCount: 0 });
+  }
+
   it('renders the dashboard root', () => {
     fixture.detectChanges();
     httpMock.expectOne('/api/users/me/onboarding-status').flush({ completed: true });
+    flushMetricRequests();
 
     expect(fixture.nativeElement.querySelector('[data-testid="dashboard-page"]')).toBeTruthy();
   });
@@ -48,6 +56,7 @@ describe('DashboardPageComponent', () => {
 
     httpMock.expectOne('/api/users/me/onboarding-status').flush({ completed: false });
     fixture.detectChanges();
+    flushMetricRequests();
 
     expect(startSpy).toHaveBeenCalled();
   });
@@ -58,6 +67,7 @@ describe('DashboardPageComponent', () => {
 
     httpMock.expectOne('/api/users/me/onboarding-status').flush({ completed: true });
     fixture.detectChanges();
+    flushMetricRequests();
 
     expect(startSpy).not.toHaveBeenCalled();
   });
@@ -65,7 +75,19 @@ describe('DashboardPageComponent', () => {
   it('links to the articles screen', () => {
     fixture.detectChanges();
     httpMock.expectOne('/api/users/me/onboarding-status').flush({ completed: true });
+    flushMetricRequests();
 
     expect(fixture.nativeElement.querySelector('[data-testid="articles-link"]')).toBeTruthy();
+  });
+
+  it('composes all four metric widgets', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/users/me/onboarding-status').flush({ completed: true });
+    flushMetricRequests();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="article-count-card"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="article-usage-list"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="conversations-card"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="messages-card"]')).toBeTruthy();
   });
 });
