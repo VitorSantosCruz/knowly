@@ -3,8 +3,7 @@ package br.com.conectabyte.knowly;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.grafana.LgtmStackContainer;
@@ -22,11 +21,13 @@ public class TestcontainersConfiguration {
         MINIO_CONTAINER.start();
     }
 
-    @DynamicPropertySource
-    static void storageProperties(DynamicPropertyRegistry registry) {
-        registry.add("knowly.storage.endpoint", MINIO_CONTAINER::getS3URL);
-        registry.add("knowly.storage.access-key", MINIO_CONTAINER::getUserName);
-        registry.add("knowly.storage.secret-key", MINIO_CONTAINER::getPassword);
+    @Bean
+    DynamicPropertyRegistrar storageProperties() {
+        return registry -> {
+            registry.add("knowly.storage.endpoint", MINIO_CONTAINER::getS3URL);
+            registry.add("knowly.storage.access-key", MINIO_CONTAINER::getUserName);
+            registry.add("knowly.storage.secret-key", MINIO_CONTAINER::getPassword);
+        };
     }
 
     @Bean
