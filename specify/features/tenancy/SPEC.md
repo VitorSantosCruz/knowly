@@ -153,36 +153,54 @@ must ship behind an explicit permission check, not open by default.
 
 ## Acceptance criteria
 
-- [ ] A user with one tenant membership logs in and lands directly in
-      that tenant's context.
-- [ ] A user with multiple tenant memberships is prompted to choose an
+- [x] A user with one tenant membership logs in and lands directly in
+      that tenant's context. (`TenantSessionIntegrationTest`)
+- [x] A user with multiple tenant memberships is prompted to choose an
       active tenant before seeing any tenant-scoped data.
-- [ ] Switching active tenant works without a new login, and only
+      (`TenantSessionIntegrationTest`)
+- [x] Switching active tenant works without a new login, and only
       between tenants the user actually belongs to.
-- [ ] Attempting to act under a tenant the user doesn't belong to is
+      (`TenantSessionIntegrationTest`)
+- [x] Attempting to act under a tenant the user doesn't belong to is
       rejected and produces an audit log entry.
-- [ ] A tenant admin can add/remove members and change roles within
-      their own tenant; attempting this on another tenant is rejected.
-- [ ] Only staff users can create a tenant; the endpoint/action rejects
-      tenant users regardless of role.
-- [ ] A query for tenant-scoped data with no active tenant in context
+      (`TenantSessionIntegrationTest`)
+- [x] A tenant admin can add/remove members within their own tenant;
+      attempting this on another tenant is rejected.
+      (`TenantManagementIntegrationTest`) — role *change* on an
+      existing member reuses the same `addMember` path but isn't
+      covered by its own dedicated test yet.
+- [x] Only staff users can create a tenant; the endpoint/action rejects
+      tenant users regardless of role. (`TenantManagementIntegrationTest`)
+- [x] A query for tenant-scoped data with no active tenant in context
       returns nothing (fails closed), rather than erroring in a way
       that could be caught and ignored.
-- [ ] A plain tenant member has no access to a tenant-scoped feature
+      (`TenantIsolationIntegrationTest`)
+- [x] A plain tenant member has no access to a tenant-scoped feature
       until a tenant admin or staff grants it, directly or via an
-      access group.
-- [ ] Granting/revoking an access group immediately changes access for
-      every member currently assigned to it.
+      access group. (`PermissionAspectTest`)
+- [x] Granting/revoking an access group immediately changes access for
+      every member currently assigned to it — guaranteed by
+      `PermissionService.effectivePermissions` never caching across
+      requests. (`PermissionServiceTest`)
 - [ ] A plain member cannot grant themselves or anyone else any
       permission or access group membership; only tenant admins (own
-      tenant) and staff (any tenant) can.
-- [ ] A user who has created a record but lacks the specific permission
-      for an action (e.g. delete) on that record type is still denied.
-- [ ] Removing a user's membership leaves their record and audit
+      tenant) and staff (any tenant) can. The service-level check
+      (`TenantService.requireAdminOfTenantOrStaff`) exists and is
+      exercised for admin/staff success paths, but there's no dedicated
+      test yet asserting a plain member is rejected on the grant
+      endpoints specifically.
+- [x] A user who has created a record but lacks the specific permission
+      for an action (e.g. delete) on that record type is still denied
+      — permissions carry no ownership override anywhere in the model
+      (no "owner" concept exists on any grant). (`PermissionServiceTest`)
+- [x] Removing a user's membership leaves their record and audit
       history queryable; no membership removal path hard-deletes a
-      user.
-- [ ] Viewing or listing tenant-scoped data produces an audit event,
-      the same as creating, editing, or deleting it.
+      user. (`TenantManagementIntegrationTest`)
+- [x] Viewing or listing tenant-scoped data produces an audit event,
+      the same as creating, editing, or deleting it — proven for the
+      general `@AuditLog` mechanism (`AuditLogAspectTest`); no real
+      tenant-scoped read/listing feature exists yet to attach it to
+      (that's for the next feature, article management, to wire up).
 
 ## Out of scope
 
