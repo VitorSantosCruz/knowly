@@ -3,6 +3,10 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.PermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.SwitchActiveTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantMembershipDto;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +20,9 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -77,6 +83,78 @@ public class TenantController {
         HttpSession session = httpRequest.getSession(true);
         session.removeAttribute(TenantSessionKeys.SELECTION_PENDING);
         session.setAttribute(TenantSessionKeys.ACTIVE_TENANT_ID, request.tenantId());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping
+    public ResponseEntity<Void> createTenant(@Valid @RequestBody CreateTenantRequestDto request) {
+        tenantService.createTenant(currentUser(), request.name(), request.adminEmail());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members")
+    public ResponseEntity<Void> addMember(
+            @PathVariable Long tenantId, @Valid @RequestBody AddMemberRequestDto request) {
+        tenantService.addMember(currentUser(), tenantId, request.email(), request.role());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{tenantId}/members/{membershipId}")
+    public ResponseEntity<Void> removeMember(
+            @PathVariable Long tenantId, @PathVariable Long membershipId) {
+        tenantService.removeMember(currentUser(), tenantId, membershipId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members/{membershipId}/permissions")
+    public ResponseEntity<Void> grantPermission(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @Valid @RequestBody PermissionRequestDto request) {
+        tenantService.grantPermission(currentUser(), tenantId, membershipId, request.permission());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{tenantId}/members/{membershipId}/permissions/{permission}")
+    public ResponseEntity<Void> revokePermission(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @PathVariable Permission permission) {
+        tenantService.revokePermission(currentUser(), tenantId, membershipId, permission);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/access-groups")
+    public ResponseEntity<Void> createAccessGroup(
+            @PathVariable Long tenantId, @Valid @RequestBody CreateAccessGroupRequestDto request) {
+        tenantService.createAccessGroup(currentUser(), tenantId, request.name());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/access-groups/{accessGroupId}/permissions")
+    public ResponseEntity<Void> grantAccessGroupPermission(
+            @PathVariable Long tenantId,
+            @PathVariable Long accessGroupId,
+            @Valid @RequestBody PermissionRequestDto request) {
+        tenantService.grantAccessGroupPermission(
+                currentUser(), tenantId, accessGroupId, request.permission());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members/{membershipId}/access-groups/{accessGroupId}")
+    public ResponseEntity<Void> assignAccessGroup(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @PathVariable Long accessGroupId) {
+        tenantService.assignAccessGroup(currentUser(), tenantId, membershipId, accessGroupId);
 
         return ResponseEntity.ok().build();
     }
