@@ -149,6 +149,23 @@ services:
           cpus: '0.5'
           memory: 256m
 
+  # MinIO's own entrypoint never chowns its data directory (unlike rabbitmq's, which is why
+  # that service alone gets CHOWN/SETUID/SETGID) — it just chroots into the target user. The
+  # image's /data is root-owned, so a fresh named volume (which inherits that ownership on
+  # first mount) is unwritable by the non-root `user: 1000:1000` below, and with cap_drop: ALL
+  # minio itself has no way to fix it. This one-shot init service does it once, as root, with
+  # only the CHOWN capability restored, before minio ever starts.
+  minio-init-permissions:
+    <<: *security-defaults
+    image: 'busybox:1.37'
+    user: root
+    cap_add:
+      - CHOWN
+    restart: 'no'
+    command: ['chown', '-R', '1000:1000', '/data']
+    volumes:
+      - minio-data:/data
+
   minio:
     <<: *security-defaults
     image: 'minio/minio:RELEASE.2025-04-08T15-41-24Z'
@@ -163,6 +180,9 @@ services:
       - '127.0.0.1:9000:9000'
     networks:
       - knowly-net
+    depends_on:
+      minio-init-permissions:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
