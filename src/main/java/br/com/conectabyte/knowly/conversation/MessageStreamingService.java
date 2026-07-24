@@ -54,6 +54,12 @@ public class MessageStreamingService {
     }
 
     public SseEmitter sendMessage(User owner, Long tenantId, Long conversationId, String content) {
+        return sendMessage(owner, tenantId, conversationId, content, new SseEmitter(0L));
+    }
+
+    /** Package-private seam so tests can observe exactly what's sent through the emitter. */
+    SseEmitter sendMessage(
+            User owner, Long tenantId, Long conversationId, String content, SseEmitter emitter) {
         Conversation conversation =
                 conversationService.requireOwnConversation(owner, conversationId);
         messageRepository.save(new Message(conversation, MessageRole.USER, content));
@@ -61,7 +67,6 @@ public class MessageStreamingService {
         List<Document> relevantChunks = retrieveRelevantChunks(tenantId, content);
         Prompt prompt = buildPrompt(conversationId, relevantChunks);
 
-        SseEmitter emitter = new SseEmitter(0L);
         StringBuilder fullResponse = new StringBuilder();
 
         chatModel.stream(prompt)

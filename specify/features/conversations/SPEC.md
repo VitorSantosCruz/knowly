@@ -109,10 +109,10 @@ model to answer using it.
 - [x] Deleting an article removes its embeddings.
 - [x] A user with `CONVERSATION_USE` can create a conversation and send a
       message, receiving a streamed, article-grounded response. (Verified
-      with a mocked `ChatModel`/`VectorStore`; the real streamed-SSE
-      wire format itself — as opposed to the service-level event
-      sequence and the persisted result — is not asserted byte-for-byte,
-      since `Flux.just(...)` completes synchronously in tests.)
+      with a mocked `ChatModel`/`VectorStore`, including the actual SSE
+      event names/payloads sent — one `message` event per delta plus a
+      final `done` event — via a recording `SseEmitter` test double, not
+      just the persisted end-state.)
 - [x] The conversation and its messages are persisted in order after the
       stream completes.
 - [x] A user only ever sees their own conversations, never another

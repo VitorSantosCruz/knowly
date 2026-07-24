@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.tenancy.Tenant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -23,9 +24,40 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
 class MessageStreamingServiceTest {
+
+    /**
+     * Captures exactly what the service sends over SSE — event name + raw data — without requiring
+     * a real HTTP request/response to be attached, and tracks completion state.
+     */
+    private static class RecordingSseEmitter extends SseEmitter {
+        final List<String> events = new ArrayList<>();
+        boolean completed;
+        Throwable completedWithError;
+
+        @Override
+        public void send(SseEventBuilder builder) {
+            StringBuilder event = new StringBuilder();
+            for (ResponseBodyEmitter.DataWithMediaType data : builder.build()) {
+                event.append(data.getData());
+            }
+            events.add(event.toString());
+        }
+
+        @Override
+        public void complete() {
+            completed = true;
+        }
+
+        @Override
+        public void completeWithError(Throwable ex) {
+            completedWithError = ex;
+        }
+    }
 
     private final ConversationService conversationService = mock(ConversationService.class);
     private final MessageRepository messageRepository = mock(MessageRepository.class);
@@ -103,7 +135,7 @@ class MessageStreamingServiceTest {
     }
 
     @Test
-    void streamedDeltasAreConcatenatedAndPersistedAsTheAssistantMessageOnCompletion() {
+    void streamedDeltasProduceOneSseMessageEventEachThenADoneEvent() {
         Conversation conversation = aConversation();
         when(conversationService.requireOwnConversation(any(), any())).thenReturn(conversation);
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -112,9 +144,16 @@ class MessageStreamingServiceTest {
                 .thenReturn(List.of());
         when(chatModel.stream(any(Prompt.class)))
                 .thenReturn(Flux.just(chunk("Hello"), chunk(", world!")));
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
 
-        service.sendMessage(conversation.getOwner(), 1L, conversation.getId(), "question");
+        service.sendMessage(conversation.getOwner(), 1L, conversation.getId(), "question", emitter);
 
+        assertThat(emitter.events).hasSize(3);
+        assertThat(emitter.events.get(0)).contains("event:message").contains("data:Hello");
+        assertThat(emitter.events.get(1)).contains("event:message").contains("data:, world!");
+        assertThat(emitter.events.get(2)).contains("event:done");
+        assertThat(emitter.completed).isTrue();
+        assertThat(emitter.completedWithError).isNull();
         verify(messageRepository, times(2))
                 .save(
                         argThat(
@@ -125,17 +164,22 @@ class MessageStreamingServiceTest {
     }
 
     @Test
-    void aChatModelErrorEndsTheStreamRatherThanHanging() {
+    void aChatModelErrorSendsAnSseErrorEventAndEndsTheStreamRatherThanHanging() {
         Conversation conversation = aConversation();
         when(conversationService.requireOwnConversation(any(), any())).thenReturn(conversation);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
         when(messageRepository.findByConversationIdOrderByCreatedAtAsc(any()))
                 .thenReturn(List.of());
-        when(chatModel.stream(any(Prompt.class)))
-                .thenReturn(Flux.error(new RuntimeException("provider unavailable")));
+        RuntimeException providerError = new RuntimeException("provider unavailable");
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.error(providerError));
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
 
-        service.sendMessage(conversation.getOwner(), 1L, conversation.getId(), "question");
+        service.sendMessage(conversation.getOwner(), 1L, conversation.getId(), "question", emitter);
 
+        assertThat(emitter.events).hasSize(1);
+        assertThat(emitter.events.get(0)).contains("event:error");
+        assertThat(emitter.completedWithError).isSameAs(providerError);
+        assertThat(emitter.completed).isFalse();
         verify(messageRepository, times(1)).save(argThat(m -> m.getRole() == MessageRole.USER));
         verify(messageRepository, times(0))
                 .save(argThat(m -> m.getRole() == MessageRole.ASSISTANT));

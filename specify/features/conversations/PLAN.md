@@ -227,25 +227,22 @@ All under `/api/tenants/{tenantId}/conversations`, behind
   `application-test.yaml` — the actual value doesn't matter for tests
   that never call a real embedding model, it just needs to be present so
   `PgVectorStore` skips the real call.
-- No dedicated `ArticleEmbeddingListenerTest` was written as originally
-  planned. Embedding-pipeline behavior (chunking, `VectorStore#add`,
-  terminal failure marking) is instead exercised indirectly through the
-  existing `ArticleControllerIntegrationTest` upload flow, which already
-  runs the real `ArticleExtractionListener` → `ArticleEmbeddingListener`
-  chain end-to-end against the dummy OpenAI key (producing a real,
-  logged `embedding_status = FAILED`, confirmed by inspecting test
-  output) — this covers the terminal-failure path (REQ-3) but not the
-  success path (REQ-1) with a real chunk count assertion. A follow-up
-  unit test injecting a fake `VectorStore`/`EmbeddingModel` directly into
-  `ArticleEmbeddingListener` would close this gap.
-- `MessageStreamingService` is tested primarily via a plain Mockito unit
-  test (`MessageStreamingServiceTest`), not just the planned
-  `ConversationControllerIntegrationTest`. Reasoning: `SseEmitter.send()`
-  requires an attached async request context to observe the actual wire
-  events, which a unit test doesn't have — so the unit test verifies
-  outcomes (persisted messages, filter expressions, prompt content, call
-  ordering) rather than raw SSE payloads. The controller integration test
-  then separately confirms the same flow works end-to-end through real
-  Spring MVC request handling (permission gating, persistence via the
-  real repository, mocked `ChatModel`/`VectorStore` beans) — together
-  they cover what one test alone couldn't.
+- `ArticleEmbeddingListenerTest` (plain Mockito unit test, mocked
+  `ArticleRepository`/`VectorStore`) directly covers the success path
+  (chunks produced, `VectorStore#add` called with `tenant_id`/
+  `article_id` metadata, `embeddingStatus` set to `READY`), the
+  terminal-failure path (`FAILED` + reason, no rethrow), and the
+  missing-article path (skipped, no `VectorStore`/repository call) —
+  closing the gap left by relying only on `ArticleControllerIntegrationTest`'s
+  indirect, failure-only coverage against the dummy OpenAI key.
+- `MessageStreamingService#sendMessage` gained a package-private overload
+  taking the `SseEmitter` explicitly (the public one just calls it with
+  `new SseEmitter(0L)`), purely as a test seam: `MessageStreamingServiceTest`
+  passes a `RecordingSseEmitter` (a small test-only `SseEmitter` subclass
+  overriding `send`/`complete`/`completeWithError`) to assert the *actual*
+  SSE event names and payloads sent — one `message` event per delta, a
+  final `done` event, or a single `error` event on failure — rather than
+  only the persisted end-state. The `ConversationControllerIntegrationTest`
+  additions still separately confirm the same flow end-to-end through real
+  Spring MVC request handling (permission gating, real repository
+  persistence, mocked `ChatModel`/`VectorStore` beans).
