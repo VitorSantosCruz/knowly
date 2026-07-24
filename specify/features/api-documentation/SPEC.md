@@ -43,13 +43,17 @@ documentation available without that exposure.
 
 ## Acceptance criteria
 
-- [ ] With no environment variable set, `/v3/api-docs` and `/swagger-ui/**`
+- [x] With no environment variable set, `/v3/api-docs` and `/swagger-ui/**`
       are not served (404 or disabled response) regardless of
       authentication.
-- [ ] With `API_DOCS_ENABLED=true` and no authenticated session, the
+- [x] With `API_DOCS_ENABLED=true` and no authenticated session, the
       documentation endpoints respond 401.
-- [ ] With `API_DOCS_ENABLED=true` and an authenticated session, the
+- [x] With `API_DOCS_ENABLED=true` and an authenticated session, the
       Swagger UI renders and lists every existing controller's endpoints.
+      (springdoc auto-discovers every `@RestController` with no
+      per-controller opt-in, so this holds architecturally rather than
+      needing a per-controller test; `ApiDocsSecurityTest` verifies the
+      200/401/404 gating.)
 
 ## Out of scope
 

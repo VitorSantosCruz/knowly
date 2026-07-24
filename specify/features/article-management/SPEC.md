@@ -122,12 +122,11 @@ that read what this one produces (see "Out of scope").
 - [x] A processing PDF eventually reaches "ready" with correct extracted
       text. (`ArticleExtractionListenerTest`, against a real
       PDFBox-generated PDF and real Tika extraction)
-- [ ] A processing image eventually reaches "ready" with OCR'd text.
-      **Not verified in this sandbox** — no `tesseract` binary
-      available here and no sudo to install it non-interactively. The
-      code path is implemented and identical to the verified PDF case;
-      needs re-running wherever `tesseract-ocr` is installed (see
-      TASKS.md task 20).
+- [x] A processing image eventually reaches "ready" with OCR'd text.
+      (`ArticleExtractionListenerTest`, against a real PNG generated
+      in-test with `Graphics2D`/`ImageIO` and real Tesseract OCR — see
+      TASKS.md task 20 for how `tesseract` was made available in this
+      sandbox without root.)
 - [x] A processing audio file eventually reaches "ready" with transcribed
       text. (`ArticleExtractionListenerTest`, `TranscriptionModel`
       mocked at the Spring AI client boundary — no real Whisper API

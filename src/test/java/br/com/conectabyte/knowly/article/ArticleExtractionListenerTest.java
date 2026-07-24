@@ -8,8 +8,14 @@ import static org.mockito.Mockito.when;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
+import javax.imageio.ImageIO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -78,6 +84,41 @@ class ArticleExtractionListenerTest {
                                     articleRepository.findById(article.getId()).orElseThrow();
                             assertThat(reloaded.getStatus()).isEqualTo(ArticleStatus.READY);
                             assertThat(reloaded.getText()).contains("Hello knowly extraction");
+                        });
+    }
+
+    private static byte[] sampleOcrImageBytes(String text) throws Exception {
+        BufferedImage image = new BufferedImage(600, 150, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setRenderingHint(
+                RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+        graphics.setColor(Color.BLACK);
+        graphics.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 36));
+        graphics.drawString(text, 20, 80);
+        graphics.dispose();
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", output);
+        return output.toByteArray();
+    }
+
+    @Test
+    void aRealImageEventuallyReachesReadyWithOcrdText() throws Exception {
+        byte[] imageBytes = sampleOcrImageBytes("Hello knowly OCR");
+        Article article = createProcessingArticle("test/sample.png", "sample.png", "image/png");
+        articleStorageService.upload(article.getOriginalFileKey(), imageBytes, "image/png");
+
+        articleExtractionPublisher.publish(article.getId());
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(
+                        () -> {
+                            Article reloaded =
+                                    articleRepository.findById(article.getId()).orElseThrow();
+                            assertThat(reloaded.getStatus()).isEqualTo(ArticleStatus.READY);
+                            assertThat(reloaded.getText()).containsIgnoringCase("knowly");
                         });
     }
 

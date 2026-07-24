@@ -182,45 +182,45 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
 
 ## Acceptance criteria
 
-- [ ] Submitting an existing email sends a 6-digit code by email; response
+- [x] Submitting an existing email sends a 6-digit code by email; response
       is identical (shape, generic wording) to submitting a non-existing
       email.
-- [ ] Submitting a non-existing email sends no email, but behaves
+- [x] Submitting a non-existing email sends no email, but behaves
       identically from the client's perspective.
-- [ ] The login-request endpoint responds before the email-existence check
+- [x] The login-request endpoint responds before the email-existence check
       and code generation/dispatch happen, so response time doesn't
       correlate with account existence.
-- [ ] Requesting a code twice for the same email within 30 seconds only
+- [x] Requesting a code twice for the same email within 30 seconds only
       generates/sends a code the first time; the second request still gets
       the generic success response.
-- [ ] 5 code requests for the same email with no verification attempt in
+- [x] 5 code requests for the same email with no verification attempt in
       between lock that email for 1 hour (not just the usual 15 minutes).
-- [ ] Attempting to verify a code or password — successfully or not —
+- [x] Attempting to verify a code or password — successfully or not —
       resets that email's request-without-verification counter.
-- [ ] Correct, unexpired code logs the user in and sets a session cookie.
-- [ ] Correct, unexpired one-time password logs the user in, invalidates
+- [x] Correct, unexpired code logs the user in and sets a session cookie.
+- [x] Correct, unexpired one-time password logs the user in, invalidates
       that password, and emails a new 12-character one-time password.
-- [ ] 3 wrong code/password submissions for the same email (in any
+- [x] 3 wrong code/password submissions for the same email (in any
       combination) lock that email for 15 minutes; a 4th attempt — even
       with the correct code/password — is rejected during the lockout.
-- [ ] The lockout and error behavior for a non-existing email is
+- [x] The lockout and error behavior for a non-existing email is
       indistinguishable from a real, existing email.
-- [ ] After a configured request volume/velocity threshold, all three
+- [x] After a configured request volume/velocity threshold, all three
       authentication endpoints (login-request and both verify endpoints)
       require a valid Turnstile token.
-- [ ] Rejecting a wrong code/password takes the same amount of time
+- [x] Rejecting a wrong code/password takes the same amount of time
       whether or not the email has a real pending code/password.
-- [ ] A pre-existing (pre-login) session's identifier changes after a
+- [x] A pre-existing (pre-login) session's identifier changes after a
       successful login.
-- [ ] Only the three authentication endpoints are exempt from CSRF; a
+- [x] Only the three authentication endpoints are exempt from CSRF; a
       request to any other endpoint without a CSRF token is rejected as
       before.
-- [ ] A one-time password stops working 15 days after being issued.
-- [ ] Logging in via code while holding no valid one-time password (never
+- [x] A one-time password stops working 15 days after being issued.
+- [x] Logging in via code while holding no valid one-time password (never
       had one, or it expired) triggers issuing and emailing a new one.
-- [ ] Logging in via code while still holding a valid, unused, unexpired
+- [x] Logging in via code while still holding a valid, unused, unexpired
       one-time password does not change that password.
-- [ ] Every authentication decision (success, failure, lockout) appears as
+- [x] Every authentication decision (success, failure, lockout) appears as
       a structured audit log entry queryable by email, trace id, and
       outcome.
 

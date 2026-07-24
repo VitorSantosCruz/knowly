@@ -346,6 +346,23 @@
 				</executions>
 			</plugin>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Each test class's Spring context (and its Testcontainers) is torn down as
+					     soon as that class finishes, instead of accumulating across many distinct
+					     contexts in the Spring test context cache (default max 32) or across a
+					     single long-lived fork. Trades wall-clock time for a hard cap on peak
+					     memory during `./mvnw verify`. -->
+					<forkCount>1</forkCount>
+					<reuseForks>false</reuseForks>
+					<argLine>-Xmx1536m</argLine>
+					<systemPropertyVariables>
+						<spring.test.context.cache.maxSize>1</spring.test.context.cache.maxSize>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
+			<plugin>
 				<groupId>com.diffplug.spotless</groupId>
 				<artifactId>spotless-maven-plugin</artifactId>
 				<version>3.8.0</version>

@@ -76,7 +76,7 @@
        Green).
 - [x] 25. Run `./mvnw verify` and confirm it's green.
 - [x] 26. Update `PLAN.md` if any decision changed during implementation.
-- [ ] 27. Fix timing side-channel on verify (REQ-6a/REQ-8a): add a
+- [x] 27. Fix timing side-channel on verify (REQ-6a/REQ-8a): add a
        constant dummy hash to `LoginCodeService` and
        `OneTimePasswordService`, always call `PasswordEncoder#matches`
        even on a miss; make `OneTimePasswordService.verifyAndRotate`

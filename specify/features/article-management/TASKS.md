@@ -63,20 +63,27 @@
        style as `AuthRabbitConfigTest`).
 - [x] 19. Implement `PdfTextExtractor` (Tika `AutoDetectParser`) +
        `ArticleExtractionListener` wiring for PDF (Green).
-- [ ] 20. Test: uploading a real small image fixture with OCR-able text
-       eventually reaches `READY` with that text present (Red). **Not
-       written/verified in this sandbox**: no `tesseract` binary is
-       installed here and there's no sudo access to install it
-       non-interactively. `TikaTextExtractor` already declares support
-       for `image/png`/`image/jpeg` (task 21 below) and would exercise
-       the exact same code path as the verified PDF case, but the OCR
-       binary dependency itself is unverified end-to-end. Needs
-       re-running wherever `tesseract-ocr` is available (e.g. CI, or
-       the runtime image).
+- [x] 20. Test: uploading a real small image fixture with OCR-able text
+       eventually reaches `READY` with that text present (Red), then
+       implemented (Green) — `aRealImageEventuallyReachesReadyWithOcrdText`
+       in `ArticleExtractionListenerTest`, against a real PNG generated
+       in-test (`Graphics2D` draws text, `ImageIO` encodes it) and real
+       Tesseract OCR (log line confirms: "Tesseract is installed and is
+       being invoked"). This sandbox has no root/apt-get-install access,
+       so `tesseract-ocr`/`libtesseract5`/`libleptonica6` were obtained
+       via `apt-get download` (works without root — it only fetches, it
+       doesn't install) and extracted into a scratch prefix with
+       `dpkg -x <pkg>.deb <prefix>`; the test run then just needs
+       `PATH` (for the `tesseract` binary Tika's OCR module shells out
+       to), `LD_LIBRARY_PATH` (for `libtesseract.so`/`libleptonica.so`),
+       and `TESSDATA_PREFIX` (the `eng`/`por` trained-data files) pointed
+       at that prefix — no code change, no root, no persistent system
+       change. The production Dockerfile's `apk add tesseract-ocr` (a
+       real install on the runtime image) is unaffected and unrelated to
+       this local workaround.
 - [x] 21. Implement the OCR path (Tika's already-present
        `tika-parser-ocr-module`, `tesseract-ocr` binary added to the
-       runtime image) (Green) — implemented, not end-to-end verified
-       here (see task 20).
+       runtime image) (Green) — end-to-end verified by task 20.
 - [x] 22. Test: uploading an audio fixture, with
        `OpenAiAudioTranscriptionModel` mocked to return known text,
        eventually reaches `READY` with that text (Red).
