@@ -301,6 +301,13 @@ All under `/api/tenants`. Error shape matches the auth feature's
 - `GET /api/tenants/memberships`
   - Returns the caller's own active memberships (id, tenant name, role)
     — powers the tenant picker (REQ-5) and a "switch tenant" menu.
+- `GET /api/tenants/permissions` *(added for `article-management`'s
+  frontend, see that feature's SPEC/PLAN)*
+  - Returns `{ "permissions": Permission[] }` — the caller's own
+    effective permissions in their active tenant (all of them, for
+    staff). Lets a frontend hide an action the caller can't perform
+    instead of showing it and relying on a 403 to explain why.
+  - `403 TENANT_ACCESS_DENIED`: no active tenant selected.
 - `POST /api/tenants/active`
   - Body: `{ "tenantId": number }`
   - `200`: session's active tenant updated, authorities refreshed

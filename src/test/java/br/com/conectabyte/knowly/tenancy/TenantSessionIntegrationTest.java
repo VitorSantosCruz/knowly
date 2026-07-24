@@ -40,6 +40,7 @@ class TenantSessionIntegrationTest {
     @Autowired private UserRepository userRepository;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
+    @Autowired private DirectPermissionGrantRepository directPermissionGrantRepository;
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private AuditEventRepository auditEventRepository;
     @MockitoBean private JavaMailSender mailSender;
@@ -152,6 +153,25 @@ class TenantSessionIntegrationTest {
                 .contains("\"tenantName\":\"Tenant B\",\"role\":\"MEMBER\",\"active\":true");
         assertThat(body)
                 .contains("\"tenantName\":\"Tenant A\",\"role\":\"MEMBER\",\"active\":false");
+    }
+
+    @Test
+    void ownPermissionsReturnsTheCallersEffectivePermissionsInTheActiveTenant() throws Exception {
+        User user = userRepository.saveAndFlush(new User("permviewer@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Perm Tenant"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(user, tenant, MembershipRole.MEMBER));
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_VIEW));
+
+        Cookie session = logIn("permviewer@example.com");
+
+        var response = mockMvc.get().uri("/api/tenants/permissions").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"permissions\":[\"ARTICLE_VIEW\"]");
     }
 
     @Test

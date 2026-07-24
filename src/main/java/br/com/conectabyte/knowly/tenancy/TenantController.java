@@ -9,9 +9,11 @@ import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
+import br.com.conectabyte.knowly.tenancy.dto.OwnPermissionsDto;
 import br.com.conectabyte.knowly.tenancy.dto.PermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.SwitchActiveTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantMembershipDto;
+import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -68,6 +70,17 @@ public class TenantController {
                         .toList();
 
         return ResponseEntity.ok(memberships);
+    }
+
+    @GetMapping("/permissions")
+    public ResponseEntity<OwnPermissionsDto> ownPermissions() {
+        User user = currentUser();
+        Long tenantId =
+                tenantContext.getActiveTenantId().orElseThrow(TenantAccessDeniedException::new);
+        List<Permission> permissions =
+                tenantService.ownEffectivePermissions(user, tenantId, tenantContext.isStaff());
+
+        return ResponseEntity.ok(new OwnPermissionsDto(permissions));
     }
 
     @PostMapping("/active")

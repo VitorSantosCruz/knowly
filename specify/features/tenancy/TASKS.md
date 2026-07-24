@@ -164,6 +164,15 @@
 - [x] 56. Implement the remaining endpoints listed in PLAN.md's API
        Contracts section (Green).
 
+## 7a. Emergent: expose own effective permissions (added for `article-management`'s frontend)
+
+- [x] 56a. Test: `GET /api/tenants/permissions` returns the caller's own
+       effective permissions in their active tenant; staff get every
+       `Permission`; no active tenant → `403 TENANT_ACCESS_DENIED`
+       (Red).
+- [x] 56b. Implement `TenantService#ownEffectivePermissions` +
+       `TenantController#ownPermissions` (Green).
+
 ## 7. Final verification
 
 - [x] 57. Run the full `./mvnw spotless:apply && ./mvnw verify` and

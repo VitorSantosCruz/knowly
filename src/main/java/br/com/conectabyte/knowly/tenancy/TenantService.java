@@ -90,6 +90,22 @@ public class TenantService {
                 .orElseThrow(TenantAccessDeniedException::new);
     }
 
+    /**
+     * The caller's own effective permissions in their active tenant — lets the frontend hide
+     * actions it can't perform instead of showing them and letting a 403 explain why. Staff get
+     * every permission, consistent with {@code PermissionAspect} bypassing the check for them.
+     */
+    @Transactional(readOnly = true)
+    public List<Permission> ownEffectivePermissions(User user, Long tenantId, boolean staff) {
+        if (staff) {
+            return List.of(Permission.values());
+        }
+
+        TenantMembership membership = requireActiveMembership(user, tenantId);
+
+        return List.copyOf(permissionService.effectivePermissions(membership));
+    }
+
     /** REQ-10: only staff create tenants, always atomically with a first admin. */
     @Transactional
     @AuditLog(action = "tenant.create", resourceType = "Tenant")
