@@ -216,4 +216,144 @@ class TenantManagementIntegrationTest {
 
         assertThat(createGroupResponse).hasStatus(HttpStatus.FORBIDDEN);
     }
+
+    @Test
+    void adminCanListMembersOfTheirOwnTenant() throws Exception {
+        User admin = userRepository.saveAndFlush(new User("admin3@own.com"));
+        User member = userRepository.saveAndFlush(new User("member3@own.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("admin3@own.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("admin3@own.com");
+        assertThat(response.getResponse().getContentAsString()).contains("member3@own.com");
+    }
+
+    @Test
+    void listingMembersOfAnotherTenantIsForbidden() {
+        User admin = userRepository.saveAndFlush(new User("admin4@own.com"));
+        Tenant ownTenant = tenantRepository.saveAndFlush(new Tenant("Own Tenant 4"));
+        Tenant otherTenant = tenantRepository.saveAndFlush(new Tenant("Other Tenant 4"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, ownTenant, MembershipRole.ADMIN));
+
+        Cookie session = logIn("admin4@own.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/" + otherTenant.getId() + "/members")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void adminCanViewAMembersDetailIncludingEffectivePermissions() throws Exception {
+        User admin = userRepository.saveAndFlush(new User("admin5@own.com"));
+        User member = userRepository.saveAndFlush(new User("member5@own.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Detail Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+        TenantMembership memberMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("admin5@own.com");
+        mockMvc.post()
+                .uri(
+                        "/api/tenants/"
+                                + tenant.getId()
+                                + "/members/"
+                                + memberMembership.getId()
+                                + "/permissions")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                .exchange();
+
+        var response =
+                mockMvc.get()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + memberMembership.getId())
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("TENANT_MEMBER_MANAGE");
+        assertThat(response.getResponse().getContentAsString()).contains("member5@own.com");
+    }
+
+    @Test
+    void adminCanListAndUnassignAccessGroups() throws Exception {
+        User admin = userRepository.saveAndFlush(new User("admin6@own.com"));
+        User member = userRepository.saveAndFlush(new User("member6@own.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Group Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+        TenantMembership memberMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("admin6@own.com");
+        mockMvc.post()
+                .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Editors\"}")
+                .exchange();
+
+        var listResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                        .cookie(session)
+                        .exchange();
+        assertThat(listResponse).hasStatus(HttpStatus.OK);
+        assertThat(listResponse.getResponse().getContentAsString()).contains("Editors");
+
+        long accessGroupId =
+                (long)
+                        (int)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        listResponse.getResponse().getContentAsString(), "$[0].id");
+
+        mockMvc.post()
+                .uri(
+                        "/api/tenants/"
+                                + tenant.getId()
+                                + "/members/"
+                                + memberMembership.getId()
+                                + "/access-groups/"
+                                + accessGroupId)
+                .cookie(session)
+                .exchange();
+
+        var unassignResponse =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + memberMembership.getId()
+                                        + "/access-groups/"
+                                        + accessGroupId)
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(unassignResponse).hasStatus(HttpStatus.OK);
+    }
 }

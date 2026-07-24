@@ -3,6 +3,9 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
+import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
+import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
@@ -19,6 +22,7 @@ public class TenantService {
     private final AccessGroupRepository accessGroupRepository;
     private final AccessGroupPermissionRepository accessGroupPermissionRepository;
     private final UserAccessGroupRepository userAccessGroupRepository;
+    private final PermissionService permissionService;
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -27,7 +31,8 @@ public class TenantService {
             DirectPermissionGrantRepository directPermissionGrantRepository,
             AccessGroupRepository accessGroupRepository,
             AccessGroupPermissionRepository accessGroupPermissionRepository,
-            UserAccessGroupRepository userAccessGroupRepository) {
+            UserAccessGroupRepository userAccessGroupRepository,
+            PermissionService permissionService) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
@@ -35,6 +40,7 @@ public class TenantService {
         this.accessGroupRepository = accessGroupRepository;
         this.accessGroupPermissionRepository = accessGroupPermissionRepository;
         this.userAccessGroupRepository = userAccessGroupRepository;
+        this.permissionService = permissionService;
     }
 
     /**
@@ -229,6 +235,83 @@ public class TenantService {
                         () ->
                                 userAccessGroupRepository.save(
                                         new UserAccessGroup(membership, accessGroup)));
+    }
+
+    /** REQ-9/16: list a tenant's active members — admin (own tenant) or staff only. */
+    @Transactional(readOnly = true)
+    public List<MemberDto> listMembers(User actor, Long tenantId) {
+        requireAdminOfTenantOrStaff(actor, tenantId);
+
+        return tenantMembershipRepository.findByTenantIdAndActiveTrue(tenantId).stream()
+                .map(MemberDto::from)
+                .toList();
+    }
+
+    /** REQ-13: list a tenant's access groups — admin (own tenant) or staff only. */
+    @Transactional(readOnly = true)
+    public List<AccessGroupDto> listAccessGroups(User actor, Long tenantId) {
+        requireAdminOfTenantOrStaff(actor, tenantId);
+
+        Tenant tenant =
+                tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
+
+        return accessGroupRepository.findByTenant(tenant).stream()
+                .map(AccessGroupDto::from)
+                .toList();
+    }
+
+    /**
+     * REQ-15/16: a member's direct/group/effective permissions — admin (own tenant) or staff only.
+     */
+    @Transactional(readOnly = true)
+    public MemberDetailDto getMemberDetail(User actor, Long tenantId, Long membershipId) {
+        requireAdminOfTenantOrStaff(actor, tenantId);
+
+        TenantMembership membership =
+                tenantMembershipRepository
+                        .findById(membershipId)
+                        .orElseThrow(TenantAccessDeniedException::new);
+
+        List<Permission> direct =
+                directPermissionGrantRepository.findByTenantMembership(membership).stream()
+                        .map(DirectPermissionGrant::getPermission)
+                        .toList();
+        List<AccessGroupDto> groups =
+                userAccessGroupRepository.findByTenantMembership(membership).stream()
+                        .map(UserAccessGroup::getAccessGroup)
+                        .map(AccessGroupDto::from)
+                        .toList();
+        List<Permission> effective =
+                permissionService.effectivePermissions(membership).stream().toList();
+
+        return new MemberDetailDto(
+                membership.getId(),
+                membership.getUser().getEmail(),
+                membership.getRole(),
+                direct,
+                groups,
+                effective);
+    }
+
+    /** REQ-14/16: unassign a membership from an access group, admin (own tenant) or staff only. */
+    @Transactional
+    @AuditLog(action = "tenant.member.access_group.unassign", resourceType = "UserAccessGroup")
+    public void unassignAccessGroup(
+            User actor, Long tenantId, Long membershipId, Long accessGroupId) {
+        requireAdminOfTenantOrStaff(actor, tenantId);
+
+        TenantMembership membership =
+                tenantMembershipRepository
+                        .findById(membershipId)
+                        .orElseThrow(TenantAccessDeniedException::new);
+        AccessGroup accessGroup =
+                accessGroupRepository
+                        .findById(accessGroupId)
+                        .orElseThrow(TenantAccessDeniedException::new);
+
+        userAccessGroupRepository
+                .findByTenantMembershipAndAccessGroup(membership, accessGroup)
+                .ifPresent(userAccessGroupRepository::delete);
     }
 
     private void requireStaff(User actor) {

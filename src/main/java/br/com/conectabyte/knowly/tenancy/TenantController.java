@@ -3,9 +3,12 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
+import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.SwitchActiveTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantMembershipDto;
@@ -102,6 +105,18 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/{tenantId}/members")
+    public ResponseEntity<List<MemberDto>> listMembers(@PathVariable Long tenantId) {
+        return ResponseEntity.ok(tenantService.listMembers(currentUser(), tenantId));
+    }
+
+    @GetMapping("/{tenantId}/members/{membershipId}")
+    public ResponseEntity<MemberDetailDto> getMember(
+            @PathVariable Long tenantId, @PathVariable Long membershipId) {
+        return ResponseEntity.ok(
+                tenantService.getMemberDetail(currentUser(), tenantId, membershipId));
+    }
+
     @DeleteMapping("/{tenantId}/members/{membershipId}")
     public ResponseEntity<Void> removeMember(
             @PathVariable Long tenantId, @PathVariable Long membershipId) {
@@ -130,6 +145,11 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/{tenantId}/access-groups")
+    public ResponseEntity<List<AccessGroupDto>> listAccessGroups(@PathVariable Long tenantId) {
+        return ResponseEntity.ok(tenantService.listAccessGroups(currentUser(), tenantId));
+    }
+
     @PostMapping("/{tenantId}/access-groups")
     public ResponseEntity<Void> createAccessGroup(
             @PathVariable Long tenantId, @Valid @RequestBody CreateAccessGroupRequestDto request) {
@@ -155,6 +175,16 @@ public class TenantController {
             @PathVariable Long membershipId,
             @PathVariable Long accessGroupId) {
         tenantService.assignAccessGroup(currentUser(), tenantId, membershipId, accessGroupId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{tenantId}/members/{membershipId}/access-groups/{accessGroupId}")
+    public ResponseEntity<Void> unassignAccessGroup(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @PathVariable Long accessGroupId) {
+        tenantService.unassignAccessGroup(currentUser(), tenantId, membershipId, accessGroupId);
 
         return ResponseEntity.ok().build();
     }
