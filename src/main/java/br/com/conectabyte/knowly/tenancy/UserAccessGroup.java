@@ -1,15 +1,15 @@
-package br.com.conectabyte.knowly.auth;
+package br.com.conectabyte.knowly.tenancy;
 
-import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,33 +22,31 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
-@Table(name = "users")
+@Table(
+        name = "user_access_groups",
+        uniqueConstraints =
+                @UniqueConstraint(columnNames = {"tenant_membership_id", "access_group_id"}))
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
-public class User {
+public class UserAccessGroup {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String email;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "tenant_membership_id", nullable = false)
+    private TenantMembership tenantMembership;
 
-    @Column(name = "one_time_password_hash")
-    private String oneTimePasswordHash;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "access_group_id", nullable = false)
+    private AccessGroup accessGroup;
 
-    @Column(name = "one_time_password_issued_at")
-    private Instant oneTimePasswordIssuedAt;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "global_role", length = 20)
-    private GlobalRole globalRole;
-
-    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
+    @CreatedDate
     private Instant createdAt;
 
     @CreatedBy
@@ -63,7 +61,8 @@ public class User {
     @Column(name = "updated_by", nullable = false)
     private String updatedBy;
 
-    public User(String email) {
-        this.email = email;
+    public UserAccessGroup(TenantMembership tenantMembership, AccessGroup accessGroup) {
+        this.tenantMembership = tenantMembership;
+        this.accessGroup = accessGroup;
     }
 }
