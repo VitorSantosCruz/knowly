@@ -11,6 +11,20 @@ any feature, read
 
 - Java 25 (version pinned in [`.java-version`](.java-version))
 - Docker + Docker Compose (for dev infrastructure)
+- `tesseract-ocr` (for image-article OCR, see `article-management`) —
+  install once, system-wide:
+  ```sh
+  # Debian/Ubuntu
+  sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-por
+  # macOS
+  brew install tesseract tesseract-lang
+  ```
+  The runtime Docker image already installs it (`Dockerfile`); this is
+  only needed to run `./mvnw test`/`verify` locally, so
+  `ArticleExtractionListenerTest`'s OCR test can actually invoke the
+  real `tesseract` binary. Without it, that one test fails (no
+  skip/mock fallback, by design — see that test class); the rest of
+  the suite is unaffected.
 
 ## Starting the development environment
 
