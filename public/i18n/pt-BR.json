@@ -68,5 +68,8 @@
     "delete": "Excluir",
     "originalFile": "Ver arquivo original",
     "save": "Salvar"
+  },
+  "selectTenant": {
+    "title": "Escolha um tenant para continuar"
   }
 }

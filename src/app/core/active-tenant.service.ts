@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
 
-interface TenantMembership {
+export interface TenantMembership {
   tenantId: number;
   tenantName: string;
   role: 'ADMIN' | 'MEMBER';
@@ -19,10 +20,23 @@ export class ActiveTenantService {
   readonly activeTenantName = this._activeTenantName.asReadonly();
 
   fetch(): void {
-    this.http.get<TenantMembership[]>('/api/tenants/memberships').subscribe((memberships) => {
+    this.list().subscribe((memberships) => {
       const active = memberships.find((membership) => membership.active);
       this._activeTenantId.set(active?.tenantId ?? null);
       this._activeTenantName.set(active?.tenantName ?? null);
     });
+  }
+
+  list(): Observable<TenantMembership[]> {
+    return this.http.get<TenantMembership[]>('/api/tenants/memberships');
+  }
+
+  selectTenant(tenantId: number, tenantName: string): Observable<void> {
+    return this.http.post<void>('/api/tenants/active', { tenantId }).pipe(
+      tap(() => {
+        this._activeTenantId.set(tenantId);
+        this._activeTenantName.set(tenantName);
+      }),
+    );
   }
 }

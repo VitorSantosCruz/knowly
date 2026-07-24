@@ -63,6 +63,12 @@
   `TourService` → `OnboardingService` now pulls `HttpClient` into every
   shell render — not anticipated in the original plan, which treated
   the shell as UI-only.
+- `TourOverlayComponent`'s position computation used the target
+  element's raw `getBoundingClientRect().left` with no bounds-checking,
+  so the first step (`main-nav`, targeting the top-right icon row) had
+  its 320px-wide box overflow off the right edge of the viewport —
+  observed live. Fixed by clamping `left` to
+  `[16px, viewportWidth - 320 - 16px]`.
 
 ## Components and routes
 

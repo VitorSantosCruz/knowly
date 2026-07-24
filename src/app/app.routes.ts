@@ -4,12 +4,31 @@ import { DashboardPageComponent } from './features/dashboard/dashboard-page.comp
 import { MembersPageComponent } from './features/members/members-page.component';
 import { ConversationsPageComponent } from './features/conversations/conversations-page.component';
 import { ArticlesPageComponent } from './features/articles/articles-page.component';
+import { SelectTenantPageComponent } from './features/select-tenant/select-tenant-page.component';
+import { tenantSelectionGuard } from './core/tenant-selection.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
-  { path: 'dashboard', component: DashboardPageComponent },
-  { path: 'members', component: MembersPageComponent },
-  { path: 'conversations', component: ConversationsPageComponent },
-  { path: 'articles', component: ArticlesPageComponent },
+  { path: 'select-tenant', component: SelectTenantPageComponent },
+  {
+    path: 'dashboard',
+    component: DashboardPageComponent,
+    canActivate: [tenantSelectionGuard],
+  },
+  {
+    path: 'members',
+    component: MembersPageComponent,
+    canActivate: [tenantSelectionGuard],
+  },
+  {
+    path: 'conversations',
+    component: ConversationsPageComponent,
+    canActivate: [tenantSelectionGuard],
+  },
+  {
+    path: 'articles',
+    component: ArticlesPageComponent,
+    canActivate: [tenantSelectionGuard],
+  },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
 ];

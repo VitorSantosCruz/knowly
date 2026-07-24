@@ -45,4 +45,30 @@ describe('ActiveTenantService', () => {
 
     expect(service.activeTenantId()).toBeNull();
   });
+
+  it('list() fetches the memberships without mutating the active-tenant signals', () => {
+    let result: unknown;
+    service.list().subscribe((memberships) => (result = memberships));
+
+    const req = httpMock.expectOne('/api/tenants/memberships');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false }]);
+
+    expect(result).toEqual([
+      { tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false },
+    ]);
+    expect(service.activeTenantId()).toBeNull();
+  });
+
+  it('selectTenant() posts the choice and updates the active tenant signals', () => {
+    service.selectTenant(2, 'Tenant B').subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/active');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ tenantId: 2 });
+    req.flush({});
+
+    expect(service.activeTenantId()).toBe(2);
+    expect(service.activeTenantName()).toBe('Tenant B');
+  });
 });

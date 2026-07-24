@@ -72,6 +72,9 @@ export class TourOverlayComponent {
     () => this.tourService.stepIndex() === this.tourService.steps.length - 1,
   );
 
+  private static readonly BOX_WIDTH_PX = 320;
+  private static readonly VIEWPORT_MARGIN_PX = 16;
+
   protected readonly position = computed(() => {
     const target = document.querySelector(`[data-tour-id="${this.step().targetId}"]`);
 
@@ -80,7 +83,13 @@ export class TourOverlayComponent {
     }
 
     const rect = target.getBoundingClientRect();
-    return { top: rect.bottom + 12, left: rect.left };
+    const maxLeft =
+      window.innerWidth -
+      TourOverlayComponent.BOX_WIDTH_PX -
+      TourOverlayComponent.VIEWPORT_MARGIN_PX;
+    const left = Math.min(rect.left, Math.max(TourOverlayComponent.VIEWPORT_MARGIN_PX, maxLeft));
+
+    return { top: rect.bottom + 12, left };
   });
 
   protected onKeydown(event: KeyboardEvent): void {

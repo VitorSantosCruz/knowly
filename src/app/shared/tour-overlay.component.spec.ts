@@ -68,6 +68,36 @@ describe('TourOverlayComponent', () => {
     expect(tourService.active()).toBe(false);
   });
 
+  it('clamps the overlay position so it never overflows the right edge of the viewport', () => {
+    const target = document.createElement('div');
+    target.setAttribute('data-tour-id', 'main-nav');
+    document.body.appendChild(target);
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
+      top: 10,
+      bottom: 40,
+      left: window.innerWidth - 20,
+      right: window.innerWidth,
+      width: 20,
+      height: 30,
+      x: window.innerWidth - 20,
+      y: 10,
+      toJSON: () => ({}),
+    });
+
+    try {
+      tourService.start();
+      fixture.detectChanges();
+
+      const box: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="tour-overlay"] > div',
+      );
+      const left = parseFloat(box.style.left);
+      expect(left + 320).toBeLessThanOrEqual(window.innerWidth);
+    } finally {
+      document.body.removeChild(target);
+    }
+  });
+
   it('Tab at the last focusable control wraps focus to the first', () => {
     tourService.start();
     fixture.detectChanges();

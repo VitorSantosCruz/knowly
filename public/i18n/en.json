@@ -68,5 +68,8 @@
     "delete": "Delete",
     "originalFile": "View original file",
     "save": "Save"
+  },
+  "selectTenant": {
+    "title": "Choose a tenant to continue"
   }
 }
