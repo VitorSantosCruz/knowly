@@ -56,5 +56,10 @@
     "assign": "Atribuir",
     "unassign": "Remover atribuição",
     "createGroup": "Criar grupo"
+  },
+  "conversations": {
+    "new": "Nova conversa",
+    "untitled": "Conversa sem título",
+    "send": "Enviar"
   }
 }
