@@ -93,19 +93,34 @@ explicitly out of scope here (see tenancy SPEC's own out-of-scope note).
 
 ## Acceptance criteria
 
-- [ ] A first-time tenant user, right after landing in their tenant
+- [x] A first-time tenant user, right after landing in their tenant
       context, sees the guided tour start automatically.
-- [ ] Finishing or skipping the tour marks onboarding complete for that
+      (`dashboard-page.component.spec.ts`)
+- [x] Finishing or skipping the tour marks onboarding complete for that
       user; logging in again does not restart it automatically.
-- [ ] The help menu's "Restart tour" replays the same tour at any time,
+      (`tour.service.spec.ts`, `dashboard-page.component.spec.ts`)
+- [x] The help menu's "Restart tour" replays the same tour at any time,
       for a user who has already completed onboarding.
-- [ ] The dashboard shows article count, per-article usage, conversations
+      (`help-menu.component.spec.ts`)
+- [x] The dashboard shows article count, per-article usage, conversations
       started, and messages sent/received, scoped to the active tenant.
-- [ ] A metrics request failure shows an error state with a visible trace
-      id, not a blank screen.
-- [ ] A permission-denied response shows a distinct "no access" state,
-      not treated as an error.
-- [ ] The tour is operable with keyboard only.
+      (one spec per widget component) — "scoped to the active tenant"
+      relies entirely on the backend's `/api/tenants/metrics/*`
+      endpoints being tenant-scoped (task 0 prerequisite); the frontend
+      has no tenant id of its own to send, by design (session-cookie
+      based, per the tenancy feature).
+- [x] A metrics request failure shows an error state with a visible trace
+      id, not a blank screen. (`ErrorStateComponent`, covered per widget)
+- [x] A permission-denied response shows a distinct "no access" state,
+      not treated as an error. (`NoAccessStateComponent`, covered per widget)
+- [x] The tour is operable with keyboard only.
+      (`tour-overlay.component.spec.ts` — focus trap and Escape-to-skip)
+
+All criteria above are verified against the *frontend's* HTTP contract
+via `HttpTestingController`, not against a real backend — the six
+endpoints this feature consumes don't exist yet in `knowly` (see
+TASKS.md task 0). End-to-end verification against the real backend is
+still pending that prerequisite.
 
 ## Out of scope
 

@@ -33,8 +33,36 @@
 
 ## Emergent decisions
 
-<Filled in during implementation, if anything changes from the plan
-above.>
+- `LoginPageComponent`'s `Step` type dropped `'loggedIn'` entirely
+  (rather than keeping it as dead code) — the component now navigates
+  away via `Router.navigateByUrl('/dashboard')` instead of ever
+  reaching a third render state, so the type and its template branch
+  became unreachable.
+- The per-widget fetch/loading/error logic planned as "each widget owns
+  its own state" is implemented as one shared `createMetricFetcher(http,
+  url)` function (`core/metric-fetcher.ts`) returning signals, called
+  from each widget's constructor — not a class/service, since each
+  widget needs its own independent instance rather than a shared
+  singleton. This avoided writing near-identical subscribe/loading/error
+  handling four times while still giving every widget fully independent
+  state, per REQ-8/9's "one slow metric must not block the others."
+- The trace id shown in `ErrorStateComponent` (REQ-9) is parsed from the
+  standard `traceparent` response header (`version-traceId-spanId-flags`
+  format) — the constitution states every response carries one via
+  OpenTelemetry propagation but doesn't name the header; this is the
+  W3C Trace Context standard header name, and the backend prerequisite
+  (task 0) needs to actually expose it on error responses for this to
+  work end-to-end.
+- No dedicated "main navigation" element exists yet in `AppShellComponent`
+  (there's no app nav menu, only the top-right icon row). The tour's
+  first step (`main-nav`) targets that icon row via `data-tour-id`
+  as a stand-in; this should be revisited once a real navigation menu
+  feature exists.
+- `AppShellComponent`'s spec needed `provideHttpClient`/
+  `provideHttpClientTesting` added, since `HelpMenuComponent` →
+  `TourService` → `OnboardingService` now pulls `HttpClient` into every
+  shell render — not anticipated in the original plan, which treated
+  the shell as UI-only.
 
 ## Components and routes
 
