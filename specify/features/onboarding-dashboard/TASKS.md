@@ -6,12 +6,15 @@
 
 ## 0. Prerequisite (tracked in the `knowly` backend repo, not here)
 
-- [ ] 0. Backend: add `Permission.DASHBOARD_VIEW`, the four
+- [x] 0. Backend: add `Permission.DASHBOARD_VIEW`, the four
       `/api/tenants/metrics/*` endpoints, and the two
       `/api/users/me/onboarding-*` endpoints listed in PLAN.md's Consumed
       API Contracts, each behind `@RequiresPermission`/`@AuditLog` per
       the tenancy feature's established conventions. Its own
-      SPEC/PLAN/TASKS cycle in `knowly/specify/features/`.
+      SPEC/PLAN/TASKS cycle in `knowly/specify/features/` —
+      `onboarding-status` (the two onboarding endpoints, done earlier)
+      and `dashboard-metrics` (the four metrics endpoints, done now that
+      `Article`/`Conversation`/`Message` exist).
 
 ## 1. Routing and post-login navigation (REQ-6)
 

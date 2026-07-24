@@ -71,17 +71,20 @@ backend contract described in `knowly/specify/features/authentication/SPEC.md`.
 
 ## Acceptance criteria
 
-- [ ] Opening the app shows the login screen with the email field
+- [x] Opening the app shows the login screen with the email field
       centered.
-- [ ] Language and theme icons are present, and the selected values persist
-      across navigation and page reload.
-- [ ] Submitting any syntactically valid email navigates to the
+- [x] Language and theme icons are present, and the selected values persist
+      across navigation and page reload. (Icons rendered by the
+      always-present `AppShellComponent`, verified in
+      `app-shell.component.spec.ts`; persistence verified in
+      `language.service.spec.ts`/`theme.service.spec.ts`.)
+- [x] Submitting any syntactically valid email navigates to the
       code/password screen (regardless of whether the email is registered).
-- [ ] Wrong code or password shows a generic "something's wrong" tooltip
+- [x] Wrong code or password shows a generic "something's wrong" tooltip
       without clearing the field.
-- [ ] A locked account shows a distinct "try again later" tooltip.
-- [ ] Correct code or password logs the user into the app.
-- [ ] When the backend requests a CAPTCHA, the Turnstile widget appears
+- [x] A locked account shows a distinct "try again later" tooltip.
+- [x] Correct code or password logs the user into the app.
+- [x] When the backend requests a CAPTCHA, the Turnstile widget appears
       before the email can be resubmitted.
 
 ## Out of scope

@@ -88,11 +88,13 @@
 
 ## Consumed API contracts
 
-None of these exist in `knowly` yet — they're the backend prerequisite
-for this feature, to be implemented as their own small SPEC/PLAN/TASKS
-cycle in that repo before this frontend feature can work end-to-end
-(Vitest tests here only need the *shape*, via `HttpTestingController`,
-so frontend implementation is not blocked on the backend existing first).
+All four metrics endpoints now exist in `knowly`
+(`specify/features/dashboard-metrics/` there), gated by the new
+`Permission.DASHBOARD_VIEW` and scoped to the caller's active tenant
+(resolved server-side from the session, same as
+`GET /api/tenants/memberships` — no `tenantId` in the path). The
+onboarding-status endpoints were already built earlier
+(`specify/features/onboarding-status/`).
 
 - `GET /api/users/me/onboarding-status` → `200 { completed: boolean }`
 - `POST /api/users/me/onboarding-complete` → `200 {}` — called once, on
