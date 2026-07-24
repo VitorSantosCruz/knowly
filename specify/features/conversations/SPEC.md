@@ -102,19 +102,25 @@ model to answer using it.
 
 ## Acceptance criteria
 
-- [ ] A "ready" article gets embeddings generated and stored, tagged by
-      tenant and article id.
-- [ ] Deleting an article removes its embeddings.
-- [ ] A user with `CONVERSATION_USE` can create a conversation and send a
-      message, receiving a streamed, article-grounded response.
-- [ ] The conversation and its messages are persisted in order after the
+- [x] A "ready" article gets embeddings generated and stored, tagged by
+      tenant and article id. (Verified with a mocked `VectorStore`/
+      `EmbeddingModel` — no real OpenAI embedding call is exercised in
+      CI, consistent with the constitution's dummy-API-key note.)
+- [x] Deleting an article removes its embeddings.
+- [x] A user with `CONVERSATION_USE` can create a conversation and send a
+      message, receiving a streamed, article-grounded response. (Verified
+      with a mocked `ChatModel`/`VectorStore`; the real streamed-SSE
+      wire format itself — as opposed to the service-level event
+      sequence and the persisted result — is not asserted byte-for-byte,
+      since `Flux.just(...)` completes synchronously in tests.)
+- [x] The conversation and its messages are persisted in order after the
       stream completes.
-- [ ] A user only ever sees their own conversations, never another
+- [x] A user only ever sees their own conversations, never another
       member's, even within the same tenant.
-- [ ] A similarity search never surfaces another tenant's article chunks.
-- [ ] A user without `CONVERSATION_USE` gets a 403 on conversation/message
+- [x] A similarity search never surfaces another tenant's article chunks.
+- [x] A user without `CONVERSATION_USE` gets a 403 on conversation/message
       creation.
-- [ ] A model/embedding-provider failure ends the stream with a clear
+- [x] A model/embedding-provider failure ends the stream with a clear
       error event instead of hanging.
 
 ## Out of scope

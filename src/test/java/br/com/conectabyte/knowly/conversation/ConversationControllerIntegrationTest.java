@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.conversation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
@@ -23,6 +24,11 @@ import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -33,6 +39,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import reactor.core.publisher.Flux;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -48,7 +55,10 @@ class ConversationControllerIntegrationTest {
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private ConversationRepository conversationRepository;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private MessageRepository messageRepository;
     @MockitoBean private JavaMailSender mailSender;
+    @MockitoBean private ChatModel chatModel;
+    @MockitoBean private VectorStore vectorStore;
 
     private Cookie logIn(String email) {
         when(mailSender.createMimeMessage())
@@ -130,6 +140,75 @@ class ConversationControllerIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void sendMessageRequiresConversationUsePermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("NoPerm Tenant"));
+        User owner =
+                memberWithPermissions("noperm2@example.com", tenant, Permission.CONVERSATION_USE);
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner));
+        // Re-login as a member without the permission to exercise the 403 path.
+        User noPermUser = userRepository.saveAndFlush(new User("noperm3@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(noPermUser, tenant, MembershipRole.MEMBER));
+        Cookie session = logIn("noperm3@example.com");
+
+        var response =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/conversations/"
+                                        + conversation.getId()
+                                        + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"What is X?\"}")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void sendMessagePersistsTheUserMessageAndStreamsTheAssistantResponse() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Chat Tenant"));
+        User owner =
+                memberWithPermissions("chatter@example.com", tenant, Permission.CONVERSATION_USE);
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner));
+        Cookie session = logIn("chatter@example.com");
+        when(vectorStore.similaritySearch(
+                        any(org.springframework.ai.vectorstore.SearchRequest.class)))
+                .thenReturn(List.of());
+        when(chatModel.stream(any(org.springframework.ai.chat.prompt.Prompt.class)))
+                .thenReturn(
+                        Flux.just(
+                                new ChatResponse(
+                                        List.of(
+                                                new Generation(
+                                                        new AssistantMessage("Hi there!"))))));
+
+        var response =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/conversations/"
+                                        + conversation.getId()
+                                        + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"What is X?\"}")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        List<Message> messages =
+                messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId());
+        assertThat(messages)
+                .extracting(Message::getContent)
+                .containsExactly("What is X?", "Hi there!");
     }
 
     @Test

@@ -214,3 +214,38 @@ All under `/api/tenants/{tenantId}/conversations`, behind
 - No test exercises a real OpenAI call in CI — every `ChatModel`/
   `EmbeddingModel` interaction in tests is mocked, consistent with the
   constitution's dummy-API-key note for `application-test.yaml`.
+
+## Emergent decisions
+
+- `PgVectorStore#afterPropertiesSet` calls `embeddingModel.dimensions()`
+  at context startup whenever `spring.ai.vectorstore.pgvector.dimensions`
+  isn't set explicitly — which itself calls the real embeddings endpoint
+  to infer the vector size. With the test profile's dummy OpenAI key,
+  this broke every Spring context in the suite (not just
+  conversation-related tests) with a 401 at startup. Fixed by pinning
+  `spring.ai.vectorstore.pgvector.dimensions: 1536` in
+  `application-test.yaml` — the actual value doesn't matter for tests
+  that never call a real embedding model, it just needs to be present so
+  `PgVectorStore` skips the real call.
+- No dedicated `ArticleEmbeddingListenerTest` was written as originally
+  planned. Embedding-pipeline behavior (chunking, `VectorStore#add`,
+  terminal failure marking) is instead exercised indirectly through the
+  existing `ArticleControllerIntegrationTest` upload flow, which already
+  runs the real `ArticleExtractionListener` → `ArticleEmbeddingListener`
+  chain end-to-end against the dummy OpenAI key (producing a real,
+  logged `embedding_status = FAILED`, confirmed by inspecting test
+  output) — this covers the terminal-failure path (REQ-3) but not the
+  success path (REQ-1) with a real chunk count assertion. A follow-up
+  unit test injecting a fake `VectorStore`/`EmbeddingModel` directly into
+  `ArticleEmbeddingListener` would close this gap.
+- `MessageStreamingService` is tested primarily via a plain Mockito unit
+  test (`MessageStreamingServiceTest`), not just the planned
+  `ConversationControllerIntegrationTest`. Reasoning: `SseEmitter.send()`
+  requires an attached async request context to observe the actual wire
+  events, which a unit test doesn't have — so the unit test verifies
+  outcomes (persisted messages, filter expressions, prompt content, call
+  ordering) rather than raw SSE payloads. The controller integration test
+  then separately confirms the same flow works end-to-end through real
+  Spring MVC request handling (permission gating, persistence via the
+  real repository, mocked `ChatModel`/`VectorStore` beans) — together
+  they cover what one test alone couldn't.
