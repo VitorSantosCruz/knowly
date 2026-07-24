@@ -46,5 +46,15 @@
   "helpMenu": {
     "label": "Help",
     "restartTour": "Restart tour"
+  },
+  "members": {
+    "add": "Add member",
+    "remove": "Remove",
+    "directPermissions": "Direct permissions",
+    "accessGroups": "Access groups",
+    "effectivePermissions": "Effective permissions",
+    "assign": "Assign",
+    "unassign": "Unassign",
+    "createGroup": "Create group"
   }
 }

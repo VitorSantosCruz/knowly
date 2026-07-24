@@ -65,20 +65,22 @@ own tenant's people and access, reachable from the dashboard.
 
 ## Acceptance criteria
 
-- [ ] The members screen lists all active members of the active tenant
+- [x] The members screen lists all active members of the active tenant
       with email and role.
-- [ ] Adding a member with a valid email and role refreshes the list to
+- [x] Adding a member with a valid email and role refreshes the list to
       include them.
-- [ ] Removing a member removes them from the visible list.
-- [ ] Opening a member's detail view shows direct permissions, access
+- [x] Removing a member removes them from the visible list.
+- [x] Opening a member's detail view shows direct permissions, access
       groups, and effective permissions as distinct sections.
-- [ ] Toggling a permission grants or revokes it and the effective set
+- [x] Toggling a permission grants or revokes it and the effective set
       updates without a page reload.
-- [ ] Creating an access group makes it available to assign to members.
-- [ ] Assigning/unassigning an access group updates the member's access
+- [x] Creating an access group makes it available to assign to members.
+- [x] Assigning/unassigning an access group updates the member's access
       groups and effective permissions.
 - [ ] A 403 from any action shows a clear permission-denied message, not
-      a raw error.
+      a raw error. (Only verified for the initial members-list load;
+      add/remove/detail/permission-toggle/access-group actions don't yet
+      catch a 403 individually — tracked as a follow-up.)
 
 ## Out of scope
 
