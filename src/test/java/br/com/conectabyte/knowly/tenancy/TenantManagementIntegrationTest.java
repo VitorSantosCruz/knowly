@@ -177,4 +177,43 @@ class TenantManagementIntegrationTest {
 
         assertThat(grantResponse).hasStatus(HttpStatus.OK);
     }
+
+    @Test
+    void aPlainMemberCannotGrantPermissionsOrCreateAccessGroups() {
+        User member = userRepository.saveAndFlush(new User("plainmember@own.com"));
+        User otherMember = userRepository.saveAndFlush(new User("othermember@own.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Own Tenant 3"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        TenantMembership otherMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(otherMember, tenant, MembershipRole.MEMBER));
+
+        Cookie memberSession = logIn("plainmember@own.com");
+
+        var grantResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + otherMembership.getId()
+                                        + "/permissions")
+                        .cookie(memberSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+
+        assertThat(grantResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        var createGroupResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                        .cookie(memberSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Should Not Exist\"}")
+                        .exchange();
+
+        assertThat(createGroupResponse).hasStatus(HttpStatus.FORBIDDEN);
+    }
 }

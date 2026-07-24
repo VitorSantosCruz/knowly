@@ -152,7 +152,7 @@
 - [x] 52. Implement `@AuditLog` on all of the above (Green — likely
        already covered if annotations were applied in tasks 48/50;
        write the test first regardless, per TDAD).
-- [ ] 53. Test: a plain member calling any grant/revoke/access-group
+- [x] 53. Test: a plain member calling any grant/revoke/access-group
        endpoint gets `403 PERMISSION_DENIED`; only tenant admin (own
        tenant) or staff succeed (REQ-16) (Red).
 - [x] 54. Implement `@RequiresPermission`/role checks on the

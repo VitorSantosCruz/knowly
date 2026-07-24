@@ -182,13 +182,9 @@ must ship behind an explicit permission check, not open by default.
       every member currently assigned to it — guaranteed by
       `PermissionService.effectivePermissions` never caching across
       requests. (`PermissionServiceTest`)
-- [ ] A plain member cannot grant themselves or anyone else any
+- [x] A plain member cannot grant themselves or anyone else any
       permission or access group membership; only tenant admins (own
-      tenant) and staff (any tenant) can. The service-level check
-      (`TenantService.requireAdminOfTenantOrStaff`) exists and is
-      exercised for admin/staff success paths, but there's no dedicated
-      test yet asserting a plain member is rejected on the grant
-      endpoints specifically.
+      tenant) and staff (any tenant) can. (`TenantManagementIntegrationTest`)
 - [x] A user who has created a record but lacks the specific permission
       for an action (e.g. delete) on that record type is still denied
       — permissions carry no ownership override anywhere in the model
