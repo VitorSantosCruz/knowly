@@ -32,6 +32,10 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 30MB
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
