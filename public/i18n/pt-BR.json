@@ -11,5 +11,40 @@
     "passwordLabel": "Senha de uso único",
     "invalidCredentials": "Algo está errado com o que você digitou. Tente novamente.",
     "accountLocked": "Muitas tentativas. Tente novamente mais tarde."
+  },
+  "tour": {
+    "next": "Próximo",
+    "back": "Voltar",
+    "skip": "Pular",
+    "finish": "Concluir",
+    "mainNav": {
+      "title": "Menu principal",
+      "body": "Tudo no knowly começa aqui — sua base de conhecimento, usuários e configurações."
+    },
+    "articles": {
+      "title": "Artigos",
+      "body": "É aqui que os documentos da sua equipe ficam, e onde você pode adicionar e editar."
+    },
+    "userManagement": {
+      "title": "Gerenciamento de usuários",
+      "body": "Adicione pessoas ao seu tenant e controle exatamente o que cada uma pode fazer."
+    },
+    "botConfig": {
+      "title": "Configuração do bot",
+      "body": "Ajuste a personalidade do seu assistente e a velocidade das respostas."
+    },
+    "helpMenu": {
+      "title": "Menu de ajuda",
+      "body": "Você pode reiniciar este tour a qualquer momento por aqui."
+    }
+  },
+  "dashboard": {
+    "articlesLink": "Ver artigos",
+    "noAccess": "Você não tem acesso a isso.",
+    "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}"
+  },
+  "helpMenu": {
+    "label": "Ajuda",
+    "restartTour": "Reiniciar tour"
   }
 }

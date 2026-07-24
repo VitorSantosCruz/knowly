@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { AppShellComponent } from './app-shell.component';
@@ -15,6 +17,8 @@ describe('AppShellComponent', () => {
       imports: [AppShellComponent],
       providers: [
         provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideTransloco({
           config: { availableLangs: ['en', 'pt-BR'], defaultLang: 'en' },
           loader: FakeTranslocoLoader,

@@ -11,5 +11,40 @@
     "passwordLabel": "One-time password",
     "invalidCredentials": "Something's wrong with what you entered. Please try again.",
     "accountLocked": "Too many attempts. Please try again later."
+  },
+  "tour": {
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip",
+    "finish": "Finish",
+    "mainNav": {
+      "title": "Main navigation",
+      "body": "Everything in knowly starts here — your knowledge base, users, and settings."
+    },
+    "articles": {
+      "title": "Articles",
+      "body": "This is where your team's documents live, and where you can add and edit them."
+    },
+    "userManagement": {
+      "title": "User management",
+      "body": "Add people to your tenant and control exactly what each of them can do."
+    },
+    "botConfig": {
+      "title": "Bot configuration",
+      "body": "Tune your assistant's personality and how fast it responds."
+    },
+    "helpMenu": {
+      "title": "Help menu",
+      "body": "You can restart this tour any time from here."
+    }
+  },
+  "dashboard": {
+    "articlesLink": "View articles",
+    "noAccess": "You don't have access to this.",
+    "error": "Something went wrong loading this. Trace id: {{traceId}}"
+  },
+  "helpMenu": {
+    "label": "Help",
+    "restartTour": "Restart tour"
   }
 }
