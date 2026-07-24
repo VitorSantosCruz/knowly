@@ -61,5 +61,12 @@
     "new": "Nova conversa",
     "untitled": "Conversa sem título",
     "send": "Enviar"
+  },
+  "articles": {
+    "titlePlaceholder": "Título",
+    "upload": "Enviar",
+    "delete": "Excluir",
+    "originalFile": "Ver arquivo original",
+    "save": "Salvar"
   }
 }
