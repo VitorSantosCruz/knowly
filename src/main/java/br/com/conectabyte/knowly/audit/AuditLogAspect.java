@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.audit;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -50,7 +51,7 @@ public class AuditLogAspect {
             Object result = joinPoint.proceed();
             record(joinPoint, auditLog, AuditOutcome.SUCCESS);
             return result;
-        } catch (PermissionDeniedException ex) {
+        } catch (PermissionDeniedException | TenantAccessDeniedException ex) {
             record(joinPoint, auditLog, AuditOutcome.DENIED);
             throw ex;
         } catch (Throwable ex) {

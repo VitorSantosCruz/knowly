@@ -7,8 +7,14 @@ import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
 import br.com.conectabyte.knowly.auth.exception.CaptchaRequiredException;
 import br.com.conectabyte.knowly.auth.exception.InvalidCredentialsException;
 import br.com.conectabyte.knowly.observability.PiiMasker;
+import br.com.conectabyte.knowly.tenancy.PermissionService;
+import br.com.conectabyte.knowly.tenancy.TenantAuthorityFactory;
+import br.com.conectabyte.knowly.tenancy.TenantService;
+import br.com.conectabyte.knowly.tenancy.TenantSessionKeys;
+import br.com.conectabyte.knowly.tenancy.TenantSessionOutcome;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -39,6 +46,8 @@ public class AuthController {
     private final LoginRequestPublisher loginRequestPublisher;
     private final LoginRequestThrottleService loginRequestThrottleService;
     private final AuthProperties properties;
+    private final TenantService tenantService;
+    private final PermissionService permissionService;
 
     public AuthController(
             UserRepository userRepository,
@@ -49,7 +58,9 @@ public class AuthController {
             CaptchaService captchaService,
             LoginRequestPublisher loginRequestPublisher,
             LoginRequestThrottleService loginRequestThrottleService,
-            AuthProperties properties) {
+            AuthProperties properties,
+            TenantService tenantService,
+            PermissionService permissionService) {
         this.userRepository = userRepository;
         this.loginCodeService = loginCodeService;
         this.oneTimePasswordService = oneTimePasswordService;
@@ -59,6 +70,8 @@ public class AuthController {
         this.loginRequestPublisher = loginRequestPublisher;
         this.loginRequestThrottleService = loginRequestThrottleService;
         this.properties = properties;
+        this.tenantService = tenantService;
+        this.permissionService = permissionService;
     }
 
     @PostMapping("/login-request")
@@ -196,10 +209,36 @@ public class AuthController {
             request.changeSessionId();
         }
 
-        var authentication = new UsernamePasswordAuthenticationToken(email, null, List.of());
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        List<GrantedAuthority> authorities = List.of();
+        TenantSessionOutcome outcome =
+                user == null
+                        ? new TenantSessionOutcome.SelectionPending()
+                        : tenantService.resolveSessionOutcome(user);
+
+        if (outcome instanceof TenantSessionOutcome.Staff) {
+            authorities = TenantAuthorityFactory.forStaff();
+        } else if (outcome instanceof TenantSessionOutcome.AutoSelected autoSelected) {
+            var membership = tenantService.requireActiveMembership(user, autoSelected.tenantId());
+            authorities =
+                    TenantAuthorityFactory.forMembership(
+                            membership, permissionService.effectivePermissions(membership));
+        }
+
+        var authentication = new UsernamePasswordAuthenticationToken(email, null, authorities);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         new HttpSessionSecurityContextRepository().saveContext(context, request, response);
+
+        HttpSession session = request.getSession(true);
+
+        if (outcome instanceof TenantSessionOutcome.Staff) {
+            session.setAttribute(TenantSessionKeys.STAFF, true);
+        } else if (outcome instanceof TenantSessionOutcome.AutoSelected autoSelected) {
+            session.setAttribute(TenantSessionKeys.ACTIVE_TENANT_ID, autoSelected.tenantId());
+        } else {
+            session.setAttribute(TenantSessionKeys.SELECTION_PENDING, true);
+        }
     }
 }

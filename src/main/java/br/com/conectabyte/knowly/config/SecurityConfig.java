@@ -1,5 +1,7 @@
 package br.com.conectabyte.knowly.config;
 
+import br.com.conectabyte.knowly.tenancy.TenantContext;
+import br.com.conectabyte.knowly.tenancy.TenantContextFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -11,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -40,7 +43,8 @@ public class SecurityConfig {
      * by the real session-aware mechanism once there are protected endpoints to guard.
      */
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, TenantContext tenantContext)
+            throws Exception {
         http.authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers("/actuator/health", "/api/auth/**")
@@ -52,11 +56,15 @@ public class SecurityConfig {
                                 csrf.ignoringRequestMatchers(
                                         "/api/auth/login-request",
                                         "/api/auth/login-code/verify",
-                                        "/api/auth/login-password/verify"))
+                                        "/api/auth/login-password/verify",
+                                        "/api/tenants/active"))
                 .exceptionHandling(
                         ex ->
                                 ex.authenticationEntryPoint(
-                                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+                                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .addFilterAfter(
+                        new TenantContextFilter(tenantContext),
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
