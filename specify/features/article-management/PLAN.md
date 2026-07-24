@@ -69,11 +69,13 @@
   on success/failure updates the article to `READY`/`FAILED` (REQ-9/10).
 - `TextExtractor` interface, one implementation per kind:
   - `PdfTextExtractor` / image OCR: both via **Apache Tika**
-    (`spring-ai-tika-document-reader` is already a dependency, pulling in
-    Tika core) — Tika's `AutoDetectParser` handles PDF text extraction
-    natively; image OCR additionally requires the `tika-parser-ocr-package`
-    module plus a `tesseract-ocr` binary available on the runtime image
-    (added to the app's `Dockerfile`).
+    (`spring-ai-tika-document-reader` already transitively pulls in
+    `tika-parser-pdf-module` and `tika-parser-ocr-module` — confirmed via
+    `dependency:tree`, no new dependency needed) — Tika's
+    `AutoDetectParser` handles PDF text extraction natively; image OCR
+    additionally requires a `tesseract-ocr` binary available on the
+    runtime image (added to the app's `Dockerfile`) — Tika's OCR module
+    shells out to it.
   - `AudioTranscriptionExtractor`: Spring AI's
     `OpenAiAudioTranscriptionModel` (auto-configured by the already-present
     `spring-ai-starter-model-openai`, reusing the existing
@@ -131,8 +133,8 @@ All under `/api/tenants/{tenantId}/articles`, each behind the matching
 ## Dependencies
 
 - `software.amazon.awssdk:s3` (new) — object storage client.
-- `org.apache.tika:tika-parser-ocr-package` (new) — OCR parser module;
-  `spring-ai-tika-document-reader` already brings Tika core/PDF parsing.
+- No new Tika dependency: `spring-ai-tika-document-reader` already
+  transitively brings `tika-parser-pdf-module` and `tika-parser-ocr-module`.
 - `org.testcontainers:minio` (new, test scope) — MinIO Testcontainers
   module for `TestcontainersConfiguration`.
 - Runtime image: add `tesseract-ocr` (+ `tesseract-ocr-eng`/`-por`

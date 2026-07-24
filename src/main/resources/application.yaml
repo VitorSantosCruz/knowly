@@ -86,3 +86,18 @@ knowly:
       verify-velocity-threshold: 20
       velocity-window: 5m
       turnstile-secret: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    region: us-east-1
+    access-key: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+    secret-key: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    bucket: knowly-articles
+  article:
+    max-file-size: 25MB
+    allowed-content-types:
+      - application/pdf
+      - image/png
+      - image/jpeg
+      - audio/mpeg
+      - audio/wav
+      - audio/mp4

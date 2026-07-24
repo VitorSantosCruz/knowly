@@ -6,8 +6,11 @@
 
 ## 0. Foundations
 
-- [ ] 1. Add `software.amazon.awssdk:s3`, `org.apache.tika:tika-parser-ocr-package`
-      to `pom.xml`; `org.testcontainers:minio` as a test dependency.
+- [x] 1. Add `software.amazon.awssdk:s3` (+ its BOM) to `pom.xml`;
+      `org.testcontainers:minio` as a test dependency. (Tika's OCR/PDF
+      modules already come transitively via
+      `spring-ai-tika-document-reader` — confirmed via `dependency:tree`,
+      no new Tika dependency needed.)
 - [ ] 2. Add a `minio` service to `compose.yaml` (hardened per the
       project's established pattern) and register it as a `@Bean
       @ServiceConnection` (or equivalent manual `S3Client` bean pointed at
@@ -62,8 +65,9 @@
        `ArticleExtractionListener` wiring for PDF (Green).
 - [ ] 20. Test: uploading a real small image fixture with OCR-able text
        eventually reaches `READY` with that text present (Red).
-- [ ] 21. Implement the OCR path (Tika + `tika-parser-ocr-package`,
-       `tesseract-ocr` on the runtime image) (Green).
+- [ ] 21. Implement the OCR path (Tika's already-present
+       `tika-parser-ocr-module`, `tesseract-ocr` binary added to the
+       runtime image) (Green).
 - [ ] 22. Test: uploading an audio fixture, with
        `OpenAiAudioTranscriptionModel` mocked to return known text,
        eventually reaches `READY` with that text (Red).
