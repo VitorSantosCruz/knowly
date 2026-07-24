@@ -1,7 +1,11 @@
 package br.com.conectabyte.knowly.conversation;
 
+import br.com.conectabyte.knowly.article.Article;
+import br.com.conectabyte.knowly.article.ArticleRepository;
 import br.com.conectabyte.knowly.auth.User;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,16 +43,22 @@ public class MessageStreamingService {
 
     private final ConversationService conversationService;
     private final MessageRepository messageRepository;
+    private final MessageArticleCitationRepository messageArticleCitationRepository;
+    private final ArticleRepository articleRepository;
     private final VectorStore vectorStore;
     private final ChatModel chatModel;
 
     public MessageStreamingService(
             ConversationService conversationService,
             MessageRepository messageRepository,
+            MessageArticleCitationRepository messageArticleCitationRepository,
+            ArticleRepository articleRepository,
             VectorStore vectorStore,
             ChatModel chatModel) {
         this.conversationService = conversationService;
         this.messageRepository = messageRepository;
+        this.messageArticleCitationRepository = messageArticleCitationRepository;
+        this.articleRepository = articleRepository;
         this.vectorStore = vectorStore;
         this.chatModel = chatModel;
     }
@@ -73,7 +83,7 @@ public class MessageStreamingService {
                 .subscribe(
                         chatResponse -> onNext(emitter, fullResponse, chatResponse),
                         error -> onError(emitter, conversationId, error),
-                        () -> onComplete(emitter, conversation, fullResponse));
+                        () -> onComplete(emitter, conversation, fullResponse, relevantChunks));
 
         return emitter;
     }
@@ -146,15 +156,38 @@ public class MessageStreamingService {
     }
 
     private void onComplete(
-            SseEmitter emitter, Conversation conversation, StringBuilder fullResponse) {
-        messageRepository.save(
-                new Message(conversation, MessageRole.ASSISTANT, fullResponse.toString()));
+            SseEmitter emitter,
+            Conversation conversation,
+            StringBuilder fullResponse,
+            List<Document> relevantChunks) {
+        Message assistantMessage =
+                messageRepository.save(
+                        new Message(conversation, MessageRole.ASSISTANT, fullResponse.toString()));
+        recordCitations(assistantMessage, relevantChunks);
         try {
             emitter.send(SseEmitter.event().name("done").data(""));
         } catch (Exception e) {
             log.error("conversation.stream_send_failed reason={}", e.getMessage());
         } finally {
             emitter.complete();
+        }
+    }
+
+    private void recordCitations(Message assistantMessage, List<Document> relevantChunks) {
+        Set<Long> distinctArticleIds = new LinkedHashSet<>();
+
+        for (Document chunk : relevantChunks) {
+            Object articleId = chunk.getMetadata().get("article_id");
+
+            if (articleId instanceof Number number) {
+                distinctArticleIds.add(number.longValue());
+            }
+        }
+
+        for (Long articleId : distinctArticleIds) {
+            Article article = articleRepository.getReferenceById(articleId);
+            messageArticleCitationRepository.save(
+                    new MessageArticleCitation(assistantMessage, article));
         }
     }
 }

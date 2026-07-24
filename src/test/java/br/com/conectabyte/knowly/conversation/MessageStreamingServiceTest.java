@@ -9,10 +9,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.conectabyte.knowly.article.Article;
+import br.com.conectabyte.knowly.article.ArticleRepository;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -61,11 +64,19 @@ class MessageStreamingServiceTest {
 
     private final ConversationService conversationService = mock(ConversationService.class);
     private final MessageRepository messageRepository = mock(MessageRepository.class);
+    private final MessageArticleCitationRepository messageArticleCitationRepository =
+            mock(MessageArticleCitationRepository.class);
+    private final ArticleRepository articleRepository = mock(ArticleRepository.class);
     private final VectorStore vectorStore = mock(VectorStore.class);
     private final ChatModel chatModel = mock(ChatModel.class);
     private final MessageStreamingService service =
             new MessageStreamingService(
-                    conversationService, messageRepository, vectorStore, chatModel);
+                    conversationService,
+                    messageRepository,
+                    messageArticleCitationRepository,
+                    articleRepository,
+                    vectorStore,
+                    chatModel);
 
     private Conversation aConversation() {
         Tenant tenant = new Tenant("Tenant");
@@ -161,6 +172,45 @@ class MessageStreamingServiceTest {
                                         m.getRole() == MessageRole.ASSISTANT
                                                 ? m.getContent().equals("Hello, world!")
                                                 : true));
+    }
+
+    @Test
+    void recordsOneCitationPerDistinctArticleAmongTheRetrievedChunks() {
+        Conversation conversation = aConversation();
+        when(conversationService.requireOwnConversation(any(), any())).thenReturn(conversation);
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(any()))
+                .thenReturn(List.of());
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(chunk("Answer")));
+        Article articleA = mock(Article.class);
+        Article articleB = mock(Article.class);
+        when(articleRepository.getReferenceById(1L)).thenReturn(articleA);
+        when(articleRepository.getReferenceById(2L)).thenReturn(articleB);
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .thenReturn(
+                        List.of(
+                                new Document("chunk 1 of article A", Map.of("article_id", 1L)),
+                                new Document("chunk 2 of article A", Map.of("article_id", 1L)),
+                                new Document("chunk of article B", Map.of("article_id", 2L))));
+
+        service.sendMessage(conversation.getOwner(), 1L, conversation.getId(), "question");
+
+        verify(messageArticleCitationRepository, times(2)).save(any());
+    }
+
+    @Test
+    void aFailedStreamRecordsNoCitations() {
+        Conversation conversation = aConversation();
+        when(conversationService.requireOwnConversation(any(), any())).thenReturn(conversation);
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(any()))
+                .thenReturn(List.of());
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .thenReturn(List.of(new Document("chunk", Map.of("article_id", 1L))));
+        when(chatModel.stream(any(Prompt.class)))
+                .thenReturn(Flux.error(new RuntimeException("provider unavailable")));
+
+        service.sendMessage(conversation.getOwner(), 1L, conversation.getId(), "question");
+
+        verify(messageArticleCitationRepository, times(0)).save(any());
     }
 
     @Test

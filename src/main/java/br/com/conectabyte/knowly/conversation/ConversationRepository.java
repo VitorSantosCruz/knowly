@@ -9,4 +9,6 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     List<Conversation> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
 
     Optional<Conversation> findByIdAndOwnerId(Long id, Long ownerId);
+
+    long countByTenantId(Long tenantId);
 }

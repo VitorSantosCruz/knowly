@@ -6,5 +6,6 @@ public enum Permission {
     ARTICLE_CREATE,
     ARTICLE_EDIT,
     ARTICLE_DELETE,
-    CONVERSATION_USE
+    CONVERSATION_USE,
+    DASHBOARD_VIEW
 }
