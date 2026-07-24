@@ -76,6 +76,7 @@ class TenantSessionIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response.getResponse().getContentAsString()).contains("Solo Tenant");
+        assertThat(response.getResponse().getContentAsString()).contains("\"active\":true");
     }
 
     @Test
@@ -123,6 +124,34 @@ class TenantSessionIntegrationTest {
                 mockMvc.get().uri("/api/test/tenant-scoped").cookie(session).exchange();
 
         assertThat(scopedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void membershipsListMarksTheActiveTenantAfterSwitching() throws Exception {
+        User user = userRepository.saveAndFlush(new User("marker@example.com"));
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenantA, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenantB, MembershipRole.MEMBER));
+
+        Cookie session = logIn("marker@example.com");
+        mockMvc.post()
+                .uri("/api/tenants/active")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":" + tenantB.getId() + "}")
+                .exchange();
+
+        var response = mockMvc.get().uri("/api/tenants/memberships").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body)
+                .contains("\"tenantName\":\"Tenant B\",\"role\":\"MEMBER\",\"active\":true");
+        assertThat(body)
+                .contains("\"tenantName\":\"Tenant A\",\"role\":\"MEMBER\",\"active\":false");
     }
 
     @Test

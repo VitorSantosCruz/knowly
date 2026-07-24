@@ -38,22 +38,33 @@ public class TenantController {
     private final TenantService tenantService;
     private final PermissionService permissionService;
     private final UserRepository userRepository;
+    private final TenantContext tenantContext;
 
     public TenantController(
             TenantService tenantService,
             PermissionService permissionService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            TenantContext tenantContext) {
         this.tenantService = tenantService;
         this.permissionService = permissionService;
         this.userRepository = userRepository;
+        this.tenantContext = tenantContext;
     }
 
     @GetMapping("/memberships")
     public ResponseEntity<List<TenantMembershipDto>> listOwnMemberships() {
         User user = currentUser();
+        Long activeTenantId = tenantContext.getActiveTenantId().orElse(null);
         List<TenantMembershipDto> memberships =
                 tenantService.listOwnMemberships(user).stream()
-                        .map(TenantMembershipDto::from)
+                        .map(
+                                membership ->
+                                        TenantMembershipDto.from(
+                                                membership,
+                                                membership
+                                                        .getTenant()
+                                                        .getId()
+                                                        .equals(activeTenantId)))
                         .toList();
 
         return ResponseEntity.ok(memberships);
