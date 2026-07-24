@@ -121,10 +121,20 @@ export class MembersPageComponent implements OnInit {
       return;
     }
 
-    this.memberService.add(tenantId, email, 'MEMBER').subscribe(() => {
-      this.newMemberEmail.set('');
-      this.loadMembers(tenantId);
-    });
+    this.memberService
+      .add(tenantId, email, 'MEMBER')
+      .pipe(
+        catchError((err) => {
+          this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.newMemberEmail.set('');
+          this.loadMembers(tenantId);
+        }
+      });
   }
 
   protected onRemoveMember(membershipId: number): void {
@@ -134,8 +144,18 @@ export class MembersPageComponent implements OnInit {
       return;
     }
 
-    this.memberService.remove(tenantId, membershipId).subscribe(() => {
-      this.members.update((members) => members.filter((m) => m.membershipId !== membershipId));
-    });
+    this.memberService
+      .remove(tenantId, membershipId)
+      .pipe(
+        catchError((err) => {
+          this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.members.update((members) => members.filter((m) => m.membershipId !== membershipId));
+        }
+      });
   }
 }

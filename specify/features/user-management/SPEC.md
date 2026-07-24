@@ -77,10 +77,8 @@ own tenant's people and access, reachable from the dashboard.
 - [x] Creating an access group makes it available to assign to members.
 - [x] Assigning/unassigning an access group updates the member's access
       groups and effective permissions.
-- [ ] A 403 from any action shows a clear permission-denied message, not
-      a raw error. (Only verified for the initial members-list load;
-      add/remove/detail/permission-toggle/access-group actions don't yet
-      catch a 403 individually — tracked as a follow-up.)
+- [x] A 403 from any action shows a clear permission-denied message, not
+      a raw error.
 
 ## Out of scope
 

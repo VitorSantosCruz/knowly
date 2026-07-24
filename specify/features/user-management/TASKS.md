@@ -46,10 +46,9 @@
 - [x] 21. Test: clicking remove calls `MemberService.remove` and removes
        the row (Red).
 - [x] 22. Implement the remove action (Green).
-- [x] 23. Test: a 403 from the members-list load renders the shared
-       `NoAccessStateComponent` (Red). (Only the initial list load is
-       covered; add/remove/detail/toggle/access-group actions don't yet
-       catch a 403 individually — a follow-up, see SPEC.md REQ-7.)
+- [x] 23. Test: a 403 from any action (members-list load, add, remove,
+       member detail, permission toggle, access-group create/assign/
+       unassign) renders the shared `NoAccessStateComponent` (Red).
 - [x] 24. Implement error handling reusing `NoAccessStateComponent`
        (Green) — an emergent decision, see PLAN.md, instead of building a
        new `PermissionDeniedStateComponent`.

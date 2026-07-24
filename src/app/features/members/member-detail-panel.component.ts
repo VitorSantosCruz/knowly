@@ -1,13 +1,22 @@
 import { Component, OnChanges, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { catchError, of } from 'rxjs';
 import { ALL_PERMISSIONS, Permission } from '../../core/permission';
 import { AccessGroup, MemberDetail, MemberService } from '../../core/member.service';
+import { ErrorStateComponent } from '../../shared/error-state.component';
+import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+
+type DetailError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-member-detail-panel',
-  imports: [TranslocoPipe],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
   template: `
-    @if (detail(); as detail) {
+    @if (error() === 'permission-denied') {
+      <app-no-access-state />
+    } @else if (error() === 'network') {
+      <app-error-state />
+    } @else if (detail(); as detail) {
       <div data-testid="member-detail-panel" class="rounded-2xl border border-slate-200 p-4">
         <h2 class="mb-2 font-semibold">{{ detail.email }}</h2>
 
@@ -92,6 +101,7 @@ export class MemberDetailPanelComponent implements OnChanges {
   protected readonly availableAccessGroups = signal<AccessGroup[]>([]);
   protected readonly newAccessGroupName = signal('');
   protected readonly allPermissions = ALL_PERMISSIONS;
+  protected readonly error = signal<DetailError>(null);
 
   ngOnChanges(): void {
     this.loadDetail();
@@ -103,16 +113,40 @@ export class MemberDetailPanelComponent implements OnChanges {
     return this.availableAccessGroups().filter((group) => !assignedIds.has(group.id));
   }
 
+  private reportError(err: { status: number }): void {
+    this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+  }
+
   private loadDetail(): void {
     this.memberService
       .getDetail(this.tenantId(), this.membershipId())
-      .subscribe((detail) => this.detail.set(detail));
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return of(null);
+        }),
+      )
+      .subscribe((detail) => {
+        if (detail !== null) {
+          this.detail.set(detail);
+        }
+      });
   }
 
   private loadAccessGroups(): void {
     this.memberService
       .listAccessGroups(this.tenantId())
-      .subscribe((groups) => this.availableAccessGroups.set(groups));
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return of(null);
+        }),
+      )
+      .subscribe((groups) => {
+        if (groups !== null) {
+          this.availableAccessGroups.set(groups);
+        }
+      });
   }
 
   protected onTogglePermission(permission: Permission, isGranted: boolean): void {
@@ -120,19 +154,50 @@ export class MemberDetailPanelComponent implements OnChanges {
       ? this.memberService.revokePermission(this.tenantId(), this.membershipId(), permission)
       : this.memberService.grantPermission(this.tenantId(), this.membershipId(), permission);
 
-    request$.subscribe(() => this.loadDetail());
+    request$
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.loadDetail();
+        }
+      });
   }
 
   protected onAssignAccessGroup(accessGroupId: number): void {
     this.memberService
       .assignAccessGroup(this.tenantId(), this.membershipId(), accessGroupId)
-      .subscribe(() => this.loadDetail());
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.loadDetail();
+        }
+      });
   }
 
   protected onUnassignAccessGroup(accessGroupId: number): void {
     this.memberService
       .unassignAccessGroup(this.tenantId(), this.membershipId(), accessGroupId)
-      .subscribe(() => this.loadDetail());
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.loadDetail();
+        }
+      });
   }
 
   protected onCreateAccessGroup(event: Event): void {
@@ -143,9 +208,19 @@ export class MemberDetailPanelComponent implements OnChanges {
       return;
     }
 
-    this.memberService.createAccessGroup(this.tenantId(), name).subscribe(() => {
-      this.newAccessGroupName.set('');
-      this.loadAccessGroups();
-    });
+    this.memberService
+      .createAccessGroup(this.tenantId(), name)
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.newAccessGroupName.set('');
+          this.loadAccessGroups();
+        }
+      });
   }
 }
