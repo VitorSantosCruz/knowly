@@ -110,23 +110,44 @@ that read what this one produces (see "Out of scope").
 
 ## Acceptance criteria
 
-- [ ] Uploading a supported PDF/image/audio file creates an article in
+- [x] Uploading a supported PDF/image/audio file creates an article in
       "processing" status and returns immediately.
-- [ ] An unsupported file type or oversized file is rejected before
-      anything is stored.
-- [ ] A processing PDF eventually reaches "ready" with correct extracted
-      text.
+      (`ArticleControllerIntegrationTest`)
+- [x] An unsupported file type or oversized file is rejected before
+      anything is stored. (`ArticleControllerIntegrationTest` covers
+      unsupported type; `ArticleUploadSizeLimitIntegrationTest` covers
+      oversized, with `knowly.article.max-file-size` overridden low via
+      `@TestPropertySource` rather than uploading a genuinely large
+      file.)
+- [x] A processing PDF eventually reaches "ready" with correct extracted
+      text. (`ArticleExtractionListenerTest`, against a real
+      PDFBox-generated PDF and real Tika extraction)
 - [ ] A processing image eventually reaches "ready" with OCR'd text.
-- [ ] A processing audio file eventually reaches "ready" with transcribed
-      text.
-- [ ] A corrupt/unrecognizable file reaches "failed" with a reason,
-      never stuck in "processing".
-- [ ] A user with only the view permission can list and open articles but
-      gets denied on create/edit/delete.
-- [ ] A user with edit but not create can still fix an existing article's
-      text.
-- [ ] Articles from one tenant never appear in another tenant's list.
-- [ ] Every list/view/create/edit/delete action produces an audit event.
+      **Not verified in this sandbox** — no `tesseract` binary
+      available here and no sudo to install it non-interactively. The
+      code path is implemented and identical to the verified PDF case;
+      needs re-running wherever `tesseract-ocr` is installed (see
+      TASKS.md task 20).
+- [x] A processing audio file eventually reaches "ready" with transcribed
+      text. (`ArticleExtractionListenerTest`, `TranscriptionModel`
+      mocked at the Spring AI client boundary — no real Whisper API
+      call is exercised)
+- [x] A corrupt/unrecognizable file reaches "failed" with a reason,
+      never stuck in "processing". (`ArticleExtractionListenerTest`)
+- [x] A user with only the view permission can list and open articles but
+      gets denied on create/edit/delete. (`ArticleControllerIntegrationTest`
+      proves view-without-create is denied; edit/delete-independence is
+      covered by the edit/delete-specific tests below rather than a single
+      combined test.)
+- [x] A user with edit but not create can still fix an existing article's
+      text. (`ArticleControllerIntegrationTest`)
+- [x] Articles from one tenant never appear in another tenant's list.
+      (`ArticleControllerIntegrationTest`, `ArticleRepositoryTest`)
+- [x] Every list/view/create/edit/delete action produces an audit event.
+      (`ArticleControllerIntegrationTest` verifies this for `list`; the
+      other four actions carry the identical `@AuditLog` mechanism
+      already verified generically in the `tenancy` feature's
+      `AuditLogAspectTest`.)
 
 ## Out of scope
 
