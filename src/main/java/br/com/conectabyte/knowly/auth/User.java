@@ -47,6 +47,9 @@ public class User {
     @Column(name = "global_role", length = 20)
     private GlobalRole globalRole;
 
+    @Column(name = "onboarding_completed_at")
+    private Instant onboardingCompletedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

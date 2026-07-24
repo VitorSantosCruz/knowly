@@ -18,7 +18,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class TenantContextFilter extends OncePerRequestFilter {
 
     private static final List<String> TENANT_SCOPED_EXEMPT_PATH_PREFIXES =
-            List.of("/api/auth", "/api/tenants/active", "/api/tenants/memberships");
+            List.of(
+                    "/api/auth",
+                    "/api/tenants/active",
+                    "/api/tenants/memberships",
+                    "/api/users/me/onboarding");
 
     private final TenantContext tenantContext;
 

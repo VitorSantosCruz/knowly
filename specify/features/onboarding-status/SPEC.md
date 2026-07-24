@@ -48,12 +48,12 @@ see "Out of scope".
 
 ## Acceptance criteria
 
-- [ ] A brand-new user's onboarding status reads as not-completed.
-- [ ] Calling mark-complete then reading status back returns completed.
-- [ ] Calling mark-complete twice in a row does not error.
-- [ ] A user who belongs to two tenants has one onboarding status, not one
+- [x] A brand-new user's onboarding status reads as not-completed.
+- [x] Calling mark-complete then reading status back returns completed.
+- [x] Calling mark-complete twice in a row does not error.
+- [x] A user who belongs to two tenants has one onboarding status, not one
       per tenant.
-- [ ] Both endpoints require authentication (401 if not logged in).
+- [x] Both endpoints require authentication (401 if not logged in).
 
 ## Out of scope
 
