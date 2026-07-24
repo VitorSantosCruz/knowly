@@ -1,11 +1,12 @@
 import { Component, OnDestroy, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { AuthService, AuthErrorCode } from '../../core/auth.service';
 import { ConfigService } from '../../core/config.service';
 import { loadTurnstileScript } from '../../core/turnstile-loader';
 
-type Step = 'email' | 'credential' | 'loggedIn';
+type Step = 'email' | 'credential';
 type CredentialTab = 'code' | 'password';
 
 @Component({
@@ -152,8 +153,6 @@ type CredentialTab = 'code' | 'password';
             </form>
           }
         </div>
-      } @else {
-        <div data-testid="logged-in"></div>
       }
     </div>
   `,
@@ -161,6 +160,7 @@ type CredentialTab = 'code' | 'password';
 export class LoginPageComponent implements OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly configService = inject(ConfigService);
+  private readonly router = inject(Router);
 
   protected get turnstileSiteKey(): string {
     return this.configService.turnstileSiteKey;
@@ -223,7 +223,7 @@ export class LoginPageComponent implements OnDestroy {
     this.authService.verifyCode(this.email(), this.code(), this.captchaToken()).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.step.set('loggedIn');
+        this.router.navigateByUrl('/dashboard');
       },
       error: (err: { error?: { code?: AuthErrorCode } }) => {
         this.submitting.set(false);
@@ -240,7 +240,7 @@ export class LoginPageComponent implements OnDestroy {
     this.authService.verifyPassword(this.email(), this.password(), this.captchaToken()).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.step.set('loggedIn');
+        this.router.navigateByUrl('/dashboard');
       },
       error: (err: { error?: { code?: AuthErrorCode } }) => {
         this.submitting.set(false);

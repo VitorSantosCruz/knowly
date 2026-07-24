@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
   ApplicationConfig,
   inject,
@@ -11,12 +11,13 @@ import { provideTransloco } from '@jsverse/transloco';
 import { routes } from './app.routes';
 import { TranslocoHttpLoader } from './i18n/transloco-loader';
 import { ConfigService } from './core/config.service';
+import { authInterceptor } from './core/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([authInterceptor])),
     provideTransloco({
       config: {
         availableLangs: ['en', 'pt-BR'],

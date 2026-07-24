@@ -1,6 +1,7 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { of, throwError } from 'rxjs';
 import { LoginPageComponent } from './login-page.component';
@@ -13,6 +14,7 @@ function setup() {
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
+      provideRouter([]),
       provideTransloco({
         config: { availableLangs: ['en', 'pt-BR'], defaultLang: 'en' },
         loader: FakeTranslocoLoader,
@@ -166,7 +168,9 @@ describe('LoginPageComponent', () => {
       const fixture = setup();
       goToCredentialStep(fixture);
       const authService = TestBed.inject(AuthService);
+      const router = TestBed.inject(Router);
       vi.spyOn(authService, 'verifyCode').mockReturnValue(of(undefined));
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
       const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
       codeInput.value = '123456';
@@ -180,14 +184,16 @@ describe('LoginPageComponent', () => {
       fixture.detectChanges();
 
       expect(authService.verifyCode).toHaveBeenCalledWith('user@example.com', '123456', undefined);
-      expect(fixture.nativeElement.querySelector('[data-testid="logged-in"]')).toBeTruthy();
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
     });
 
     it('logs the user in when the password is correct', () => {
       const fixture = setup();
       goToCredentialStep(fixture);
       const authService = TestBed.inject(AuthService);
+      const router = TestBed.inject(Router);
       vi.spyOn(authService, 'verifyPassword').mockReturnValue(of(undefined));
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
       const tabs: NodeListOf<HTMLButtonElement> =
         fixture.nativeElement.querySelectorAll('[role="tab"]');
@@ -211,7 +217,7 @@ describe('LoginPageComponent', () => {
         'abc123456789',
         undefined,
       );
-      expect(fixture.nativeElement.querySelector('[data-testid="logged-in"]')).toBeTruthy();
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
     });
 
     it('shows an invalid-credentials tooltip without clearing the code input', () => {
