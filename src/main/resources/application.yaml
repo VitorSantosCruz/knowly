@@ -31,6 +31,11 @@ spring:
     vectorstore:
       pgvector:
         initialize-schema: true
+        # Explicit so PgVectorStore#afterPropertiesSet doesn't call the real OpenAI embeddings
+        # endpoint at every startup just to infer the vector size (wasteful, and fragile if the
+        # embeddings call fails — e.g. rate limiting — since app startup would otherwise depend
+        # on it). 1536 matches text-embedding-3-small, the default embedding model here.
+        dimensions: 1536
   jpa:
     open-in-view: false
     hibernate:
