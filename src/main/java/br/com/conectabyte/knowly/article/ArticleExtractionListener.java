@@ -22,14 +22,17 @@ public class ArticleExtractionListener {
 
     private final ArticleRepository articleRepository;
     private final ArticleStorageService articleStorageService;
+    private final ArticleExtractionPublisher articleExtractionPublisher;
     private final List<TextExtractor> extractors;
 
     public ArticleExtractionListener(
             ArticleRepository articleRepository,
             ArticleStorageService articleStorageService,
+            ArticleExtractionPublisher articleExtractionPublisher,
             List<TextExtractor> extractors) {
         this.articleRepository = articleRepository;
         this.articleStorageService = articleStorageService;
+        this.articleExtractionPublisher = articleExtractionPublisher;
         this.extractors = extractors;
     }
 
@@ -60,6 +63,10 @@ public class ArticleExtractionListener {
         }
 
         articleRepository.save(article);
+
+        if (article.getStatus() == ArticleStatus.READY) {
+            articleExtractionPublisher.publishReadyForEmbedding(article.getId());
+        }
     }
 
     private TextExtractor findExtractor(String contentType) {

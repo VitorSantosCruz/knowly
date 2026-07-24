@@ -16,4 +16,10 @@ public class ArticleExtractionPublisher {
         rabbitTemplate.convertAndSend(
                 ArticleRabbitConfig.ARTICLE_UPLOADED_QUEUE, new ArticleUploadedEvent(articleId));
     }
+
+    public void publishReadyForEmbedding(Long articleId) {
+        rabbitTemplate.convertAndSend(
+                ArticleEmbeddingRabbitConfig.ARTICLE_READY_FOR_EMBEDDING_QUEUE,
+                new ArticleReadyForEmbeddingEvent(articleId));
+    }
 }

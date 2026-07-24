@@ -28,6 +28,9 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
   jpa:
     open-in-view: false
     hibernate:

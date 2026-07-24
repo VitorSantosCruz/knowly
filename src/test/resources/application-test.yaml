@@ -5,6 +5,11 @@ spring:
   ai:
     openai:
       api-key: sk-test-dummy-0000000000000000000000000000000000000000
+    vectorstore:
+      pgvector:
+        # Explicit dimensions avoid PgVectorStore#afterPropertiesSet calling the real
+        # OpenAI embeddings endpoint at context startup just to infer the vector size.
+        dimensions: 1536
 
 knowly:
   auth:

@@ -11,6 +11,8 @@ import br.com.conectabyte.knowly.tenancy.TenantRepository;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.io.IOException;
 import java.util.List;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +24,7 @@ public class ArticleService {
     private final TenantRepository tenantRepository;
     private final ArticleStorageService articleStorageService;
     private final ArticleExtractionPublisher articleExtractionPublisher;
+    private final VectorStore vectorStore;
     private final TenantContext tenantContext;
     private final ArticleProperties articleProperties;
 
@@ -30,12 +33,14 @@ public class ArticleService {
             TenantRepository tenantRepository,
             ArticleStorageService articleStorageService,
             ArticleExtractionPublisher articleExtractionPublisher,
+            VectorStore vectorStore,
             TenantContext tenantContext,
             ArticleProperties articleProperties) {
         this.articleRepository = articleRepository;
         this.tenantRepository = tenantRepository;
         this.articleStorageService = articleStorageService;
         this.articleExtractionPublisher = articleExtractionPublisher;
+        this.vectorStore = vectorStore;
         this.tenantContext = tenantContext;
         this.articleProperties = articleProperties;
     }
@@ -108,6 +113,8 @@ public class ArticleService {
         Article article = requireArticle(articleId);
         article.setActive(false);
         articleRepository.save(article);
+
+        vectorStore.delete(new FilterExpressionBuilder().eq("article_id", articleId).build());
     }
 
     private Article requireArticle(Long articleId) {

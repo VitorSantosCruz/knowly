@@ -5,5 +5,6 @@ public enum Permission {
     ARTICLE_VIEW,
     ARTICLE_CREATE,
     ARTICLE_EDIT,
-    ARTICLE_DELETE
+    ARTICLE_DELETE,
+    CONVERSATION_USE
 }
