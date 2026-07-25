@@ -202,6 +202,53 @@ class TenantSessionIntegrationTest {
         assertThat(events.get(0).getAction()).isEqualTo("tenant.active_tenant.switch");
     }
 
+    @Test
+    void staffWithNoMembershipsCanListAllTenantsAndActAsAny() throws Exception {
+        User staff = userRepository.saveAndFlush(new User("staff@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF);
+        userRepository.saveAndFlush(staff);
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+
+        Cookie session = logIn("staff@example.com");
+
+        var listResponse = mockMvc.get().uri("/api/tenants").cookie(session).exchange();
+
+        assertThat(listResponse).hasStatus(HttpStatus.OK);
+        String listBody = listResponse.getResponse().getContentAsString();
+        assertThat(listBody).contains("Tenant A");
+        assertThat(listBody).contains("Tenant B");
+
+        var switchResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenantB.getId() + "}")
+                        .exchange();
+
+        assertThat(switchResponse).hasStatus(HttpStatus.OK);
+
+        var scopedResponse =
+                mockMvc.get().uri("/api/test/tenant-scoped").cookie(session).exchange();
+
+        assertThat(scopedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void nonStaffCannotListAllTenants() {
+        User user = userRepository.saveAndFlush(new User("regular@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Regular Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("regular@example.com");
+
+        var response = mockMvc.get().uri("/api/tenants").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
     @RestController
     static class TenantScopedTestController {
         @GetMapping("/api/test/tenant-scoped")

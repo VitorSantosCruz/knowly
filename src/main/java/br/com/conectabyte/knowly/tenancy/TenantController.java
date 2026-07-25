@@ -13,6 +13,7 @@ import br.com.conectabyte.knowly.tenancy.dto.OwnPermissionsDto;
 import br.com.conectabyte.knowly.tenancy.dto.PermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.SwitchActiveTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantMembershipDto;
+import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -83,6 +84,11 @@ public class TenantController {
         return ResponseEntity.ok(new OwnPermissionsDto(permissions));
     }
 
+    @GetMapping
+    public ResponseEntity<List<TenantSummaryDto>> listAllTenants() {
+        return ResponseEntity.ok(tenantService.listAllTenants(currentUser()));
+    }
+
     @PostMapping("/active")
     @AuditLog(
             action = "tenant.active_tenant.switch",
@@ -93,12 +99,18 @@ public class TenantController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         User user = currentUser();
-        TenantMembership membership =
-                tenantService.requireActiveMembership(user, request.tenantId());
+        List<GrantedAuthority> authorities;
 
-        List<GrantedAuthority> authorities =
-                TenantAuthorityFactory.forMembership(
-                        membership, permissionService.effectivePermissions(membership));
+        if (tenantContext.isStaff()) {
+            tenantService.requireTenant(request.tenantId());
+            authorities = TenantAuthorityFactory.forStaff();
+        } else {
+            TenantMembership membership =
+                    tenantService.requireActiveMembership(user, request.tenantId());
+            authorities =
+                    TenantAuthorityFactory.forMembership(
+                            membership, permissionService.effectivePermissions(membership));
+        }
 
         var authentication =
                 new UsernamePasswordAuthenticationToken(user.getEmail(), null, authorities);

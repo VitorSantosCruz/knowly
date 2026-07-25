@@ -6,6 +6,7 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
+import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
@@ -88,6 +89,23 @@ public class TenantService {
                 .findByUserAndTenant(user, tenant)
                 .filter(TenantMembership::isActive)
                 .orElseThrow(TenantAccessDeniedException::new);
+    }
+
+    /**
+     * Every tenant in the system — staff-only, powers a staff "act as this tenant" picker (staff
+     * have no memberships of their own to pick from, unlike a regular multi-membership user).
+     */
+    @Transactional(readOnly = true)
+    public List<TenantSummaryDto> listAllTenants(User actor) {
+        requireStaff(actor);
+
+        return tenantRepository.findAll().stream().map(TenantSummaryDto::from).toList();
+    }
+
+    /** Confirms a tenant exists, for staff switching to act as it without holding a membership. */
+    @Transactional(readOnly = true)
+    public Tenant requireTenant(Long tenantId) {
+        return tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
     }
 
     /**

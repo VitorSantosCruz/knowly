@@ -173,6 +173,19 @@
 - [x] 56b. Implement `TenantService#ownEffectivePermissions` +
        `TenantController#ownPermissions` (Green).
 
+## 7b. Emergent: staff act-as-any-tenant picker (REQ-21, added when a
+     real staff account with zero memberships hit `TENANT_SELECTION_REQUIRED`
+     on every tenant-scoped call)
+
+- [x] 56c. Test: staff with no memberships can `GET /api/tenants` (every
+       tenant in the system) and `POST /api/tenants/active` to any of
+       them without holding a membership; non-staff gets 403 on the
+       list endpoint; once switched, tenant isolation still applies
+       (Red).
+- [x] 56d. Implement `TenantService#listAllTenants`/`#requireTenant`,
+       `TenantController#listAllTenants`, and branch
+       `switchActiveTenant` on `tenantContext.isStaff()` (Green).
+
 ## 7. Final verification
 
 - [x] 57. Run the full `./mvnw spotless:apply && ./mvnw verify` and

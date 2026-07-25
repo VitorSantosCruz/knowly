@@ -128,6 +128,12 @@ must ship behind an explicit permission check, not open by default.
   permission grant/revoke, membership change) performed by any user —
   not writes only. This is the dataset future reporting features will
   read from, not just a debugging aid.
+- **REQ-21 [Ubiquitous]** Staff users, who hold no tenant membership of
+  their own, shall be able to list every tenant in the system and switch
+  their active tenant to any of them, without needing a membership row.
+  Once acting as a tenant, they are scoped by tenant isolation exactly
+  like any member of that tenant (REQ-8) — the staff bypass applies only
+  to permission checks (REQ-16), never to tenant data isolation itself.
 
 ## Non-functional requirements
 
@@ -197,6 +203,11 @@ must ship behind an explicit permission check, not open by default.
       general `@AuditLog` mechanism (`AuditLogAspectTest`); no real
       tenant-scoped read/listing feature exists yet to attach it to
       (that's for the next feature, article management, to wire up).
+- [x] A staff user with no tenant membership can list every tenant in
+      the system and switch their active tenant to any of them without
+      holding a membership; a non-staff user gets 403 attempting the
+      list. Once switched, they are isolated to that tenant's data like
+      any member (`TenantSessionIntegrationTest`).
 
 ## Out of scope
 
