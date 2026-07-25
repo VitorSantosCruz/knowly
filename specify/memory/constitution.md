@@ -192,6 +192,24 @@ sessions.
 No implementation should start without an approved SPEC for the feature in
 question. Behavior changes always update the SPEC first.
 
+**Cross-repo SPEC placement (2026-07-25): a feature's SPEC/PLAN/TASKS
+live in the repo that owns the behavior they describe — backend
+behavior's SPEC lives here (`knowly/specify/features/<name>/`), frontend
+behavior's SPEC lives in the frontend repo
+(`knowly-app/specify/features/<name>/`). This applies regardless of
+which repo an AI session happens to be invoked from, and regardless of
+which repo turns out to be more convenient to write in.** A feature that
+spans both (e.g. a new endpoint backing a new screen) gets **two**
+separate SPECs, one per repo, each covering only its own side, cross-
+referencing each other's API contract rather than one shared SPEC
+duplicated or misplaced in one repo. If you find a SPEC describing the
+other repo's behavior sitting in this one (or vice versa), that's a
+mistake to fix — relocate it to the repo it actually belongs to (moving
+file contents, not just adding a pointer) rather than leaving it as-is
+or duplicating it in both places. Any AI assistant working in either
+repo, on discovering a misplaced SPEC, should treat this paragraph as
+the instruction to correct it, not just note it.
+
 **"Approved" applies to changing an existing SPEC's scope, not just
 writing a brand-new one.** Never silently expand a SPEC's scope, add a
 requirement it didn't have, or — especially — remove/reverse something

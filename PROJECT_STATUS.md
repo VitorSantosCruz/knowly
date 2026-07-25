@@ -51,10 +51,11 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state: `staff-bootstrap-user`, `staff-rbac-split`, and
-`staff-user-provisioning` all done. Confirmed roadmap in progress — next
-up is navigation menus.** The user confirmed this order for the next
-several features (2026-07-25):
+**Current state: `staff-bootstrap-user`, `staff-rbac-split`,
+`staff-user-provisioning`, and `navigation-menu` (frontend) all done.
+Confirmed roadmap in progress — next up is user management screens.**
+The user confirmed this order for the next several features
+(2026-07-25):
 
 1. ~~Bootstrap staff-admin one-shot user~~ — done, see
    `specify/features/staff-bootstrap-user/`.
@@ -87,11 +88,22 @@ several features (2026-07-25):
    the passwordless login-code flow. Promoting/demoting `STAFF_ADMIN`
    and deactivating a staff user are explicitly out of scope (see that
    SPEC) — flag if either becomes needed later.
-4. **Navigation menus** — staff full vs. permission-filtered; tenant
-   landing: auto-enter on single membership vs. tenant list on multiple.
-   **This is the next feature to SPEC.**
-5. User management screens (staff user management globally; tenant user
-   management per-tenant).
+4. ~~Navigation menus~~ — done, frontend-only, see
+   `knowly-app/specify/features/navigation-menu/`. No backend change was
+   needed (consumed the existing `GET /api/tenants/permissions` and
+   `staff-rbac-split`'s `GET /api/staff/permissions` as-is). Also fixed a
+   frontend bug this uncovered: `staff.guard.ts` inferred "is staff"
+   from `GET /api/tenants` succeeding, which broke once
+   `staff-rbac-split` made staff access individually granted (a `STAFF`
+   user granted only `TENANT_CREATE`, not `TENANT_ACT_AS_ANY`, was
+   wrongly blocked from tenant creation).
+5. **User management screens** (staff user management globally; tenant
+   user management per-tenant). **This is the next feature to SPEC** —
+   likely split into a backend SPEC here (any missing endpoints, e.g.
+   listing/searching all staff users — `staff-rbac-split` only added
+   per-user detail/grant endpoints, not a listing one) and a frontend
+   SPEC in `knowly-app` for the screens themselves, per the cross-repo
+   SPEC placement rule in both repos' `constitution.md`.
 6. Expanded metrics dashboard.
 
 Backend and frontend work can proceed in parallel per feature once each
@@ -138,9 +150,9 @@ the feature's own SPEC.
 
 **As of the last working session:** test suite speed (`forkCount=2` +
 JTE precompiled-templates fix, see `DECISIONS.md`), `staff-bootstrap-user`,
-`staff-rbac-split`, and `staff-user-provisioning` are all done. Next:
-navigation menus (see "Next up" above) — write its SPEC before
-implementing.
+`staff-rbac-split`, `staff-user-provisioning`, and (frontend-only)
+`navigation-menu` are all done. Next: user management screens (see
+"Next up" above) — write its SPEC(s) before implementing.
 
 ## Known operational notes worth knowing before touching infra/CI
 
