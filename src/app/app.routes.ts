@@ -5,11 +5,18 @@ import { MembersPageComponent } from './features/members/members-page.component'
 import { ConversationsPageComponent } from './features/conversations/conversations-page.component';
 import { ArticlesPageComponent } from './features/articles/articles-page.component';
 import { SelectTenantPageComponent } from './features/select-tenant/select-tenant-page.component';
+import { TenantCreatePageComponent } from './features/tenant-create/tenant-create-page.component';
 import { tenantSelectionGuard } from './core/tenant-selection.guard';
+import { staffGuard } from './core/staff.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
   { path: 'select-tenant', component: SelectTenantPageComponent },
+  {
+    path: 'tenants/new',
+    component: TenantCreatePageComponent,
+    canActivate: [staffGuard],
+  },
   {
     path: 'dashboard',
     component: DashboardPageComponent,

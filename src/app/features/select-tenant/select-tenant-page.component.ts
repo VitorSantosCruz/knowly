@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { catchError, of } from 'rxjs';
+import { catchError, of, tap } from 'rxjs';
 import {
   ActiveTenantService,
   TenantMembership,
@@ -15,7 +15,7 @@ interface TenantOption {
 
 @Component({
   selector: 'app-select-tenant-page',
-  imports: [TranslocoPipe],
+  imports: [TranslocoPipe, RouterLink],
   template: `
     <div data-testid="select-tenant-page" class="mx-auto max-w-md p-6">
       <h1 class="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
@@ -40,6 +40,16 @@ interface TenantOption {
           {{ 'selectTenant.empty' | transloco }}
         </p>
       }
+
+      @if (isStaff()) {
+        <a
+          data-testid="create-tenant-link"
+          routerLink="/tenants/new"
+          class="mt-4 inline-block text-sm text-indigo-600 hover:underline"
+        >
+          {{ 'selectTenant.createTenant' | transloco }}
+        </a>
+      }
     </div>
   `,
 })
@@ -49,6 +59,7 @@ export class SelectTenantPageComponent implements OnInit {
 
   protected readonly options = signal<TenantOption[]>([]);
   protected readonly loaded = signal(false);
+  protected readonly isStaff = signal(false);
 
   ngOnInit(): void {
     this.activeTenantService.list().subscribe((memberships) => {
@@ -60,7 +71,10 @@ export class SelectTenantPageComponent implements OnInit {
 
       this.activeTenantService
         .listAllTenants()
-        .pipe(catchError(() => of([] as TenantSummary[])))
+        .pipe(
+          tap(() => this.isStaff.set(true)),
+          catchError(() => of([] as TenantSummary[])),
+        )
         .subscribe((tenants) => {
           this.options.set(
             tenants.map((tenant) => ({ tenantId: tenant.id, tenantName: tenant.name })),

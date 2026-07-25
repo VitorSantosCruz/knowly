@@ -74,6 +74,15 @@
   },
   "selectTenant": {
     "title": "Choose a tenant to continue",
-    "empty": "No tenants are available to select."
+    "empty": "No tenants are available to select.",
+    "createTenant": "Create tenant"
+  },
+  "tenantCreate": {
+    "title": "Create tenant",
+    "name": "Tenant name",
+    "adminEmail": "First admin's email",
+    "submit": "Create",
+    "invalid": "Enter a tenant name and a valid admin email.",
+    "submitError": "Couldn't create the tenant. Please check the details and try again."
   }
 }

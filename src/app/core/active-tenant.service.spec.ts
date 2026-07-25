@@ -77,6 +77,18 @@ describe('ActiveTenantService', () => {
     ]);
   });
 
+  it('createTenant() posts the name and admin email', () => {
+    let completed = false;
+    service.createTenant('Acme', 'admin@acme.test').subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne('/api/tenants');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ name: 'Acme', adminEmail: 'admin@acme.test' });
+    req.flush({});
+
+    expect(completed).toBe(true);
+  });
+
   it('selectTenant() posts the choice and updates the active tenant signals', () => {
     service.selectTenant(2, 'Tenant B').subscribe();
 

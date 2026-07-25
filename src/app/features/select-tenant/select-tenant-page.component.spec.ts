@@ -95,6 +95,28 @@ describe('SelectTenantPageComponent', () => {
     expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
   });
 
+  it('shows a create-tenant link on the staff fallback path', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock.expectOne('/api/tenants').flush([{ id: 1, name: 'Acme' }]);
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('[data-testid="create-tenant-link"]');
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('/tenants/new');
+  });
+
+  it('does not show a create-tenant link when the user already has memberships', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/memberships').flush([
+      { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
+      { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="create-tenant-link"]')).toBeFalsy();
+  });
+
   it('shows an empty state when the memberships and all-tenants fallback are both empty', () => {
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/memberships').flush([]);

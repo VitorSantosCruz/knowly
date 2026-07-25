@@ -40,6 +40,10 @@ export class ActiveTenantService {
     return this.http.get<TenantSummary[]>('/api/tenants');
   }
 
+  createTenant(name: string, adminEmail: string): Observable<void> {
+    return this.http.post<void>('/api/tenants', { name, adminEmail });
+  }
+
   selectTenant(tenantId: number, tenantName: string): Observable<void> {
     return this.http.post<void>('/api/tenants/active', { tenantId }).pipe(
       tap(() => {

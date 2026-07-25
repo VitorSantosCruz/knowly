@@ -88,6 +88,7 @@ the feature's own SPEC.
 | `article-management` | ✅ Done | Upload (with polling for embedding status), inline edit, delete, permission-gated UI. |
 | `conversations` | ✅ Done | Chat UI over SSE (hand-rolled parser — native `EventSource` can't POST a body). |
 | `user-management` | ✅ Done | Tenant members/roles/permissions/access-groups admin UI. |
+| `tenant-creation` | ✅ Done | Staff-only `/tenants/new` form (name + first admin email) calling `POST /api/tenants`; "create tenant" link surfaced on `select-tenant-page` only on the staff (all-tenants) path. No explicit "isStaff" API field exists — `staff.guard.ts` reuses the existing `GET /api/tenants` success/403 signal, same pattern `select-tenant-page` already used. |
 | `tags-list` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format, paired with the backend's `tags-crud` reference. Don't build it unless explicitly asked to turn it into a real feature. |
 
 **As of the last working session: no open backlog.** Every real feature is
