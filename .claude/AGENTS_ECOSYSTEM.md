@@ -77,19 +77,31 @@ back** — e.g. AppSec can reject a PLAN before TASKS.md exists, QA can
 reopen a task if its test only covers the happy path. This is not a
 waterfall; it's SDD's Red/Green loop with named reviewers at each gate.
 
-## Agents (`.claude/agents/`)
+## Agents and skills — which repo each actually lives in
 
-| File | Role | Primary skills it invokes |
+Per this project's cross-repo placement rule (same reasoning as
+SPEC/PLAN/TASKS placement): an agent/skill that's specific to one
+repo's stack lives *only* there; one that genuinely applies to both is
+**duplicated** (identical content, path references adjusted) into both
+repos' `.claude/` — never shared by reference across repos, and never
+pasted into the wrong repo "because it was easy to copy."
+
+| Agent | Lives in | Primary skill |
 |---|---|---|
-| `po-product-owner.md` | Requirements, EARS/GEARS SPEC.md, acceptance criteria | `user-story-ears-writer` |
-| `software-architect.md` | PLAN.md, ADRs, API contracts, resilience | `adr-writer` |
-| `data-architect-dba.md` | Schema, migrations, indexing, tx boundaries | `db-migration-validator` |
-| `design-system-ui-ux.md` | Tokens, components, accessibility, motion | `design-token-audit` |
-| `frontend-engineer.md` | Angular implementation | `angular-component-builder` |
-| `backend-engineer.md` | Spring Boot implementation | `spring-endpoint-scaffold` |
-| `qa-test-automation.md` | Test pyramid, fixtures, regression | `tdad-red-green-cycle` |
-| `appsec.md` | SAST/SCA, OWASP, authZ, PII/secrets | `owasp-sanitization-check` |
-| `devops-sre.md` | CI/CD, Docker, observability | `ci-pipeline-guard` |
+| `po-product-owner.md` | **both** (duplicated) | `user-story-ears-writer` (both) |
+| `software-architect.md` | **both** (duplicated, repo-specific architecture notes) | `adr-writer` (both) |
+| `data-architect-dba.md` | `knowly` only (Postgres/Flyway is backend-only) | `db-migration-validator` (`knowly` only) |
+| `design-system-ui-ux.md` | `knowly-app` only (no design system on the backend) | `design-token-audit` (`knowly-app` only) |
+| `frontend-engineer.md` | `knowly-app` only | `angular-component-builder` (`knowly-app` only) |
+| `backend-engineer.md` | `knowly` only | `spring-endpoint-scaffold` (`knowly` only) |
+| `qa-test-automation.md` | **both** (duplicated, dual test pyramid) | `tdad-red-green-cycle` (both) |
+| `appsec.md` | **both** (duplicated, repo-specific security surface) | `owasp-sanitization-check` (both) |
+| `devops-sre.md` | **both** (duplicated, shared CI/observability) | `ci-pipeline-guard` (both) |
+
+If you ever find a frontend-specific agent/skill's file sitting in
+`knowly/.claude/` (or vice versa), that's a placement bug — move it,
+don't just note it (this happened once already during this ecosystem's
+initial setup and was corrected the same session).
 
 ## How to invoke
 
