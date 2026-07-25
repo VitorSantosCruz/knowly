@@ -124,4 +124,63 @@ describe('AuthService', () => {
       expect(errorCode).toBe('INVALID_CREDENTIALS');
     });
   });
+
+  describe('isLoggedIn', () => {
+    it('is false initially', () => {
+      expect(service.isLoggedIn()).toBe(false);
+    });
+
+    it('becomes true after a successful verifyCode', () => {
+      service.verifyCode('user@example.com', '123456').subscribe();
+      httpMock.expectOne('/api/auth/login-code/verify').flush({});
+
+      expect(service.isLoggedIn()).toBe(true);
+    });
+
+    it('becomes true after a successful verifyPassword', () => {
+      service.verifyPassword('user@example.com', 'abc123456789').subscribe();
+      httpMock.expectOne('/api/auth/login-password/verify').flush({});
+
+      expect(service.isLoggedIn()).toBe(true);
+    });
+
+    it('stays false when verifyCode fails', () => {
+      service.verifyCode('user@example.com', '000000').subscribe({ error: () => {} });
+      httpMock
+        .expectOne('/api/auth/login-code/verify')
+        .flush({ code: 'INVALID_CREDENTIALS' }, { status: 401, statusText: 'Unauthorized' });
+
+      expect(service.isLoggedIn()).toBe(false);
+    });
+  });
+
+  describe('logout', () => {
+    it('posts to /api/auth/logout and clears isLoggedIn', () => {
+      service.verifyCode('user@example.com', '123456').subscribe();
+      httpMock.expectOne('/api/auth/login-code/verify').flush({});
+      expect(service.isLoggedIn()).toBe(true);
+
+      let resolved = false;
+      service.logout().subscribe(() => (resolved = true));
+
+      const req = httpMock.expectOne('/api/auth/logout');
+      expect(req.request.method).toBe('POST');
+      req.flush({});
+
+      expect(resolved).toBe(true);
+      expect(service.isLoggedIn()).toBe(false);
+    });
+
+    it('clears isLoggedIn even if the request fails', () => {
+      service.verifyCode('user@example.com', '123456').subscribe();
+      httpMock.expectOne('/api/auth/login-code/verify').flush({});
+
+      service.logout().subscribe({ error: () => {} });
+      httpMock
+        .expectOne('/api/auth/logout')
+        .flush({}, { status: 500, statusText: 'Internal Server Error' });
+
+      expect(service.isLoggedIn()).toBe(false);
+    });
+  });
 });
