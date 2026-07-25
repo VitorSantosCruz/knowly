@@ -51,10 +51,10 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state: `staff-bootstrap-user` and `staff-rbac-split` both
-done. Confirmed roadmap in progress — next up is login/provisioning flow
-completion.** The user confirmed this order for the next several features
-(2026-07-25):
+**Current state: `staff-bootstrap-user`, `staff-rbac-split`, and
+`staff-user-provisioning` all done. Confirmed roadmap in progress — next
+up is navigation menus.** The user confirmed this order for the next
+several features (2026-07-25):
 
 1. ~~Bootstrap staff-admin one-shot user~~ — done, see
    `specify/features/staff-bootstrap-user/`.
@@ -76,13 +76,20 @@ completion.** The user confirmed this order for the next several features
    `getMemberDetail`) route through the same tested helpers parameterized
    by a different `GlobalPermission` enum constant, but aren't
    individually re-tested — see `staff-rbac-split/TASKS.md` task 6.
-3. Login flow completion: one-shot/alternate password provisioning for
-   newly created staff/tenant users (the login-code and one-time-password
-   *mechanisms* already exist per `authentication`; what's missing is
-   *provisioning* — creating a new user with credentials in the first
-   place).
-4. Navigation menus (staff full vs. permission-filtered; tenant landing:
-   auto-enter on single membership vs. tenant list on multiple).
+3. ~~Login/provisioning flow completion~~ — done, see
+   `specify/features/staff-user-provisioning/`. New
+   `GlobalPermission.STAFF_USER_CREATE` (independent from
+   `STAFF_PERMISSION_MANAGE`) gates `POST /api/staff/users`, which
+   creates a `GlobalRole.STAFF` user (never `STAFF_ADMIN`) and emails
+   them a one-time password via the existing
+   `OneTimePasswordService`/`MailService` mechanism. Tenant member
+   provisioning (`addMember`) needed no change — it already worked via
+   the passwordless login-code flow. Promoting/demoting `STAFF_ADMIN`
+   and deactivating a staff user are explicitly out of scope (see that
+   SPEC) — flag if either becomes needed later.
+4. **Navigation menus** — staff full vs. permission-filtered; tenant
+   landing: auto-enter on single membership vs. tenant list on multiple.
+   **This is the next feature to SPEC.**
 5. User management screens (staff user management globally; tenant user
    management per-tenant).
 6. Expanded metrics dashboard.
@@ -127,11 +134,13 @@ the feature's own SPEC.
 | `tags-crud` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format. Don't build it unless explicitly asked to turn it into a real feature. |
 | `staff-bootstrap-user` | ✅ Done | One migration-created staff `User` (email via required `KNOWLY_BOOTSTRAP_STAFF_EMAIL` env var, no password) so a fresh deployment has a first login via the existing login-code flow. No new mechanism, no freeze/expiry — see SPEC's "Out of scope" for why. |
 | `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. Small known test-coverage gap — see "Next up" above. |
+| `staff-user-provisioning` | ✅ Done | `POST /api/staff/users` lets `STAFF_ADMIN` (or a granted `STAFF`) create a new `STAFF` user, gated by its own `GlobalPermission.STAFF_USER_CREATE`; emails a one-time password via the existing mechanism. Tenant member provisioning needed no change. |
 
 **As of the last working session:** test suite speed (`forkCount=2` +
 JTE precompiled-templates fix, see `DECISIONS.md`), `staff-bootstrap-user`,
-and `staff-rbac-split` are done. Next: login/provisioning flow completion
-(see "Next up" above) — write its SPEC before implementing.
+`staff-rbac-split`, and `staff-user-provisioning` are all done. Next:
+navigation menus (see "Next up" above) — write its SPEC before
+implementing.
 
 ## Known operational notes worth knowing before touching infra/CI
 

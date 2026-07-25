@@ -2,10 +2,13 @@ package br.com.conectabyte.knowly.tenancy;
 
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.audit.RequiresGlobalPermission;
+import br.com.conectabyte.knowly.auth.MailService;
+import br.com.conectabyte.knowly.auth.OneTimePasswordService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
+import br.com.conectabyte.knowly.tenancy.exception.StaffUserAlreadyExistsException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,8 @@ public class StaffService {
     private final GlobalAccessGroupPermissionRepository globalAccessGroupPermissionRepository;
     private final UserGlobalAccessGroupRepository userGlobalAccessGroupRepository;
     private final GlobalPermissionService globalPermissionService;
+    private final OneTimePasswordService oneTimePasswordService;
+    private final MailService mailService;
 
     public StaffService(
             UserRepository userRepository,
@@ -33,13 +38,35 @@ public class StaffService {
             GlobalAccessGroupRepository globalAccessGroupRepository,
             GlobalAccessGroupPermissionRepository globalAccessGroupPermissionRepository,
             UserGlobalAccessGroupRepository userGlobalAccessGroupRepository,
-            GlobalPermissionService globalPermissionService) {
+            GlobalPermissionService globalPermissionService,
+            OneTimePasswordService oneTimePasswordService,
+            MailService mailService) {
         this.userRepository = userRepository;
         this.directGlobalPermissionGrantRepository = directGlobalPermissionGrantRepository;
         this.globalAccessGroupRepository = globalAccessGroupRepository;
         this.globalAccessGroupPermissionRepository = globalAccessGroupPermissionRepository;
         this.userGlobalAccessGroupRepository = userGlobalAccessGroupRepository;
         this.globalPermissionService = globalPermissionService;
+        this.oneTimePasswordService = oneTimePasswordService;
+        this.mailService = mailService;
+    }
+
+    @Transactional
+    @RequiresGlobalPermission(GlobalPermission.STAFF_USER_CREATE)
+    @AuditLog(action = "staff.user.create", resourceType = "User")
+    public User createStaffUser(String email) {
+        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            throw new StaffUserAlreadyExistsException();
+        }
+
+        User user = new User(email);
+        user.setGlobalRole(GlobalRole.STAFF);
+        user = userRepository.save(user);
+
+        String oneTimePassword = oneTimePasswordService.generateFor(user);
+        mailService.sendNewOneTimePassword(user.getEmail(), oneTimePassword);
+
+        return user;
     }
 
     @Transactional(readOnly = true)

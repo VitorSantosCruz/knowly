@@ -29,4 +29,11 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new TenancyErrorResponseDto("TENANT_SELECTION_REQUIRED"));
     }
+
+    @ExceptionHandler(StaffUserAlreadyExistsException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleStaffUserAlreadyExists(
+            StaffUserAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new TenancyErrorResponseDto("STAFF_USER_ALREADY_EXISTS"));
+    }
 }

@@ -3,12 +3,14 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.CreateGlobalAccessGroupRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.CreateStaffUserRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalPermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.OwnGlobalPermissionsDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -51,6 +53,26 @@ public class StaffController {
                 List.copyOf(globalPermissionService.effectivePermissions(user));
 
         return ResponseEntity.ok(new OwnGlobalPermissionsDto(permissions));
+    }
+
+    @PostMapping("/users")
+    public ResponseEntity<StaffUserDetailDto> createStaffUser(
+            @Valid @RequestBody CreateStaffUserRequestDto request) {
+        User created = staffService.createStaffUser(request.email());
+
+        // A freshly created staff user always has zero direct/group permissions, so this is built
+        // directly rather than via getStaffUserDetail — that method requires
+        // STAFF_PERMISSION_MANAGE,
+        // a *different* permission from the STAFF_USER_CREATE this endpoint itself requires, and
+        // calling it here would wrongly demand both from a caller who only holds the latter.
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(
+                        new StaffUserDetailDto(
+                                created.getId(),
+                                created.getEmail(),
+                                List.of(),
+                                List.of(),
+                                List.of()));
     }
 
     @GetMapping("/users/{userId}/permissions")
