@@ -34,7 +34,6 @@ class StaffRbacIntegrationTest {
 
     @Autowired private MockMvcTester mockMvc;
     @Autowired private UserRepository userRepository;
-    @Autowired private TenantRepository tenantRepository;
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
     @Autowired private GlobalAccessGroupRepository globalAccessGroupRepository;

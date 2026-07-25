@@ -1,7 +1,6 @@
 package br.com.conectabyte.knowly.auth;
 
 import java.security.SecureRandom;
-import java.util.concurrent.TimeUnit;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,11 +31,7 @@ public class LoginCodeService {
 
         redisTemplate
                 .opsForValue()
-                .set(
-                        key(email),
-                        passwordEncoder.encode(code),
-                        properties.loginCode().ttl().toMillis(),
-                        TimeUnit.MILLISECONDS);
+                .set(key(email), passwordEncoder.encode(code), properties.loginCode().ttl());
 
         return code;
     }
