@@ -1,0 +1,118 @@
+gg:
+  jte:
+    development-mode: true
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
+
+server:
+  forward-headers-strategy: framework
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+
+spring:
+  application:
+    name: knowly
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  flyway:
+    placeholders:
+      bootstrap-staff-email: ${KNOWLY_BOOTSTRAP_STAFF_EMAIL}
+  data:
+    redis:
+      password: ${REDIS_PASSWORD}
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        # Explicit so PgVectorStore#afterPropertiesSet doesn't call the real OpenAI embeddings
+        # endpoint at every startup just to infer the vector size (wasteful, and fragile if the
+        # embeddings call fails — e.g. rate limiting — since app startup would otherwise depend
+        # on it). 1536 matches text-embedding-3-small, the default embedding model here.
+        dimensions: 1536
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 30MB
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        prefetch: 1
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2.0
+          max-interval: 10s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: false
+
+knowly:
+  mail:
+    from: no-reply@conectabyte.com.br
+  auth:
+    login-code:
+      length: 6
+      ttl: 10m
+      resend-cooldown: 30s
+    one-time-password:
+      length: 12
+      ttl: 15d
+    lockout:
+      max-attempts: 3
+      duration: 15m
+      abuse-request-threshold: 5
+      abuse-duration: 1h
+    captcha:
+      velocity-threshold: 5
+      verify-velocity-threshold: 20
+      velocity-window: 5m
+      turnstile-secret: ${TURNSTILE_SECRET_KEY}
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    region: us-east-1
+    access-key: ${MINIO_ROOT_USER}
+    secret-key: ${MINIO_ROOT_PASSWORD}
+    bucket: knowly-articles
+  article:
+    max-file-size: 25MB
+    allowed-content-types:
+      - application/pdf
+      - image/png
+      - image/jpeg
+      - audio/mpeg
+      - audio/wav
+      - audio/mp4

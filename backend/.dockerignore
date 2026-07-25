@@ -1,0 +1,15 @@
+target/
+jte-classes/
+.git/
+.github/
+.githooks/
+.vscode/
+.idea/
+*.iml
+.env
+.env.*
+!.env.example
+specify/
+*.md
+HELP.md
+compose.yaml

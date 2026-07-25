@@ -1,0 +1,31 @@
+spring:
+  data:
+    redis:
+      password: ''
+  flyway:
+    placeholders:
+      bootstrap-staff-email: bootstrap-test@conectabyte.com
+
+gg:
+  jte:
+    # Tests must use the templates jte-maven-plugin already precompiled at build time
+    # (into target/classes), not main's hot-reload dev mode. Dev mode's on-demand
+    # compiler writes generated .java files to a CWD-relative jte-classes/ directory
+    # with no per-fork segment, so concurrent Surefire forks (forkCount>1) race on the
+    # same files and intermittently corrupt each other's compile. JTE's autoconfig
+    # requires exactly one of development-mode/use-precompiled-templates to be true.
+    development-mode: false
+    use-precompiled-templates: true
+  ai:
+    openai:
+      api-key: sk-test-dummy-0000000000000000000000000000000000000000
+    vectorstore:
+      pgvector:
+        # Explicit dimensions avoid PgVectorStore#afterPropertiesSet calling the real
+        # OpenAI embeddings endpoint at context startup just to infer the vector size.
+        dimensions: 1536
+
+knowly:
+  auth:
+    captcha:
+      turnstile-secret: test-dummy-turnstile-secret

@@ -1,0 +1,11 @@
+#!/bin/sh
+# Formats staged Java code before commit (Spotless).
+# Enable once per clone with: git config core.hooksPath .githooks
+
+set -e
+
+if git diff --cached --name-only --diff-filter=ACM | grep -q '\.java$'; then
+  echo "Running ./mvnw spotless:apply..."
+  ./mvnw -q spotless:apply
+  git diff --cached --name-only --diff-filter=ACM | grep '\.java$' | xargs -r git add
+fi
