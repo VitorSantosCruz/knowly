@@ -388,8 +388,14 @@
 					     soon as that class finishes, instead of accumulating across many distinct
 					     contexts in the Spring test context cache (default max 32) or across a
 					     single long-lived fork. Trades wall-clock time for a hard cap on peak
-					     memory during `./mvnw verify`. -->
-					<forkCount>1</forkCount>
+					     memory during `./mvnw verify`. reuseForks=false is the part that must
+					     never be relaxed (see DECISIONS.md); forkCount=2 runs two such isolated
+					     forks concurrently instead of one — A/B tested at 1/2/4 on this 8-core
+					     box: 2 gave ~20% wall-clock improvement with zero failures across
+					     repeated runs, 4 saturated the box (no further speedup) and
+					     intermittently hit an unrelated JTE on-demand-compile race (fixed
+					     separately by disabling gg.jte.development-mode in tests). -->
+					<forkCount>2</forkCount>
 					<reuseForks>false</reuseForks>
 					<argLine>-Xmx1536m</argLine>
 					<systemPropertyVariables>

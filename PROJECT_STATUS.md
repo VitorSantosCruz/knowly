@@ -99,11 +99,20 @@ starting fresh work, it's a *new* feature — write its SPEC first.
 ## Known operational notes worth knowing before touching infra/CI
 
 - Maven Surefire is deliberately configured for **full isolation per test
-  class** (`forkCount=1`, `reuseForks=false`,
-  `spring.test.context.cache.maxSize=1`) — this was A/B tested live:
-  disabling it to speed up the suite produced flaky failures (shared Redis
-  captcha counters, cross-test-class DB collisions from context reuse).
-  Keep it as-is unless re-validated.
+  class** (`reuseForks=false`, `spring.test.context.cache.maxSize=1`) —
+  this was A/B tested live: disabling it to speed up the suite produced
+  flaky failures (shared Redis captcha counters, cross-test-class DB
+  collisions from context reuse). Keep `reuseForks=false` as-is unless
+  re-validated. `forkCount=2` (concurrent isolated forks) was re-validated
+  2026-07-25 — full suite ~14m10s → ~12m (two clean runs); `forkCount=4`
+  was rejected (no further speedup, intermittent JTE template-compile race
+  — see `DECISIONS.md`). Full suite still takes ~12 minutes; further
+  speedup would need reducing per-class Spring Boot context startup cost
+  itself (~20-25s/class), not just more parallelism — not yet attempted.
+- Tests must run with `gg.jte.use-precompiled-templates: true` /
+  `development-mode: false` (`src/test/resources/application-test.yaml`),
+  not main's dev-mode hot-reload — see `DECISIONS.md` for why (CWD-shared
+  on-demand compile directory races under concurrent Surefire forks).
 - `compose.yaml`'s `minio` service depends on a one-shot
   `minio-init-permissions` container to `chown` its data volume — MinIO's
   own entrypoint does not do this itself under the hardened

@@ -118,14 +118,59 @@ doubt, this is a Tier 3 (security tradeoff) — ask first.
 
 ### Maven Surefire runs with full per-class isolation
 
-`forkCount=1`, `reuseForks=false`, `spring.test.context.cache.maxSize=1`.
-**Why:** live A/B tested — disabling this to speed up the suite produced
-9 failures/errors from shared Redis captcha-velocity counters and
-cross-test-class DB/context collisions, none of them real regressions,
-all caused by state leaking between test classes sharing a JVM/context.
-**Applies to new decisions:** don't relax this to chase build speed
-without re-running the same kind of A/B comparison — the flakiness it
-prevents is real and was directly observed, not theoretical.
+`reuseForks=false`, `spring.test.context.cache.maxSize=1`, `forkCount=2`.
+**Why:** live A/B tested — disabling per-class isolation (i.e. letting
+forks be reused, or letting the Spring context cache grow) to speed up
+the suite produced 9 failures/errors from shared Redis captcha-velocity
+counters and cross-test-class DB/context collisions, none of them real
+regressions, all caused by state leaking between test classes sharing a
+JVM/context. `reuseForks=false` and `cache.maxSize=1` are the load-bearing
+settings here and must not be relaxed without re-running the same kind of
+A/B comparison — the flakiness they prevent is real and was directly
+observed, not theoretical.
+
+`forkCount` itself is a different knob (how many such isolated forks run
+*concurrently*, not whether any one fork's state is reused) and was
+re-tested 2026-07-25: full suite (33 classes) at `forkCount=1` took
+~14m10s. `forkCount=2` (still `reuseForks=false`) passed clean across two
+full-suite runs (~12m25s, ~11m57s — a real but modest ~12-15% win, less
+than the ~20% seen on a smaller subset during the initial A/B, likely
+because the box's 8 cores get more contended as more of the 33 classes'
+Postgres+RabbitMQ+Redis+LGTM+MinIO container stacks run at once).
+`forkCount=4` was also tried and rejected: no further speedup (box
+saturated) and it intermittently (1 of 2 runs) hit a genuine concurrency
+bug — see below — that `forkCount=2` never triggered in any run.
+**Applies to new decisions:** if raising `forkCount` further is tempting
+later, don't just bump the number — repeat this same multi-run A/B
+(≥2 full-suite passes, not one lucky run) and watch specifically for (a)
+the Redis/DB collisions this entry originally described, and (b) new
+resource-contention failures like the JTE one below, which only appear
+under real concurrency and won't show up in a forkCount=1 sanity check.
+
+### JTE templates must be precompiled in tests, not hot-reloaded
+
+`src/test/resources/application-test.yaml` sets `gg.jte.development-mode:
+false` and `gg.jte.use-precompiled-templates: true`, overriding main's
+`gg.jte.development-mode: true` (`application.yaml:2-3`, meant for local
+dev hot-reload). **Why:** discovered while re-validating `forkCount` above
+— JTE's dev-mode on-demand compiler writes generated `.java` files to a
+`jte-classes/` directory resolved relative to the process's CWD, which is
+the same absolute path for every Surefire fork (forks don't get their own
+CWD). At `forkCount=4`, two forks racing to compile the same on-demand
+template corrupted each other's generated source
+(`gg.jte.TemplateException: Failed to compile template ...
+JtenewonetimepasswordGenerated.java`), failing `MailService`-dependent
+tests (`TenantSessionIntegrationTest`,
+`ConversationControllerIntegrationTest`) about half the time. Since
+`jte-maven-plugin` already precompiles every template at build time into
+`target/classes` (`pom.xml:311-330`), tests have no need for dev-mode's
+runtime compilation at all — using the precompiled templates removes the
+race entirely instead of just narrowing its window. **Applies to new
+decisions:** any other feature that's convenient for local dev (hot
+reload, on-demand codegen, writing to a fixed relative path) should be
+assumed CWD/fork-unsafe under concurrent Surefire forks until proven
+otherwise — prefer the build-time-artifact path in tests, the same
+reasoning as this entry.
 
 ### `minio-init-permissions` one-shot container before MinIO starts
 
