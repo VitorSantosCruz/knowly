@@ -1,0 +1,53 @@
+version: 2
+updates:
+  - package-ecosystem: 'maven'
+    directory: '/knowly-api'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: 'docker-compose'
+    directory: '/knowly-api'
+    schedule:
+      interval: 'weekly'
+
+  - package-ecosystem: 'docker'
+    directory: '/knowly-api'
+    schedule:
+      interval: 'weekly'
+    ignore:
+      # eclipse-temurin's tag number tracks the JDK major (25 = current LTS). Dependabot has no
+      # concept of "LTS-only", and Java ships a non-LTS major every 6 months between LTS releases
+      # (26, 27, 28 before the next LTS, 29) — without this, those would show up as routine PRs
+      # indistinguishable from an actual LTS bump. Major bumps are done deliberately by hand,
+      # picking the next LTS explicitly, instead of taking whatever Dependabot proposes next.
+      - dependency-name: 'eclipse-temurin'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'npm'
+    directory: '/knowly-app'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    groups:
+      angular:
+        patterns:
+          - '@angular/*'
+
+  - package-ecosystem: 'docker'
+    directory: '/knowly-app'
+    schedule:
+      interval: 'weekly'
+    ignore:
+      # node's tag number tracks the Node.js major (24 = current LTS). Node alternates an LTS
+      # major with a "Current" (non-LTS) major every ~6 months, and Dependabot has no concept of
+      # "LTS-only" — without this, a Current release would show up as a routine PR
+      # indistinguishable from an actual LTS bump. Major bumps are done deliberately by hand,
+      # picking the next LTS explicitly, instead of taking whatever Dependabot proposes next.
+      - dependency-name: 'node'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

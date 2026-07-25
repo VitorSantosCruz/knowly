@@ -1,0 +1,54 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'knowly-api/**'
+      - '.github/workflows/codeql.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'knowly-api/**'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    # Weekly, independent of pushes — catches newly-published CodeQL query/advisory
+    # updates against code that hasn't changed, not just new commits.
+    - cron: '0 6 * * 1'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version-file: 'knowly-api/.java-version'
+          cache: 'maven'
+          cache-dependency-path: 'knowly-api/pom.xml'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          queries: security-extended
+
+      # CodeQL's Java analysis needs a successful build to resolve symbols; skips running
+      # tests (ci-backend.yml's mvnw verify already covers correctness) to keep this workflow
+      # fast and independent of test/Testcontainers/Docker availability.
+      - name: Build (compile only, no tests)
+        working-directory: knowly-api
+        run: ./mvnw -B -DskipTests package
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:java-kotlin'
