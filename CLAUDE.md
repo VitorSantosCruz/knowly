@@ -1,14 +1,21 @@
 # CLAUDE.md — knowly-app (frontend)
 
-**First, read [`../knowly/VISION.md`](../knowly/VISION.md) and
-[`PROJECT_STATUS.md`](PROJECT_STATUS.md).** `VISION.md` lives in the
-backend repo but applies to the whole product — it explains what knowly
-is *for* and why the architecture looks the way it does; `PROJECT_STATUS.md`
-tracks what's already been built here, what's in progress, and operational
-gotchas. Together they let a new conversation (with any AI, with or
-without prior context) pick up correctly without rediscovering everything
-from scratch. **Keep both updated as work lands — this applies to any AI
-assistant working in this repo, not just Claude.**
+**First, read [`../knowly/VISION.md`](../knowly/VISION.md),
+[`PROJECT_STATUS.md`](PROJECT_STATUS.md), and
+[`../knowly/DECISIONS.md`](../knowly/DECISIONS.md).** `VISION.md` and
+`DECISIONS.md` live in the backend repo but apply to the whole product —
+`VISION.md` explains what knowly is *for* and why the architecture looks
+the way it does; `DECISIONS.md` explains the reasoning behind specific
+architectural/code decisions **and, critically, which kinds of decisions
+you can make on your own versus which always require asking the user
+first** — read that section before doing anything that isn't a
+straightforward continuation of an already-approved SPEC/PLAN/TASKS.
+`PROJECT_STATUS.md` tracks what's already been built here, what's in
+progress, and operational gotchas. Together these let a new conversation
+(with any AI, with or without prior context) pick up correctly without
+rediscovering everything from scratch. **Keep all three updated as work
+lands — this applies to any AI assistant working in this repo, not just
+Claude.**
 
 **Whenever the user opens a conversation without specifying what to work
 on — regardless of how that's phrased or in what language — treat it as
@@ -41,6 +48,15 @@ the project's non-negotiable rules (stack, conventions, security).
 5. Before considering a task done, run `npm run format` and
    `npm run format:check && npm test && npm run build` — that's what CI
    checks.
+6. **Commit it.** A task isn't done at green tests — it's done once it's
+   committed (Conventional Commits, see constitution.md's "Commits and
+   branches"). This is a standing, pre-authorized instruction for this
+   repo: commit each completed task/checkpoint as you go, without
+   needing the user to separately ask "commit that" every time — the
+   same way you don't need to be asked to run the tests. Leaving green,
+   verified work sitting uncommitted defeats the entire point of
+   `PROJECT_STATUS.md`/Git history being the thing that survives between
+   conversations.
 
 ## Conventions already established in this repository
 

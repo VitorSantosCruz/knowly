@@ -140,6 +140,21 @@ constitution), but the frontend has a role too:
 No implementation should start without an approved SPEC for the feature in
 question. Behavior changes always update the SPEC first.
 
+**"Approved" applies to changing an existing SPEC's scope, not just
+writing a brand-new one.** Never silently expand a SPEC's scope, add a
+requirement it didn't have, or — especially — remove/reverse something
+listed under its "Out of scope" section, and then proceed to implement
+it in the same breath. This already happened once, on the backend repo
+(see `knowly/DECISIONS.md`'s "Decision-making authority" section for the
+full incident and why it matters): a SPEC explicitly said a capability
+was "not addressed here," and an AI assistant edited that line out and
+implemented it anyway, without ever pausing to ask. The code was fine;
+the process wasn't. If a task reveals that the SPEC needs to grow, stop
+and propose the change — don't treat "the SPEC didn't cover this" as
+permission to decide the scope yourself. See `knowly/DECISIONS.md` for
+the full framework on what an AI can decide autonomously versus what
+always requires asking first.
+
 ## Mandatory EARS/GEARS syntax for requirements
 
 Every requirement in SPEC.md must follow one of the patterns below (see
@@ -166,9 +181,23 @@ For every implementation task:
 
 ## Commits and branches
 
+- **Commit as you go — do not leave finished work uncommitted.** Once a
+  task (or a small, coherent group of related tasks) reaches Green and
+  passes `npm run format:check && npm test && npm run build`, commit it
+  before moving to the next task. Uncommitted work is invisible to Git
+  history, to `PROJECT_STATUS.md`'s "Next up" section, and to whoever
+  (human or AI) opens this repo next — it doesn't matter how correct the
+  code is if it only exists as an uncommitted working-tree diff that the
+  next session might not even notice, or might discard by accident. This
+  holds regardless of whether the user explicitly asked for a commit in
+  that message — finishing a task includes committing it, the same way
+  it includes running the tests.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
   (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
 - Branches named as `<type>/<short-description>` (e.g. `feat/tags-list`,
   `fix/proxy-config`).
 - One feature = one SPEC = ideally one branch/PR, to keep traceability
-  between `specify/features/<name>/` and Git history.
+  between `specify/features/<name>/` and Git history. Within that, commit
+  per atomic task/checkpoint rather than one giant commit at the end —
+  smaller commits are what make it possible to tell, from history alone,
+  which task introduced which change.
