@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { LoginPageComponent } from './features/login/login-page.component';
+import { WelcomePageComponent } from './features/welcome/welcome-page.component';
 import { DashboardPageComponent } from './features/dashboard/dashboard-page.component';
 import { MembersPageComponent } from './features/members/members-page.component';
 import { ConversationsPageComponent } from './features/conversations/conversations-page.component';
@@ -8,10 +9,17 @@ import { SelectTenantPageComponent } from './features/select-tenant/select-tenan
 import { TenantCreatePageComponent } from './features/tenant-create/tenant-create-page.component';
 import { tenantSelectionGuard } from './core/tenant-selection.guard';
 import { staffGuard } from './core/staff.guard';
+import { rootRedirectGuard } from './core/root-redirect.guard';
+import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
   { path: 'select-tenant', component: SelectTenantPageComponent },
+  {
+    path: 'welcome',
+    component: WelcomePageComponent,
+    canActivate: [tenantSelectionGuard],
+  },
   {
     path: 'tenants/new',
     component: TenantCreatePageComponent,
@@ -37,5 +45,10 @@ export const routes: Routes = [
     component: ArticlesPageComponent,
     canActivate: [tenantSelectionGuard],
   },
-  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  {
+    path: '',
+    pathMatch: 'full',
+    component: RootRedirectPlaceholderComponent,
+    canActivate: [rootRedirectGuard],
+  },
 ];

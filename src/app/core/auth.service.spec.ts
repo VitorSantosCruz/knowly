@@ -154,6 +154,30 @@ describe('AuthService', () => {
     });
   });
 
+  describe('checkSession', () => {
+    it('resolves true and sets isLoggedIn when the session is valid', () => {
+      let result: boolean | undefined;
+      service.checkSession().subscribe((value) => (result = value));
+
+      httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
+
+      expect(result).toBe(true);
+      expect(service.isLoggedIn()).toBe(true);
+    });
+
+    it('resolves false and clears isLoggedIn when there is no valid session', () => {
+      let result: boolean | undefined;
+      service.checkSession().subscribe((value) => (result = value));
+
+      httpMock
+        .expectOne('/api/staff/permissions')
+        .flush({}, { status: 401, statusText: 'Unauthorized' });
+
+      expect(result).toBe(false);
+      expect(service.isLoggedIn()).toBe(false);
+    });
+  });
+
   describe('logout', () => {
     it('posts to /api/auth/logout and clears isLoggedIn', () => {
       service.verifyCode('user@example.com', '123456').subscribe();

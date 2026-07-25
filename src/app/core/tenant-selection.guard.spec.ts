@@ -57,12 +57,10 @@ describe('tenantSelectionGuard', () => {
     expect(router.serializeUrl(result as UrlTree)).toBe('/select-tenant');
   });
 
-  it('redirects to /select-tenant when there are zero memberships (e.g. a staff user)', async () => {
+  it('allows navigation when there are zero memberships (staff — lands on dashboard directly)', async () => {
     const resultPromise = firstValueFrom(runGuard());
     httpMock.expectOne('/api/tenants/memberships').flush([]);
 
-    const result = await resultPromise;
-    expect(result).toBeInstanceOf(UrlTree);
-    expect(router.serializeUrl(result as UrlTree)).toBe('/select-tenant');
+    expect(await resultPromise).toBe(true);
   });
 });

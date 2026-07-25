@@ -19,9 +19,34 @@ interface TenantOption {
   imports: [TranslocoPipe, RouterLink],
   template: `
     <div data-testid="select-tenant-page" class="mx-auto max-w-md p-6">
-      <h1 class="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-        {{ 'selectTenant.title' | transloco }}
-      </h1>
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <h1 class="text-lg font-semibold text-slate-900 dark:text-white">
+          {{ 'selectTenant.title' | transloco }}
+        </h1>
+        @if (canCreateTenant()) {
+          <a
+            data-testid="create-tenant-link"
+            routerLink="/tenants/new"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
+            {{ 'selectTenant.createTenant' | transloco }}
+          </a>
+        }
+      </div>
       @if (options().length > 0) {
         <ul class="flex flex-col gap-2">
           @for (option of options(); track option.tenantId) {
@@ -40,16 +65,6 @@ interface TenantOption {
         <p data-testid="select-tenant-empty" class="text-slate-600 dark:text-slate-400">
           {{ 'selectTenant.empty' | transloco }}
         </p>
-      }
-
-      @if (canCreateTenant()) {
-        <a
-          data-testid="create-tenant-link"
-          routerLink="/tenants/new"
-          class="mt-4 inline-block text-sm text-indigo-600 hover:underline"
-        >
-          {{ 'selectTenant.createTenant' | transloco }}
-        </a>
       }
     </div>
   `,
@@ -90,7 +105,7 @@ export class SelectTenantPageComponent implements OnInit {
   protected onSelect(option: TenantOption): void {
     this.activeTenantService
       .selectTenant(option.tenantId, option.tenantName)
-      .subscribe(() => this.router.navigateByUrl('/dashboard'));
+      .subscribe(() => this.router.navigateByUrl('/welcome'));
   }
 }
 

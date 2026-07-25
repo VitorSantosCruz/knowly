@@ -43,6 +43,12 @@
     "noAccess": "You don't have access to this.",
     "error": "Something went wrong loading this. Trace id: {{traceId}}"
   },
+  "welcome": {
+    "staffGreeting": "Welcome to knowly",
+    "tenantGreeting": "Welcome to {{tenantName}}",
+    "pitch": "Ask questions and get answers grounded in your team's own knowledge base, with citations back to the source.",
+    "viewDashboard": "View dashboard"
+  },
   "helpMenu": {
     "label": "Help",
     "restartTour": "Restart tour"

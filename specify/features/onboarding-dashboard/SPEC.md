@@ -30,11 +30,13 @@ explicitly out of scope here (see tenancy SPEC's own out-of-scope note).
 
 ### Onboarding tour
 
-- **REQ-1 [Event-Driven]** When a user reaches the app for the first time
-  after having an active tenant established (immediately after login for
-  a single-membership user, or immediately after tenant selection for a
-  multi-membership user), the system shall automatically start a guided,
-  spotlight-style tour over the main screen.
+- **REQ-1 [Event-Driven]** *(Amended 2026-07-25 — the tour now starts on
+  `/welcome`, see `welcome-screen`, not on this dashboard directly; the
+  trigger condition itself is unchanged.)* When a user reaches the app
+  for the first time after establishing a session (immediately after
+  login, immediately after tenant selection, or immediately for a staff
+  session with no tenant), the system shall automatically start a
+  guided, spotlight-style tour over the main screen.
 - **REQ-2 [Ubiquitous]** The tour shall consist of a fixed sequence of
   steps, each highlighting one area of the main layout (main navigation,
   where articles live, where user/permission management lives, where bot
@@ -54,9 +56,11 @@ explicitly out of scope here (see tenancy SPEC's own out-of-scope note).
 
 ### Metrics dashboard
 
-- **REQ-6 [Ubiquitous]** The system shall show the dashboard as the
-  landing screen once a tenant user has an active tenant and (on their
-  very first visit) has gone through REQ-1's tour.
+- **REQ-6 [Ubiquitous]** *(Amended 2026-07-25 — reversed: the dashboard
+  is no longer the landing screen, `/welcome` is; see `welcome-screen`.)*
+  The dashboard shall be reachable from the nav menu (`navigation-menu`)
+  for any user with `DASHBOARD_VIEW`, not shown automatically as a
+  landing screen.
 - **REQ-7 [Ubiquitous]** The dashboard shall display, at minimum: total
   article count, per-article usage (a ranked list, most-used first),
   count of knowledge-base conversations started, and count of messages

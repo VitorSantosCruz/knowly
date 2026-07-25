@@ -43,6 +43,12 @@
     "noAccess": "Você não tem acesso a isso.",
     "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}"
   },
+  "welcome": {
+    "staffGreeting": "Bem-vindo ao knowly",
+    "tenantGreeting": "Bem-vindo, {{tenantName}}",
+    "pitch": "Faça perguntas e receba respostas baseadas na base de conhecimento da sua equipe, com citações da fonte original.",
+    "viewDashboard": "Ver painel"
+  },
   "helpMenu": {
     "label": "Ajuda",
     "restartTour": "Reiniciar tour"

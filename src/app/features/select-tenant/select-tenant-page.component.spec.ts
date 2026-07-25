@@ -68,7 +68,7 @@ describe('SelectTenantPageComponent', () => {
     expect(req.request.body).toEqual({ tenantId: 2 });
     req.flush({});
 
-    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
+    expect(navigateSpy).toHaveBeenCalledWith('/welcome');
   });
 
   it('falls back to listing every tenant in the system when there are no memberships (staff)', () => {
@@ -100,7 +100,7 @@ describe('SelectTenantPageComponent', () => {
     expect(req.request.body).toEqual({ tenantId: 1 });
     req.flush({});
 
-    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
+    expect(navigateSpy).toHaveBeenCalledWith('/welcome');
   });
 
   it('shows a create-tenant link when the caller holds TENANT_CREATE', () => {

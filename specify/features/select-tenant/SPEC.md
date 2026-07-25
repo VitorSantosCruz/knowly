@@ -22,9 +22,10 @@ tenant, and every tenant-scoped widget failed with a generic error.
 
 ## Requirements (EARS/GEARS)
 
-- **REQ-1 [Event-Driven]** When a multi-membership user reaches any
-  tenant-scoped route with no active tenant selected, the system shall
-  redirect them to `/select-tenant` instead of loading that route.
+- **REQ-1 [Event-Driven]** When a multi-membership user (more than one
+  active-eligible membership, none yet active) reaches any tenant-scoped
+  route, the system shall redirect them to `/select-tenant` instead of
+  loading that route.
 - **REQ-2 [Ubiquitous]** The `/select-tenant` screen shall list every
   tenant the user is a member of, by name.
 - **REQ-3 [Event-Driven]** When the user picks a tenant, the system
@@ -33,14 +34,20 @@ tenant, and every tenant-scoped widget failed with a generic error.
 - **REQ-4 [Optional Feature]** Where a user has only one membership (or
   one already marked active), the system shall never show this screen —
   matches the backend's own single-membership auto-select.
-- **REQ-5 [Event-Driven]** When the memberships list is empty (the
-  user holds no tenant membership at all — the staff case, discovered
-  live: a global-admin account with zero memberships was hitting
-  `TENANT_SELECTION_REQUIRED` on every tenant-scoped call because the
-  guard treated 0 memberships the same as "safe, auto-selected"),
-  `/select-tenant` shall fall back to `GET /api/tenants` (every tenant
+- **REQ-5 [State-Driven]** *(Amended 2026-07-25 — reverses the original
+  version of this requirement, which sent a 0-membership session to
+  `/select-tenant`.)* While a session has zero tenant memberships (the
+  staff case), the system shall let every tenant-independent route
+  (starting with `/dashboard`) load directly, never redirecting to
+  `/select-tenant` — staff land on the dashboard/welcome screen like any
+  other session, and pick a tenant to act as later via the nav menu's
+  "switch tenant" link (`navigation-menu`) rather than being forced
+  through tenant selection before they can do anything.
+- **REQ-6 [Optional Feature]** Where a staff session (0 memberships)
+  navigates to `/select-tenant` directly (e.g. via the "switch tenant"
+  link), the screen shall fall back to `GET /api/tenants` (every tenant
   in the system) instead of showing an empty list.
-- **REQ-6 [Unwanted Behavior]** If the all-tenants fallback request
+- **REQ-7 [Unwanted Behavior]** If the all-tenants fallback request
   itself fails (e.g. 403 for a non-staff user who somehow reached this
   screen with 0 memberships), then the screen shall show an empty
   state rather than an unhandled error.
@@ -61,14 +68,16 @@ tenant, and every tenant-scoped widget failed with a generic error.
 - [x] `/select-tenant` lists all of the user's tenants.
 - [x] Picking one sets it active and navigates to `/dashboard`.
 - [x] A single-membership user never sees this screen.
-- [x] The guard redirects to `/select-tenant` for 0 memberships too,
-      not just >1 (previously it let 0 through as if auto-selected).
+- [x] A 0-membership (staff) session is let through to `/dashboard`
+      directly, never redirected to `/select-tenant` (amended
+      2026-07-25 — previously this criterion required the opposite).
 - [x] `/select-tenant` falls back to listing every tenant in the
       system when memberships is empty, letting a staff user pick one
-      to act as.
+      to act as (now reached via the nav menu's "switch tenant" link,
+      not forced at login).
 
 ## Out of scope
 
-- Switching tenants later from within the app (e.g. a "switch tenant"
-  menu once already in a tenant) — this SPEC only covers the initial,
-  required selection.
+- Any switch-tenant UI beyond the nav menu link already built in
+  `navigation-menu` — this SPEC only covers the `/select-tenant` screen
+  itself and when it's reached, not menu design.

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, tap, finalize } from 'rxjs';
+import { Observable, tap, finalize, map, catchError, of } from 'rxjs';
 
 export type AuthErrorCode = 'CAPTCHA_REQUIRED' | 'INVALID_CREDENTIALS' | 'ACCOUNT_LOCKED';
 
@@ -35,5 +35,24 @@ export class AuthService {
     return this.http
       .post<void>('/api/auth/logout', {})
       .pipe(finalize(() => this.loggedIn.set(false)));
+  }
+
+  /**
+   * Resyncs `isLoggedIn` against the real session (the signal only reflects this tab's
+   * in-memory state, so it reads as false after a page reload even with a still-valid session
+   * cookie). Calls a lightweight endpoint that succeeds for any authenticated user and 401s
+   * otherwise; never throws — callers get a definitive true/false either way.
+   */
+  checkSession(): Observable<boolean> {
+    return this.http.get('/api/staff/permissions').pipe(
+      map(() => {
+        this.loggedIn.set(true);
+        return true;
+      }),
+      catchError(() => {
+        this.loggedIn.set(false);
+        return of(false);
+      }),
+    );
   }
 }

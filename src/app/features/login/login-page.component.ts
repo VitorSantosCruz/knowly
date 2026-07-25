@@ -223,7 +223,7 @@ export class LoginPageComponent implements OnDestroy {
     this.authService.verifyCode(this.email(), this.code(), this.captchaToken()).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.router.navigateByUrl('/dashboard');
+        this.router.navigateByUrl('/welcome');
       },
       error: (err: { error?: { code?: AuthErrorCode } }) => {
         this.submitting.set(false);
@@ -240,7 +240,7 @@ export class LoginPageComponent implements OnDestroy {
     this.authService.verifyPassword(this.email(), this.password(), this.captchaToken()).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.router.navigateByUrl('/dashboard');
+        this.router.navigateByUrl('/welcome');
       },
       error: (err: { error?: { code?: AuthErrorCode } }) => {
         this.submitting.set(false);

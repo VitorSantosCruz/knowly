@@ -184,7 +184,7 @@ describe('LoginPageComponent', () => {
       fixture.detectChanges();
 
       expect(authService.verifyCode).toHaveBeenCalledWith('user@example.com', '123456', undefined);
-      expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/welcome');
     });
 
     it('logs the user in when the password is correct', () => {
@@ -217,7 +217,7 @@ describe('LoginPageComponent', () => {
         'abc123456789',
         undefined,
       );
-      expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/welcome');
     });
 
     it('shows an invalid-credentials tooltip without clearing the code input', () => {

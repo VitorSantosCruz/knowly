@@ -24,6 +24,7 @@ import { AuthService } from '../core/auth.service';
         @if (permissionsService.has('ARTICLE_VIEW')) {
           <a
             data-testid="nav-articles"
+            data-tour-id="articles-nav-link"
             routerLink="/articles"
             class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
           >
@@ -42,6 +43,7 @@ import { AuthService } from '../core/auth.service';
         @if (permissionsService.has('TENANT_MEMBER_MANAGE')) {
           <a
             data-testid="nav-members"
+            data-tour-id="user-management-nav-link"
             routerLink="/members"
             class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
           >
@@ -80,18 +82,24 @@ export class NavMenuComponent implements OnInit {
   protected readonly canSwitchTenant = computed(() => this.memberships().length > 1);
 
   ngOnInit(): void {
-    if (!this.authService.isLoggedIn()) {
-      return;
-    }
-
-    this.globalPermissionsService.fetch();
-
-    this.activeTenantService.list().subscribe((memberships) => {
-      this.memberships.set(memberships);
-
-      if (memberships.some((membership) => membership.active)) {
-        this.permissionsService.fetch();
+    // Resyncs against the real session rather than trusting isLoggedIn()'s in-memory state,
+    // which reads false after a page reload even with a still-valid session cookie (e.g.
+    // navigating straight to /dashboard by URL rather than through the '' root redirect,
+    // which is the only other place that currently resyncs it).
+    this.authService.checkSession().subscribe((loggedIn) => {
+      if (!loggedIn) {
+        return;
       }
+
+      this.globalPermissionsService.fetch();
+
+      this.activeTenantService.list().subscribe((memberships) => {
+        this.memberships.set(memberships);
+
+        if (memberships.some((membership) => membership.active)) {
+          this.permissionsService.fetch();
+        }
+      });
     });
   }
 }

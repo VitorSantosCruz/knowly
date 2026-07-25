@@ -4,13 +4,11 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { NavMenuComponent } from './nav-menu.component';
-import { AuthService } from '../core/auth.service';
 import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
 
 describe('NavMenuComponent', () => {
   let fixture: ComponentFixture<NavMenuComponent>;
   let httpMock: HttpTestingController;
-  let authService: AuthService;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -28,12 +26,21 @@ describe('NavMenuComponent', () => {
 
     fixture = TestBed.createComponent(NavMenuComponent);
     httpMock = TestBed.inject(HttpTestingController);
-    authService = TestBed.inject(AuthService);
   });
 
   afterEach(() => {
     httpMock.verify();
   });
+
+  function flushSessionCheck(loggedIn: boolean): void {
+    if (loggedIn) {
+      httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
+    } else {
+      httpMock
+        .expectOne('/api/staff/permissions')
+        .flush({}, { status: 401, statusText: 'Unauthorized' });
+    }
+  }
 
   function flush(options: {
     memberships?: {
@@ -45,6 +52,7 @@ describe('NavMenuComponent', () => {
     globalPermissions?: string[];
     tenantPermissions?: string[];
   }): void {
+    flushSessionCheck(true);
     httpMock
       .expectOne('/api/staff/permissions')
       .flush({ permissions: options.globalPermissions ?? [] });
@@ -57,17 +65,15 @@ describe('NavMenuComponent', () => {
     }
   }
 
-  it('shows nothing and fetches nothing when not logged in', () => {
+  it('shows nothing when not logged in', () => {
+    fixture.detectChanges();
+    flushSessionCheck(false);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-menu"]')).toBeFalsy();
-    httpMock.expectNone('/api/staff/permissions');
-    httpMock.expectNone('/api/tenants/memberships');
   });
 
   it('only shows links matching the active tenant permissions', () => {
-    vi.spyOn(authService, 'isLoggedIn').mockReturnValue(true);
-
     fixture.detectChanges();
     flush({
       memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
@@ -82,8 +88,6 @@ describe('NavMenuComponent', () => {
   });
 
   it('shows the create-tenant link only when granted TENANT_CREATE', () => {
-    vi.spyOn(authService, 'isLoggedIn').mockReturnValue(true);
-
     fixture.detectChanges();
     flush({ memberships: [], globalPermissions: ['TENANT_CREATE'] });
     fixture.detectChanges();
@@ -92,9 +96,8 @@ describe('NavMenuComponent', () => {
   });
 
   it('does not fetch tenant permissions when there is no active membership', () => {
-    vi.spyOn(authService, 'isLoggedIn').mockReturnValue(true);
-
     fixture.detectChanges();
+    flushSessionCheck(true);
     httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     fixture.detectChanges();
@@ -103,8 +106,6 @@ describe('NavMenuComponent', () => {
   });
 
   it('shows the switch-tenant link only with more than one membership', () => {
-    vi.spyOn(authService, 'isLoggedIn').mockReturnValue(true);
-
     fixture.detectChanges();
     flush({
       memberships: [
@@ -119,8 +120,6 @@ describe('NavMenuComponent', () => {
   });
 
   it('does not show the switch-tenant link with a single membership', () => {
-    vi.spyOn(authService, 'isLoggedIn').mockReturnValue(true);
-
     fixture.detectChanges();
     flush({
       memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],

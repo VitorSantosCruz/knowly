@@ -49,15 +49,52 @@
 >    in-flight SPEC/PLAN/TASKS and which item is next, not just "in
 >    progress."
 
-**Current state: `navigation-menu` done (2026-07-25).** The backend's
-`PROJECT_STATUS.md` has a confirmed multi-feature roadmap in progress —
-next up (item 5) is user management screens (staff user management
-globally; tenant user management per-tenant, likely split into a
-backend SPEC for any missing endpoints and a frontend SPEC here for the
-screens themselves — see this repo's constitution.md's cross-repo SPEC
-placement rule). Check the backend's `PROJECT_STATUS.md` "Next up"
-before starting anything, since the next item may need backend work
-first.
+**Current state: `navigation-menu` and `welcome-screen` done
+(2026-07-25).** The backend's `PROJECT_STATUS.md` has a confirmed
+multi-feature roadmap in progress — next up (item 5) is user management
+screens. Check the backend's `PROJECT_STATUS.md` "Next up" before
+starting anything, since the next item may need backend work first.
+
+**Backlog (reported by the user 2026-07-25, not yet scoped/SPEC'd) —
+each needs its own SPEC before implementation, roughly in this order:**
+
+1. Tenant list pagination + search-by-name on `/select-tenant` and the
+   backend's `GET /api/tenants` (currently returns everything
+   unbounded — will break at scale). Needs a backend SPEC (pagination/
+   search API contract) and a frontend SPEC (UI).
+2. Boxed/segmented one-time-code input on the login screen (currently a
+   single plain text field) — matches the common "one box per digit"
+   pattern. Frontend-only.
+3. **Full identity/profile model — big, LGPD-sensitive, needs its own
+   SPEC(s) before any code.** Per the user: both the tenant (company)
+   and every user (person) need complete, non-duplicable identity data.
+   - Tenant: full company registration (CNPJ + whatever else is legally
+     unique per company — needs confirming which fields), enforced
+     unique.
+   - User: email, full address, RG, CPF, phone number, etc., each
+     enforced unique across all users (no two users may share a CPF,
+     RG, email, or phone). CPF/RG are sensitive personal data under
+     Brazil's LGPD — before implementing, must decide retention,
+     at-rest encryption, and who can access raw values vs. just the
+     audit trail.
+   - Self-edit is restricted: a user cannot edit their own profile
+     fields — only someone holding the relevant permission can. A user
+     only sees their own profile and their own display nickname (the
+     name shown to others in chat — see item 4).
+   - Backend: new entity/entities in `knowly`, migration(s), permission
+     gating, uniqueness constraints at the DB level (not just app-level
+     validation). Frontend: profile view/edit screens in `knowly-app`.
+4. **Internal team chat — big, new product surface, deferred until
+   after the identity model above.** 1:1 conversations and group
+   conversations between team members (distinct from the existing
+   chat-with-the-knowledge-base feature) — uses the profile nickname
+   from item 3 to identify people in the UI. Needs its own SPEC(s) in
+   both repos once prioritized.
+5. **Design system overhaul — no animations today, "muito simplório."**
+   Needs scoping before a SPEC makes sense: which screens first, what
+   motion/interaction language, whether it's a new design-system
+   reference doc or per-screen polish. Ask the user to prioritize
+   specific screens rather than attempting a big-bang redesign.
 
 ## How to work in this repo
 
@@ -94,11 +131,17 @@ the feature's own SPEC.
 | `tenant-creation` | ✅ Done | Staff-only `/tenants/new` form (name + first admin email) calling `POST /api/tenants`. Originally gated by an `isStaff` heuristic (whether `GET /api/tenants` succeeded); `navigation-menu` replaced that with the real `GlobalPermission.TENANT_CREATE` check (`GET /api/staff/permissions`) after the backend's `staff-rbac-split` made that heuristic wrong for a `STAFF` user granted `TENANT_CREATE` but not `TENANT_ACT_AS_ANY`. |
 | `tags-list` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format, paired with the backend's `tags-crud` reference. Don't build it unless explicitly asked to turn it into a real feature. |
 | `navigation-menu` | ✅ Done | Real app-shell navigation (`nav-menu.component.ts`), links filtered by `PermissionsService`/`GlobalPermissionsService`; "switch tenant" link reusing `/select-tenant`. Fixed the `staffGuard`/create-tenant-link bug above as part of the same feature. |
+| `welcome-screen` | ✅ Done | Real `/welcome` landing screen (staff-generic or tenant-branded greeting, no sensitive/permission-gated content) — replaces `/dashboard` as the post-login/tenant-selection/root-redirect target. Fixed two real bugs: login and the root route (`''`) both used to send an already-authenticated session to the wrong place (tenant list, or unconditionally `/login`). Onboarding tour trigger moved here from `dashboard`; tour target ids moved to the global nav menu. See `select-tenant` SPEC's amended REQ-5 (0-membership sessions no longer redirect to `/select-tenant`). |
 
-**As of the last working session:** `navigation-menu` is done. Next:
-whatever the backend's `PROJECT_STATUS.md` "Next up" names (currently
-item 5 — user management screens) — write its SPEC(s) first, split by
-repo per the cross-repo SPEC placement rule.
+**As of the last working session:** `navigation-menu` and
+`welcome-screen` are done — see this file's "Backlog" section above for
+several bigger items reported by the user (tenant pagination/search,
+segmented OTP input, full identity/profile model with CPF/RG, internal
+team chat, design overhaul), none yet SPEC'd. Next: either pick up that
+backlog in the stated order, or whatever the backend's
+`PROJECT_STATUS.md` "Next up" names (currently item 5 — user management
+screens) — write SPEC(s) first, split by repo per the cross-repo SPEC
+placement rule.
 
 ## Known operational/tooling notes worth knowing
 
