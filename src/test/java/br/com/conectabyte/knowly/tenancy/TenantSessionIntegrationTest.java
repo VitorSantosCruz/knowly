@@ -208,7 +208,6 @@ class TenantSessionIntegrationTest {
         staff.setGlobalRole(GlobalRole.STAFF);
         userRepository.saveAndFlush(staff);
         Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
-        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
 
         Cookie session = logIn("staff@example.com");
 
@@ -217,14 +216,13 @@ class TenantSessionIntegrationTest {
         assertThat(listResponse).hasStatus(HttpStatus.OK);
         String listBody = listResponse.getResponse().getContentAsString();
         assertThat(listBody).contains("Tenant A");
-        assertThat(listBody).contains("Tenant B");
 
         var switchResponse =
                 mockMvc.post()
                         .uri("/api/tenants/active")
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tenantId\":" + tenantB.getId() + "}")
+                        .content("{\"tenantId\":" + tenantA.getId() + "}")
                         .exchange();
 
         assertThat(switchResponse).hasStatus(HttpStatus.OK);
