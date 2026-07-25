@@ -290,3 +290,26 @@ src/main/jte/mail/
   simpler, assert the `SecurityFilterChain`'s configured exemption list
   directly), and CAPTCHA-required responses from both verify endpoints
   under simulated high velocity.
+
+## Logout
+
+- `POST /api/auth/logout` on `AuthController`, implemented with Spring
+  Security's `SecurityContextLogoutHandler#logout(request, response,
+  authentication)` — invalidates the underlying `HttpSession` (Redis
+  deletes the entry; Spring Session's filter expires the cookie on the
+  response as the request completes) and clears the
+  `SecurityContextHolder`. No custom cookie-clearing code needed.
+- `SecurityConfig`: `/api/auth/logout` must NOT fall under the existing
+  `/api/auth/**` `permitAll()` wildcard, since logout only makes sense
+  for an authenticated caller and an unauthenticated call must 401. Add
+  an explicit `.requestMatchers("/api/auth/logout").authenticated()` rule
+  *before* the `/api/auth/**` wildcard (Spring Security evaluates
+  `authorizeHttpRequests` matchers in declaration order — first match
+  wins), so it takes precedence.
+- Deliberately **not** added to the CSRF exemption list — the three
+  exempt endpoints are all pre-authentication (no session/CSRF token
+  exists yet to check); logout runs against an established session, so
+  the normal CSRF check applies like any other authenticated POST.
+- The frontend obtains the CSRF token the same way it does for every
+  other authenticated request (see `knowly-app`'s existing CSRF-token
+  handling) — no new mechanism needed here.

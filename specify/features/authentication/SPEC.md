@@ -153,6 +153,19 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   when it has expired and the user needed the code path to get back in
   (REQ-14).
 
+### Logout
+
+- **REQ-16 [Event-Driven]** When an authenticated client sends `POST
+  /api/auth/logout`, the system shall invalidate the server-side session
+  and clear the session cookie on the response.
+- **REQ-16a [Unwanted Behavior]** If `POST /api/auth/logout` is called
+  without an authenticated session, then the system shall reject it with
+  401, the same as any other protected endpoint.
+- **REQ-16b [Ubiquitous]** The system shall require CSRF protection on
+  `POST /api/auth/logout` — unlike the three pre-authentication endpoints
+  (REQ-12b), logout is performed by an already-authenticated client and
+  must not be added to the CSRF exemption list.
+
 ## Non-functional requirements
 
 - Security: one-time codes/passwords are always stored hashed (never
@@ -223,6 +236,13 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
 - [x] Every authentication decision (success, failure, lockout) appears as
       a structured audit log entry queryable by email, trace id, and
       outcome.
+- [x] Calling `POST /api/auth/logout` while authenticated invalidates the
+      session and clears the session cookie; a subsequent request with the
+      old cookie is treated as unauthenticated.
+- [x] Calling `POST /api/auth/logout` without an authenticated session
+      returns 401.
+- [x] `POST /api/auth/logout` is not present in `SecurityConfig`'s CSRF
+      exemption list (unlike the three pre-authentication endpoints).
 
 ## Out of scope
 
@@ -233,7 +253,7 @@ Multi-tenancy, roles, and authorization are explicitly out of scope here
   identity. Which tenant(s)/role(s) a user has, and what they're allowed to
   do, is resolved by later features on top of the session this SPEC
   creates.
-- Logout, session refresh/expiry policy, and "remember me": not addressed
-  here.
+- Session refresh/expiry policy and "remember me": not addressed here.
+  (Logout is now covered — see "Logout" above.)
 - Password reset / account recovery flows beyond what's described above
   (the one-time password mechanism already acts as the recovery path).

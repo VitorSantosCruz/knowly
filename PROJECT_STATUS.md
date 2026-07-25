@@ -83,7 +83,7 @@ the feature's own SPEC.
 
 | Feature | Status | Notes |
 |---|---|---|
-| `authentication` | ✅ Done | Login-code (passwordless) flow, sessions. |
+| `authentication` | ✅ Done | Login-code (passwordless) flow, sessions, logout (`POST /api/auth/logout`). |
 | `tenancy` | ✅ Done | Multi-tenant session model, memberships, roles, permissions, access groups, audit log. Staff (global-admin) users can list every tenant and act as any of them without holding a membership (added after a live bug where a staff account with 0 memberships got stuck behind `TENANT_SELECTION_REQUIRED`). |
 | `article-management` | ✅ Done | Upload (text/image/PDF, OCR via tesseract), embeddings (pgvector), permission-gated CRUD. |
 | `conversations` | ✅ Done | Chat over the tenant's articles, SSE streaming, citations. |
