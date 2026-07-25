@@ -1,12 +1,13 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { catchError, of, tap } from 'rxjs';
+import { catchError, of } from 'rxjs';
 import {
   ActiveTenantService,
   TenantMembership,
   TenantSummary,
 } from '../../core/active-tenant.service';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
 
 interface TenantOption {
   tenantId: number;
@@ -41,7 +42,7 @@ interface TenantOption {
         </p>
       }
 
-      @if (isStaff()) {
+      @if (canCreateTenant()) {
         <a
           data-testid="create-tenant-link"
           routerLink="/tenants/new"
@@ -55,13 +56,18 @@ interface TenantOption {
 })
 export class SelectTenantPageComponent implements OnInit {
   private readonly activeTenantService = inject(ActiveTenantService);
+  private readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly router = inject(Router);
 
   protected readonly options = signal<TenantOption[]>([]);
   protected readonly loaded = signal(false);
-  protected readonly isStaff = signal(false);
+  protected readonly canCreateTenant = computed(() =>
+    this.globalPermissionsService.has('TENANT_CREATE'),
+  );
 
   ngOnInit(): void {
+    this.globalPermissionsService.fetch();
+
     this.activeTenantService.list().subscribe((memberships) => {
       if (memberships.length > 0) {
         this.options.set(memberships.map(toOption));
@@ -71,10 +77,7 @@ export class SelectTenantPageComponent implements OnInit {
 
       this.activeTenantService
         .listAllTenants()
-        .pipe(
-          tap(() => this.isStaff.set(true)),
-          catchError(() => of([] as TenantSummary[])),
-        )
+        .pipe(catchError(() => of([] as TenantSummary[])))
         .subscribe((tenants) => {
           this.options.set(
             tenants.map((tenant) => ({ tenantId: tenant.id, tenantName: tenant.name })),

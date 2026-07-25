@@ -34,8 +34,13 @@ describe('SelectTenantPageComponent', () => {
     httpMock.verify();
   });
 
+  function flushGlobalPermissions(permissions: string[] = []): void {
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions });
+  }
+
   it('lists the memberships to choose from', () => {
     fixture.detectChanges();
+    flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([
       { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
@@ -49,6 +54,7 @@ describe('SelectTenantPageComponent', () => {
   it('selecting a tenant posts the choice and navigates to the dashboard', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     fixture.detectChanges();
+    flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([
       { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
@@ -67,6 +73,7 @@ describe('SelectTenantPageComponent', () => {
 
   it('falls back to listing every tenant in the system when there are no memberships (staff)', () => {
     fixture.detectChanges();
+    flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     httpMock.expectOne('/api/tenants').flush([
       { id: 1, name: 'Acme' },
@@ -81,6 +88,7 @@ describe('SelectTenantPageComponent', () => {
   it('selecting a tenant from the staff fallback posts the choice and navigates to the dashboard', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     fixture.detectChanges();
+    flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     httpMock.expectOne('/api/tenants').flush([{ id: 1, name: 'Acme' }]);
     fixture.detectChanges();
@@ -95,8 +103,9 @@ describe('SelectTenantPageComponent', () => {
     expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
   });
 
-  it('shows a create-tenant link on the staff fallback path', () => {
+  it('shows a create-tenant link when the caller holds TENANT_CREATE', () => {
     fixture.detectChanges();
+    flushGlobalPermissions(['TENANT_CREATE']);
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     httpMock.expectOne('/api/tenants').flush([{ id: 1, name: 'Acme' }]);
     fixture.detectChanges();
@@ -106,8 +115,9 @@ describe('SelectTenantPageComponent', () => {
     expect(link.getAttribute('href')).toBe('/tenants/new');
   });
 
-  it('does not show a create-tenant link when the user already has memberships', () => {
+  it('does not show a create-tenant link when the caller lacks TENANT_CREATE', () => {
     fixture.detectChanges();
+    flushGlobalPermissions([]);
     httpMock.expectOne('/api/tenants/memberships').flush([
       { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
@@ -119,6 +129,7 @@ describe('SelectTenantPageComponent', () => {
 
   it('shows an empty state when the memberships and all-tenants fallback are both empty', () => {
     fixture.detectChanges();
+    flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     httpMock.expectOne('/api/tenants').flush([]);
     fixture.detectChanges();
@@ -128,6 +139,7 @@ describe('SelectTenantPageComponent', () => {
 
   it('shows an empty state when the all-tenants fallback request itself fails', () => {
     fixture.detectChanges();
+    flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     httpMock
       .expectOne('/api/tenants')

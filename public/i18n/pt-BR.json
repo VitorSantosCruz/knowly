@@ -50,6 +50,14 @@
   "logout": {
     "label": "Sair"
   },
+  "nav": {
+    "dashboard": "Painel",
+    "articles": "Artigos",
+    "conversations": "Conversas",
+    "members": "Membros",
+    "createTenant": "Criar tenant",
+    "switchTenant": "Trocar tenant"
+  },
   "members": {
     "add": "Adicionar membro",
     "remove": "Remover",

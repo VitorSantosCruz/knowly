@@ -49,12 +49,15 @@
 >    in-flight SPEC/PLAN/TASKS and which item is next, not just "in
 >    progress."
 
-**Current state: nothing queued.** Every existing feature is done and
-verified (see the table below and the backend's `PROJECT_STATUS.md`).
-There is no in-flight SPEC/PLAN/TASKS right now. If asked for "the next
-step" as of this state, the right response is step 2 of the protocol
-above — ask the user which direction to prioritize next, rather than
-assuming.
+**Current state: `navigation-menu` done (2026-07-25).** The backend's
+`PROJECT_STATUS.md` has a confirmed multi-feature roadmap in progress —
+next up (item 5) is user management screens (staff user management
+globally; tenant user management per-tenant, likely split into a
+backend SPEC for any missing endpoints and a frontend SPEC here for the
+screens themselves — see this repo's constitution.md's cross-repo SPEC
+placement rule). Check the backend's `PROJECT_STATUS.md` "Next up"
+before starting anything, since the next item may need backend work
+first.
 
 ## How to work in this repo
 
@@ -88,13 +91,14 @@ the feature's own SPEC.
 | `article-management` | ✅ Done | Upload (with polling for embedding status), inline edit, delete, permission-gated UI. |
 | `conversations` | ✅ Done | Chat UI over SSE (hand-rolled parser — native `EventSource` can't POST a body). |
 | `user-management` | ✅ Done | Tenant members/roles/permissions/access-groups admin UI. |
-| `tenant-creation` | ✅ Done | Staff-only `/tenants/new` form (name + first admin email) calling `POST /api/tenants`; "create tenant" link surfaced on `select-tenant-page` only on the staff (all-tenants) path. No explicit "isStaff" API field exists — `staff.guard.ts` reuses the existing `GET /api/tenants` success/403 signal, same pattern `select-tenant-page` already used. |
+| `tenant-creation` | ✅ Done | Staff-only `/tenants/new` form (name + first admin email) calling `POST /api/tenants`. Originally gated by an `isStaff` heuristic (whether `GET /api/tenants` succeeded); `navigation-menu` replaced that with the real `GlobalPermission.TENANT_CREATE` check (`GET /api/staff/permissions`) after the backend's `staff-rbac-split` made that heuristic wrong for a `STAFF` user granted `TENANT_CREATE` but not `TENANT_ACT_AS_ANY`. |
 | `tags-list` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format, paired with the backend's `tags-crud` reference. Don't build it unless explicitly asked to turn it into a real feature. |
+| `navigation-menu` | ✅ Done | Real app-shell navigation (`nav-menu.component.ts`), links filtered by `PermissionsService`/`GlobalPermissionsService`; "switch tenant" link reusing `/select-tenant`. Fixed the `staffGuard`/create-tenant-link bug above as part of the same feature. |
 
-**As of the last working session: no open backlog.** Every real feature is
-fully implemented, tested, and passing `npm run format:check && npm test &&
-npm run build` clean. If you're starting fresh work, it's a *new* feature —
-write its SPEC first.
+**As of the last working session:** `navigation-menu` is done. Next:
+whatever the backend's `PROJECT_STATUS.md` "Next up" names (currently
+item 5 — user management screens) — write its SPEC(s) first, split by
+repo per the cross-repo SPEC placement rule.
 
 ## Known operational/tooling notes worth knowing
 

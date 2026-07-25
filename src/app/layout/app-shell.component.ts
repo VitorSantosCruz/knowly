@@ -5,6 +5,7 @@ import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 import { HelpMenuComponent } from '../shared/help-menu.component';
 import { TourOverlayComponent } from '../shared/tour-overlay.component';
 import { LogoutButtonComponent } from '../shared/logout-button.component';
+import { NavMenuComponent } from './nav-menu.component';
 
 @Component({
   selector: 'app-shell',
@@ -15,6 +16,7 @@ import { LogoutButtonComponent } from '../shared/logout-button.component';
     HelpMenuComponent,
     TourOverlayComponent,
     LogoutButtonComponent,
+    NavMenuComponent,
   ],
   template: `
     <div
@@ -26,6 +28,7 @@ import { LogoutButtonComponent } from '../shared/logout-button.component';
         <app-theme-toggle />
         <app-logout-button />
       </div>
+      <app-nav-menu />
       <router-outlet />
       <app-tour-overlay />
     </div>

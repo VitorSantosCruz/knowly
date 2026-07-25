@@ -27,16 +27,27 @@ describe('staffGuard', () => {
     );
   }
 
-  it('allows navigation when the caller can list every tenant (staff)', async () => {
+  it('allows navigation for a STAFF user granted only TENANT_CREATE, not TENANT_ACT_AS_ANY', async () => {
+    // Regression test: previously this guard checked GET /api/tenants (which needs
+    // TENANT_ACT_AS_ANY) instead of the permission this route actually requires.
     const resultPromise = firstValueFrom(runGuard());
-    httpMock.expectOne('/api/tenants').flush([{ id: 1, name: 'Acme' }]);
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions: ['TENANT_CREATE'] });
 
     expect(await resultPromise).toBe(true);
   });
 
-  it('redirects to /select-tenant when the caller is not staff', async () => {
+  it('redirects to /select-tenant when the caller lacks TENANT_CREATE', async () => {
     const resultPromise = firstValueFrom(runGuard());
-    httpMock.expectOne('/api/tenants').flush(null, { status: 403, statusText: 'Forbidden' });
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions: ['TENANT_ACT_AS_ANY'] });
+
+    const result = await resultPromise;
+    expect(result).toBeInstanceOf(UrlTree);
+    expect(router.serializeUrl(result as UrlTree)).toBe('/select-tenant');
+  });
+
+  it('redirects to /select-tenant when the caller holds no global permissions at all', async () => {
+    const resultPromise = firstValueFrom(runGuard());
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
 
     const result = await resultPromise;
     expect(result).toBeInstanceOf(UrlTree);
