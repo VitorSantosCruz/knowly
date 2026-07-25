@@ -33,6 +33,17 @@ tenant, and every tenant-scoped widget failed with a generic error.
 - **REQ-4 [Optional Feature]** Where a user has only one membership (or
   one already marked active), the system shall never show this screen —
   matches the backend's own single-membership auto-select.
+- **REQ-5 [Event-Driven]** When the memberships list is empty (the
+  user holds no tenant membership at all — the staff case, discovered
+  live: a global-admin account with zero memberships was hitting
+  `TENANT_SELECTION_REQUIRED` on every tenant-scoped call because the
+  guard treated 0 memberships the same as "safe, auto-selected"),
+  `/select-tenant` shall fall back to `GET /api/tenants` (every tenant
+  in the system) instead of showing an empty list.
+- **REQ-6 [Unwanted Behavior]** If the all-tenants fallback request
+  itself fails (e.g. 403 for a non-staff user who somehow reached this
+  screen with 0 memberships), then the screen shall show an empty
+  state rather than an unhandled error.
 
 ## Non-functional requirements
 
@@ -50,10 +61,14 @@ tenant, and every tenant-scoped widget failed with a generic error.
 - [x] `/select-tenant` lists all of the user's tenants.
 - [x] Picking one sets it active and navigates to `/dashboard`.
 - [x] A single-membership user never sees this screen.
+- [x] The guard redirects to `/select-tenant` for 0 memberships too,
+      not just >1 (previously it let 0 through as if auto-selected).
+- [x] `/select-tenant` falls back to listing every tenant in the
+      system when memberships is empty, letting a staff user pick one
+      to act as.
 
 ## Out of scope
 
 - Switching tenants later from within the app (e.g. a "switch tenant"
   menu once already in a tenant) — this SPEC only covers the initial,
   required selection.
-- Any staff-specific tenant-selection UI.

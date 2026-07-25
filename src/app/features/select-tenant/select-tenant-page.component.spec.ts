@@ -64,4 +64,54 @@ describe('SelectTenantPageComponent', () => {
 
     expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
   });
+
+  it('falls back to listing every tenant in the system when there are no memberships (staff)', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock.expectOne('/api/tenants').flush([
+      { id: 1, name: 'Acme' },
+      { id: 2, name: 'Other Co' },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Acme');
+    expect(fixture.nativeElement.textContent).toContain('Other Co');
+  });
+
+  it('selecting a tenant from the staff fallback posts the choice and navigates to the dashboard', () => {
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock.expectOne('/api/tenants').flush([{ id: 1, name: 'Acme' }]);
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="select-tenant-1"]').click();
+
+    const req = httpMock.expectOne('/api/tenants/active');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ tenantId: 1 });
+    req.flush({});
+
+    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('shows an empty state when the memberships and all-tenants fallback are both empty', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock.expectOne('/api/tenants').flush([]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="select-tenant-empty"]')).toBeTruthy();
+  });
+
+  it('shows an empty state when the all-tenants fallback request itself fails', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock
+      .expectOne('/api/tenants')
+      .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="select-tenant-empty"]')).toBeTruthy();
+  });
 });

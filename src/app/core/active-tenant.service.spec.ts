@@ -60,6 +60,23 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantId()).toBeNull();
   });
 
+  it('listAllTenants() fetches every tenant in the system', () => {
+    let result: unknown;
+    service.listAllTenants().subscribe((tenants) => (result = tenants));
+
+    const req = httpMock.expectOne('/api/tenants');
+    expect(req.request.method).toBe('GET');
+    req.flush([
+      { id: 1, name: 'Tenant A' },
+      { id: 2, name: 'Tenant B' },
+    ]);
+
+    expect(result).toEqual([
+      { id: 1, name: 'Tenant A' },
+      { id: 2, name: 'Tenant B' },
+    ]);
+  });
+
   it('selectTenant() posts the choice and updates the active tenant signals', () => {
     service.selectTenant(2, 'Tenant B').subscribe();
 

@@ -9,6 +9,11 @@ export interface TenantMembership {
   active: boolean;
 }
 
+export interface TenantSummary {
+  id: number;
+  name: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ActiveTenantService {
   private readonly http = inject(HttpClient);
@@ -29,6 +34,10 @@ export class ActiveTenantService {
 
   list(): Observable<TenantMembership[]> {
     return this.http.get<TenantMembership[]>('/api/tenants/memberships');
+  }
+
+  listAllTenants(): Observable<TenantSummary[]> {
+    return this.http.get<TenantSummary[]>('/api/tenants');
   }
 
   selectTenant(tenantId: number, tenantName: string): Observable<void> {

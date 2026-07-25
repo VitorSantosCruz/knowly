@@ -70,6 +70,7 @@
     "save": "Salvar"
   },
   "selectTenant": {
-    "title": "Escolha um tenant para continuar"
+    "title": "Escolha um tenant para continuar",
+    "empty": "Nenhum tenant disponível para seleção."
   }
 }

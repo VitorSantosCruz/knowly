@@ -16,7 +16,7 @@ export const tenantSelectionGuard: CanActivateFn = () => {
     map((memberships) => {
       const hasActiveMembership = memberships.some((membership) => membership.active);
 
-      return hasActiveMembership || memberships.length <= 1
+      return hasActiveMembership || memberships.length === 1
         ? true
         : router.parseUrl('/select-tenant');
     }),

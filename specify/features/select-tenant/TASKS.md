@@ -20,3 +20,21 @@
 - [x] 8. Run `npm run format:check && npm test && npm run build` and
       confirm everything is green.
 - [x] 9. Update `SPEC.md`'s acceptance-criteria checkboxes.
+
+## Emergent: staff act-as-any-tenant fallback (REQ-5/REQ-6, added when a
+    real staff account with zero memberships hit `TENANT_SELECTION_REQUIRED`
+    on every tenant-scoped call — the backend's `tenancy` feature grew a
+    `GET /api/tenants` staff-only all-tenants endpoint to support this)
+
+- [x] 10. Test: `tenantSelectionGuard` redirects to `/select-tenant` for
+       0 memberships too, not just >1 (Red).
+- [x] 11. Fix the guard's `memberships.length <= 1` condition (Green).
+- [x] 12. Test: `ActiveTenantService` gets a `listAllTenants()` method
+       hitting `GET /api/tenants` (Red).
+- [x] 13. Implement `listAllTenants()` (Green).
+- [x] 14. Test: `SelectTenantPageComponent` falls back to
+       `listAllTenants()` when `list()` returns an empty array, and
+       shows an empty state if that fallback itself errors (Red).
+- [x] 15. Implement the fallback in `SelectTenantPageComponent` (Green).
+- [x] 16. Run `npm run format:check && npm test && npm run build` and
+       confirm everything is green.
