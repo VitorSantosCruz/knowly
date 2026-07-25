@@ -20,16 +20,22 @@ import { NavMenuComponent } from './nav-menu.component';
   ],
   template: `
     <div
-      class="min-h-dvh bg-slate-100 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100"
+      class="flex min-h-dvh flex-col bg-slate-100 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100"
     >
-      <div data-tour-id="main-nav" class="fixed top-4 right-4 z-10 flex items-center gap-1">
-        <app-help-menu />
-        <app-language-switcher />
-        <app-theme-toggle />
-        <app-logout-button />
-      </div>
-      <app-nav-menu />
-      <router-outlet />
+      <header
+        class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950/80"
+      >
+        <app-nav-menu />
+        <div data-tour-id="main-nav" class="flex items-center gap-1">
+          <app-help-menu />
+          <app-language-switcher />
+          <app-theme-toggle />
+          <app-logout-button />
+        </div>
+      </header>
+      <main class="flex-1">
+        <router-outlet />
+      </main>
       <app-tour-overlay />
     </div>
   `,

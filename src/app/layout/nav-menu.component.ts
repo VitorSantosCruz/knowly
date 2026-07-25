@@ -1,22 +1,32 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { PermissionsService } from '../core/permissions.service';
 import { GlobalPermissionsService } from '../core/global-permissions.service';
 import { ActiveTenantService, TenantMembership } from '../core/active-tenant.service';
 import { AuthService } from '../core/auth.service';
 
+const LINK_CLASS =
+  'rounded-full px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white';
+const LINK_ACTIVE_CLASS = 'bg-slate-200/70 text-slate-900 dark:bg-slate-800 dark:text-white';
+
 @Component({
   selector: 'app-nav-menu',
-  imports: [RouterLink, TranslocoPipe],
+  imports: [RouterLink, RouterLinkActive, TranslocoPipe],
   template: `
     @if (authService.isLoggedIn()) {
-      <nav data-testid="nav-menu" class="fixed top-4 left-4 z-10 flex items-center gap-1">
+      <nav data-testid="nav-menu" class="flex items-center gap-1">
+        <span
+          class="mr-2 shrink-0 text-sm font-semibold tracking-tight text-slate-900 dark:text-white"
+        >
+          knowly
+        </span>
         @if (permissionsService.has('DASHBOARD_VIEW')) {
           <a
             data-testid="nav-dashboard"
             routerLink="/dashboard"
-            class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
+            [routerLinkActive]="linkActiveClass"
+            [class]="linkClass"
           >
             {{ 'nav.dashboard' | transloco }}
           </a>
@@ -26,7 +36,8 @@ import { AuthService } from '../core/auth.service';
             data-testid="nav-articles"
             data-tour-id="articles-nav-link"
             routerLink="/articles"
-            class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
+            [routerLinkActive]="linkActiveClass"
+            [class]="linkClass"
           >
             {{ 'nav.articles' | transloco }}
           </a>
@@ -35,7 +46,8 @@ import { AuthService } from '../core/auth.service';
           <a
             data-testid="nav-conversations"
             routerLink="/conversations"
-            class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
+            [routerLinkActive]="linkActiveClass"
+            [class]="linkClass"
           >
             {{ 'nav.conversations' | transloco }}
           </a>
@@ -45,16 +57,21 @@ import { AuthService } from '../core/auth.service';
             data-testid="nav-members"
             data-tour-id="user-management-nav-link"
             routerLink="/members"
-            class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
+            [routerLinkActive]="linkActiveClass"
+            [class]="linkClass"
           >
             {{ 'nav.members' | transloco }}
           </a>
+        }
+        @if (globalPermissionsService.has('TENANT_CREATE') || canSwitchTenant()) {
+          <span class="mx-1 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-800"></span>
         }
         @if (globalPermissionsService.has('TENANT_CREATE')) {
           <a
             data-testid="nav-create-tenant"
             routerLink="/tenants/new"
-            class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
+            [routerLinkActive]="linkActiveClass"
+            [class]="linkClass"
           >
             {{ 'nav.createTenant' | transloco }}
           </a>
@@ -63,7 +80,8 @@ import { AuthService } from '../core/auth.service';
           <a
             data-testid="nav-switch-tenant"
             routerLink="/select-tenant"
-            class="rounded-full px-3 py-1.5 text-sm hover:bg-slate-200/70 dark:hover:bg-slate-800"
+            [routerLinkActive]="linkActiveClass"
+            [class]="linkClass"
           >
             {{ 'nav.switchTenant' | transloco }}
           </a>
@@ -77,6 +95,9 @@ export class NavMenuComponent implements OnInit {
   protected readonly permissionsService = inject(PermissionsService);
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly activeTenantService = inject(ActiveTenantService);
+
+  protected readonly linkClass = LINK_CLASS;
+  protected readonly linkActiveClass = LINK_ACTIVE_CLASS;
 
   private readonly memberships = signal<TenantMembership[]>([]);
   // 0 memberships (staff, who never hold a real TenantMembership row even after switching

@@ -81,6 +81,7 @@
   },
   "articles": {
     "titlePlaceholder": "Título",
+    "chooseFile": "Escolher um arquivo…",
     "upload": "Enviar",
     "delete": "Excluir",
     "originalFile": "Ver arquivo original",

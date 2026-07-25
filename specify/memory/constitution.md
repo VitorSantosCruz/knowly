@@ -4,6 +4,14 @@ Non-negotiable rules for any human or AI agent implementing code in this
 repository. If a plan or task conflicts with this document, this document
 wins.
 
+**Read [`../knowly/specify/memory/sdd-methodology.md`](../knowly/specify/memory/sdd-methodology.md)
+alongside this file** — it's the deeper reasoning behind every rule
+below (why SDD prevents "vibe coding," the Builder/Verifier pattern TDAD
+already implements, why scope drift and over-specification are both
+failure modes, concrete anti-patterns already observed in this project).
+It lives in the backend repo (same reason `VISION.md`/`DECISIONS.md` do)
+but applies to both. It never overrides this file; it explains it.
+
 ## Why Spec-Driven Development (read this before the mechanics below)
 
 The sections further down describe *how* to follow SDD (SPEC → PLAN →
@@ -134,8 +142,15 @@ constitution), but the frontend has a role too:
 3. **PLAN.md** — the how. Concrete technical decisions (components, routes,
    services, consumed API contracts) derived from the SPEC.
 4. **TASKS.md** — list of atomic, verifiable tasks derived from the PLAN.
-5. Implementation follows the tasks in order; each task should be small
+5. **Implement** — tasks executed in order, test-first (TDAD), each small
    enough to be executed with high confidence in a single iteration.
+6. **Analyze** — a mandatory closing gate before a *feature* (not just a
+   task) is done: re-read constitution.md, the feature's SPEC.md,
+   PLAN.md, and TASKS.md together and confirm they're still mutually
+   consistent, then re-check every SPEC.md acceptance-criterion checkbox
+   against the finished implementation one by one. See
+   `../knowly/specify/memory/sdd-methodology.md` for why this step
+   exists and what it catches that per-task TDAD structurally cannot.
 
 No implementation should start without an approved SPEC for the feature in
 question. Behavior changes always update the SPEC first.
