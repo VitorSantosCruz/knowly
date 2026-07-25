@@ -1,0 +1,108 @@
+{
+  "login": {
+    "title": "knowly",
+    "subtitle": "Sign in to continue",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "continue": "Continue",
+    "codeTab": "Code",
+    "passwordTab": "Password",
+    "codeLabel": "One-time code",
+    "passwordLabel": "One-time password",
+    "invalidCredentials": "Something's wrong with what you entered. Please try again.",
+    "accountLocked": "Too many attempts. Please try again later."
+  },
+  "tour": {
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip",
+    "finish": "Finish",
+    "mainNav": {
+      "title": "Main navigation",
+      "body": "Everything in knowly starts here — your knowledge base, users, and settings."
+    },
+    "articles": {
+      "title": "Articles",
+      "body": "This is where your team's documents live, and where you can add and edit them."
+    },
+    "userManagement": {
+      "title": "User management",
+      "body": "Add people to your tenant and control exactly what each of them can do."
+    },
+    "botConfig": {
+      "title": "Bot configuration",
+      "body": "Tune your assistant's personality and how fast it responds."
+    },
+    "helpMenu": {
+      "title": "Help menu",
+      "body": "You can restart this tour any time from here."
+    }
+  },
+  "dashboard": {
+    "articlesLink": "View articles",
+    "noAccess": "You don't have access to this.",
+    "error": "Something went wrong loading this. Trace id: {{traceId}}"
+  },
+  "welcome": {
+    "staffGreeting": "Welcome to knowly",
+    "tenantGreeting": "Welcome to {{tenantName}}",
+    "pitch": "Ask questions and get answers grounded in your team's own knowledge base, with citations back to the source.",
+    "viewDashboard": "View dashboard"
+  },
+  "helpMenu": {
+    "label": "Help",
+    "restartTour": "Restart tour"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "articles": "Articles",
+    "conversations": "Conversations",
+    "members": "Members",
+    "createTenant": "Create tenant",
+    "switchTenant": "Switch tenant"
+  },
+  "logout": {
+    "label": "Log out"
+  },
+  "members": {
+    "add": "Add member",
+    "remove": "Remove",
+    "directPermissions": "Direct permissions",
+    "accessGroups": "Access groups",
+    "effectivePermissions": "Effective permissions",
+    "assign": "Assign",
+    "unassign": "Unassign",
+    "createGroup": "Create group"
+  },
+  "conversations": {
+    "new": "New conversation",
+    "untitled": "Untitled conversation",
+    "send": "Send"
+  },
+  "articles": {
+    "titlePlaceholder": "Title",
+    "chooseFile": "Choose a file…",
+    "upload": "Upload",
+    "delete": "Delete",
+    "originalFile": "View original file",
+    "save": "Save",
+    "status": {
+      "processing": "Processing",
+      "ready": "Ready",
+      "failed": "Failed"
+    }
+  },
+  "selectTenant": {
+    "title": "Choose a tenant to continue",
+    "empty": "No tenants are available to select.",
+    "createTenant": "Create tenant"
+  },
+  "tenantCreate": {
+    "title": "Create tenant",
+    "name": "Tenant name",
+    "adminEmail": "First admin's email",
+    "submit": "Create",
+    "invalid": "Enter a tenant name and a valid admin email.",
+    "submitError": "Couldn't create the tenant. Please check the details and try again."
+  }
+}

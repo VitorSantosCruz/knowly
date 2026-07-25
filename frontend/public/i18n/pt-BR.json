@@ -1,0 +1,108 @@
+{
+  "login": {
+    "title": "knowly",
+    "subtitle": "Entre para continuar",
+    "emailLabel": "E-mail",
+    "emailPlaceholder": "voce@exemplo.com",
+    "continue": "Continuar",
+    "codeTab": "Código",
+    "passwordTab": "Senha",
+    "codeLabel": "Código de uso único",
+    "passwordLabel": "Senha de uso único",
+    "invalidCredentials": "Algo está errado com o que você digitou. Tente novamente.",
+    "accountLocked": "Muitas tentativas. Tente novamente mais tarde."
+  },
+  "tour": {
+    "next": "Próximo",
+    "back": "Voltar",
+    "skip": "Pular",
+    "finish": "Concluir",
+    "mainNav": {
+      "title": "Menu principal",
+      "body": "Tudo no knowly começa aqui — sua base de conhecimento, usuários e configurações."
+    },
+    "articles": {
+      "title": "Artigos",
+      "body": "É aqui que os documentos da sua equipe ficam, e onde você pode adicionar e editar."
+    },
+    "userManagement": {
+      "title": "Gerenciamento de usuários",
+      "body": "Adicione pessoas ao seu tenant e controle exatamente o que cada uma pode fazer."
+    },
+    "botConfig": {
+      "title": "Configuração do bot",
+      "body": "Ajuste a personalidade do seu assistente e a velocidade das respostas."
+    },
+    "helpMenu": {
+      "title": "Menu de ajuda",
+      "body": "Você pode reiniciar este tour a qualquer momento por aqui."
+    }
+  },
+  "dashboard": {
+    "articlesLink": "Ver artigos",
+    "noAccess": "Você não tem acesso a isso.",
+    "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}"
+  },
+  "welcome": {
+    "staffGreeting": "Bem-vindo ao knowly",
+    "tenantGreeting": "Bem-vindo, {{tenantName}}",
+    "pitch": "Faça perguntas e receba respostas baseadas na base de conhecimento da sua equipe, com citações da fonte original.",
+    "viewDashboard": "Ver painel"
+  },
+  "helpMenu": {
+    "label": "Ajuda",
+    "restartTour": "Reiniciar tour"
+  },
+  "logout": {
+    "label": "Sair"
+  },
+  "nav": {
+    "dashboard": "Painel",
+    "articles": "Artigos",
+    "conversations": "Conversas",
+    "members": "Membros",
+    "createTenant": "Criar tenant",
+    "switchTenant": "Trocar tenant"
+  },
+  "members": {
+    "add": "Adicionar membro",
+    "remove": "Remover",
+    "directPermissions": "Permissões diretas",
+    "accessGroups": "Grupos de acesso",
+    "effectivePermissions": "Permissões efetivas",
+    "assign": "Atribuir",
+    "unassign": "Remover atribuição",
+    "createGroup": "Criar grupo"
+  },
+  "conversations": {
+    "new": "Nova conversa",
+    "untitled": "Conversa sem título",
+    "send": "Enviar"
+  },
+  "articles": {
+    "titlePlaceholder": "Título",
+    "chooseFile": "Escolher um arquivo…",
+    "upload": "Enviar",
+    "delete": "Excluir",
+    "originalFile": "Ver arquivo original",
+    "save": "Salvar",
+    "status": {
+      "processing": "Processando",
+      "ready": "Pronto",
+      "failed": "Falhou"
+    }
+  },
+  "selectTenant": {
+    "title": "Escolha um tenant para continuar",
+    "empty": "Nenhum tenant disponível para seleção.",
+    "createTenant": "Criar tenant"
+  },
+  "tenantCreate": {
+    "title": "Criar tenant",
+    "name": "Nome do tenant",
+    "adminEmail": "E-mail do primeiro admin",
+    "submit": "Criar",
+    "invalid": "Informe um nome de tenant e um e-mail de admin válido.",
+    "submitError": "Não foi possível criar o tenant. Verifique os dados e tente novamente."
+  }
+}

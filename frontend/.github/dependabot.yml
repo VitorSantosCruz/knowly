@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    groups:
+      angular:
+        patterns:
+          - '@angular/*'
+
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    ignore:
+      # node's tag number tracks the Node.js major (24 = current LTS). Node alternates an LTS
+      # major with a "Current" (non-LTS) major every ~6 months, and Dependabot has no concept of
+      # "LTS-only" — without this, a Current release would show up as a routine PR
+      # indistinguishable from an actual LTS bump. Major bumps are done deliberately by hand,
+      # picking the next LTS explicitly, instead of taking whatever Dependabot proposes next.
+      - dependency-name: 'node'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

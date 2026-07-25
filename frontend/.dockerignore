@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.git/
+.github/
+.githooks/
+.vscode/
+.idea/
+*.iml
+.angular/
+specify/
+*.md
+public/config.json

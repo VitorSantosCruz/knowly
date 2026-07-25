@@ -1,0 +1,13 @@
+#!/bin/sh
+# Formats staged code before commit (Prettier).
+# Enable once per clone with: git config core.hooksPath .githooks
+
+set -e
+
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|html|css)$' || true)
+
+if [ -n "$FILES" ]; then
+  echo "Running prettier --write on staged files..."
+  echo "$FILES" | xargs npx prettier --write
+  echo "$FILES" | xargs git add
+fi
