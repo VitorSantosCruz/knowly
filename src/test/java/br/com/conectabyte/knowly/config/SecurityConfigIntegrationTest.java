@@ -1,8 +1,7 @@
 package br.com.conectabyte.knowly.config;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import jakarta.servlet.http.Cookie;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +33,24 @@ class SecurityConfigIntegrationTest {
 
     @Test
     void logoutRequiresAuthenticationDespiteBeingUnderApiAuth() {
-        Assertions.assertThat(mockMvc.post().uri("/api/auth/logout").with(csrf()))
+        // Deliberately not using SecurityMockMvcRequestPostProcessors.csrf(): it works by
+        // reflectively swapping the shared CsrfFilter bean's tokenRepository field for a
+        // session-based test stub for the rest of this class's Spring context, which silently
+        // breaks the real CookieCsrfTokenRepository for every later test — including
+        // everyResponseCarriesAReadableCsrfCookieForBrowserClients below. Using the real
+        // cookie-issuance flow instead is both safer and a more faithful test.
+        Cookie csrfCookie =
+                mockMvc.get()
+                        .uri("/actuator/health")
+                        .exchange()
+                        .getResponse()
+                        .getCookie("XSRF-TOKEN");
+
+        Assertions.assertThat(
+                        mockMvc.post()
+                                .uri("/api/auth/logout")
+                                .cookie(csrfCookie)
+                                .header("X-XSRF-TOKEN", csrfCookie.getValue()))
                 .hasStatus(HttpStatus.UNAUTHORIZED);
     }
 

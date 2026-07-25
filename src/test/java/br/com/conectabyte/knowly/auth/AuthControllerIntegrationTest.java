@@ -9,7 +9,6 @@ import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.observability.PiiMasker;
@@ -133,7 +132,8 @@ class AuthControllerIntegrationTest {
                         .exchange();
 
         assertThat(result).hasStatus(HttpStatus.OK);
-        assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE)).contains("SESSION");
+        assertThat(result.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                .anyMatch(header -> header.contains("SESSION"));
         verify(mailSender).send((MimeMessage) org.mockito.ArgumentMatchers.any());
     }
 
@@ -192,7 +192,8 @@ class AuthControllerIntegrationTest {
                         .exchange();
 
         assertThat(result).hasStatus(HttpStatus.OK);
-        assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE)).contains("SESSION");
+        assertThat(result.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                .anyMatch(header -> header.contains("SESSION"));
         verify(mailSender).send((MimeMessage) org.mockito.ArgumentMatchers.any());
     }
 
@@ -460,7 +461,13 @@ class AuthControllerIntegrationTest {
 
     @Test
     void logoutWithoutAuthenticatedSessionIsUnauthorized() {
-        assertThat(mockMvc.post().uri("/api/auth/logout").with(csrf()))
+        Cookie csrfCookie = obtainCsrfCookie();
+
+        assertThat(
+                        mockMvc.post()
+                                .uri("/api/auth/logout")
+                                .cookie(csrfCookie)
+                                .header("X-XSRF-TOKEN", csrfCookie.getValue()))
                 .hasStatus(HttpStatus.UNAUTHORIZED);
     }
 
@@ -478,12 +485,14 @@ class AuthControllerIntegrationTest {
                         .content("{\"email\":\"logout@example.com\",\"code\":\"" + code + "\"}")
                         .exchange();
         Cookie sessionCookie = loginResult.getResponse().getCookie("SESSION");
+        Cookie csrfCookie = obtainCsrfCookie();
 
         var logoutResult =
                 mockMvc.post()
                         .uri("/api/auth/logout")
                         .cookie(sessionCookie)
-                        .with(csrf())
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .exchange();
 
         assertThat(logoutResult).hasStatus(HttpStatus.OK);
@@ -494,9 +503,23 @@ class AuthControllerIntegrationTest {
                 mockMvc.post()
                         .uri("/api/auth/logout")
                         .cookie(sessionCookie)
-                        .with(csrf())
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .exchange();
 
         assertThat(protectedResult).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    // Deliberately not using SecurityMockMvcRequestPostProcessors.csrf(): it works by
+    // reflectively swapping the shared CsrfFilter bean's tokenRepository field for a session-based
+    // test stub for the rest of this class's Spring context, which silently breaks the real
+    // CookieCsrfTokenRepository for every later test in the suite. Using the real cookie-issuance
+    // flow instead is both safer and a more faithful test.
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
     }
 }

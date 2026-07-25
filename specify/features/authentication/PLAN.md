@@ -313,3 +313,25 @@ src/main/jte/mail/
 - The frontend obtains the CSRF token the same way it does for every
   other authenticated request (see `knowly-app`'s existing CSRF-token
   handling) — no new mechanism needed here.
+- `SecurityConfig` also switches the CSRF token repository to
+  `CookieCsrfTokenRepository.withHttpOnlyFalse()` (paired with a plain
+  `CsrfTokenRequestAttributeHandler`) plus a small `CsrfCookieFilter` that
+  forces the deferred token to resolve on every request — otherwise the
+  `XSRF-TOKEN` cookie is never written unless something reads it first.
+  Needed because logout is the first authenticated, non-exempt POST any
+  real browser client makes.
+- **Test-suite gotcha (found the hard way):**
+  `SecurityMockMvcRequestPostProcessors.csrf()` does not "just" satisfy
+  CSRF validation for one request — its `postProcessRequest` reflectively
+  overwrites the *shared* `CsrfFilter` bean's `tokenRepository` field
+  (via `ReflectionTestUtils.setField`) with a session-based
+  `TestCsrfTokenRepository`, for the remaining lifetime of that bean (the
+  whole Spring context, cached across test methods and even other test
+  classes with the same context). Using it anywhere quietly breaks every
+  later CSRF-cookie assertion in the suite (a real cookie stops being
+  issued at all), which showed up as a maddening "passes alone, fails as
+  part of the suite" flake. Fixed by never using `.with(csrf())`;
+  instead, tests that need a valid token do a real `GET` first, read the
+  `XSRF-TOKEN` cookie from that response, and echo it back as both the
+  cookie and the `X-XSRF-TOKEN` header — exercising the exact same path a
+  real browser does, and not touching the shared filter's internals.
