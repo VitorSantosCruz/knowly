@@ -47,6 +47,9 @@
     "label": "Ajuda",
     "restartTour": "Reiniciar tour"
   },
+  "logout": {
+    "label": "Sair"
+  },
   "members": {
     "add": "Adicionar membro",
     "remove": "Remover",

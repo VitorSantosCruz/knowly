@@ -47,6 +47,9 @@
     "label": "Help",
     "restartTour": "Restart tour"
   },
+  "logout": {
+    "label": "Log out"
+  },
   "members": {
     "add": "Add member",
     "remove": "Remove",

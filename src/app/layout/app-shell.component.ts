@@ -4,6 +4,7 @@ import { LanguageSwitcherComponent } from '../shared/language-switcher.component
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 import { HelpMenuComponent } from '../shared/help-menu.component';
 import { TourOverlayComponent } from '../shared/tour-overlay.component';
+import { LogoutButtonComponent } from '../shared/logout-button.component';
 
 @Component({
   selector: 'app-shell',
@@ -13,6 +14,7 @@ import { TourOverlayComponent } from '../shared/tour-overlay.component';
     ThemeToggleComponent,
     HelpMenuComponent,
     TourOverlayComponent,
+    LogoutButtonComponent,
   ],
   template: `
     <div
@@ -22,6 +24,7 @@ import { TourOverlayComponent } from '../shared/tour-overlay.component';
         <app-help-menu />
         <app-language-switcher />
         <app-theme-toggle />
+        <app-logout-button />
       </div>
       <router-outlet />
       <app-tour-overlay />
