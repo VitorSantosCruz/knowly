@@ -1,5 +1,25 @@
 # CLAUDE.md — knowly-app (frontend)
 
+**First, read [`../knowly/VISION.md`](../knowly/VISION.md) and
+[`PROJECT_STATUS.md`](PROJECT_STATUS.md).** `VISION.md` lives in the
+backend repo but applies to the whole product — it explains what knowly
+is *for* and why the architecture looks the way it does; `PROJECT_STATUS.md`
+tracks what's already been built here, what's in progress, and operational
+gotchas. Together they let a new conversation (with any AI, with or
+without prior context) pick up correctly without rediscovering everything
+from scratch. **Keep both updated as work lands — this applies to any AI
+assistant working in this repo, not just Claude.**
+
+**Whenever the user opens a conversation without specifying what to work
+on — regardless of how that's phrased or in what language — treat it as
+a request for direction**, not as an instruction to invent something.
+Go straight to `PROJECT_STATUS.md`'s "Next up" section (and the
+backend's, if relevant) and follow its protocol exactly. Do not try to
+pattern-match the message against any fixed set of phrases — judge
+intent, not wording: if the user hasn't told you which feature, bug, or
+concern to address, that's the signal, independent of how they express
+it.
+
 This project follows Spec-Driven Development (SDD). Always read
 `specify/memory/constitution.md` before implementing anything — it contains
 the project's non-negotiable rules (stack, conventions, security).

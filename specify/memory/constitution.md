@@ -4,6 +4,60 @@ Non-negotiable rules for any human or AI agent implementing code in this
 repository. If a plan or task conflicts with this document, this document
 wins.
 
+## Why Spec-Driven Development (read this before the mechanics below)
+
+The sections further down describe *how* to follow SDD (SPEC → PLAN →
+TASKS → TDAD). This section exists so that any AI agent reading this
+file — even one that has never seen the reasoning behind SDD before —
+understands *why* the process is this way, well enough to make good
+judgment calls in situations the mechanics don't explicitly cover.
+
+- **The core problem SDD solves is memory loss, not process for its own
+  sake.** Neither humans nor AI assistants reliably carry full context
+  from one work session to the next — and in this project specifically,
+  work is deliberately split across many separate, short conversations
+  (see `PROJECT_STATUS.md`), possibly with different AI tools entirely,
+  none of which share memory with each other. A SPEC/PLAN/TASKS set is
+  the thing that *does* persist. It has to fully replace whatever context
+  a human might otherwise carry in their head or a chat history might
+  otherwise contain — that's the bar for "is this SPEC good enough,"
+  not "did it satisfy whoever wrote it."
+- **SPEC.md is implementation-agnostic on purpose.** It says what the
+  system must do and why, never how. This lets the PLAN (or even the
+  whole tech stack) change later without re-litigating whether the
+  underlying requirement is still correct — the SPEC is the part that's
+  expensive to get wrong and cheap to keep stable.
+- **EARS/GEARS syntax is mandatory because plain-language requirements
+  are usually too vague to implement or test against consistently.**
+  "The screen should handle errors gracefully" gives an AI agent nothing
+  to write a test against and nothing to verify "done" means. Forcing
+  every requirement into a trigger → condition → action shape
+  (Ubiquitous/Event-Driven/State-Driven/Optional/Unwanted
+  Behavior/Complex) makes each one directly translatable into a test —
+  which is what makes TDAD (test-first) possible at all, and what makes
+  a checked acceptance-criteria box mean something concrete rather than
+  a vibe.
+- **PLAN.md is kept separate from SPEC.md** so "what/why" and "how" can
+  evolve independently — a requirement doesn't need to change just
+  because an implementation detail does, and vice versa.
+- **TASKS.md is atomic and ordered specifically because an AI agent
+  (or a human picking up cold) needs to execute one task with high
+  confidence in a single pass**, without needing the full feature's
+  context loaded at once. This is an AI-development-friendly grain size,
+  not just generic good practice — a task too large invites drift or
+  partial completion that's hard to detect later.
+- **Every task is test-first (TDAD) because "the code looks right" is
+  not a verifiable claim, and self-reported completion by any agent —
+  including this one — isn't trustworthy on its own.** A red test that
+  turns green against the exact requirement in the SPEC is the actual
+  evidence a task is done.
+- **None of this replaces judgment.** When a SPEC is silent on an edge
+  case, or a PLAN decision turns out to be wrong once implementation
+  starts, the right move is to update the SPEC/PLAN (with reasoning),
+  not to quietly deviate from it in code while leaving the documents
+  stale — a stale spec is worse than no spec, because it actively
+  misleads whoever (or whatever) reads it next.
+
 ## Stack and technical conventions
 
 - Angular (version pinned in `package.json`) with strict TypeScript. Do not
