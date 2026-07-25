@@ -50,19 +50,24 @@ describe('NavMenuComponent', () => {
       active: boolean;
     }[];
     globalPermissions?: string[];
-    tenantPermissions?: string[];
+    tenantPermissions?: string[] | 'forbidden';
   }): void {
     flushSessionCheck(true);
     httpMock
       .expectOne('/api/staff/permissions')
       .flush({ permissions: options.globalPermissions ?? [] });
-    httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
 
-    if (options.tenantPermissions) {
-      httpMock
-        .expectOne('/api/tenants/permissions')
-        .flush({ permissions: options.tenantPermissions });
+    const tenantPermissionsReq = httpMock.expectOne('/api/tenants/permissions');
+    if (options.tenantPermissions === 'forbidden' || options.tenantPermissions === undefined) {
+      tenantPermissionsReq.flush(
+        { code: 'TENANT_ACCESS_DENIED' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    } else {
+      tenantPermissionsReq.flush({ permissions: options.tenantPermissions });
     }
+
+    httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
   }
 
   it('shows nothing when not logged in', () => {
@@ -87,6 +92,17 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeFalsy();
   });
 
+  it('shows tenant-scoped links for a staff session acting as a tenant (no real membership row)', () => {
+    // Staff switching into a tenant never gets a real TenantMembership row — only the
+    // permissions endpoint itself (backed by server-side session state) reflects it.
+    fixture.detectChanges();
+    flush({ memberships: [], tenantPermissions: ['ARTICLE_VIEW', 'DASHBOARD_VIEW'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-articles"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
+  });
+
   it('shows the create-tenant link only when granted TENANT_CREATE', () => {
     fixture.detectChanges();
     flush({ memberships: [], globalPermissions: ['TENANT_CREATE'] });
@@ -95,17 +111,15 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeTruthy();
   });
 
-  it('does not fetch tenant permissions when there is no active membership', () => {
+  it('shows the switch-tenant link for a 0-membership (staff) session', () => {
     fixture.detectChanges();
-    flushSessionCheck(true);
-    httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    flush({ memberships: [] });
     fixture.detectChanges();
 
-    httpMock.expectNone('/api/tenants/permissions');
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeTruthy();
   });
 
-  it('shows the switch-tenant link only with more than one membership', () => {
+  it('shows the switch-tenant link with more than one membership', () => {
     fixture.detectChanges();
     flush({
       memberships: [

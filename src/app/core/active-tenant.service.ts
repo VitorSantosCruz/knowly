@@ -24,11 +24,19 @@ export class ActiveTenantService {
   private readonly _activeTenantName = signal<string | null>(null);
   readonly activeTenantName = this._activeTenantName.asReadonly();
 
+  /**
+   * A staff session acting as a tenant (via selectTenant()) never gets a real
+   * TenantMembership row — only server-side session state — so this list never reflects
+   * it. When no active *membership* is found, the existing signal value is preserved
+   * rather than nulled out, so a staff session's already-known active tenant (set locally
+   * by selectTenant() at the moment of switching) survives a later fetch() call instead of
+   * being wiped back to null.
+   */
   fetch(): void {
     this.list().subscribe((memberships) => {
       const active = memberships.find((membership) => membership.active);
-      this._activeTenantId.set(active?.tenantId ?? null);
-      this._activeTenantName.set(active?.tenantName ?? null);
+      this._activeTenantId.set(active?.tenantId ?? this._activeTenantId());
+      this._activeTenantName.set(active?.tenantName ?? this._activeTenantName());
     });
   }
 

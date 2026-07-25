@@ -35,4 +35,15 @@ describe('PermissionsService', () => {
     expect(service.has('ARTICLE_CREATE')).toBe(true);
     expect(service.has('ARTICLE_DELETE')).toBe(false);
   });
+
+  it('treats a 403 (no active tenant) as zero permissions rather than an unhandled error', () => {
+    service.fetch();
+
+    httpMock
+      .expectOne('/api/tenants/permissions')
+      .flush({ code: 'TENANT_ACCESS_DENIED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(service.permissions()).toEqual([]);
+    expect(service.has('ARTICLE_VIEW')).toBe(false);
+  });
 });

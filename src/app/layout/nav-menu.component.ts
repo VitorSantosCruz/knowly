@@ -79,7 +79,10 @@ export class NavMenuComponent implements OnInit {
   private readonly activeTenantService = inject(ActiveTenantService);
 
   private readonly memberships = signal<TenantMembership[]>([]);
-  protected readonly canSwitchTenant = computed(() => this.memberships().length > 1);
+  // 0 memberships (staff, who never hold a real TenantMembership row even after switching
+  // into a tenant — see below) needs this link just as much as >1 does: it's their only path
+  // to any tenant. Only a single-membership session (already home, nothing to switch to) hides it.
+  protected readonly canSwitchTenant = computed(() => this.memberships().length !== 1);
 
   ngOnInit(): void {
     // Resyncs against the real session rather than trusting isLoggedIn()'s in-memory state,
@@ -93,12 +96,15 @@ export class NavMenuComponent implements OnInit {
 
       this.globalPermissionsService.fetch();
 
+      // Always attempted, not gated on an active *membership*: staff acting as a tenant (via
+      // switchActiveTenant) never gets a real TenantMembership row, only server-side session
+      // state, so this list would otherwise never reflect that they're "in" a tenant. The
+      // permissions endpoint itself already 403s harmlessly (caught in PermissionsService)
+      // when there's genuinely no active tenant, so gating the call added no real safety.
+      this.permissionsService.fetch();
+
       this.activeTenantService.list().subscribe((memberships) => {
         this.memberships.set(memberships);
-
-        if (memberships.some((membership) => membership.active)) {
-          this.permissionsService.fetch();
-        }
       });
     });
   }

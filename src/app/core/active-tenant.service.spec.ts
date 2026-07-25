@@ -46,6 +46,18 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantId()).toBeNull();
   });
 
+  it('preserves an already-known active tenant (staff, no real membership row) when fetch finds none active', () => {
+    service.selectTenant(5, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+    expect(service.activeTenantName()).toBe('Staffed Co');
+
+    service.fetch();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+
+    expect(service.activeTenantId()).toBe(5);
+    expect(service.activeTenantName()).toBe('Staffed Co');
+  });
+
   it('list() fetches the memberships without mutating the active-tenant signals', () => {
     let result: unknown;
     service.list().subscribe((memberships) => (result = memberships));
