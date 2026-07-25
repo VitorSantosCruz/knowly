@@ -22,6 +22,9 @@ spring:
     name: knowly
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  flyway:
+    placeholders:
+      bootstrap-staff-email: ${KNOWLY_BOOTSTRAP_STAFF_EMAIL:?KNOWLY_BOOTSTRAP_STAFF_EMAIL is required}
   data:
     redis:
       password: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
