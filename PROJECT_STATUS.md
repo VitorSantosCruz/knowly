@@ -82,6 +82,7 @@ the feature's own SPEC.
 | Feature | Status | Notes |
 |---|---|---|
 | `login` | ✅ Done | Login-code (passwordless) flow. |
+| `logout` | ✅ Done | Logout button in the app shell's fixed corner cluster; calls `POST /api/auth/logout`. Also introduced this app's first CSRF token wiring (`withXsrfConfiguration()`), since logout is the first authenticated, non-CSRF-exempt POST the frontend makes. |
 | `select-tenant` | ✅ Done | Multi-membership tenant picker; also handles the 0-membership staff case by falling back to the backend's all-tenants listing (`GET /api/tenants`) when the memberships list comes back empty. |
 | `onboarding-dashboard` | ✅ Done | First-run tour + dashboard metric widgets. |
 | `article-management` | ✅ Done | Upload (with polling for embedding status), inline edit, delete, permission-gated UI. |
