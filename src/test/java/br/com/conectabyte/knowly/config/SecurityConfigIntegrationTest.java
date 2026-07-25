@@ -37,4 +37,12 @@ class SecurityConfigIntegrationTest {
         Assertions.assertThat(mockMvc.post().uri("/api/auth/logout").with(csrf()))
                 .hasStatus(HttpStatus.UNAUTHORIZED);
     }
+
+    @Test
+    void everyResponseCarriesAReadableCsrfCookieForBrowserClients() {
+        var result = mockMvc.get().uri("/actuator/health").exchange();
+
+        Assertions.assertThat(result.getResponse().getCookie("XSRF-TOKEN")).isNotNull();
+        Assertions.assertThat(result.getResponse().getCookie("XSRF-TOKEN").isHttpOnly()).isFalse();
+    }
 }
