@@ -113,6 +113,7 @@ class PermissionAspectTest {
         userRepository.saveAndFlush(staff);
         authenticateAs("staff@example.com");
         tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
 
         assertThat(protectedService.doProtectedThing()).isEqualTo("done");
     }

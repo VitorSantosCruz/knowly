@@ -147,7 +147,69 @@ the Redis/DB collisions this entry originally described, and (b) new
 resource-contention failures like the JTE one below, which only appear
 under real concurrency and won't show up in a forkCount=1 sanity check.
 
-### JTE templates must be precompiled in tests, not hot-reloaded
+### `${VAR:?message}` is NOT a real Spring "required property" syntax
+
+Discovered 2026-07-25 from a real, reproduced bug: several properties in
+`application.yaml` (`bootstrap-staff-email`, `spring.data.redis.password`,
+`spring.ai.openai.api-key`, `knowly.auth.captcha.turnstile-secret`,
+`knowly.storage.access-key`/`secret-key`) used
+`${SOME_ENV_VAR:?SOME_ENV_VAR is required}`, apparently modeled on
+`compose.yaml`'s use of the same syntax (which *is* valid there — Docker
+Compose really does treat `${VAR:?msg}` as "fail if unset, with this
+message"). **Spring's own property placeholder resolution does not
+special-case `?` at all** — `${VAR:default}` just uses everything after
+the first `:` as a literal default string. So when the env var was
+unset, Spring silently used the literal string `"?SOME_ENV_VAR is
+required"` as the actual property value instead of failing — for
+`bootstrap-staff-email` this meant the `staff-bootstrap-user` migration
+inserted a `User` row with that literal string as its email, which
+looked like a legitimate row until someone opened the `users` table and
+noticed. Verified empirically with a two-line `PropertyPlaceholderHelper`
+test (`${KNOWLY_BOOTSTRAP_STAFF_EMAIL:?KNOWLY_BOOTSTRAP_STAFF_EMAIL is
+required}` resolves to the literal string, not an exception, when the
+env var is absent).
+
+**Fix applied**: every one of those properties now uses bare
+`${SOME_ENV_VAR}` with **no** default — Spring Boot's real behavior for
+a placeholder with no default and no matching property is to throw
+`PlaceholderResolutionException` at context startup, which is genuine
+fail-fast behavior, verified against the actual (not assumed) resolution
+semantics rather than copied from a different tool's syntax.
+
+**Applies to new decisions:** never assume a placeholder/templating
+syntax works the same across tools just because the tokens look similar
+(`${VAR:?msg}` reads naturally as "required" but only *is* required
+syntax in `docker compose`/shell parameter expansion, not in Spring
+property resolution, not in Flyway's own placeholder syntax, etc.).
+Before relying on a "fails if missing" property mechanism, verify it
+actually throws for the specific resolver in play — a quick standalone
+test (as done here) is cheap insurance against a properties file that
+looks defensive but silently isn't.
+
+### Background `mvnw` verification must capture the real process exit code, never `| tail`
+
+Discovered 2026-07-25: multiple `time ./mvnw ... 2>&1 | tail -N` background
+verification runs this session reported "exit code 0" (via the
+run_in_background tool's own completion status) even when the test suite
+had a real, deterministic failure inside it. The reason: `$?` after a
+shell pipeline reflects the **last command in the pipe** (`tail`, which
+virtually always exits 0) unless `pipefail` is set, and it wasn't. This
+silently hid a genuine bug for at least one full round of "the suite is
+green" confirmations
+(`PermissionAspectTest.staffBypassesTheCheckRegardlessOfTenantContext`
+had been broken since the `staff-rbac-split` commit —
+`tenantContext.setStaff(true)` no longer satisfies
+`PermissionAspect`'s `isStaffAdmin()` bypass check post-split — and every
+tail-piped background run kept reporting success anyway).
+
+**Applies to new decisions:** any verification run whose sole purpose is
+"tell me if this passed" must capture the actual command's exit status
+directly — redirect output to a file and check `$?` right after that
+command (`cmd > file 2>&1; echo $?`), not through a pipe to `tail`/`grep`/
+anything else that would become the "last command" and launder the real
+exit code. `| tail -N` is fine for *displaying* a preview of output
+you're about to read yourself, but never for the thing whose exit code
+you intend to trust as a pass/fail signal.
 
 `src/test/resources/application-test.yaml` sets `gg.jte.development-mode:
 false` and `gg.jte.use-precompiled-templates: true`, overriding main's

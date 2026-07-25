@@ -24,13 +24,13 @@ spring:
     timeout-per-shutdown-phase: 20s
   flyway:
     placeholders:
-      bootstrap-staff-email: ${KNOWLY_BOOTSTRAP_STAFF_EMAIL:?KNOWLY_BOOTSTRAP_STAFF_EMAIL is required}
+      bootstrap-staff-email: ${KNOWLY_BOOTSTRAP_STAFF_EMAIL}
   data:
     redis:
-      password: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      password: ${REDIS_PASSWORD}
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      api-key: ${OPENAI_API_KEY}
     vectorstore:
       pgvector:
         initialize-schema: true
@@ -100,12 +100,12 @@ knowly:
       velocity-threshold: 5
       verify-velocity-threshold: 20
       velocity-window: 5m
-      turnstile-secret: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}
+      turnstile-secret: ${TURNSTILE_SECRET_KEY}
   storage:
     endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
     region: us-east-1
-    access-key: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
-    secret-key: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    access-key: ${MINIO_ROOT_USER}
+    secret-key: ${MINIO_ROOT_PASSWORD}
     bucket: knowly-articles
   article:
     max-file-size: 25MB
