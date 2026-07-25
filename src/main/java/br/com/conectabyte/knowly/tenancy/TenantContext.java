@@ -12,6 +12,7 @@ public class TenantContext {
 
     private static final ThreadLocal<Long> ACTIVE_TENANT_ID = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> STAFF = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> STAFF_ADMIN = new ThreadLocal<>();
 
     public void setActiveTenantId(Long tenantId) {
         ACTIVE_TENANT_ID.set(tenantId);
@@ -29,8 +30,18 @@ public class TenantContext {
         return Boolean.TRUE.equals(STAFF.get());
     }
 
+    /** True only for STAFF_ADMIN — unrestricted staff. A permission-gated STAFF returns false. */
+    public void setStaffAdmin(boolean staffAdmin) {
+        STAFF_ADMIN.set(staffAdmin);
+    }
+
+    public boolean isStaffAdmin() {
+        return Boolean.TRUE.equals(STAFF_ADMIN.get());
+    }
+
     public void clear() {
         ACTIVE_TENANT_ID.remove();
         STAFF.remove();
+        STAFF_ADMIN.remove();
     }
 }

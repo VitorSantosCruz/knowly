@@ -37,7 +37,7 @@ public class PermissionAspect {
 
     @Around("@annotation(br.com.conectabyte.knowly.audit.RequiresPermission)")
     public Object checkPermission(ProceedingJoinPoint joinPoint) throws Throwable {
-        if (tenantContext.isStaff()) {
+        if (tenantContext.isStaffAdmin()) {
             return joinPoint.proceed();
         }
 

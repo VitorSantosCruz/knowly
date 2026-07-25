@@ -51,23 +51,31 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state: `staff-bootstrap-user` done. Confirmed roadmap in
-progress — next up is the staff-admin/staff RBAC split.** The user
-confirmed this order for the next several features (2026-07-25):
+**Current state: `staff-bootstrap-user` and `staff-rbac-split` both
+done. Confirmed roadmap in progress — next up is login/provisioning flow
+completion.** The user confirmed this order for the next several features
+(2026-07-25):
 
 1. ~~Bootstrap staff-admin one-shot user~~ — done, see
    `specify/features/staff-bootstrap-user/`.
-2. **RBAC split** — introduce `GlobalRole.STAFF_ADMIN` (today's
-   unrestricted staff access, unchanged) vs. a new, more limited
-   `GlobalRole.STAFF` with per-action granular permissions, mirroring the
-   `Permission`/`AccessGroup` model `tenancy` already has for tenant
-   members. **This is the next feature to SPEC.** Note: the bootstrap
-   user created by `staff-bootstrap-user` currently gets `GlobalRole.STAFF`
-   under today's single-role meaning (full access) — when this RBAC
-   split lands, decide explicitly whether the bootstrap user should
-   become `STAFF_ADMIN` (almost certainly yes, since it's meant to have
-   full access) rather than silently keeping a now-different `STAFF`
-   meaning.
+2. ~~RBAC split~~ — done, see `specify/features/staff-rbac-split/`.
+   `GlobalRole` is now `STAFF_ADMIN` (unrestricted, was the only value
+   before) / `STAFF` (permission-gated, mirrors `tenancy`'s
+   `Permission`/`AccessGroup`/`DirectPermissionGrant` model at the global
+   scope via `GlobalPermission`/`GlobalAccessGroup`/
+   `GlobalAccessGroupPermission`/`DirectGlobalPermissionGrant`/
+   `UserGlobalAccessGroup`, new `/api/staff/**` endpoints). The
+   `staff-bootstrap-user` migration's row is mapped to `STAFF_ADMIN` by
+   `V14`'s data migration, per that decision. **Known small gap**: the
+   two shared gating helpers in `TenantService`
+   (`requireStaff`/`requireAdminOfTenantOrStaff`) are integration-tested
+   against 2 of their ~11 call sites (`createTenant`/`listAllTenants`);
+   the other 9 (`addMember`, `removeMember`, `listMembers`,
+   `createAccessGroup`, `listAccessGroups`, `grantPermission`,
+   `revokePermission`, `assignAccessGroup`, `unassignAccessGroup`,
+   `getMemberDetail`) route through the same tested helpers parameterized
+   by a different `GlobalPermission` enum constant, but aren't
+   individually re-tested — see `staff-rbac-split/TASKS.md` task 6.
 3. Login flow completion: one-shot/alternate password provisioning for
    newly created staff/tenant users (the login-code and one-time-password
    *mechanisms* already exist per `authentication`; what's missing is
@@ -118,11 +126,12 @@ the feature's own SPEC.
 | `api-documentation` | ✅ Done | OpenAPI/Swagger exposure. |
 | `tags-crud` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format. Don't build it unless explicitly asked to turn it into a real feature. |
 | `staff-bootstrap-user` | ✅ Done | One migration-created staff `User` (email via required `KNOWLY_BOOTSTRAP_STAFF_EMAIL` env var, no password) so a fresh deployment has a first login via the existing login-code flow. No new mechanism, no freeze/expiry — see SPEC's "Out of scope" for why. |
+| `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. Small known test-coverage gap — see "Next up" above. |
 
 **As of the last working session:** test suite speed (`forkCount=2` +
-JTE precompiled-templates fix, see `DECISIONS.md`) and
-`staff-bootstrap-user` are done. Next: the RBAC split (see "Next up"
-above) — write its SPEC before implementing.
+JTE precompiled-templates fix, see `DECISIONS.md`), `staff-bootstrap-user`,
+and `staff-rbac-split` are done. Next: login/provisioning flow completion
+(see "Next up" above) — write its SPEC before implementing.
 
 ## Known operational notes worth knowing before touching infra/CI
 

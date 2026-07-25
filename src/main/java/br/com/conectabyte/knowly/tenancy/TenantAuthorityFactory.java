@@ -10,8 +10,8 @@ public final class TenantAuthorityFactory {
 
     private TenantAuthorityFactory() {}
 
-    public static List<GrantedAuthority> forStaff() {
-        return List.of(new SimpleGrantedAuthority("ROLE_STAFF"));
+    public static List<GrantedAuthority> forStaff(GlobalRole globalRole) {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + globalRole.name()));
     }
 
     public static List<GrantedAuthority> forMembership(

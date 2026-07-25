@@ -5,6 +5,7 @@ public final class TenantSessionKeys {
 
     public static final String ACTIVE_TENANT_ID = "knowly.tenancy.activeTenantId";
     public static final String STAFF = "knowly.tenancy.staff";
+    public static final String STAFF_ADMIN = "knowly.tenancy.staffAdmin";
     public static final String SELECTION_PENDING = "knowly.tenancy.selectionPending";
 
     private TenantSessionKeys() {}

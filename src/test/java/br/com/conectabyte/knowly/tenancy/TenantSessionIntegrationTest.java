@@ -205,7 +205,7 @@ class TenantSessionIntegrationTest {
     @Test
     void staffWithNoMembershipsCanListAllTenantsAndActAsAny() throws Exception {
         User staff = userRepository.saveAndFlush(new User("staff@example.com"));
-        staff.setGlobalRole(GlobalRole.STAFF);
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
         userRepository.saveAndFlush(staff);
         Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
 

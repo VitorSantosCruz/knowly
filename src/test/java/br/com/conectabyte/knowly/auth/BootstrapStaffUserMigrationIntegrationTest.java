@@ -31,7 +31,7 @@ class BootstrapStaffUserMigrationIntegrationTest {
         Optional<User> bootstrapUser = userRepository.findByEmailIgnoreCase(BOOTSTRAP_EMAIL);
 
         assertThat(bootstrapUser).isPresent();
-        assertThat(bootstrapUser.get().getGlobalRole()).isEqualTo(GlobalRole.STAFF);
+        assertThat(bootstrapUser.get().getGlobalRole()).isEqualTo(GlobalRole.STAFF_ADMIN);
         assertThat(bootstrapUser.get().getOneTimePasswordHash()).isNull();
         assertThat(tenantMembershipRepository.findByUserAndActiveTrue(bootstrapUser.get()))
                 .isEmpty();

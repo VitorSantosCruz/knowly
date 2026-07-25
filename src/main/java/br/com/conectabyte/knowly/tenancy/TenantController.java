@@ -79,7 +79,7 @@ public class TenantController {
         Long tenantId =
                 tenantContext.getActiveTenantId().orElseThrow(TenantAccessDeniedException::new);
         List<Permission> permissions =
-                tenantService.ownEffectivePermissions(user, tenantId, tenantContext.isStaff());
+                tenantService.ownEffectivePermissions(user, tenantId, tenantContext.isStaffAdmin());
 
         return ResponseEntity.ok(new OwnPermissionsDto(permissions));
     }
@@ -102,8 +102,8 @@ public class TenantController {
         List<GrantedAuthority> authorities;
 
         if (tenantContext.isStaff()) {
-            tenantService.requireTenant(request.tenantId());
-            authorities = TenantAuthorityFactory.forStaff();
+            tenantService.requireTenant(user, request.tenantId());
+            authorities = TenantAuthorityFactory.forStaff(user.getGlobalRole());
         } else {
             TenantMembership membership =
                     tenantService.requireActiveMembership(user, request.tenantId());

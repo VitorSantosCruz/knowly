@@ -122,7 +122,7 @@ public class ArticleService {
     }
 
     private void requireActiveTenant(Long tenantId) {
-        if (tenantContext.isStaff()) {
+        if (tenantContext.isStaffAdmin()) {
             return;
         }
 

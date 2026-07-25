@@ -43,6 +43,8 @@ public class TenantContextFilter extends OncePerRequestFilter {
             }
 
             boolean staff = Boolean.TRUE.equals(session.getAttribute(TenantSessionKeys.STAFF));
+            boolean staffAdmin =
+                    Boolean.TRUE.equals(session.getAttribute(TenantSessionKeys.STAFF_ADMIN));
             Long activeTenantId = (Long) session.getAttribute(TenantSessionKeys.ACTIVE_TENANT_ID);
             boolean selectionPending =
                     Boolean.TRUE.equals(session.getAttribute(TenantSessionKeys.SELECTION_PENDING));
@@ -55,6 +57,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
             }
 
             tenantContext.setStaff(staff);
+            tenantContext.setStaffAdmin(staffAdmin);
 
             if (activeTenantId != null) {
                 tenantContext.setActiveTenantId(activeTenantId);

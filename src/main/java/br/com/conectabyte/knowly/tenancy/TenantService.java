@@ -24,6 +24,7 @@ public class TenantService {
     private final AccessGroupPermissionRepository accessGroupPermissionRepository;
     private final UserAccessGroupRepository userAccessGroupRepository;
     private final PermissionService permissionService;
+    private final GlobalPermissionService globalPermissionService;
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -33,7 +34,8 @@ public class TenantService {
             AccessGroupRepository accessGroupRepository,
             AccessGroupPermissionRepository accessGroupPermissionRepository,
             UserAccessGroupRepository userAccessGroupRepository,
-            PermissionService permissionService) {
+            PermissionService permissionService,
+            GlobalPermissionService globalPermissionService) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
@@ -42,6 +44,7 @@ public class TenantService {
         this.accessGroupPermissionRepository = accessGroupPermissionRepository;
         this.userAccessGroupRepository = userAccessGroupRepository;
         this.permissionService = permissionService;
+        this.globalPermissionService = globalPermissionService;
     }
 
     /**
@@ -53,7 +56,7 @@ public class TenantService {
      * membership before a tenant is even chosen).
      */
     public TenantSessionOutcome resolveSessionOutcome(User user) {
-        if (user.getGlobalRole() == GlobalRole.STAFF) {
+        if (isAnyStaff(user)) {
             return new TenantSessionOutcome.Staff();
         }
 
@@ -97,25 +100,29 @@ public class TenantService {
      */
     @Transactional(readOnly = true)
     public List<TenantSummaryDto> listAllTenants(User actor) {
-        requireStaff(actor);
+        requireStaff(actor, GlobalPermission.TENANT_ACT_AS_ANY);
 
         return tenantRepository.findAll().stream().map(TenantSummaryDto::from).toList();
     }
 
     /** Confirms a tenant exists, for staff switching to act as it without holding a membership. */
     @Transactional(readOnly = true)
-    public Tenant requireTenant(Long tenantId) {
+    public Tenant requireTenant(User actor, Long tenantId) {
+        requireStaff(actor, GlobalPermission.TENANT_ACT_AS_ANY);
+
         return tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
     }
 
     /**
      * The caller's own effective permissions in their active tenant — lets the frontend hide
-     * actions it can't perform instead of showing them and letting a 403 explain why. Staff get
-     * every permission, consistent with {@code PermissionAspect} bypassing the check for them.
+     * actions it can't perform instead of showing them and letting a 403 explain why. {@code
+     * STAFF_ADMIN} gets every permission, consistent with {@code PermissionAspect} bypassing the
+     * check for them; a permission-gated {@code STAFF} user goes through the normal
+     * membership-based check like anyone else.
      */
     @Transactional(readOnly = true)
-    public List<Permission> ownEffectivePermissions(User user, Long tenantId, boolean staff) {
-        if (staff) {
+    public List<Permission> ownEffectivePermissions(User user, Long tenantId, boolean staffAdmin) {
+        if (staffAdmin) {
             return List.of(Permission.values());
         }
 
@@ -128,7 +135,7 @@ public class TenantService {
     @Transactional
     @AuditLog(action = "tenant.create", resourceType = "Tenant")
     public Tenant createTenant(User actor, String tenantName, String adminEmail) {
-        requireStaff(actor);
+        requireStaff(actor, GlobalPermission.TENANT_CREATE);
 
         Tenant tenant = tenantRepository.save(new Tenant(tenantName));
         User admin =
@@ -146,7 +153,7 @@ public class TenantService {
     @AuditLog(action = "tenant.member.add", resourceType = "TenantMembership")
     public TenantMembership addMember(
             User actor, Long tenantId, String email, MembershipRole role) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
@@ -169,7 +176,7 @@ public class TenantService {
     @Transactional
     @AuditLog(action = "tenant.member.remove", resourceType = "TenantMembership")
     public void removeMember(User actor, Long tenantId, Long membershipId) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -184,7 +191,8 @@ public class TenantService {
     @AuditLog(action = "tenant.permission.grant", resourceType = "DirectPermissionGrant")
     public void grantPermission(
             User actor, Long tenantId, Long membershipId, Permission permission) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -203,7 +211,8 @@ public class TenantService {
     @AuditLog(action = "tenant.permission.revoke", resourceType = "DirectPermissionGrant")
     public void revokePermission(
             User actor, Long tenantId, Long membershipId, Permission permission) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -218,7 +227,8 @@ public class TenantService {
     @Transactional
     @AuditLog(action = "tenant.access_group.create", resourceType = "AccessGroup")
     public AccessGroup createAccessGroup(User actor, Long tenantId, String name) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
@@ -233,7 +243,8 @@ public class TenantService {
             resourceType = "AccessGroupPermission")
     public void grantAccessGroupPermission(
             User actor, Long tenantId, Long accessGroupId, Permission permission) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
 
         AccessGroup accessGroup =
                 accessGroupRepository
@@ -252,7 +263,8 @@ public class TenantService {
     @AuditLog(action = "tenant.member.access_group.assign", resourceType = "UserAccessGroup")
     public void assignAccessGroup(
             User actor, Long tenantId, Long membershipId, Long accessGroupId) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -274,7 +286,7 @@ public class TenantService {
     /** REQ-9/16: list a tenant's active members — admin (own tenant) or staff only. */
     @Transactional(readOnly = true)
     public List<MemberDto> listMembers(User actor, Long tenantId) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
 
         return tenantMembershipRepository.findByTenantIdAndActiveTrue(tenantId).stream()
                 .map(MemberDto::from)
@@ -284,7 +296,8 @@ public class TenantService {
     /** REQ-13: list a tenant's access groups — admin (own tenant) or staff only. */
     @Transactional(readOnly = true)
     public List<AccessGroupDto> listAccessGroups(User actor, Long tenantId) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
@@ -299,7 +312,8 @@ public class TenantService {
      */
     @Transactional(readOnly = true)
     public MemberDetailDto getMemberDetail(User actor, Long tenantId, Long membershipId) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -332,7 +346,8 @@ public class TenantService {
     @AuditLog(action = "tenant.member.access_group.unassign", resourceType = "UserAccessGroup")
     public void unassignAccessGroup(
             User actor, Long tenantId, Long membershipId, Long accessGroupId) {
-        requireAdminOfTenantOrStaff(actor, tenantId);
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -348,15 +363,41 @@ public class TenantService {
                 .ifPresent(userAccessGroupRepository::delete);
     }
 
-    private void requireStaff(User actor) {
-        if (actor.getGlobalRole() != GlobalRole.STAFF) {
-            throw new PermissionDeniedException();
-        }
+    private boolean isAnyStaff(User user) {
+        return user.getGlobalRole() == GlobalRole.STAFF_ADMIN
+                || user.getGlobalRole() == GlobalRole.STAFF;
     }
 
-    /** REQ-9/16: staff can manage any tenant; a tenant admin only their own. */
-    private void requireAdminOfTenantOrStaff(User actor, Long tenantId) {
-        if (actor.getGlobalRole() == GlobalRole.STAFF) {
+    /**
+     * {@code STAFF_ADMIN} always passes unconditionally; a permission-gated {@code STAFF} user
+     * passes only if granted {@code requiredPermission} (directly or via a global access group);
+     * anyone else is rejected outright.
+     */
+    private void requireStaff(User actor, GlobalPermission requiredPermission) {
+        if (actor.getGlobalRole() == GlobalRole.STAFF_ADMIN) {
+            return;
+        }
+
+        if (actor.getGlobalRole() == GlobalRole.STAFF
+                && globalPermissionService.hasPermission(actor, requiredPermission)) {
+            return;
+        }
+
+        throw new PermissionDeniedException();
+    }
+
+    /**
+     * REQ-9/16: staff can manage any tenant (STAFF_ADMIN unconditionally, STAFF only if granted
+     * {@code requiredPermission}); a tenant admin only their own.
+     */
+    private void requireAdminOfTenantOrStaff(
+            User actor, Long tenantId, GlobalPermission requiredPermission) {
+        if (actor.getGlobalRole() == GlobalRole.STAFF_ADMIN) {
+            return;
+        }
+
+        if (actor.getGlobalRole() == GlobalRole.STAFF
+                && globalPermissionService.hasPermission(actor, requiredPermission)) {
             return;
         }
 

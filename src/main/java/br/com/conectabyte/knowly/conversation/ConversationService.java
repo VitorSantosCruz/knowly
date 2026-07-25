@@ -67,7 +67,7 @@ public class ConversationService {
     }
 
     private void requireActiveTenant(Long tenantId) {
-        if (tenantContext.isStaff()) {
+        if (tenantContext.isStaffAdmin()) {
             return;
         }
 

@@ -7,6 +7,7 @@ import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
 import br.com.conectabyte.knowly.auth.exception.CaptchaRequiredException;
 import br.com.conectabyte.knowly.auth.exception.InvalidCredentialsException;
 import br.com.conectabyte.knowly.observability.PiiMasker;
+import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.PermissionService;
 import br.com.conectabyte.knowly.tenancy.TenantAuthorityFactory;
 import br.com.conectabyte.knowly.tenancy.TenantService;
@@ -225,7 +226,7 @@ public class AuthController {
                         : tenantService.resolveSessionOutcome(user);
 
         if (outcome instanceof TenantSessionOutcome.Staff) {
-            authorities = TenantAuthorityFactory.forStaff();
+            authorities = TenantAuthorityFactory.forStaff(user.getGlobalRole());
         } else if (outcome instanceof TenantSessionOutcome.AutoSelected autoSelected) {
             var membership = tenantService.requireActiveMembership(user, autoSelected.tenantId());
             authorities =
@@ -243,6 +244,8 @@ public class AuthController {
 
         if (outcome instanceof TenantSessionOutcome.Staff) {
             session.setAttribute(TenantSessionKeys.STAFF, true);
+            session.setAttribute(
+                    TenantSessionKeys.STAFF_ADMIN, user.getGlobalRole() == GlobalRole.STAFF_ADMIN);
         } else if (outcome instanceof TenantSessionOutcome.AutoSelected autoSelected) {
             session.setAttribute(TenantSessionKeys.ACTIVE_TENANT_ID, autoSelected.tenantId());
         } else {

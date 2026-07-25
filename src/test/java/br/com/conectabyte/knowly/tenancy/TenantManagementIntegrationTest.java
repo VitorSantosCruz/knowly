@@ -54,7 +54,7 @@ class TenantManagementIntegrationTest {
     @Test
     void onlyStaffCanCreateATenant() {
         User staff = userRepository.saveAndFlush(new User("staff@example.com"));
-        staff.setGlobalRole(GlobalRole.STAFF);
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
         userRepository.saveAndFlush(staff);
 
         Cookie session = logIn("staff@example.com");
