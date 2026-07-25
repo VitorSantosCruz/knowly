@@ -47,7 +47,9 @@ public class SecurityConfig {
             throws Exception {
         http.authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers("/actuator/health", "/api/auth/**")
+                                auth.requestMatchers("/api/auth/logout")
+                                        .authenticated()
+                                        .requestMatchers("/actuator/health", "/api/auth/**")
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())

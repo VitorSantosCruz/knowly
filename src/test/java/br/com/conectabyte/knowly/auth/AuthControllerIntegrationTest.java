@@ -9,6 +9,7 @@ import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.observability.PiiMasker;
@@ -16,6 +17,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import java.util.Properties;
 import org.junit.jupiter.api.AfterEach;
@@ -432,7 +434,7 @@ class AuthControllerIntegrationTest {
                         .uri("/api/auth/login-code/verify")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"fixation@example.com\",\"code\":\"" + code + "\"}")
-                        .cookie(new jakarta.servlet.http.Cookie("SESSION", preLoginCookie))
+                        .cookie(new Cookie("SESSION", preLoginCookie))
                         .exchange();
 
         assertThat(result).hasStatus(HttpStatus.OK);
@@ -454,5 +456,47 @@ class AuthControllerIntegrationTest {
                                 "{\"email\":\"captcha-verify-password@example.com\",\"password\":\"wrong\"}");
 
         assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void logoutWithoutAuthenticatedSessionIsUnauthorized() {
+        assertThat(mockMvc.post().uri("/api/auth/logout").with(csrf()))
+                .hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void logoutInvalidatesTheSessionAndClearsTheCookie() {
+        userRepository.saveAndFlush(new User("logout@example.com"));
+        String code = loginCodeService.generate("logout@example.com");
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        var loginResult =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"logout@example.com\",\"code\":\"" + code + "\"}")
+                        .exchange();
+        Cookie sessionCookie = loginResult.getResponse().getCookie("SESSION");
+
+        var logoutResult =
+                mockMvc.post()
+                        .uri("/api/auth/logout")
+                        .cookie(sessionCookie)
+                        .with(csrf())
+                        .exchange();
+
+        assertThat(logoutResult).hasStatus(HttpStatus.OK);
+
+        // Reusing the invalidated cookie against the same endpoint must now be treated as
+        // unauthenticated.
+        var protectedResult =
+                mockMvc.post()
+                        .uri("/api/auth/logout")
+                        .cookie(sessionCookie)
+                        .with(csrf())
+                        .exchange();
+
+        assertThat(protectedResult).hasStatus(HttpStatus.UNAUTHORIZED);
     }
 }

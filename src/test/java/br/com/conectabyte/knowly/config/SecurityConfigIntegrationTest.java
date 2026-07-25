@@ -1,5 +1,7 @@
 package br.com.conectabyte.knowly.config;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,12 @@ class SecurityConfigIntegrationTest {
     @Test
     void anyOtherEndpointRequiresAuthentication() {
         Assertions.assertThat(mockMvc.get().uri("/some-protected-resource"))
+                .hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void logoutRequiresAuthenticationDespiteBeingUnderApiAuth() {
+        Assertions.assertThat(mockMvc.post().uri("/api/auth/logout").with(csrf()))
                 .hasStatus(HttpStatus.UNAUTHORIZED);
     }
 }
