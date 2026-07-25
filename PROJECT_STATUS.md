@@ -106,6 +106,27 @@ The user confirmed this order for the next several features
    SPEC placement rule in both repos' `constitution.md`.
 6. Expanded metrics dashboard.
 
+**Backlog added 2026-07-25 (user-reported, not yet SPEC'd) — see
+`knowly-app/PROJECT_STATUS.md`'s "Backlog" section for the full list and
+suggested order. The items with real backend weight:**
+
+7. Tenant list pagination + search-by-name — `GET /api/tenants`
+   currently returns everything unbounded.
+8. **Full identity/profile model — big, LGPD-sensitive.** Both the
+   `Tenant` (company: CNPJ + other legally-unique company fields, tbd)
+   and every `User` (person: email, full address, RG, CPF, phone,
+   each enforced unique across all users — DB-level uniqueness, not just
+   app validation) need complete records. Self-edit is restricted to
+   whoever holds the relevant permission; a user only sees their own
+   profile and their own chat display nickname. Must decide
+   retention/at-rest-encryption/access-control for CPF/RG *before*
+   writing any migration — this is Tier 3 (new kind of sensitive-data
+   exposure) per `DECISIONS.md`, stop and confirm the data-protection
+   approach with the user first.
+9. **Internal team chat (1:1 + group) — deferred until after item 8.**
+   New product surface distinct from the existing chat-with-articles
+   feature; needs its own SPEC(s) once prioritized.
+
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract — see
 `knowly-app`'s `PROJECT_STATUS.md` for the frontend side of this same
