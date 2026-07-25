@@ -12,26 +12,26 @@ import { TourService } from '../core/tour.service';
         role="dialog"
         aria-modal="true"
         aria-live="assertive"
-        class="fixed inset-0 z-50 bg-slate-900/60"
+        class="fixed inset-0 z-50 bg-ink-950/60"
         (keydown)="onKeydown($event)"
         #overlay
       >
         <div
-          class="absolute w-80 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+          class="enter-fluid absolute w-80 rounded-2xl border border-ink-200/70 bg-white p-6 shadow-xl dark:border-ink-800/70 dark:bg-ink-900"
           [style.top.px]="position().top"
           [style.left.px]="position().left"
         >
-          <h2 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
+          <h2 class="mb-2 text-lg font-semibold text-ink-900 dark:text-white">
             {{ step().titleKey | transloco }}
           </h2>
-          <p class="mb-6 text-sm text-slate-600 dark:text-slate-300">
+          <p class="mb-6 text-sm text-ink-600 dark:text-ink-300">
             {{ step().bodyKey | transloco }}
           </p>
           <div class="flex items-center justify-between">
             <button
               type="button"
               data-testid="tour-skip"
-              class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              class="text-sm text-ink-500 transition-colors duration-fast ease-fluid hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
               (click)="tourService.skip()"
             >
               {{ 'tour.skip' | transloco }}
@@ -41,7 +41,7 @@ import { TourService } from '../core/tour.service';
                 <button
                   type="button"
                   data-testid="tour-back"
-                  class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                  class="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-ink-800"
                   (click)="tourService.back()"
                 >
                   {{ 'tour.back' | transloco }}
@@ -50,7 +50,7 @@ import { TourService } from '../core/tour.service';
               <button
                 type="button"
                 data-testid="tour-next"
-                class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+                class="rounded-lg bg-ink-800 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
                 (click)="tourService.next()"
               >
                 {{ isLastStep() ? ('tour.finish' | transloco) : ('tour.next' | transloco) }}

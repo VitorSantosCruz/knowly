@@ -13,42 +13,54 @@ type MembersError = 'network' | 'permission-denied' | null;
   selector: 'app-members-page',
   imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, MemberDetailPanelComponent],
   template: `
-    <div data-testid="members-page" class="p-6">
+    <div data-testid="members-page" class="mx-auto max-w-3xl p-6">
       @if (loading()) {
-        <p data-testid="loading-state" class="text-sm text-slate-400">…</p>
+        <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (error() === 'network') {
         <app-error-state />
       } @else {
-        <form data-testid="add-member-form" class="mb-4 flex gap-2" (submit)="onAddMember($event)">
+        <form
+          data-testid="add-member-form"
+          class="enter-fluid mb-6 flex gap-2 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+          (submit)="onAddMember($event)"
+        >
           <input
             data-testid="add-member-email"
             type="email"
             name="email"
             [value]="newMemberEmail()"
             (input)="newMemberEmail.set($any($event.target).value)"
-            class="rounded border border-slate-300 px-2 py-1"
+            class="flex-1 rounded-xl border border-ink-300/70 bg-white px-4 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
           />
-          <button type="submit" class="rounded bg-indigo-600 px-3 py-1 text-white">
+          <button
+            type="submit"
+            class="rounded-xl bg-ink-800 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
+          >
             {{ 'members.add' | transloco }}
           </button>
         </form>
 
-        <ul data-testid="members-list">
+        <ul
+          data-testid="members-list"
+          class="enter-fluid overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+        >
           @for (member of members(); track member.membershipId) {
-            <li class="flex items-center justify-between border-b border-slate-200 py-2">
+            <li
+              class="flex items-center justify-between border-b border-ink-100 px-4 py-3 transition-colors duration-fast ease-fluid last:border-b-0 hover:bg-ink-50 dark:border-ink-800 dark:hover:bg-ink-800/50"
+            >
               <span
                 [attr.data-testid]="'select-member-' + member.membershipId"
                 (click)="selectedMembershipId.set(member.membershipId)"
-                class="cursor-pointer"
+                class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
               >
                 {{ member.email }}
               </span>
               <button
                 [attr.data-testid]="'remove-member-' + member.membershipId"
                 (click)="onRemoveMember(member.membershipId)"
-                class="text-sm text-red-600"
+                class="text-sm text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
               >
                 {{ 'members.remove' | transloco }}
               </button>
@@ -57,10 +69,12 @@ type MembersError = 'network' | 'permission-denied' | null;
         </ul>
 
         @if (selectedMembershipId(); as membershipId) {
-          <app-member-detail-panel
-            [tenantId]="activeTenantService.activeTenantId()!"
-            [membershipId]="membershipId"
-          />
+          <div class="mt-6">
+            <app-member-detail-panel
+              [tenantId]="activeTenantService.activeTenantId()!"
+              [membershipId]="membershipId"
+            />
+          </div>
         }
       }
     </div>

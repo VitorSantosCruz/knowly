@@ -13,7 +13,7 @@ import { AuthService } from '../core/auth.service';
         (click)="logout()"
         [attr.aria-label]="'logout.label' | transloco"
         [attr.title]="'logout.label' | transloco"
-        class="rounded-full px-3 py-1.5 text-sm transition hover:bg-slate-200/70 dark:hover:bg-slate-800"
+        class="rounded-full px-3 py-1.5 text-sm text-ink-600 transition-colors duration-fast ease-fluid hover:bg-ink-200/70 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

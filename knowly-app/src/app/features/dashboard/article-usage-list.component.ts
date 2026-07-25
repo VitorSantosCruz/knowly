@@ -20,10 +20,11 @@ interface ArticleUsageResponse {
   template: `
     <div
       data-testid="article-usage-list"
-      class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      style="animation-delay: 60ms"
+      class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
     >
       @if (fetcher.loading()) {
-        <p data-testid="loading-state" class="text-sm text-slate-400">…</p>
+        <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (fetcher.error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (fetcher.error() === 'network') {
@@ -31,9 +32,12 @@ interface ArticleUsageResponse {
       } @else if (fetcher.data(); as data) {
         <ul>
           @for (article of data.articles; track article.id) {
-            <li data-testid="usage-item" class="flex justify-between py-1 text-sm">
-              <span>{{ article.title }}</span>
-              <span class="text-slate-500">{{ article.useCount }}</span>
+            <li
+              data-testid="usage-item"
+              class="flex justify-between rounded-lg px-1 py-1.5 text-sm transition-colors duration-fast ease-fluid hover:bg-ink-50 dark:hover:bg-ink-800/60"
+            >
+              <span class="text-ink-800 dark:text-ink-100">{{ article.title }}</span>
+              <span class="text-ink-500 dark:text-ink-400">{{ article.useCount }}</span>
             </li>
           }
         </ul>

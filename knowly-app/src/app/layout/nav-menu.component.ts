@@ -7,8 +7,8 @@ import { ActiveTenantService, TenantMembership } from '../core/active-tenant.ser
 import { AuthService } from '../core/auth.service';
 
 const LINK_CLASS =
-  'rounded-full px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white';
-const LINK_ACTIVE_CLASS = 'bg-slate-200/70 text-slate-900 dark:bg-slate-800 dark:text-white';
+  'rounded-full px-3 py-1.5 text-sm font-medium text-ink-600/80 transition-colors duration-fast ease-fluid hover:bg-ink-100 hover:text-ink-900 dark:text-ink-200/80 dark:hover:bg-ink-800/60 dark:hover:text-white';
+const LINK_ACTIVE_CLASS = 'bg-ink-100 text-ink-900 dark:bg-ink-800/60 dark:text-white';
 
 @Component({
   selector: 'app-nav-menu',
@@ -17,9 +17,9 @@ const LINK_ACTIVE_CLASS = 'bg-slate-200/70 text-slate-900 dark:bg-slate-800 dark
     @if (authService.isLoggedIn()) {
       <nav data-testid="nav-menu" class="flex items-center gap-1">
         <span
-          class="mr-2 shrink-0 text-sm font-semibold tracking-tight text-slate-900 dark:text-white"
+          class="font-display mr-3 shrink-0 text-lg font-semibold tracking-tight text-ink-900 dark:text-white"
         >
-          knowly
+          knowly<span class="text-signal-500">.</span>
         </span>
         @if (permissionsService.has('DASHBOARD_VIEW')) {
           <a
@@ -64,7 +64,7 @@ const LINK_ACTIVE_CLASS = 'bg-slate-200/70 text-slate-900 dark:bg-slate-800 dark
           </a>
         }
         @if (globalPermissionsService.has('TENANT_CREATE') || canSwitchTenant()) {
-          <span class="mx-1 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-800"></span>
+          <span class="mx-1 h-4 w-px shrink-0 bg-ink-200 dark:bg-ink-800"></span>
         }
         @if (globalPermissionsService.has('TENANT_CREATE')) {
           <a

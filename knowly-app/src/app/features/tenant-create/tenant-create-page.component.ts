@@ -10,56 +10,68 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   selector: 'app-tenant-create-page',
   imports: [TranslocoPipe],
   template: `
-    <div data-testid="tenant-create-page" class="mx-auto max-w-md p-6">
-      <h1 class="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-        {{ 'tenantCreate.title' | transloco }}
-      </h1>
-
-      <form
-        data-testid="tenant-create-form"
-        class="flex flex-col gap-3"
-        (submit)="onSubmit($event)"
+    <div
+      data-testid="tenant-create-page"
+      class="mx-auto flex min-h-dvh max-w-md flex-col justify-center p-6"
+    >
+      <div
+        class="enter-fluid w-full rounded-2xl border border-ink-200/70 bg-white p-8 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
       >
-        <label class="flex flex-col gap-1">
-          <span class="text-sm text-slate-700 dark:text-slate-300">{{
-            'tenantCreate.name' | transloco
-          }}</span>
-          <input
-            data-testid="tenant-create-name"
-            type="text"
-            [value]="name()"
-            (input)="name.set($any($event.target).value)"
-            class="rounded border border-slate-300 px-2 py-1"
-          />
-        </label>
-
-        <label class="flex flex-col gap-1">
-          <span class="text-sm text-slate-700 dark:text-slate-300">{{
-            'tenantCreate.adminEmail' | transloco
-          }}</span>
-          <input
-            data-testid="tenant-create-admin-email"
-            type="email"
-            [value]="adminEmail()"
-            (input)="adminEmail.set($any($event.target).value)"
-            class="rounded border border-slate-300 px-2 py-1"
-          />
-        </label>
-
-        @if (errorMessage(); as message) {
-          <p data-testid="tenant-create-error" class="text-sm text-red-600">
-            {{ message | transloco }}
-          </p>
-        }
-
-        <button
-          type="submit"
-          [disabled]="submitting()"
-          class="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50"
+        <h1
+          class="font-display mb-6 text-2xl font-semibold tracking-tight text-ink-900 dark:text-white"
         >
-          {{ 'tenantCreate.submit' | transloco }}
-        </button>
-      </form>
+          {{ 'tenantCreate.title' | transloco }}
+        </h1>
+
+        <form
+          data-testid="tenant-create-form"
+          class="flex flex-col gap-4"
+          (submit)="onSubmit($event)"
+        >
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink-700 dark:text-ink-300">{{
+              'tenantCreate.name' | transloco
+            }}</span>
+            <input
+              data-testid="tenant-create-name"
+              type="text"
+              [value]="name()"
+              (input)="name.set($any($event.target).value)"
+              class="rounded-xl border border-ink-300/70 bg-white px-4 py-2.5 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            />
+          </label>
+
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink-700 dark:text-ink-300">{{
+              'tenantCreate.adminEmail' | transloco
+            }}</span>
+            <input
+              data-testid="tenant-create-admin-email"
+              type="email"
+              [value]="adminEmail()"
+              (input)="adminEmail.set($any($event.target).value)"
+              class="rounded-xl border border-ink-300/70 bg-white px-4 py-2.5 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            />
+          </label>
+
+          @if (errorMessage(); as message) {
+            <p
+              data-testid="tenant-create-error"
+              class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
+            >
+              {{ message | transloco }}
+            </p>
+          }
+
+          <button
+            type="submit"
+            [disabled]="submitting()"
+            class="rounded-xl bg-ink-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800"
+          >
+            {{ 'tenantCreate.submit' | transloco }}
+          </button>
+        </form>
+      </div>
     </div>
   `,
 })

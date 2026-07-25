@@ -14,9 +14,9 @@ let nextLocalMessageId = -1;
   selector: 'app-conversations-page',
   imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
   template: `
-    <div data-testid="conversations-page" class="flex gap-6 p-6">
+    <div data-testid="conversations-page" class="flex gap-6 bg-ink-50 p-6 dark:bg-ink-950">
       @if (loading()) {
-        <p data-testid="loading-state" class="text-sm text-slate-400">…</p>
+        <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (error() === 'network') {
@@ -26,17 +26,17 @@ let nextLocalMessageId = -1;
           <button
             data-testid="new-conversation"
             (click)="onNewConversation()"
-            class="mb-3 w-full rounded bg-indigo-600 px-3 py-1.5 text-sm text-white"
+            class="mb-3 w-full rounded-xl bg-ink-800 px-3 py-1.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
           >
             {{ 'conversations.new' | transloco }}
           </button>
-          <ul data-testid="conversation-list">
+          <ul data-testid="conversation-list" class="flex flex-col gap-1">
             @for (conversation of conversations(); track conversation.id) {
-              <li>
+              <li class="enter-fluid">
                 <button
                   [attr.data-testid]="'select-conversation-' + conversation.id"
                   (click)="onSelectConversation(conversation.id)"
-                  class="w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
+                  class="w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
                 >
                   {{ conversation.title ?? ('conversations.untitled' | transloco) }}
                 </button>
@@ -45,18 +45,38 @@ let nextLocalMessageId = -1;
           </ul>
         </aside>
 
-        <section class="flex-1">
-          <ul data-testid="transcript" class="mb-4 flex flex-col gap-2">
+        <section class="flex flex-1 flex-col">
+          <ul
+            data-testid="transcript"
+            class="mb-4 flex flex-1 flex-col gap-2 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+          >
             @for (message of messages(); track message.id) {
               <li
                 [attr.data-testid]="'message-role-' + message.role"
+                class="enter-fluid"
                 [class]="
                   message.role === 'USER'
-                    ? 'self-end rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white'
-                    : 'self-start rounded-lg bg-slate-200 px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                    ? 'self-end rounded-2xl rounded-br-sm bg-ink-800 px-3 py-2 text-sm text-white shadow-sm dark:bg-ink-700'
+                    : 'self-start rounded-2xl rounded-bl-sm bg-ink-100 px-3 py-2 text-sm text-ink-900 shadow-sm dark:bg-ink-800 dark:text-ink-100'
                 "
               >
-                {{ message.content }}
+                @if (message.role === 'ASSISTANT' && sending() && message.content === '') {
+                  <span
+                    data-testid="assistant-typing-indicator"
+                    class="inline-flex items-center gap-1"
+                    aria-live="polite"
+                  >
+                    <span
+                      class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500 [animation-delay:-0.2s]"
+                    ></span>
+                    <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500"></span>
+                    <span
+                      class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500 [animation-delay:0.2s]"
+                    ></span>
+                  </span>
+                } @else {
+                  {{ message.content }}
+                }
               </li>
             }
           </ul>
@@ -77,12 +97,12 @@ let nextLocalMessageId = -1;
               [value]="draft()"
               (input)="draft.set($any($event.target).value)"
               [disabled]="sending() || activeConversationId() === null"
-              class="flex-1 rounded border border-slate-300 px-2 py-1.5"
+              class="flex-1 rounded-xl border border-ink-300/70 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100 dark:disabled:bg-ink-900"
             />
             <button
               type="submit"
               [disabled]="sending() || activeConversationId() === null"
-              class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              class="rounded-xl bg-ink-800 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800"
             >
               {{ 'conversations.send' | transloco }}
             </button>

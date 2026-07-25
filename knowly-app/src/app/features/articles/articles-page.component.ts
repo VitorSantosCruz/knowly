@@ -15,9 +15,9 @@ const POLL_INTERVAL_MS = 4000;
   selector: 'app-articles-page',
   imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
   template: `
-    <div data-testid="articles-page" class="flex gap-6 p-6">
+    <div data-testid="articles-page" class="flex gap-6 bg-ink-50 p-6 dark:bg-ink-950">
       @if (loading()) {
-        <p data-testid="loading-state" class="text-sm text-slate-400">…</p>
+        <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (error() === 'network') {
@@ -27,7 +27,7 @@ const POLL_INTERVAL_MS = 4000;
           @if (permissionsService.has('ARTICLE_CREATE')) {
             <form
               data-testid="upload-form"
-              class="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              class="enter-fluid mb-4 flex flex-col gap-3 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
               (submit)="onUpload($event)"
             >
               <input
@@ -36,10 +36,10 @@ const POLL_INTERVAL_MS = 4000;
                 placeholder="{{ 'articles.titlePlaceholder' | transloco }}"
                 [value]="uploadTitle()"
                 (input)="uploadTitle.set($any($event.target).value)"
-                class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                class="rounded-xl border border-ink-300/70 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
               />
               <label
-                class="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+                class="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-dashed border-ink-300 px-3 py-2 text-sm text-ink-500 transition-colors duration-fast ease-fluid hover:border-signal-400 hover:text-signal-600 dark:border-ink-700 dark:text-ink-400 dark:hover:border-signal-500 dark:hover:text-signal-400"
               >
                 <span class="truncate">{{
                   selectedFileName() ?? ('articles.chooseFile' | transloco)
@@ -53,7 +53,7 @@ const POLL_INTERVAL_MS = 4000;
               </label>
               <button
                 type="submit"
-                class="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500"
+                class="rounded-xl bg-ink-800 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
               >
                 {{ 'articles.upload' | transloco }}
               </button>
@@ -68,19 +68,19 @@ const POLL_INTERVAL_MS = 4000;
           <ul data-testid="article-list" class="flex flex-col gap-2">
             @for (article of articles(); track article.id) {
               <li
-                class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+                class="enter-fluid flex items-center justify-between gap-2 rounded-xl border border-ink-200/70 bg-white px-3 py-2.5 shadow-sm transition-colors duration-fast ease-fluid hover:border-ink-300 dark:border-ink-800/70 dark:bg-ink-900 dark:hover:border-ink-700"
               >
                 <button
                   [attr.data-testid]="'select-article-' + article.id"
                   (click)="onSelect(article.id)"
-                  class="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-slate-700 transition hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400"
+                  class="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-ink-700 transition-colors duration-fast ease-fluid hover:text-signal-600 dark:text-ink-300 dark:hover:text-signal-400"
                 >
                   <span class="truncate">{{ article.title }}</span>
                   @switch (article.status) {
                     @case ('PROCESSING') {
                       <span
                         [attr.data-testid]="'article-status-' + article.id"
-                        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-signal-100 px-2 py-0.5 text-xs font-medium text-signal-700 dark:bg-signal-900/40 dark:text-signal-400"
                       >
                         <svg
                           class="h-3 w-3 animate-spin"
@@ -127,7 +127,7 @@ const POLL_INTERVAL_MS = 4000;
                   <button
                     [attr.data-testid]="'delete-article-' + article.id"
                     (click)="onDelete(article.id)"
-                    class="shrink-0 rounded-full px-2 py-1 text-sm text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                    class="shrink-0 rounded-full px-2 py-1 text-sm text-red-600 transition-colors duration-fast ease-fluid hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                   >
                     {{ 'articles.delete' | transloco }}
                   </button>
@@ -140,12 +140,12 @@ const POLL_INTERVAL_MS = 4000;
         <section class="flex-1">
           @if (selectedDetail(); as detail) {
             <div
-              class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-6 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
             >
-              <h2 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
+              <h2 class="font-display mb-2 text-lg font-semibold text-ink-900 dark:text-white">
                 {{ detail.title }}
               </h2>
-              <p class="mb-4 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">
+              <p class="mb-4 whitespace-pre-wrap text-sm text-ink-600 dark:text-ink-400">
                 {{ detail.text ?? detail.failureReason }}
               </p>
               <a
@@ -153,7 +153,7 @@ const POLL_INTERVAL_MS = 4000;
                 [href]="detail.originalFileUrl"
                 target="_blank"
                 rel="noopener"
-                class="mb-6 inline-block text-sm text-indigo-600 transition hover:text-indigo-500 hover:underline dark:text-indigo-400"
+                class="mb-6 inline-block text-sm text-signal-600 transition-colors duration-fast ease-fluid hover:text-signal-500 hover:underline dark:text-signal-400"
               >
                 {{ 'articles.originalFile' | transloco }}
               </a>
@@ -169,18 +169,18 @@ const POLL_INTERVAL_MS = 4000;
                     type="text"
                     [value]="editTitle()"
                     (input)="editTitle.set($any($event.target).value)"
-                    class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    class="rounded-xl border border-ink-300/70 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
                   />
                   <textarea
                     data-testid="edit-text"
                     [value]="editText()"
                     (input)="editText.set($any($event.target).value)"
                     rows="8"
-                    class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    class="rounded-xl border border-ink-300/70 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
                   ></textarea>
                   <button
                     type="submit"
-                    class="w-fit rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500"
+                    class="w-fit rounded-xl bg-ink-800 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
                   >
                     {{ 'articles.save' | transloco }}
                   </button>

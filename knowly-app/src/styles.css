@@ -1,5 +1,70 @@
-/* You can add global styles to this file, and also import other style files */
-
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Brand: knowly — "Ink & Signal".
+ * ink = the deep, trustworthy navy carrying nearly all surfaces/text;
+ * signal = the single warm accent reserved for the moment something
+ * becomes clear (primary actions, focus, highlights) — never used as a
+ * base color, so it stays meaningful instead of decorative.
+ */
+@theme {
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink-50: #f4f6fb;
+  --color-ink-100: #e6eaf5;
+  --color-ink-200: #c9d2e8;
+  --color-ink-300: #a2b0d4;
+  --color-ink-400: #7686b8;
+  --color-ink-500: #55649b;
+  --color-ink-600: #414c7f;
+  --color-ink-700: #343c66;
+  --color-ink-800: #232951;
+  --color-ink-900: #161a38;
+  --color-ink-950: #0d1024;
+
+  --color-signal-50: #fdf6e9;
+  --color-signal-100: #faebc8;
+  --color-signal-200: #f4d78e;
+  --color-signal-300: #edbf5c;
+  --color-signal-400: #e2a53a;
+  --color-signal-500: #c98a2c;
+  --color-signal-600: #a86e21;
+  --color-signal-700: #85551d;
+  --color-signal-800: #63401a;
+  --color-signal-900: #402816;
+
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 400ms;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+    font-feature-settings: 'ss01' 1;
+  }
+
+  @keyframes enter-fluid {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .enter-fluid {
+    animation: enter-fluid var(--duration-slow) var(--ease-fluid);
+  }
+}

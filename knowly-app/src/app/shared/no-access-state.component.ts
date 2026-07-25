@@ -5,7 +5,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
   selector: 'app-no-access-state',
   imports: [TranslocoPipe],
   template: `
-    <p data-testid="no-access-state" class="text-sm text-slate-500 dark:text-slate-400">
+    <p data-testid="no-access-state" class="enter-fluid text-sm text-ink-500 dark:text-ink-400">
       {{ 'dashboard.noAccess' | transloco }}
     </p>
   `,

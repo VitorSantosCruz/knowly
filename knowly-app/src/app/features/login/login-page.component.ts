@@ -13,14 +13,17 @@ type CredentialTab = 'code' | 'password';
   selector: 'app-login-page',
   imports: [TranslocoPipe],
   template: `
-    <div class="flex min-h-dvh items-center justify-center p-4 sm:p-6">
+    <div class="flex min-h-dvh items-center justify-center bg-ink-50 p-4 dark:bg-ink-950 sm:p-6">
       @if (step() === 'email') {
-        <form [class]="cardClass" (submit)="onSubmitEmail($event)">
+        <form [class]="cardClass" class="enter-fluid" (submit)="onSubmitEmail($event)">
           <div class="mb-8 text-center">
-            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <p class="font-display mb-1 text-lg tracking-tight text-ink-500 dark:text-ink-300">
+              knowly<span class="text-signal-500">.</span>
+            </p>
+            <h1 class="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
               {{ 'login.title' | transloco }}
             </h1>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
               {{ 'login.subtitle' | transloco }}
             </p>
           </div>
@@ -51,8 +54,8 @@ type CredentialTab = 'code' | 'password';
           </button>
         </form>
       } @else if (step() === 'credential') {
-        <div data-testid="credential-step" [class]="cardClass">
-          <div role="tablist" class="mb-8 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+        <div data-testid="credential-step" [class]="cardClass" class="enter-fluid">
+          <div role="tablist" class="mb-8 flex gap-1 rounded-xl bg-ink-100 p-1 dark:bg-ink-800">
             <button
               type="button"
               role="tab"
@@ -179,13 +182,12 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly password = signal('');
 
   protected readonly cardClass =
-    'w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none';
-  protected readonly labelClass =
-    'mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300';
+    'w-full max-w-sm rounded-2xl border border-ink-200/70 bg-white p-8 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none';
+  protected readonly labelClass = 'mb-2 block text-sm font-medium text-ink-700 dark:text-ink-300';
   protected readonly inputClass =
-    'mb-6 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:disabled:bg-slate-900';
+    'mb-6 w-full rounded-xl border border-ink-300/70 bg-white px-4 py-2.5 text-sm text-ink-900 placeholder-ink-400 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100 dark:placeholder-ink-500 dark:disabled:bg-ink-900';
   protected readonly buttonClass =
-    'w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:bg-indigo-700 active:bg-indigo-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:bg-slate-700';
+    'w-full rounded-xl bg-ink-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800';
   protected readonly errorClass =
     'mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400';
 
@@ -194,10 +196,11 @@ export class LoginPageComponent implements OnDestroy {
   }
 
   tabClass(tab: CredentialTab): string {
-    const base = 'flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition';
+    const base =
+      'flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-fast ease-fluid';
     return this.activeTab() === tab
-      ? `${base} bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white`
-      : `${base} text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200`;
+      ? `${base} bg-white text-ink-900 shadow-sm dark:bg-ink-700 dark:text-white`
+      : `${base} text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200`;
   }
 
   selectTab(tab: CredentialTab): void {

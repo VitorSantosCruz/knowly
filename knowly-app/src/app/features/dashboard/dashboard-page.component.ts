@@ -25,7 +25,7 @@ import { MessagesCardComponent } from './messages-card.component';
       <a
         data-testid="articles-link"
         routerLink="/articles"
-        class="text-sm font-medium text-indigo-600 hover:text-indigo-500 sm:col-span-2"
+        class="text-sm font-medium text-ink-700 transition-colors duration-fast ease-fluid hover:text-signal-600 dark:text-ink-300 dark:hover:text-signal-400 sm:col-span-2"
       >
         {{ 'dashboard.articlesLink' | transloco }}
       </a>

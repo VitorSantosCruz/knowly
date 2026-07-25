@@ -20,10 +20,10 @@ import { NavMenuComponent } from './nav-menu.component';
   ],
   template: `
     <div
-      class="flex min-h-dvh flex-col bg-slate-100 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100"
+      class="flex min-h-dvh flex-col bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
     >
       <header
-        class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur transition-colors duration-200 dark:border-slate-800 dark:bg-slate-950/80"
+        class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-ink-200/70 bg-white/80 px-4 backdrop-blur transition-colors duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-950/80"
       >
         <app-nav-menu />
         <div data-tour-id="main-nav" class="flex items-center gap-1">

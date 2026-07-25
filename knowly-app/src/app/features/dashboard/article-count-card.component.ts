@@ -14,16 +14,16 @@ interface ArticleCountResponse {
   template: `
     <div
       data-testid="article-count-card"
-      class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
     >
       @if (fetcher.loading()) {
-        <p data-testid="loading-state" class="text-sm text-slate-400">…</p>
+        <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (fetcher.error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <p class="text-3xl font-bold text-slate-900 dark:text-white">{{ data.totalCount }}</p>
+        <p class="text-3xl font-bold text-ink-900 dark:text-white">{{ data.totalCount }}</p>
       }
     </div>
   `,
