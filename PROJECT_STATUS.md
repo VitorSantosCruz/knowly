@@ -148,11 +148,24 @@ SPEC before implementation, roughly in this order:**
     chat-with-the-knowledge-base feature) — uses the profile nickname
     from item 9 to identify people in the UI. Needs its own SPEC(s) in
     both subprojects once prioritized.
-11. **Design system overhaul — no animations today, "muito simplório."**
-    Needs scoping before a SPEC makes sense: which screens first, what
-    motion/interaction language, whether it's a new design-system
-    reference doc or per-screen polish. Ask the user to prioritize
-    specific screens rather than attempting a big-bang redesign.
+11. ~~Design system overhaul~~ — done (2026-07-25), no SPEC written (pure
+    visual/frontend, user explicitly chose full-app scope over
+    incremental). Defined knowly's first visual brand identity, "Ink &
+    Signal" — no logo exists yet, so it's typographic-only: a deep navy
+    `ink-*` palette (Tailwind v4 `@theme` tokens in
+    `knowly-app/src/styles.css`) replaces `slate-*`/`indigo-*`/`blue-*`
+    everywhere; a warm amber `signal-*` scale is the one accent, reserved
+    for primary actions/focus/highlights — never a base surface color;
+    Fraunces (serif, `font-display`) for the wordmark (`knowly.`, dot in
+    signal) and large headings, Inter for everything else; motion tokens
+    `duration-fast/base/slow` + `ease-fluid` and a reusable `.enter-fluid`
+    entrance animation, no new npm dependency. Applied across every
+    screen (app shell/nav, login, welcome, dashboard widgets, articles,
+    conversations, members, select-tenant, tenant-create, shared UI) —
+    visual/class changes only, no logic/testid/i18n changes, all 186
+    frontend tests + build still green. **If a real logo/mark gets
+    designed later, it should adopt this same ink/signal palette rather
+    than starting the brand over.**
 
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
