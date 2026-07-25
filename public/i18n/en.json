@@ -85,7 +85,12 @@
     "upload": "Upload",
     "delete": "Delete",
     "originalFile": "View original file",
-    "save": "Save"
+    "save": "Save",
+    "status": {
+      "processing": "Processing",
+      "ready": "Ready",
+      "failed": "Failed"
+    }
   },
   "selectTenant": {
     "title": "Choose a tenant to continue",

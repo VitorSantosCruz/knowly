@@ -73,10 +73,55 @@ const POLL_INTERVAL_MS = 4000;
                 <button
                   [attr.data-testid]="'select-article-' + article.id"
                   (click)="onSelect(article.id)"
-                  class="truncate text-left text-sm text-slate-700 transition hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400"
+                  class="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-slate-700 transition hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400"
                 >
-                  {{ article.title }}
-                  <span class="text-slate-400 dark:text-slate-500">— {{ article.status }}</span>
+                  <span class="truncate">{{ article.title }}</span>
+                  @switch (article.status) {
+                    @case ('PROCESSING') {
+                      <span
+                        [attr.data-testid]="'article-status-' + article.id"
+                        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                      >
+                        <svg
+                          class="h-3 w-3 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <circle
+                            class="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            stroke-width="4"
+                          ></circle>
+                          <path
+                            class="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        {{ 'articles.status.processing' | transloco }}
+                      </span>
+                    }
+                    @case ('FAILED') {
+                      <span
+                        [attr.data-testid]="'article-status-' + article.id"
+                        class="inline-flex shrink-0 items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                      >
+                        {{ 'articles.status.failed' | transloco }}
+                      </span>
+                    }
+                    @default {
+                      <span
+                        [attr.data-testid]="'article-status-' + article.id"
+                        class="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                      >
+                        {{ 'articles.status.ready' | transloco }}
+                      </span>
+                    }
+                  }
                 </button>
                 @if (permissionsService.has('ARTICLE_DELETE')) {
                   <button

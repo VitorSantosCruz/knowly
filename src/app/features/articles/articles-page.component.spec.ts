@@ -58,7 +58,9 @@ describe('ArticlesPageComponent', () => {
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
 
     expect(fixture.nativeElement.textContent).toContain('Handbook');
-    expect(fixture.nativeElement.textContent).toContain('READY');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="article-status-1"]').textContent,
+    ).toContain('Ready');
   });
 
   it('shows a permission-denied state when the list is forbidden', () => {
@@ -148,7 +150,9 @@ describe('ArticlesPageComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('New doc');
-    expect(fixture.nativeElement.textContent).toContain('PROCESSING');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="article-status-9"]').textContent,
+    ).toContain('Processing');
   });
 
   it('shows an error and adds nothing when the upload is rejected', () => {
