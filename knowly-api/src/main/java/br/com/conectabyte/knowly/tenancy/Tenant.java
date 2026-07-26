@@ -34,6 +34,18 @@ public class Tenant {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "cnpj")
+    private String cnpj;
+
+    @Column(name = "razao_social")
+    private String razaoSocial;
+
+    @Column(name = "nome_fantasia")
+    private String nomeFantasia;
+
+    @Column(name = "inscricao_estadual")
+    private String inscricaoEstadual;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

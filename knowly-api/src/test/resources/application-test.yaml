@@ -29,3 +29,6 @@ knowly:
   auth:
     captcha:
       turnstile-secret: test-dummy-turnstile-secret
+  identity:
+    cpf-rg-encryption-key: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
+    cpf-rg-hmac-key: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=

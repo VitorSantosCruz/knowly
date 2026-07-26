@@ -107,6 +107,9 @@ knowly:
     access-key: ${MINIO_ROOT_USER}
     secret-key: ${MINIO_ROOT_PASSWORD}
     bucket: knowly-articles
+  identity:
+    cpf-rg-encryption-key: ${CPF_RG_ENCRYPTION_KEY}
+    cpf-rg-hmac-key: ${CPF_RG_HMAC_KEY}
   article:
     max-file-size: 25MB
     allowed-content-types:
