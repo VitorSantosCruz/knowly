@@ -9,9 +9,11 @@ import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +75,53 @@ public class MetricsService {
                         tenantId, MessageRole.ASSISTANT);
 
         return new MessagesMetricDto(sentCount, receivedCount);
+    }
+
+    @Transactional(readOnly = true)
+    public MessagesTimeseriesDto messagesTimeseries(MetricsPeriod period) {
+        Long tenantId = requireActiveTenant();
+        List<DailyRoleCountProjection> rows =
+                period.startInstant(clock)
+                        .map(
+                                from ->
+                                        messageRepository.countByDayAndRoleForTenantSince(
+                                                tenantId, from))
+                        .orElseGet(() -> messageRepository.countByDayAndRoleForTenant(tenantId));
+
+        return new MessagesTimeseriesDto(mergeZeroCountDaysByRole(rows, period));
+    }
+
+    private List<DailyRoleCountDto> mergeZeroCountDaysByRole(
+            List<DailyRoleCountProjection> rows, MetricsPeriod period) {
+        Map<LocalDate, Long> userCounts = new HashMap<>();
+        Map<LocalDate, Long> assistantCounts = new HashMap<>();
+        for (DailyRoleCountProjection row : rows) {
+            if (MessageRole.USER.name().equals(row.getRole())) {
+                userCounts.put(row.getDay(), row.getCount());
+            } else if (MessageRole.ASSISTANT.name().equals(row.getRole())) {
+                assistantCounts.put(row.getDay(), row.getCount());
+            }
+        }
+
+        List<LocalDate> dates =
+                period.dateRange(clock)
+                        .orElseGet(
+                                () ->
+                                        Stream.concat(
+                                                        userCounts.keySet().stream(),
+                                                        assistantCounts.keySet().stream())
+                                                .distinct()
+                                                .sorted()
+                                                .toList());
+
+        return dates.stream()
+                .map(
+                        date ->
+                                new DailyRoleCountDto(
+                                        date,
+                                        userCounts.getOrDefault(date, 0L),
+                                        assistantCounts.getOrDefault(date, 0L)))
+                .toList();
     }
 
     @Transactional(readOnly = true)

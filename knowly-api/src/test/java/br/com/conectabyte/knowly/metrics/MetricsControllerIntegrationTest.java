@@ -143,6 +143,12 @@ class MetricsControllerIntegrationTest {
                                 .cookie(session)
                                 .exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(
+                        mockMvc.get()
+                                .uri("/api/tenants/metrics/messages/timeseries")
+                                .cookie(session)
+                                .exchange())
+                .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -279,6 +285,79 @@ class MetricsControllerIntegrationTest {
         var response =
                 mockMvc.get()
                         .uri("/api/tenants/metrics/conversations/timeseries?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    @Test
+    void messagesTimeseriesReturnsSevenChronologicalDaysWithPerRoleCountsForTenantAOnly()
+            throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        User caller =
+                memberWithPermissions(
+                        "msgtimeseries@example.com", tenantA, Permission.DASHBOARD_VIEW);
+        Conversation conversationA =
+                conversationRepository.saveAndFlush(new Conversation(tenantA, caller));
+        Conversation conversationB =
+                conversationRepository.saveAndFlush(new Conversation(tenantB, caller));
+        Instant now = Instant.now();
+        backdateMessage(
+                messageRepository.saveAndFlush(new Message(conversationA, MessageRole.USER, "q1")),
+                now);
+        backdateMessage(
+                messageRepository.saveAndFlush(
+                        new Message(conversationA, MessageRole.ASSISTANT, "a1")),
+                now);
+        backdateMessage(
+                messageRepository.saveAndFlush(new Message(conversationA, MessageRole.USER, "q2")),
+                now.minus(2, ChronoUnit.DAYS));
+        backdateMessage(
+                messageRepository.saveAndFlush(
+                        new Message(conversationB, MessageRole.USER, "other tenant")),
+                now);
+        Cookie session = logIn("msgtimeseries@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/messages/timeseries?period=7d")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        long dayOccurrences =
+                java.util.regex.Pattern.compile("\"date\":").matcher(body).results().count();
+        assertThat(dayOccurrences).isEqualTo(7);
+        long userTotal =
+                java.util.regex.Pattern.compile("\"userCount\":(\\d+)")
+                        .matcher(body)
+                        .results()
+                        .mapToLong(m -> Long.parseLong(m.group(1)))
+                        .sum();
+        long assistantTotal =
+                java.util.regex.Pattern.compile("\"assistantCount\":(\\d+)")
+                        .matcher(body)
+                        .results()
+                        .mapToLong(m -> Long.parseLong(m.group(1)))
+                        .sum();
+        assertThat(userTotal).isEqualTo(2);
+        assertThat(assistantTotal).isEqualTo(1);
+        assertThat(body).doesNotContain("other tenant");
+    }
+
+    @Test
+    void messagesTimeseriesRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("msgbadperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("msgbadperiod@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/messages/timeseries?period=bogus")
                         .cookie(session)
                         .exchange();
 
