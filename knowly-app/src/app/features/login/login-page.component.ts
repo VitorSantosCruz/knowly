@@ -5,21 +5,20 @@ import { Router } from '@angular/router';
 import { AuthService, AuthErrorCode } from '../../core/auth.service';
 import { ConfigService } from '../../core/config.service';
 import { loadTurnstileScript } from '../../core/turnstile-loader';
+import { BrandWordmarkComponent } from '../../shared/brand-wordmark.component';
 
 type Step = 'email' | 'credential';
 type CredentialTab = 'code' | 'password';
 
 @Component({
   selector: 'app-login-page',
-  imports: [TranslocoPipe],
+  imports: [TranslocoPipe, BrandWordmarkComponent],
   template: `
     <div class="flex min-h-dvh items-center justify-center bg-ink-50 p-4 dark:bg-ink-950 sm:p-6">
       @if (step() === 'email') {
         <form [class]="cardClass" class="enter-fluid" (submit)="onSubmitEmail($event)">
           <div class="mb-8 text-center">
-            <p class="font-display mb-1 text-lg tracking-tight text-ink-500 dark:text-ink-300">
-              knowly<span class="text-signal-500">.</span>
-            </p>
+            <app-brand-wordmark class="mb-1 text-ink-500 dark:text-ink-300" />
             <h1 class="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
               {{ 'login.title' | transloco }}
             </h1>
@@ -187,7 +186,7 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly inputClass =
     'mb-6 w-full rounded-xl border border-ink-300/70 bg-white px-4 py-2.5 text-sm text-ink-900 placeholder-ink-400 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100 dark:placeholder-ink-500 dark:disabled:bg-ink-900';
   protected readonly buttonClass =
-    'w-full rounded-xl bg-ink-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800';
+    'w-full rounded-xl bg-ink-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800';
   protected readonly errorClass =
     'mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400';
 

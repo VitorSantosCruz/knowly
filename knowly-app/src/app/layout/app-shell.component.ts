@@ -20,20 +20,23 @@ import { NavMenuComponent } from './nav-menu.component';
   ],
   template: `
     <div
-      class="flex min-h-dvh flex-col bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
+      class="flex min-h-dvh bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
     >
-      <header
-        class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-ink-200/70 bg-white/80 px-4 backdrop-blur transition-colors duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-950/80"
+      <aside
+        class="sticky top-0 flex h-dvh w-64 shrink-0 flex-col border-r border-ink-800/60 bg-ink-950 px-3 py-5 shadow-lg shadow-ink-950/20"
       >
         <app-nav-menu />
-        <div data-tour-id="main-nav" class="flex items-center gap-1">
+        <div
+          data-tour-id="main-nav"
+          class="mt-4 flex items-center gap-1 border-t border-ink-800/60 pt-3"
+        >
           <app-help-menu />
           <app-language-switcher />
           <app-theme-toggle />
           <app-logout-button />
         </div>
-      </header>
-      <main class="flex-1">
+      </aside>
+      <main class="min-w-0 flex-1">
         <router-outlet />
       </main>
       <app-tour-overlay />

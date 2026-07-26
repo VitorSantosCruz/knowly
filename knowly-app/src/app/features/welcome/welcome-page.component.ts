@@ -33,7 +33,7 @@ import { TourService } from '../../core/tour.service';
         <a
           data-testid="welcome-dashboard-link"
           routerLink="/dashboard"
-          class="mt-6 inline-flex items-center rounded-xl bg-ink-800 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
+          class="mt-6 inline-flex items-center rounded-xl bg-ink-800 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
         >
           {{ 'welcome.viewDashboard' | transloco }}
         </a>

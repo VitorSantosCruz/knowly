@@ -30,7 +30,7 @@ interface TenantOption {
           <a
             data-testid="create-tenant-link"
             routerLink="/tenants/new"
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ink-800 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-ink-900/20 transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ink-800 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

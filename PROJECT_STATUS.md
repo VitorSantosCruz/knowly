@@ -166,6 +166,41 @@ SPEC before implementation, roughly in this order:**
     frontend tests + build still green. **If a real logo/mark gets
     designed later, it should adopt this same ink/signal palette rather
     than starting the brand over.**
+    **Follow-up correction (2026-07-25)** — the full-app palette/font swap
+    above was accepted, but the initial pass read as flat/stiff ("tá tudo
+    duro, sem transição"); this pass fixes *feel*, not tokens: (a) app
+    shell/nav restyled from a horizontal top bar into a real left sidebar
+    (`app-shell.component.ts`, `layout/nav-menu.component.ts`) — permanently
+    dark `ink-950` chrome (Linear/Vercel-style, independent of the app's own
+    light/dark toggle), grouped nav links with inline SVG icons (no new icon
+    dependency), active items get a filled signal-tinted pill with an inset
+    signal border rather than a plain background swap, tenant-switch/create
+    links visually separated below a divider; (b) primary CTA buttons across
+    login/welcome/articles/conversations/members/select-tenant/tenant-create
+    gained `hover:-translate-y-0.5` lift + `active:scale-[0.98]` press
+    feedback on top of the existing color transition; (c) first brand mark:
+    `app-brand-wordmark` (`knowly-app/src/app/shared/brand-wordmark.component.ts`)
+    — inline SVG wordmark-only logotype (Fraunces `<text>`, signal-colored
+    dot), now the single implementation behind both the nav sidebar and the
+    login page (previously duplicated markup); a companion "K" symbol mark
+    (`knowly-app/public/favicon.svg`, ink-950 tile / white K / signal
+    accent-cut) now backs the favicon and `apple-touch-icon` link in
+    `index.html` (replacing the stock Angular favicon) — the stock
+    `favicon.ico` binary itself was left in place as a fallback link since
+    this environment has no way to rasterize a real `.ico`; all evergreen
+    browsers will use the new SVG icon. **Tier 2 judgment calls made without
+    asking:** sidebar is always dark regardless of the app's light/dark
+    toggle (matches the requested reference dashboards, which all use a
+    fixed-dark chrome); the shared utility buttons in the sidebar footer
+    (`help-menu`/`language-switcher`/`theme-toggle`/`logout-button`) had
+    their light-mode classes replaced with dark-chrome-only classes since
+    they're now only ever rendered on that permanently-dark surface — if
+    either of those components is reused somewhere with a light background
+    in the future, its classes will need reintroducing dark/light variants.
+    **Not run this pass:** `npm run format` / `format:check` / `test` /
+    `build` — no shell/bash tool was available in this agent invocation;
+    a human or `frontend-engineer` must run knowly-app's verification
+    commands before trusting this is green.
 
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
