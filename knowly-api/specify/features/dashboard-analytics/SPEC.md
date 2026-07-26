@@ -73,7 +73,15 @@ and is not addressed by this feature.
    both the USER-authored and ASSISTANT-authored message counts for that
    day (including zero-count days), ordered chronologically.
 
-6. **[Event-Driven]** When `GET /api/tenants/metrics/members` is called
+6. **[Event-Driven]** When `GET /api/tenants/metrics/articles/timeseries?period=<period>`
+   is called by a caller holding `DASHBOARD_VIEW` for the active tenant,
+   the system shall return one count of active articles created per
+   calendar day within the requested period, including zero-count days,
+   ordered chronologically — added specifically so the frontend's
+   article-count metric tile can show a real trend sparkline like the
+   other four tiles, instead of shipping without one.
+
+7. **[Event-Driven]** When `GET /api/tenants/metrics/members` is called
    by a caller holding `DASHBOARD_VIEW` for the active tenant, the system
    shall return the count of `TenantMembership` rows for that tenant with
    `active = true` and the count with `active = false`, as of the moment
@@ -81,31 +89,31 @@ and is not addressed by this feature.
    period-filtered, since membership activation state has no created-per-day
    semantics today).
 
-7. **[Event-Driven]** When `GET /api/tenants/metrics/export?period=<period>`
+8. **[Event-Driven]** When `GET /api/tenants/metrics/export?period=<period>`
    is called by a caller holding `DASHBOARD_VIEW` for the active tenant,
    the system shall return a CSV file (as an HTTP file attachment)
    containing the same aggregate values shown on the dashboard for that
    tenant and period: active article count, conversation count, USER/
    ASSISTANT message counts, member active/inactive counts, and the
-   per-day time-series rows (conversations/day, messages/day by role)
-   within the requested period. It shall not include raw per-user,
-   per-conversation, or per-message content (no transcripts, no article
-   contents) — only the aggregate metric values already exposed by this
-   feature's read endpoints.
+   per-day time-series rows (articles/day, conversations/day,
+   messages/day by role) within the requested period. It shall not
+   include raw per-user, per-conversation, or per-message content (no
+   transcripts, no article contents) — only the aggregate metric values
+   already exposed by this feature's read endpoints.
 
-8. **[Optional Feature]** Where `period` is applied to
+9. **[Optional Feature]** Where `period` is applied to
    `GET /api/tenants/metrics/conversations` and
    `GET /api/tenants/metrics/messages` (the existing point-in-time
    endpoints), the system shall count only conversations/messages created
    within that period, instead of the tenant's all-time total, while
    preserving the current response shape.
 
-9. **[Unwanted Behavior]** If a caller does not hold `DASHBOARD_VIEW` for
-   the active tenant, then every endpoint in this SPEC (existing and new)
-   shall respond `403 Forbidden`, consistent with the existing
-   `@RequiresPermission(Permission.DASHBOARD_VIEW)` gating.
+10. **[Unwanted Behavior]** If a caller does not hold `DASHBOARD_VIEW` for
+    the active tenant, then every endpoint in this SPEC (existing and new)
+    shall respond `403 Forbidden`, consistent with the existing
+    `@RequiresPermission(Permission.DASHBOARD_VIEW)` gating.
 
-10. **[Unwanted Behavior]** If no tenant is active in the caller's
+11. **[Unwanted Behavior]** If no tenant is active in the caller's
     session, then every endpoint in this SPEC shall respond with the same
     tenant-access-denied behavior already used by
     `requireActiveTenant()` (`TenantAccessDeniedException`), never expose
@@ -138,6 +146,9 @@ and is not addressed by this feature.
 - [ ] `GET /api/tenants/metrics/messages/timeseries` returns per-day
       USER/ASSISTANT message counts for the active tenant only, honoring
       `period`, including zero-count days.
+- [ ] `GET /api/tenants/metrics/articles/timeseries` returns per-day
+      active-article-creation counts for the active tenant only,
+      honoring `period`, including zero-count days.
 - [ ] `GET /api/tenants/metrics/members` returns active/inactive
       membership counts for the active tenant only.
 - [ ] `GET /api/tenants/metrics/export` returns a downloadable CSV
@@ -178,14 +189,18 @@ and is not addressed by this feature.
 - Any new time granularity other than "per day" (no hourly/weekly
   bucketing).
 
-## Open items — need explicit user confirmation before PLAN.md
+## Confirmed by the user (2026-07-26)
 
 1. **"Pending invites" doesn't exist in the data model.** `TenantMembership`
    has only a boolean `active` flag (set at creation, no invite/pending
    state). This SPEC substitutes **active-vs-inactive member counts** for
-   that backlog item. A real pending-invite workflow would be new
-   schema/entity work — flag if that's actually wanted instead.
-2. **Export format**: CSV only for v1 (PDF listed as out of scope/future).
+   that backlog item — confirmed, a real pending-invite workflow is
+   deferred as a separate, larger feature.
+2. **Export format**: CSV only for v1 (PDF deferred, listed as out of
+   scope/future) — confirmed.
 3. **Permission gating for the membership metric**: reuses `DASHBOARD_VIEW`
-   (not `TENANT_MEMBER_MANAGE`, which is a stricter, different-purpose
-   permission gating actually managing members).
+   (not `TENANT_MEMBER_MANAGE`) — confirmed.
+4. **Articles time-series endpoint**: added (requirement 6 above) so the
+   frontend's article-count tile gets a real trend sparkline like the
+   other four tiles — confirmed, rather than shipping that tile without
+   one.

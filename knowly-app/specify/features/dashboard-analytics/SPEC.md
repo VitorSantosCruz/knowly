@@ -67,7 +67,11 @@ already used elsewhere post-migration, e.g. `members-page.component.ts`).
    message count, ASSISTANT message count, and active member count —
    each tile showing its current value plus a small trend sparkline
    (PrimeNG `p-chart` with `type="line"`, minimal/axis-less styling)
-   built from the corresponding time-series/period data.
+   built from the corresponding time-series/period data. The active
+   article count tile's sparkline is sourced from
+   `GET /api/tenants/metrics/articles/timeseries` (added to the backend
+   SPEC specifically so this tile isn't the one exception without a
+   real trend).
 
 4. **[Ubiquitous]** The dashboard shall render one donut/ring chart
    (`p-chart` `type="doughnut"`) showing the USER-vs-ASSISTANT message
