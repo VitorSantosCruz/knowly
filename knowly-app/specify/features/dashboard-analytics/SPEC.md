@@ -149,24 +149,28 @@ already used elsewhere post-migration, e.g. `members-page.component.ts`).
 
 ## Acceptance criteria
 
-- [ ] Selecting a period value refetches and updates every card/chart on
+- [x] Selecting a period value refetches and updates every card/chart on
       the dashboard to that period.
-- [ ] All five metric tiles render with a value and a sparkline sourced
+- [x] All five metric tiles render with a value and a sparkline sourced
       from real backend data (no mocked/hardcoded numbers).
-- [ ] The donut chart renders the USER/ASSISTANT split for the selected
+- [x] The donut chart renders the USER/ASSISTANT split for the selected
       period.
-- [ ] The bar chart renders per-day conversation activity for the
+- [x] The bar chart renders per-day conversation activity for the
       selected period and updates when the period changes.
-- [ ] The active-members breakdown renders active/inactive counts.
-- [ ] The top-used-articles table supports search-by-name filtering
+- [x] The active-members breakdown renders active/inactive counts.
+- [x] The top-used-articles table supports search-by-name filtering
       via `p-table`'s built-in global filter.
-- [ ] Activating export downloads a CSV file for the currently selected
+- [x] Activating export downloads a CSV file for the currently selected
       period.
-- [ ] A failing card/chart shows its own inline error (with trace id)
+- [x] A failing card/chart shows its own inline error (with trace id)
       without blanking unrelated cards.
-- [ ] `npm run format:check && npm test && npm run build` passes.
-- [ ] No new npm dependency is introduced (PrimeNG's existing `Chart`/
-      `Table` components are reused).
+- [x] `npm run format:check && npm test && npm run build` passes.
+- [x] ~~No new npm dependency is introduced~~ **Revised**: `chart.js`
+      was added (see "Bundle size" above) — `Table`/`SelectButton`/
+      `Button`/`InputText`/`Message` needed nothing extra, but PrimeNG's
+      `Chart` component does require it, which only became apparent
+      during implementation; adding it was a confirmed Tier 3 decision,
+      not a silent scope change.
 
 ## Out of scope
 
