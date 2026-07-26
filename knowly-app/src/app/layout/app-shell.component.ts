@@ -23,22 +23,25 @@ import { NavMenuComponent } from './nav-menu.component';
       class="flex min-h-dvh bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
     >
       <aside
-        class="sticky top-0 flex h-dvh w-64 shrink-0 flex-col border-r border-ink-800/60 bg-ink-950 px-3 py-5 shadow-lg shadow-ink-950/20"
+        class="sticky top-0 flex h-dvh w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-950 px-3 py-5 shadow-lg shadow-ink-950/20"
       >
         <app-nav-menu />
-        <div
+      </aside>
+      <div class="flex min-w-0 flex-1 flex-col">
+        <header
           data-tour-id="main-nav"
-          class="mt-4 flex items-center gap-1 border-t border-ink-800/60 pt-3"
+          class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-end gap-1 border-b border-ink-800 bg-ink-950/95 px-4 backdrop-blur-md"
         >
           <app-help-menu />
           <app-language-switcher />
           <app-theme-toggle />
+          <span class="mx-1 h-5 w-px shrink-0 bg-ink-200 dark:bg-ink-800"></span>
           <app-logout-button />
-        </div>
-      </aside>
-      <main class="min-w-0 flex-1">
-        <router-outlet />
-      </main>
+        </header>
+        <main class="min-w-0 flex-1">
+          <router-outlet />
+        </main>
+      </div>
       <app-tour-overlay />
     </div>
   `,

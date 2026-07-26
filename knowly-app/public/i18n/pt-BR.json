@@ -47,7 +47,21 @@
     "staffGreeting": "Bem-vindo ao knowly",
     "tenantGreeting": "Bem-vindo, {{tenantName}}",
     "pitch": "Faça perguntas e receba respostas baseadas na base de conhecimento da sua equipe, com citações da fonte original.",
-    "viewDashboard": "Ver painel"
+    "viewDashboard": "Ver painel",
+    "quickLinks": {
+      "articles": {
+        "title": "Ver artigos",
+        "description": "Explore a base de conhecimento da sua equipe."
+      },
+      "conversations": {
+        "title": "Iniciar uma conversa",
+        "description": "Pergunte para a IA e receba uma resposta com fontes."
+      },
+      "members": {
+        "title": "Gerenciar membros",
+        "description": "Veja quem está na equipe e gerencie o acesso."
+      }
+    }
   },
   "helpMenu": {
     "label": "Ajuda",
@@ -57,6 +71,12 @@
     "label": "Sair"
   },
   "nav": {
+    "category": {
+      "overview": "Visão geral",
+      "knowledge": "Conhecimento",
+      "team": "Equipe",
+      "workspace": "Workspace"
+    },
     "dashboard": "Painel",
     "articles": "Artigos",
     "conversations": "Conversas",

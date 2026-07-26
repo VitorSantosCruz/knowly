@@ -17,7 +17,7 @@ import { MessagesCardComponent } from './messages-card.component';
     MessagesCardComponent,
   ],
   template: `
-    <div data-testid="dashboard-page" class="grid gap-4 p-6 sm:grid-cols-2">
+    <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
       <app-article-count-card />
       <app-article-usage-list />
       <app-conversations-card />

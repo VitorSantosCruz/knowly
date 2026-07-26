@@ -13,7 +13,7 @@ type MembersError = 'network' | 'permission-denied' | null;
   selector: 'app-members-page',
   imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, MemberDetailPanelComponent],
   template: `
-    <div data-testid="members-page" class="mx-auto max-w-3xl p-6">
+    <div data-testid="members-page" class="page-shell max-w-3xl">
       @if (loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {

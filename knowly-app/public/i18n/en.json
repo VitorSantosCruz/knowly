@@ -47,13 +47,33 @@
     "staffGreeting": "Welcome to knowly",
     "tenantGreeting": "Welcome to {{tenantName}}",
     "pitch": "Ask questions and get answers grounded in your team's own knowledge base, with citations back to the source.",
-    "viewDashboard": "View dashboard"
+    "viewDashboard": "View dashboard",
+    "quickLinks": {
+      "articles": {
+        "title": "Browse articles",
+        "description": "Explore your team's knowledge base."
+      },
+      "conversations": {
+        "title": "Start a conversation",
+        "description": "Ask the AI a question and get a sourced answer."
+      },
+      "members": {
+        "title": "Manage members",
+        "description": "See who's on the team and manage access."
+      }
+    }
   },
   "helpMenu": {
     "label": "Help",
     "restartTour": "Restart tour"
   },
   "nav": {
+    "category": {
+      "overview": "Overview",
+      "knowledge": "Knowledge",
+      "team": "Team",
+      "workspace": "Workspace"
+    },
     "dashboard": "Dashboard",
     "articles": "Articles",
     "conversations": "Conversations",

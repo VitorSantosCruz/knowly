@@ -15,7 +15,7 @@ const POLL_INTERVAL_MS = 4000;
   selector: 'app-articles-page',
   imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
   template: `
-    <div data-testid="articles-page" class="flex gap-6 bg-ink-50 p-6 dark:bg-ink-950">
+    <div data-testid="articles-page" class="page-shell flex gap-6">
       @if (loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {

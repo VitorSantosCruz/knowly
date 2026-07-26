@@ -19,7 +19,7 @@ import { TourService } from '../core/tour.service';
       @if (open()) {
         <div
           role="menu"
-          class="enter-fluid absolute top-full left-0 z-20 mt-1 min-w-40 rounded-xl border border-ink-800/70 bg-ink-900 p-1 shadow-lg shadow-ink-950/40"
+          class="enter-fluid absolute top-full right-0 left-auto z-20 mt-1 min-w-40 rounded-xl border border-ink-800 bg-ink-900 p-1 shadow-lg shadow-ink-950/40"
         >
           <button
             type="button"

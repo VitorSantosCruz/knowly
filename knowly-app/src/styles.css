@@ -68,3 +68,24 @@
     animation: enter-fluid var(--duration-slow) var(--ease-fluid);
   }
 }
+
+@layer components {
+  /*
+   * Single spacing convention every routed page's outermost element uses,
+   * so page width/gutters/vertical rhythm stay consistent app-wide instead
+   * of each feature reinventing its own margins.
+   */
+  .page-shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 88rem;
+    padding-inline: 1.5rem;
+    padding-block: 2rem;
+  }
+
+  @media (min-width: 640px) {
+    .page-shell {
+      padding-inline: 2rem;
+    }
+  }
+}

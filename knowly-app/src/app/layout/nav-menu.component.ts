@@ -12,6 +12,8 @@ const LINK_CLASS =
 const LINK_ACTIVE_CLASS =
   'bg-signal-500/10 text-signal-300 shadow-[inset_2px_0_0_0_var(--color-signal-500)] hover:bg-signal-500/15 hover:text-signal-200 hover:shadow-[inset_2px_0_0_0_var(--color-signal-500),0_0_20px_-8px_var(--color-signal-500)]';
 const ICON_CLASS = 'h-4 w-4 shrink-0';
+const CATEGORY_LABEL_CLASS =
+  'px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-ink-500 uppercase';
 
 @Component({
   selector: 'app-nav-menu',
@@ -23,8 +25,9 @@ const ICON_CLASS = 'h-4 w-4 shrink-0';
           <app-brand-wordmark class="text-white" />
         </div>
 
-        <div class="flex flex-1 flex-col gap-1">
+        <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
           @if (permissionsService.has('DASHBOARD_VIEW')) {
+            <span [class]="categoryLabelClass">{{ 'nav.category.overview' | transloco }}</span>
             <a
               data-testid="nav-dashboard"
               routerLink="/dashboard"
@@ -49,6 +52,11 @@ const ICON_CLASS = 'h-4 w-4 shrink-0';
               </svg>
               {{ 'nav.dashboard' | transloco }}
             </a>
+          }
+          @if (
+            permissionsService.has('ARTICLE_VIEW') || permissionsService.has('CONVERSATION_USE')
+          ) {
+            <span [class]="categoryLabelClass">{{ 'nav.category.knowledge' | transloco }}</span>
           }
           @if (permissionsService.has('ARTICLE_VIEW')) {
             <a
@@ -101,6 +109,7 @@ const ICON_CLASS = 'h-4 w-4 shrink-0';
             </a>
           }
           @if (permissionsService.has('TENANT_MEMBER_MANAGE')) {
+            <span [class]="categoryLabelClass">{{ 'nav.category.team' | transloco }}</span>
             <a
               data-testid="nav-members"
               data-tour-id="user-management-nav-link"
@@ -131,6 +140,7 @@ const ICON_CLASS = 'h-4 w-4 shrink-0';
 
         @if (globalPermissionsService.has('TENANT_CREATE') || canSwitchTenant()) {
           <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
+            <span [class]="categoryLabelClass">{{ 'nav.category.workspace' | transloco }}</span>
             @if (globalPermissionsService.has('TENANT_CREATE')) {
               <a
                 data-testid="nav-create-tenant"
@@ -196,6 +206,7 @@ export class NavMenuComponent implements OnInit {
   protected readonly linkClass = LINK_CLASS;
   protected readonly linkActiveClass = LINK_ACTIVE_CLASS;
   protected readonly iconClass = ICON_CLASS;
+  protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
 
   private readonly memberships = signal<TenantMembership[]>([]);
   // 0 memberships (staff, who never hold a real TenantMembership row even after switching
