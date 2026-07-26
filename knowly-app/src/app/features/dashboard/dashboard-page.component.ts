@@ -4,6 +4,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { ArticleCountCardComponent } from './article-count-card.component';
 import { ArticleUsageListComponent } from './article-usage-list.component';
 import { ConversationsCardComponent } from './conversations-card.component';
+import { MembersBreakdownCardComponent } from './members-breakdown-card.component';
 import { MessagesCardComponent } from './messages-card.component';
 import { Period, PeriodFilterComponent } from './period-filter.component';
 
@@ -16,6 +17,7 @@ import { Period, PeriodFilterComponent } from './period-filter.component';
     ArticleUsageListComponent,
     ConversationsCardComponent,
     MessagesCardComponent,
+    MembersBreakdownCardComponent,
     PeriodFilterComponent,
   ],
   template: `
@@ -25,6 +27,7 @@ import { Period, PeriodFilterComponent } from './period-filter.component';
       <app-article-usage-list />
       <app-conversations-card />
       <app-messages-card />
+      <app-members-breakdown-card />
       <a
         data-testid="articles-link"
         routerLink="/articles"
