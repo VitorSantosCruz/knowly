@@ -78,6 +78,20 @@ public class MetricsService {
     }
 
     @Transactional(readOnly = true)
+    public ArticlesTimeseriesDto articlesTimeseries(MetricsPeriod period) {
+        Long tenantId = requireActiveTenant();
+        List<DailyCountProjection> rows =
+                period.startInstant(clock)
+                        .map(
+                                from ->
+                                        articleRepository.countActiveByDayForTenantSince(
+                                                tenantId, from))
+                        .orElseGet(() -> articleRepository.countActiveByDayForTenant(tenantId));
+
+        return new ArticlesTimeseriesDto(mergeZeroCountDays(rows, period));
+    }
+
+    @Transactional(readOnly = true)
     public MessagesTimeseriesDto messagesTimeseries(MetricsPeriod period) {
         Long tenantId = requireActiveTenant();
         List<DailyRoleCountProjection> rows =

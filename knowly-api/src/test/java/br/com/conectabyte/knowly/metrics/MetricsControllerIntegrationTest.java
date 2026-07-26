@@ -149,6 +149,12 @@ class MetricsControllerIntegrationTest {
                                 .cookie(session)
                                 .exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(
+                        mockMvc.get()
+                                .uri("/api/tenants/metrics/articles/timeseries")
+                                .cookie(session)
+                                .exchange())
+                .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -358,6 +364,58 @@ class MetricsControllerIntegrationTest {
         var response =
                 mockMvc.get()
                         .uri("/api/tenants/metrics/messages/timeseries?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    @Test
+    void articlesTimeseriesReturnsSevenChronologicalDaysExcludingInactiveArticlesAndOtherTenants()
+            throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        memberWithPermissions("articletimeseries@example.com", tenantA, Permission.DASHBOARD_VIEW);
+        Instant now = Instant.now();
+        backdateArticle(anArticle(tenantA, "Active today"), now);
+        Article inactive = anArticle(tenantA, "Inactive today");
+        inactive.setActive(false);
+        articleRepository.saveAndFlush(inactive);
+        backdateArticle(inactive, now);
+        backdateArticle(anArticle(tenantA, "Active 2 days ago"), now.minus(2, ChronoUnit.DAYS));
+        backdateArticle(anArticle(tenantB, "Other tenant"), now);
+        Cookie session = logIn("articletimeseries@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/articles/timeseries?period=7d")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        long dayOccurrences =
+                java.util.regex.Pattern.compile("\"date\":").matcher(body).results().count();
+        assertThat(dayOccurrences).isEqualTo(7);
+        long totalCount =
+                java.util.regex.Pattern.compile("\"count\":(\\d+)")
+                        .matcher(body)
+                        .results()
+                        .mapToLong(m -> Long.parseLong(m.group(1)))
+                        .sum();
+        assertThat(totalCount).isEqualTo(2);
+    }
+
+    @Test
+    void articlesTimeseriesRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("articlebadperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("articlebadperiod@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/articles/timeseries?period=bogus")
                         .cookie(session)
                         .exchange();
 

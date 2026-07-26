@@ -60,4 +60,11 @@ public class MetricsController {
     public MessagesTimeseriesDto messagesTimeseries(@RequestParam(required = false) String period) {
         return metricsService.messagesTimeseries(MetricsPeriod.from(period));
     }
+
+    @GetMapping("/articles/timeseries")
+    @RequiresPermission(Permission.DASHBOARD_VIEW)
+    @AuditLog(action = "metrics.articles.timeseries.view", resourceType = "Metrics")
+    public ArticlesTimeseriesDto articlesTimeseries(@RequestParam(required = false) String period) {
+        return metricsService.articlesTimeseries(MetricsPeriod.from(period));
+    }
 }
