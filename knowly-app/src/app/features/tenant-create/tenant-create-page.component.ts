@@ -2,13 +2,15 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
+import { ButtonDirective } from 'primeng/button';
+import { InputText } from 'primeng/inputtext';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Component({
   selector: 'app-tenant-create-page',
-  imports: [TranslocoPipe],
+  imports: [TranslocoPipe, ButtonDirective, InputText],
   template: `
     <div
       data-testid="tenant-create-page"
@@ -35,9 +37,10 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             <input
               data-testid="tenant-create-name"
               type="text"
+              pInputText
               [value]="name()"
               (input)="name.set($any($event.target).value)"
-              class="rounded-xl border border-ink-300/70 bg-white px-4 py-2.5 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+              class="w-full"
             />
           </label>
 
@@ -48,9 +51,10 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             <input
               data-testid="tenant-create-admin-email"
               type="email"
+              pInputText
               [value]="adminEmail()"
               (input)="adminEmail.set($any($event.target).value)"
-              class="rounded-xl border border-ink-300/70 bg-white px-4 py-2.5 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+              class="w-full"
             />
           </label>
 
@@ -63,11 +67,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             </p>
           }
 
-          <button
-            type="submit"
-            [disabled]="submitting()"
-            class="rounded-xl bg-ink-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800"
-          >
+          <button type="submit" pButton [disabled]="submitting()">
             {{ 'tenantCreate.submit' | transloco }}
           </button>
         </form>

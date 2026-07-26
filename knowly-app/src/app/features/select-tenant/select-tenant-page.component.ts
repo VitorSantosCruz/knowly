@@ -2,6 +2,8 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
+import { ButtonDirective } from 'primeng/button';
+import { Listbox } from 'primeng/listbox';
 import {
   ActiveTenantService,
   TenantMembership,
@@ -16,7 +18,7 @@ interface TenantOption {
 
 @Component({
   selector: 'app-select-tenant-page',
-  imports: [TranslocoPipe, RouterLink],
+  imports: [TranslocoPipe, RouterLink, ButtonDirective, Listbox],
   template: `
     <div
       data-testid="select-tenant-page"
@@ -27,43 +29,25 @@ interface TenantOption {
           {{ 'selectTenant.title' | transloco }}
         </h1>
         @if (canCreateTenant()) {
-          <a
-            data-testid="create-tenant-link"
-            routerLink="/tenants/new"
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ink-800 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="h-4 w-4"
-              aria-hidden="true"
-            >
-              <path d="M5 12h14" />
-              <path d="M12 5v14" />
-            </svg>
+          <a data-testid="create-tenant-link" routerLink="/tenants/new" pButton icon="pi pi-plus">
             {{ 'selectTenant.createTenant' | transloco }}
           </a>
         }
       </div>
       @if (options().length > 0) {
-        <ul class="flex flex-col gap-2">
-          @for (option of options(); track option.tenantId) {
-            <li class="enter-fluid">
-              <button
-                [attr.data-testid]="'select-tenant-' + option.tenantId"
-                (click)="onSelect(option)"
-                class="w-full rounded-xl border border-ink-200/70 bg-white px-4 py-3 text-left text-ink-800 shadow-sm shadow-ink-900/5 transition-colors duration-fast ease-fluid hover:border-signal-300 hover:bg-signal-50 dark:border-ink-800/70 dark:bg-ink-900 dark:text-ink-100 dark:shadow-none dark:hover:border-signal-700 dark:hover:bg-ink-800"
-              >
-                {{ option.tenantName }}
-              </button>
-            </li>
-          }
-        </ul>
+        <p-listbox
+          [options]="options()"
+          optionLabel="tenantName"
+          styleClass="w-full border-0"
+          listStyleClass="flex flex-col gap-2"
+          (onClick)="onSelect($event.option)"
+        >
+          <ng-template #item let-option>
+            <span [attr.data-testid]="'select-tenant-' + option.tenantId" class="block w-full">
+              {{ option.tenantName }}
+            </span>
+          </ng-template>
+        </p-listbox>
       } @else if (loaded()) {
         <p data-testid="select-tenant-empty" class="enter-fluid text-ink-600 dark:text-ink-400">
           {{ 'selectTenant.empty' | transloco }}

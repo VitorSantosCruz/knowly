@@ -1,6 +1,9 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
+import { ButtonDirective } from 'primeng/button';
+import { InputText } from 'primeng/inputtext';
+import { Table } from 'primeng/table';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { Member, MemberService } from '../../core/member.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -11,7 +14,15 @@ type MembersError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-members-page',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, MemberDetailPanelComponent],
+  imports: [
+    TranslocoPipe,
+    ErrorStateComponent,
+    NoAccessStateComponent,
+    MemberDetailPanelComponent,
+    ButtonDirective,
+    InputText,
+    Table,
+  ],
   template: `
     <div data-testid="members-page" class="page-shell max-w-3xl">
       @if (loading()) {
@@ -30,43 +41,46 @@ type MembersError = 'network' | 'permission-denied' | null;
             data-testid="add-member-email"
             type="email"
             name="email"
+            pInputText
             [value]="newMemberEmail()"
             (input)="newMemberEmail.set($any($event.target).value)"
-            class="flex-1 rounded-xl border border-ink-300/70 bg-white px-4 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            class="flex-1"
           />
-          <button
-            type="submit"
-            class="rounded-xl bg-ink-800 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
-          >
+          <button type="submit" pButton>
             {{ 'members.add' | transloco }}
           </button>
         </form>
 
-        <ul
+        <p-table
           data-testid="members-list"
-          class="enter-fluid overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+          [value]="members()"
+          styleClass="enter-fluid overflow-hidden rounded-2xl border border-ink-200/70 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:shadow-none"
         >
-          @for (member of members(); track member.membershipId) {
-            <li
-              class="flex items-center justify-between border-b border-ink-100 px-4 py-3 transition-colors duration-fast ease-fluid last:border-b-0 hover:bg-ink-50 dark:border-ink-800 dark:hover:bg-ink-800/50"
-            >
-              <span
-                [attr.data-testid]="'select-member-' + member.membershipId"
-                (click)="selectedMembershipId.set(member.membershipId)"
-                class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
-              >
-                {{ member.email }}
-              </span>
-              <button
-                [attr.data-testid]="'remove-member-' + member.membershipId"
-                (click)="onRemoveMember(member.membershipId)"
-                class="text-sm text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-              >
-                {{ 'members.remove' | transloco }}
-              </button>
-            </li>
-          }
-        </ul>
+          <ng-template #body let-member>
+            <tr>
+              <td>
+                <span
+                  [attr.data-testid]="'select-member-' + member.membershipId"
+                  (click)="selectedMembershipId.set(member.membershipId)"
+                  class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
+                >
+                  {{ member.email }}
+                </span>
+              </td>
+              <td class="text-right">
+                <button
+                  [attr.data-testid]="'remove-member-' + member.membershipId"
+                  (click)="onRemoveMember(member.membershipId)"
+                  pButton
+                  text
+                  severity="danger"
+                >
+                  {{ 'members.remove' | transloco }}
+                </button>
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
 
         @if (selectedMembershipId(); as membershipId) {
           <div class="mt-6">
