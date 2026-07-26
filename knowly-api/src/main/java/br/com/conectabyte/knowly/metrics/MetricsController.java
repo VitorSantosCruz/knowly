@@ -3,6 +3,10 @@ package br.com.conectabyte.knowly.metrics;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.audit.RequiresPermission;
 import br.com.conectabyte.knowly.tenancy.Permission;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -74,5 +78,22 @@ public class MetricsController {
     @AuditLog(action = "metrics.members.view", resourceType = "Metrics")
     public MembersMetricDto membersMetric() {
         return metricsService.membersMetric();
+    }
+
+    @GetMapping("/export")
+    @RequiresPermission(Permission.DASHBOARD_VIEW)
+    @AuditLog(action = "metrics.export.view", resourceType = "Metrics")
+    public ResponseEntity<byte[]> export(@RequestParam(required = false) String period) {
+        byte[] csv = metricsService.exportCsv(MetricsPeriod.from(period));
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename("dashboard-metrics.csv")
+                                .build()
+                                .toString())
+                .body(csv);
     }
 }

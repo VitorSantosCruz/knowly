@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.conversation.MessageRole;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -202,6 +203,52 @@ public class MetricsService {
         long inactiveCount = tenantMembershipRepository.countByTenantIdAndActive(tenantId, false);
 
         return new MembersMetricDto(activeCount, inactiveCount);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportCsv(MetricsPeriod period) {
+        requireActiveTenant();
+        ArticleCountDto articleCount = articleCount();
+        ConversationsMetricDto conversations = conversationsMetric(period);
+        MessagesMetricDto messages = messagesMetric(period);
+        MembersMetricDto members = membersMetric();
+        ArticlesTimeseriesDto articlesTs = articlesTimeseries(period);
+        ConversationsTimeseriesDto conversationsTs = conversationsTimeseries(period);
+        MessagesTimeseriesDto messagesTs = messagesTimeseries(period);
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("metric,value\n");
+        csv.append("active_article_count,").append(articleCount.totalCount()).append('\n');
+        csv.append("conversation_count,").append(conversations.startedCount()).append('\n');
+        csv.append("user_message_count,").append(messages.sentCount()).append('\n');
+        csv.append("assistant_message_count,").append(messages.receivedCount()).append('\n');
+        csv.append("member_active_count,").append(members.activeCount()).append('\n');
+        csv.append("member_inactive_count,").append(members.inactiveCount()).append('\n');
+        csv.append('\n');
+
+        csv.append("date,article_count\n");
+        for (DailyCountDto day : articlesTs.days()) {
+            csv.append(day.date()).append(',').append(day.count()).append('\n');
+        }
+        csv.append('\n');
+
+        csv.append("date,conversation_count\n");
+        for (DailyCountDto day : conversationsTs.days()) {
+            csv.append(day.date()).append(',').append(day.count()).append('\n');
+        }
+        csv.append('\n');
+
+        csv.append("date,user_message_count,assistant_message_count\n");
+        for (DailyRoleCountDto day : messagesTs.days()) {
+            csv.append(day.date())
+                    .append(',')
+                    .append(day.userCount())
+                    .append(',')
+                    .append(day.assistantCount())
+                    .append('\n');
+        }
+
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private Long requireActiveTenant() {

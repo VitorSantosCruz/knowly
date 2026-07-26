@@ -157,6 +157,8 @@ class MetricsControllerIntegrationTest {
                 .hasStatus(HttpStatus.FORBIDDEN);
         assertThat(mockMvc.get().uri("/api/tenants/metrics/members").cookie(session).exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(mockMvc.get().uri("/api/tenants/metrics/export").cookie(session).exchange())
+                .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -547,6 +549,73 @@ class MetricsControllerIntegrationTest {
         var response =
                 mockMvc.get()
                         .uri("/api/tenants/metrics/messages?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    @Test
+    void exportReturnsACsvFileWithAggregatesAndPerDayRowsExcludingRawContentAndOtherTenants()
+            throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        User owner =
+                memberWithPermissions("exporter@example.com", tenantA, Permission.DASHBOARD_VIEW);
+        anArticle(tenantA, "Exported Article Title");
+        Article otherTenantArticle = anArticle(tenantB, "Secret Other Tenant Article");
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenantA, owner));
+        messageRepository.saveAndFlush(
+                new Message(conversation, MessageRole.USER, "super secret user content"));
+        messageRepository.saveAndFlush(
+                new Message(conversation, MessageRole.ASSISTANT, "super secret assistant reply"));
+        User inactiveUser = userRepository.saveAndFlush(new User("inactiveexport@example.com"));
+        TenantMembership inactiveMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(inactiveUser, tenantA, MembershipRole.MEMBER));
+        inactiveMembership.setActive(false);
+        tenantMembershipRepository.saveAndFlush(inactiveMembership);
+        Cookie session = logIn("exporter@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/export?period=all")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentType()).startsWith("text/csv");
+        assertThat(response.getResponse().getHeader("Content-Disposition")).contains("attachment");
+        String body = response.getResponse().getContentAsString();
+        assertThat(body)
+                .contains("active_article_count,1")
+                .contains("conversation_count,1")
+                .contains("user_message_count,1")
+                .contains("assistant_message_count,1")
+                .contains("member_active_count,1")
+                .contains("member_inactive_count,1")
+                .contains("date,article_count")
+                .contains("date,conversation_count")
+                .contains("date,user_message_count,assistant_message_count");
+        assertThat(body)
+                .doesNotContain("super secret user content")
+                .doesNotContain("super secret assistant reply")
+                .doesNotContain("Exported Article Title")
+                .doesNotContain("Secret Other Tenant Article");
+        assertThat(otherTenantArticle.getTitle()).isEqualTo("Secret Other Tenant Article");
+    }
+
+    @Test
+    void exportRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("exportbadperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("exportbadperiod@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/export?period=bogus")
                         .cookie(session)
                         .exchange();
 
