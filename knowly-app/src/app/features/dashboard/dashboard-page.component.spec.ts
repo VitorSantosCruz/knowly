@@ -33,11 +33,30 @@ describe('DashboardPageComponent', () => {
   });
 
   function flushMetricRequests() {
-    httpMock.expectOne('/api/tenants/metrics/articles').flush({ totalCount: 0 });
     httpMock.expectOne('/api/tenants/metrics/articles/usage').flush({ articles: [] });
-    httpMock.expectOne('/api/tenants/metrics/conversations').flush({ startedCount: 0 });
-    httpMock.expectOne('/api/tenants/metrics/messages').flush({ sentCount: 0, receivedCount: 0 });
-    httpMock.expectOne('/api/tenants/metrics/members').flush({ activeCount: 0, inactiveCount: 0 });
+    httpMock
+      .expectOne((r) => r.url === '/api/tenants/metrics/members' && !r.params.has('period'))
+      .flush({ activeCount: 0, inactiveCount: 0 });
+    httpMock
+      .expectOne(
+        (r) => r.url === '/api/tenants/metrics/members' && r.params.get('period') === '30d',
+      )
+      .flush({ activeCount: 0, inactiveCount: 0 });
+    httpMock
+      .expectOne((r) => r.url === '/api/tenants/metrics/articles/timeseries')
+      .flush({ days: [] });
+
+    const conversationsTimeseriesRequests = httpMock.match(
+      (r) => r.url === '/api/tenants/metrics/conversations/timeseries',
+    );
+    expect(conversationsTimeseriesRequests.length).toBe(2);
+    conversationsTimeseriesRequests.forEach((req) => req.flush({ days: [] }));
+
+    const messagesTimeseriesRequests = httpMock.match(
+      (r) => r.url === '/api/tenants/metrics/messages/timeseries',
+    );
+    expect(messagesTimeseriesRequests.length).toBe(3);
+    messagesTimeseriesRequests.forEach((req) => req.flush({ days: [] }));
   }
 
   it('renders the dashboard root', () => {
@@ -54,14 +73,22 @@ describe('DashboardPageComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="articles-link"]')).toBeTruthy();
   });
 
-  it('composes all four metric widgets', () => {
+  it('composes every dashboard widget', () => {
     fixture.detectChanges();
     flushMetricRequests();
 
-    expect(fixture.nativeElement.querySelector('[data-testid="article-count-card"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="article-count-tile"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="conversations-tile"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="user-messages-tile"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="assistant-messages-tile"]'),
+    ).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="active-members-tile"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="message-split-chart"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="conversations-activity-chart"]'),
+    ).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="top-articles-table"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="conversations-card"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="messages-card"]')).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="members-breakdown-card"]'),
     ).toBeTruthy();

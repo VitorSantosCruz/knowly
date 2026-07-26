@@ -1,26 +1,39 @@
 import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { ArticleCountCardComponent } from './article-count-card.component';
-import { ConversationsCardComponent } from './conversations-card.component';
+import { ConversationsActivityChartComponent } from './conversations-activity-chart.component';
 import { ExportButtonComponent } from './export-button.component';
 import { MembersBreakdownCardComponent } from './members-breakdown-card.component';
-import { MessagesCardComponent } from './messages-card.component';
+import { MessageSplitChartComponent } from './message-split-chart.component';
+import { MetricTileComponent, SparklineDay } from './metric-tile.component';
 import { Period, PeriodFilterComponent } from './period-filter.component';
 import { TopArticlesTableComponent } from './top-articles-table.component';
+
+interface DailyCountResponse {
+  days: { date: string; count: number }[];
+}
+
+interface DailyRoleCountResponse {
+  days: { date: string; userCount: number; assistantCount: number }[];
+}
+
+interface MembersResponse {
+  activeCount: number;
+  inactiveCount: number;
+}
 
 @Component({
   selector: 'app-dashboard-page',
   imports: [
     TranslocoPipe,
     RouterLink,
-    ArticleCountCardComponent,
+    MetricTileComponent,
     TopArticlesTableComponent,
-    ConversationsCardComponent,
-    MessagesCardComponent,
     MembersBreakdownCardComponent,
     PeriodFilterComponent,
     ExportButtonComponent,
+    MessageSplitChartComponent,
+    ConversationsActivityChartComponent,
   ],
   template: `
     <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
@@ -28,10 +41,52 @@ import { TopArticlesTableComponent } from './top-articles-table.component';
         <app-period-filter [(period)]="period" />
         <app-export-button [period]="period()" />
       </div>
-      <app-article-count-card />
+
+      <app-metric-tile
+        testId="article-count-tile"
+        [period]="period()"
+        url="/api/tenants/metrics/articles/timeseries"
+        label="{{ 'dashboard.tiles.articles' | transloco }}"
+        [valueSelector]="dailyCountValueSelector"
+        [sparklineSelector]="dailyCountSparklineSelector"
+      />
+      <app-metric-tile
+        testId="conversations-tile"
+        [period]="period()"
+        url="/api/tenants/metrics/conversations/timeseries"
+        label="{{ 'dashboard.tiles.conversations' | transloco }}"
+        [valueSelector]="dailyCountValueSelector"
+        [sparklineSelector]="dailyCountSparklineSelector"
+      />
+      <app-metric-tile
+        testId="user-messages-tile"
+        [period]="period()"
+        url="/api/tenants/metrics/messages/timeseries"
+        label="{{ 'dashboard.tiles.userMessages' | transloco }}"
+        [valueSelector]="userMessagesValueSelector"
+        [sparklineSelector]="userMessagesSparklineSelector"
+      />
+      <app-metric-tile
+        testId="assistant-messages-tile"
+        [period]="period()"
+        url="/api/tenants/metrics/messages/timeseries"
+        label="{{ 'dashboard.tiles.assistantMessages' | transloco }}"
+        [valueSelector]="assistantMessagesValueSelector"
+        [sparklineSelector]="assistantMessagesSparklineSelector"
+      />
+      <app-metric-tile
+        testId="active-members-tile"
+        [period]="period()"
+        url="/api/tenants/metrics/members"
+        label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
+        [valueSelector]="activeMembersValueSelector"
+        [sparklineSelector]="activeMembersSparklineSelector"
+      />
+
+      <app-message-split-chart [period]="period()" />
+      <app-conversations-activity-chart [period]="period()" />
+
       <app-top-articles-table />
-      <app-conversations-card />
-      <app-messages-card />
       <app-members-breakdown-card />
       <a
         data-testid="articles-link"
@@ -45,4 +100,32 @@ import { TopArticlesTableComponent } from './top-articles-table.component';
 })
 export class DashboardPageComponent {
   protected readonly period = signal<Period>('30d');
+
+  protected readonly dailyCountValueSelector = (data: unknown) =>
+    (data as DailyCountResponse).days.reduce((sum, day) => sum + day.count, 0);
+
+  protected readonly dailyCountSparklineSelector = (data: unknown): SparklineDay[] =>
+    (data as DailyCountResponse).days;
+
+  protected readonly userMessagesValueSelector = (data: unknown) =>
+    (data as DailyRoleCountResponse).days.reduce((sum, day) => sum + day.userCount, 0);
+
+  protected readonly userMessagesSparklineSelector = (data: unknown): SparklineDay[] =>
+    (data as DailyRoleCountResponse).days.map((day) => ({ date: day.date, count: day.userCount }));
+
+  protected readonly assistantMessagesValueSelector = (data: unknown) =>
+    (data as DailyRoleCountResponse).days.reduce((sum, day) => sum + day.assistantCount, 0);
+
+  protected readonly assistantMessagesSparklineSelector = (data: unknown): SparklineDay[] =>
+    (data as DailyRoleCountResponse).days.map((day) => ({
+      date: day.date,
+      count: day.assistantCount,
+    }));
+
+  protected readonly activeMembersValueSelector = (data: unknown) =>
+    (data as MembersResponse).activeCount;
+
+  protected readonly activeMembersSparklineSelector = (data: unknown): SparklineDay[] => [
+    { date: '', count: (data as MembersResponse).activeCount },
+  ];
 }
