@@ -1,28 +1,39 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { Menu } from 'primeng/menu';
-import { MenuItem } from 'primeng/api';
+import {
+  LucideArrowRightLeft,
+  LucideBookOpen,
+  LucideLayoutGrid,
+  LucideMessagesSquare,
+  LucidePlus,
+  LucideUsers,
+} from '@lucide/angular';
 import { PermissionsService } from '../core/permissions.service';
 import { GlobalPermissionsService } from '../core/global-permissions.service';
 import { ActiveTenantService, TenantMembership } from '../core/active-tenant.service';
 import { AuthService } from '../core/auth.service';
 import { BrandWordmarkComponent } from '../shared/brand-wordmark.component';
 
+type NavIconName = 'layout-grid' | 'book-open' | 'messages-square' | 'users' | 'plus' | 'swap';
+
 /**
- * A `MenuItem` extended with the fields this sidebar's custom `#item`/
- * `#submenuheader` templates need: `testId`/`tourId` to keep every existing
- * `data-testid`/`data-tour-id` (load-bearing for tests and the onboarding
- * tour) and `labelKey`/`categoryKey` for Transloco translation at render
- * time rather than baking a fixed-locale string into the model.
+ * A nav item carrying the fields this sidebar's template needs:
+ * `testId`/`tourId` to keep every existing `data-testid`/`data-tour-id`
+ * (load-bearing for tests and the onboarding tour) and `labelKey`/
+ * `categoryKey` for Transloco translation at render time rather than
+ * baking a fixed-locale string into the model. Replaces the previous
+ * `primeng/api` `MenuItem` extension now that `p-menu` is gone.
  */
-interface NavMenuItem extends MenuItem {
-  labelKey?: string;
+interface NavMenuItem {
+  labelKey: string;
   testId?: string;
   tourId?: string;
+  icon: NavIconName;
+  routerLink: string;
 }
 
-interface NavMenuGroup extends MenuItem {
+interface NavMenuGroup {
   categoryKey: string;
   items: NavMenuItem[];
 }
@@ -32,7 +43,18 @@ const CATEGORY_LABEL_CLASS =
 
 @Component({
   selector: 'app-nav-menu',
-  imports: [RouterLink, RouterLinkActive, TranslocoPipe, BrandWordmarkComponent, Menu],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    TranslocoPipe,
+    BrandWordmarkComponent,
+    LucideLayoutGrid,
+    LucideBookOpen,
+    LucideMessagesSquare,
+    LucideUsers,
+    LucidePlus,
+    LucideArrowRightLeft,
+  ],
   template: `
     @if (authService.isLoggedIn()) {
       <nav data-testid="nav-menu" class="flex h-full flex-col">
@@ -42,53 +64,87 @@ const CATEGORY_LABEL_CLASS =
 
         <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
           @for (group of overviewGroups(); track group.categoryKey) {
-            <p-menu
-              [model]="[group]"
-              [popup]="false"
-              styleClass="w-full border-0 bg-transparent p-0"
-            >
-              <ng-template #submenuheader let-item>
-                <span [class]="categoryLabelClass">{{ item.categoryKey | transloco }}</span>
-              </ng-template>
-              <ng-template #item let-item>
-                <a
-                  [attr.data-testid]="item.testId"
-                  [attr.data-tour-id]="item.tourId"
-                  [routerLink]="item.routerLink"
-                  routerLinkActive="active-nav-link"
-                  [class]="linkClass"
-                >
-                  <i [class]="item.icon + ' ' + iconClass" aria-hidden="true"></i>
-                  {{ item.labelKey | transloco }}
-                </a>
-              </ng-template>
-            </p-menu>
+            <ul class="w-full border-0 bg-transparent p-0">
+              <li>
+                <span [class]="categoryLabelClass">{{ group.categoryKey | transloco }}</span>
+              </li>
+              @for (item of group.items; track item.testId) {
+                <li>
+                  <a
+                    [attr.data-testid]="item.testId"
+                    [attr.data-tour-id]="item.tourId"
+                    [routerLink]="item.routerLink"
+                    routerLinkActive="active-nav-link"
+                    [class]="linkClass"
+                  >
+                    @switch (item.icon) {
+                      @case ('layout-grid') {
+                        <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('book-open') {
+                        <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('messages-square') {
+                        <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('users') {
+                        <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('plus') {
+                        <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('swap') {
+                        <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                    }
+                    {{ item.labelKey | transloco }}
+                  </a>
+                </li>
+              }
+            </ul>
           }
         </div>
 
         @if (workspaceGroup(); as group) {
           <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
-            <p-menu
-              [model]="[group]"
-              [popup]="false"
-              styleClass="w-full border-0 bg-transparent p-0"
-            >
-              <ng-template #submenuheader let-item>
-                <span [class]="categoryLabelClass">{{ item.categoryKey | transloco }}</span>
-              </ng-template>
-              <ng-template #item let-item>
-                <a
-                  [attr.data-testid]="item.testId"
-                  [attr.data-tour-id]="item.tourId"
-                  [routerLink]="item.routerLink"
-                  routerLinkActive="active-nav-link"
-                  [class]="linkClass"
-                >
-                  <i [class]="item.icon + ' ' + iconClass" aria-hidden="true"></i>
-                  {{ item.labelKey | transloco }}
-                </a>
-              </ng-template>
-            </p-menu>
+            <ul class="w-full border-0 bg-transparent p-0">
+              <li>
+                <span [class]="categoryLabelClass">{{ group.categoryKey | transloco }}</span>
+              </li>
+              @for (item of group.items; track item.testId) {
+                <li>
+                  <a
+                    [attr.data-testid]="item.testId"
+                    [attr.data-tour-id]="item.tourId"
+                    [routerLink]="item.routerLink"
+                    routerLinkActive="active-nav-link"
+                    [class]="linkClass"
+                  >
+                    @switch (item.icon) {
+                      @case ('layout-grid') {
+                        <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('book-open') {
+                        <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('messages-square') {
+                        <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('users') {
+                        <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('plus') {
+                        <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('swap') {
+                        <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                    }
+                    {{ item.labelKey | transloco }}
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         }
       </nav>
@@ -122,7 +178,7 @@ export class NavMenuComponent implements OnInit {
           {
             labelKey: 'nav.dashboard',
             testId: 'nav-dashboard',
-            icon: 'pi pi-th-large',
+            icon: 'layout-grid',
             routerLink: '/dashboard',
           },
         ],
@@ -135,7 +191,7 @@ export class NavMenuComponent implements OnInit {
         labelKey: 'nav.articles',
         testId: 'nav-articles',
         tourId: 'articles-nav-link',
-        icon: 'pi pi-book',
+        icon: 'book-open',
         routerLink: '/articles',
       });
     }
@@ -143,7 +199,7 @@ export class NavMenuComponent implements OnInit {
       knowledgeItems.push({
         labelKey: 'nav.conversations',
         testId: 'nav-conversations',
-        icon: 'pi pi-comments',
+        icon: 'messages-square',
         routerLink: '/conversations',
       });
     }
@@ -159,7 +215,7 @@ export class NavMenuComponent implements OnInit {
             labelKey: 'nav.members',
             testId: 'nav-members',
             tourId: 'user-management-nav-link',
-            icon: 'pi pi-users',
+            icon: 'users',
             routerLink: '/members',
           },
         ],
@@ -176,7 +232,7 @@ export class NavMenuComponent implements OnInit {
       items.push({
         labelKey: 'nav.createTenant',
         testId: 'nav-create-tenant',
-        icon: 'pi pi-plus',
+        icon: 'plus',
         routerLink: '/tenants/new',
       });
     }
@@ -184,7 +240,7 @@ export class NavMenuComponent implements OnInit {
       items.push({
         labelKey: 'nav.switchTenant',
         testId: 'nav-switch-tenant',
-        icon: 'pi pi-arrow-right-arrow-left',
+        icon: 'swap',
         routerLink: '/select-tenant',
       });
     }
