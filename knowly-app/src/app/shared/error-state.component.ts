@@ -1,17 +1,14 @@
 import { Component, input } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { Message } from 'primeng/message';
 
 @Component({
   selector: 'app-error-state',
-  imports: [TranslocoPipe],
+  imports: [TranslocoPipe, Message],
   template: `
-    <p
-      data-testid="error-state"
-      role="alert"
-      class="enter-fluid rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
-    >
+    <p-message data-testid="error-state" role="alert" severity="error" class="enter-fluid block">
       {{ 'dashboard.error' | transloco: { traceId: traceId() } }}
-    </p>
+    </p-message>
   `,
 })
 export class ErrorStateComponent {
