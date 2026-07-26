@@ -185,6 +185,13 @@ and is not addressed by this feature.
   here.
 - Cross-tenant or global (all-tenants) aggregation of any metric, for
   staff or otherwise — remains explicitly excluded per `VISION.md`.
+  **Clarified 2026-07-26**: that exclusion is about a customer-facing
+  benchmarking product ("how does our usage compare to similar
+  companies") — see `VISION.md`'s "What's deliberately not decided yet."
+  It does not cover a staff-only internal operations view (total
+  tenants, growth, overall usage, staff headcount), which is a distinct
+  capability, never exposed to any tenant, gated by its own
+  `GlobalPermission` — see `global-staff-dashboard-metrics`.
 - Any change to how `TenantMembership.active` is set/unset (this feature
   only reads that field, it does not add new ways to change it).
 - Raw/row-level export (individual messages, conversations, or article
