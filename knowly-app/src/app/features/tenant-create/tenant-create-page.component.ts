@@ -2,15 +2,16 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
-import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
+import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INPUT_CLASS =
+  'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white';
 
 @Component({
   selector: 'app-tenant-create-page',
-  imports: [TranslocoPipe, ButtonDirective, InputText],
+  imports: [TranslocoPipe],
   template: `
     <div
       data-testid="tenant-create-page"
@@ -37,10 +38,9 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             <input
               data-testid="tenant-create-name"
               type="text"
-              pInputText
               [value]="name()"
               (input)="name.set($any($event.target).value)"
-              class="w-full"
+              [class]="inputClass"
             />
           </label>
 
@@ -51,10 +51,9 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             <input
               data-testid="tenant-create-admin-email"
               type="email"
-              pInputText
               [value]="adminEmail()"
               (input)="adminEmail.set($any($event.target).value)"
-              class="w-full"
+              [class]="inputClass"
             />
           </label>
 
@@ -67,7 +66,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             </p>
           }
 
-          <button type="submit" pButton [disabled]="submitting()">
+          <button type="submit" [class]="submitButtonClass" [disabled]="submitting()">
             {{ 'tenantCreate.submit' | transloco }}
           </button>
         </form>
@@ -79,6 +78,8 @@ export class TenantCreatePageComponent {
   private readonly activeTenantService = inject(ActiveTenantService);
   private readonly router = inject(Router);
 
+  protected readonly inputClass = INPUT_CLASS;
+  protected readonly submitButtonClass = buttonClass('primary');
   protected readonly name = signal('');
   protected readonly adminEmail = signal('');
   protected readonly submitting = signal(false);
