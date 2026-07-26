@@ -41,7 +41,16 @@ security), including this subproject's own section.
 ## Conventions already established in this subproject
 
 - Angular standalone + strict TypeScript, no `any`.
-- Tailwind CSS for styling.
+- **PrimeNG is the component library for interactive UI** (buttons,
+  menus, cards, forms, tables) — new UI needs a PrimeNG component
+  checked first before hand-rolling one; PrimeIcons (`pi pi-*`) for
+  iconography instead of inline SVGs. Theme preset (mapping the "Ink and
+  Signal" brand onto PrimeNG's design tokens) lives at
+  `src/app/core/prime-theme.ts`; wired via `providePrimeNG()` in
+  `app.config.ts`. See `specify/features/primeng-migration/PLAN.md` for
+  the full rationale and migration order, and `../DECISIONS.md`.
+- Tailwind CSS remains for page layout, spacing, and utility classes —
+  not a component-styling replacement now that PrimeNG covers that.
 - Vitest for tests (`npm test`).
 - Prettier for formatting (`.prettierrc`) — always run the formatter
   instead of adjusting spacing by hand.

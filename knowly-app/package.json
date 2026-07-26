@@ -14,6 +14,7 @@
   "private": true,
   "packageManager": "npm@11.12.1",
   "dependencies": {
+    "@angular/cdk": "^22.0.6",
     "@angular/common": "^22.0.6",
     "@angular/compiler": "^22.0.6",
     "@angular/core": "^22.0.6",
@@ -21,6 +22,9 @@
     "@angular/platform-browser": "^22.0.6",
     "@angular/router": "^22.0.6",
     "@jsverse/transloco": "^8.4.0",
+    "@primeuix/themes": "^3.0.0",
+    "primeicons": "^8.0.0",
+    "primeng": "^22.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

@@ -1,18 +1,23 @@
 import { Component, inject } from '@angular/core';
+import { ButtonDirective } from 'primeng/button';
 import { ThemeService } from '../core/theme.service';
 
 @Component({
   selector: 'app-theme-toggle',
+  imports: [ButtonDirective],
   template: `
     <button
       type="button"
+      pButton
+      text
+      rounded
+      severity="secondary"
       (click)="themeService.toggle()"
       [attr.aria-label]="
         themeService.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
       "
-      class="rounded-lg px-3 py-1.5 text-sm text-ink-300 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white active:translate-y-0 active:scale-[0.98]"
     >
-      {{ themeService.theme() === 'dark' ? '☀️' : '🌙' }}
+      <i [class]="themeService.theme() === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
     </button>
   `,
 })

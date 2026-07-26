@@ -258,6 +258,40 @@ serving an actual feature request) should be pinned/mocked instead —
 startup should never depend on a third-party API being reachable and
 happy.
 
+### Frontend adopts PrimeNG as its component library (2026-07-25)
+
+The app owner decided, explicitly and after multiple rounds of
+hand-rolled Tailwind components (buttons, menus, cards, forms) looking
+inconsistent/amateurish, to fully migrate `knowly-app/`'s interactive UI
+to **PrimeNG** (+ **PrimeIcons**) — a real component library, replacing
+hand-built components entirely, not partial adoption. This is a Tier 3
+decision (new external dependency) — the entry below records the
+decision as already made by the owner, not one an AI assistant decided
+on its own. **Why:** consistency and polish are the actual product
+problem being solved; a component library removes the need to
+reinvent button/menu/card/form/table behavior and accessibility from
+scratch every time a new screen is built. Package versions: `primeng@22.0.0`,
+`@primeuix/themes@3.0.0` (the theming package — note `@primeng/themes`,
+the more commonly documented name, is still pinned at `21.0.4` and is
+*not* compatible with `primeng@22`'s peer deps; `@primeuix/themes` is
+the correct package for this Angular major), `primeicons@8.0.0`,
+`@angular/cdk@22.0.0` (required peer). The existing "Ink and Signal"
+brand (`ink-*`/`signal-*` Tailwind tokens in `styles.css`) is preserved
+by mapping it into a custom PrimeNG preset (`definePreset`) rather than
+accepting PrimeNG's default palette — see
+`knowly-app/specify/features/primeng-migration/PLAN.md` for the full
+integration approach, token mapping, and screen-by-screen migration
+order. **Applies to new decisions:** any new interactive UI in
+`knowly-app/` checks PrimeNG's component list first — don't hand-roll a
+new button/menu/card/form/table component without first confirming
+PrimeNG has no suitable one. Tailwind CSS is not being replaced — it
+remains the layout/spacing/utility-class tool; PrimeNG is additive for
+components, not a full CSS-framework swap. A feature SPEC that assumed
+a since-superseded charting library (`dashboard-analytics`'s not-yet-
+approved SPEC assumed ngx-charts) should be revised to use PrimeNG's own
+`Chart`/`Table` components instead, rather than adding a second charting
+dependency — that revision is the PO's call, not silently made here.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
