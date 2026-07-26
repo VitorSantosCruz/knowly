@@ -1,10 +1,7 @@
 import { Component, OnDestroy, OnInit, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { EMPTY, catchError, of } from 'rxjs';
-import { ButtonDirective } from 'primeng/button';
-import { Card } from 'primeng/card';
-import { InputText } from 'primeng/inputtext';
-import { Textarea } from 'primeng/textarea';
+import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ArticleDetail, ArticleService, ArticleSummary } from '../../core/article.service';
 import { PermissionsService } from '../../core/permissions.service';
@@ -17,15 +14,7 @@ const POLL_INTERVAL_MS = 4000;
 
 @Component({
   selector: 'app-articles-page',
-  imports: [
-    TranslocoPipe,
-    ErrorStateComponent,
-    NoAccessStateComponent,
-    ButtonDirective,
-    Card,
-    InputText,
-    Textarea,
-  ],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
   template: `
     <div data-testid="articles-page" class="page-shell flex gap-6">
       @if (loading()) {
@@ -37,7 +26,10 @@ const POLL_INTERVAL_MS = 4000;
       } @else {
         <aside class="w-80 shrink-0">
           @if (permissionsService.has('ARTICLE_CREATE')) {
-            <p-card styleClass="enter-fluid mb-4" data-testid="upload-form-card">
+            <div
+              data-testid="upload-form-card"
+              class="enter-fluid mb-4 rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+            >
               <form
                 data-testid="upload-form"
                 class="flex flex-col gap-3"
@@ -46,11 +38,10 @@ const POLL_INTERVAL_MS = 4000;
                 <input
                   data-testid="upload-title"
                   type="text"
-                  pInputText
                   placeholder="{{ 'articles.titlePlaceholder' | transloco }}"
                   [value]="uploadTitle()"
                   (input)="uploadTitle.set($any($event.target).value)"
-                  class="w-full"
+                  [class]="inputClass"
                 />
                 <label
                   class="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-dashed border-ink-300 px-3 py-2 text-sm text-ink-500 transition-colors duration-fast ease-fluid hover:border-signal-400 hover:text-signal-600 dark:border-ink-700 dark:text-ink-400 dark:hover:border-signal-500 dark:hover:text-signal-400"
@@ -65,7 +56,7 @@ const POLL_INTERVAL_MS = 4000;
                     class="hidden"
                   />
                 </label>
-                <button type="submit" pButton class="w-fit">
+                <button type="submit" [class]="uploadButtonClass">
                   {{ 'articles.upload' | transloco }}
                 </button>
                 @if (uploadError(); as uploadErrorMessage) {
@@ -74,7 +65,7 @@ const POLL_INTERVAL_MS = 4000;
                   </p>
                 }
               </form>
-            </p-card>
+            </div>
           }
 
           <ul data-testid="article-list" class="flex flex-col gap-2">
@@ -139,10 +130,7 @@ const POLL_INTERVAL_MS = 4000;
                   <button
                     [attr.data-testid]="'delete-article-' + article.id"
                     (click)="onDelete(article.id)"
-                    pButton
-                    text
-                    severity="danger"
-                    class="shrink-0"
+                    [class]="deleteButtonClass"
                   >
                     {{ 'articles.delete' | transloco }}
                   </button>
@@ -154,7 +142,9 @@ const POLL_INTERVAL_MS = 4000;
 
         <section class="flex-1">
           @if (selectedDetail(); as detail) {
-            <p-card styleClass="enter-fluid">
+            <div
+              class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+            >
               <h2 class="font-display mb-2 text-lg font-semibold text-ink-900 dark:text-white">
                 {{ detail.title }}
               </h2>
@@ -180,25 +170,23 @@ const POLL_INTERVAL_MS = 4000;
                   <input
                     data-testid="edit-title"
                     type="text"
-                    pInputText
                     [value]="editTitle()"
                     (input)="editTitle.set($any($event.target).value)"
-                    class="w-full"
+                    [class]="inputClass"
                   />
                   <textarea
                     data-testid="edit-text"
-                    pTextarea
                     [value]="editText()"
                     (input)="editText.set($any($event.target).value)"
                     rows="8"
-                    class="w-full"
+                    [class]="inputClass"
                   ></textarea>
-                  <button type="submit" pButton class="w-fit">
+                  <button type="submit" [class]="uploadButtonClass">
                     {{ 'articles.save' | transloco }}
                   </button>
                 </form>
               }
-            </p-card>
+            </div>
           }
         </section>
       }
@@ -219,6 +207,11 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
   protected readonly loading = signal(true);
   protected readonly error = signal<ArticlesError>(null);
   protected readonly selectedFileName = signal<string | null>(null);
+
+  protected readonly inputClass =
+    'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white';
+  protected readonly uploadButtonClass = buttonClass('primary') + ' w-fit';
+  protected readonly deleteButtonClass = buttonClass('danger', { ghost: true }) + ' shrink-0';
 
   private selectedFile: File | null = null;
   private hasLoaded = false;
