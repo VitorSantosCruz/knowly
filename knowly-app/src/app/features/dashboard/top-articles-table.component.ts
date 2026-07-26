@@ -1,8 +1,6 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { InputText } from 'primeng/inputtext';
-import { Table } from 'primeng/table';
 import { createMetricFetcher } from '../../core/metric-fetcher';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
@@ -19,7 +17,7 @@ interface ArticleUsageResponse {
 
 @Component({
   selector: 'app-top-articles-table',
-  imports: [ErrorStateComponent, NoAccessStateComponent, Table, InputText, TranslocoPipe],
+  imports: [ErrorStateComponent, NoAccessStateComponent, TranslocoPipe],
   template: `
     <div
       data-testid="top-articles-table"
@@ -35,19 +33,21 @@ interface ArticleUsageResponse {
         <input
           data-testid="article-search"
           type="text"
-          pInputText
-          class="mb-3 w-full"
+          class="mb-3 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
           [placeholder]="'dashboard.searchArticles' | transloco"
-          (input)="dt.filterGlobal($any($event.target).value, 'contains')"
+          [value]="searchTerm()"
+          (input)="searchTerm.set($any($event.target).value)"
         />
-        <p-table #dt [value]="data.articles" [globalFilterFields]="['title']">
-          <ng-template #body let-article>
-            <tr data-testid="article-row">
-              <td>{{ article.title }}</td>
-              <td class="text-right">{{ article.useCount }}</td>
-            </tr>
-          </ng-template>
-        </p-table>
+        <table class="w-full">
+          <tbody>
+            @for (article of filteredArticles(); track article.id) {
+              <tr data-testid="article-row">
+                <td>{{ article.title }}</td>
+                <td class="text-right">{{ article.useCount }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
       }
     </div>
   `,
@@ -55,12 +55,20 @@ interface ArticleUsageResponse {
 export class TopArticlesTableComponent implements OnInit {
   private readonly http = inject(HttpClient);
 
-  @ViewChild('dt') protected dt!: Table;
+  protected readonly searchTerm = signal('');
 
   protected readonly fetcher = createMetricFetcher<ArticleUsageResponse>(
     this.http,
     '/api/tenants/metrics/articles/usage',
   );
+
+  protected readonly filteredArticles = computed<ArticleUsage[]>(() => {
+    const term = this.searchTerm().trim().toLowerCase();
+    const articles = this.fetcher.data()?.articles ?? [];
+    return term
+      ? articles.filter((article) => article.title.toLowerCase().includes(term))
+      : articles;
+  });
 
   ngOnInit(): void {
     this.fetcher.load();
