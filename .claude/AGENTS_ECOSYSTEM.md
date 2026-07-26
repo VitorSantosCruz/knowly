@@ -116,6 +116,40 @@ monorepo root.
   their `description` matching the task at hand — see each
   `SKILL.md`'s frontmatter.
 
+## Orchestrator ("Delivery Lead" role)
+
+There's no separate invokable subagent for this — it's the main Claude
+Code session itself, acting as the one thread that stays with the user
+across an entire SDD cycle and drives the flow above one phase at a time
+(PO → Architect/DBA → AppSec → TASKS → Engineer(s) → QA → AppSec → DevOps).
+Concretely, this means:
+
+- **Default mode: sequential handoff, not a group chat.** Call one
+  specialist agent per phase, read its output, decide the next step, call
+  the next specialist. This is by far the common case — most decisions
+  (a PLAN's technical shape, a TASKS breakdown, an implementation
+  approach) belong to exactly one role and don't need anyone else's input.
+- **Only convene a multi-agent "roundtable"** (several specialists
+  invoked to weigh in on the *same* open question, in parallel) **when a
+  decision is genuinely mutual** — it doesn't cleanly belong to one role,
+  or two roles' constraints conflict (e.g. AppSec wants a stricter
+  control that Architect says breaks an existing contract; PO's priority
+  call depends on both feasibility and security cost). This spends
+  meaningfully more tokens than a sequential handoff, so don't reach for
+  it out of caution — reach for it only when a single agent's answer
+  would just be a guess about another role's constraints.
+- **Tell each agent its own lane when convening a roundtable.** State
+  plainly in each prompt which role it's playing and what it should (and
+  should not) decide — e.g. "you are Architect here: judge feasibility
+  and technical tradeoffs, not business priority; PO is deciding
+  priority separately." Without this, agents drift into re-deciding
+  things outside their scope and the roundtable's answers stop being
+  usable as independent input.
+- **Tier 3 items from `DECISIONS.md` still always stop and ask the
+  human** — no roundtable, however convened, substitutes for that. A
+  roundtable resolves disagreement *between agents*; it never grants
+  itself authority the process reserves for the human.
+
 ## Maintenance rule
 
 Whenever the stack changes (a new major framework version, a new
