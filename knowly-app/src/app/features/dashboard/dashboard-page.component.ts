@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ArticleCountCardComponent } from './article-count-card.component';
 import { ArticleUsageListComponent } from './article-usage-list.component';
 import { ConversationsCardComponent } from './conversations-card.component';
 import { MessagesCardComponent } from './messages-card.component';
+import { Period, PeriodFilterComponent } from './period-filter.component';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -15,9 +16,11 @@ import { MessagesCardComponent } from './messages-card.component';
     ArticleUsageListComponent,
     ConversationsCardComponent,
     MessagesCardComponent,
+    PeriodFilterComponent,
   ],
   template: `
     <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
+      <app-period-filter [(period)]="period" class="sm:col-span-2" />
       <app-article-count-card />
       <app-article-usage-list />
       <app-conversations-card />
@@ -32,4 +35,6 @@ import { MessagesCardComponent } from './messages-card.component';
     </div>
   `,
 })
-export class DashboardPageComponent {}
+export class DashboardPageComponent {
+  protected readonly period = signal<Period>('30d');
+}
