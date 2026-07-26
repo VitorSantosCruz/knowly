@@ -1,6 +1,9 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { EMPTY, catchError, of } from 'rxjs';
+import { ButtonDirective } from 'primeng/button';
+import { InputText } from 'primeng/inputtext';
+import { Listbox } from 'primeng/listbox';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ConversationService, ConversationSummary, Message } from '../../core/conversation.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -12,7 +15,14 @@ let nextLocalMessageId = -1;
 
 @Component({
   selector: 'app-conversations-page',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
+  imports: [
+    TranslocoPipe,
+    ErrorStateComponent,
+    NoAccessStateComponent,
+    ButtonDirective,
+    InputText,
+    Listbox,
+  ],
   template: `
     <div data-testid="conversations-page" class="page-shell flex gap-6">
       @if (loading()) {
@@ -26,23 +36,25 @@ let nextLocalMessageId = -1;
           <button
             data-testid="new-conversation"
             (click)="onNewConversation()"
-            class="mb-3 w-full rounded-xl bg-ink-800 px-3 py-1.5 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
+            pButton
+            class="mb-3 w-full"
           >
             {{ 'conversations.new' | transloco }}
           </button>
-          <ul data-testid="conversation-list" class="flex flex-col gap-1">
-            @for (conversation of conversations(); track conversation.id) {
-              <li class="enter-fluid">
-                <button
-                  [attr.data-testid]="'select-conversation-' + conversation.id"
-                  (click)="onSelectConversation(conversation.id)"
-                  class="w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
-                >
-                  {{ conversation.title ?? ('conversations.untitled' | transloco) }}
-                </button>
-              </li>
-            }
-          </ul>
+          <p-listbox
+            data-testid="conversation-list"
+            [options]="conversations()"
+            optionLabel="title"
+            styleClass="w-full border-0"
+            listStyleClass="flex flex-col gap-1"
+            (onClick)="onSelectConversation($event.option.id)"
+          >
+            <ng-template #item let-conversation>
+              <span [attr.data-testid]="'select-conversation-' + conversation.id" class="truncate">
+                {{ conversation.title ?? ('conversations.untitled' | transloco) }}
+              </span>
+            </ng-template>
+          </p-listbox>
         </aside>
 
         <section class="flex flex-1 flex-col">
@@ -94,16 +106,13 @@ let nextLocalMessageId = -1;
             <input
               data-testid="message-input"
               type="text"
+              pInputText
               [value]="draft()"
               (input)="draft.set($any($event.target).value)"
               [disabled]="sending() || activeConversationId() === null"
-              class="flex-1 rounded-xl border border-ink-300/70 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100 dark:disabled:bg-ink-900"
+              class="flex-1"
             />
-            <button
-              type="submit"
-              [disabled]="sending() || activeConversationId() === null"
-              class="rounded-xl bg-ink-800 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 disabled:cursor-not-allowed disabled:bg-ink-200 disabled:text-ink-400 disabled:shadow-none dark:bg-ink-600 dark:hover:bg-signal-500 dark:disabled:bg-ink-800"
-            >
+            <button type="submit" pButton [disabled]="sending() || activeConversationId() === null">
               {{ 'conversations.send' | transloco }}
             </button>
           </form>
