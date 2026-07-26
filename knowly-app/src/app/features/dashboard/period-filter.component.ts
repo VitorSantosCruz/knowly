@@ -1,6 +1,5 @@
 import { Component, model } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { SelectButton } from 'primeng/selectbutton';
+import { buttonClass } from '../../shared/button-classes';
 
 export type Period = '7d' | '30d' | '90d' | 'all';
 
@@ -11,21 +10,20 @@ interface PeriodOption {
 
 @Component({
   selector: 'app-period-filter',
-  imports: [FormsModule, SelectButton],
   template: `
-    <p-selectbutton
-      data-testid="period-filter"
-      [options]="options"
-      optionLabel="label"
-      optionValue="value"
-      [allowEmpty]="false"
-      [ngModel]="period()"
-      (ngModelChange)="period.set($event)"
-    >
-      <ng-template #item let-option>
-        <span [attr.data-testid]="'period-option-' + option.value">{{ option.label }}</span>
-      </ng-template>
-    </p-selectbutton>
+    <div data-testid="period-filter" role="group" class="inline-flex gap-1">
+      @for (option of options; track option.value) {
+        <button
+          type="button"
+          [attr.data-testid]="'period-option-' + option.value"
+          [attr.aria-pressed]="period() === option.value"
+          [class]="buttonClassFor(option.value)"
+          (click)="period.set(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
   `,
 })
 export class PeriodFilterComponent {
@@ -37,4 +35,8 @@ export class PeriodFilterComponent {
     { label: '90d', value: '90d' },
     { label: 'all', value: 'all' },
   ];
+
+  protected buttonClassFor(value: Period): string {
+    return buttonClass('secondary', { ghost: this.period() !== value });
+  }
 }
