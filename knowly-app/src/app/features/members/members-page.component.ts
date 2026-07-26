@@ -1,9 +1,7 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
-import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
-import { Table } from 'primeng/table';
+import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { Member, MemberService } from '../../core/member.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -14,15 +12,7 @@ type MembersError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-members-page',
-  imports: [
-    TranslocoPipe,
-    ErrorStateComponent,
-    NoAccessStateComponent,
-    MemberDetailPanelComponent,
-    ButtonDirective,
-    InputText,
-    Table,
-  ],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, MemberDetailPanelComponent],
   template: `
     <div data-testid="members-page" class="page-shell max-w-3xl">
       @if (loading()) {
@@ -41,46 +31,44 @@ type MembersError = 'network' | 'permission-denied' | null;
             data-testid="add-member-email"
             type="email"
             name="email"
-            pInputText
             [value]="newMemberEmail()"
             (input)="newMemberEmail.set($any($event.target).value)"
-            class="flex-1"
+            class="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
           />
-          <button type="submit" pButton>
+          <button type="submit" [class]="addButtonClass">
             {{ 'members.add' | transloco }}
           </button>
         </form>
 
-        <p-table
+        <table
           data-testid="members-list"
-          [value]="members()"
-          styleClass="enter-fluid overflow-hidden rounded-2xl border border-ink-200/70 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:shadow-none"
+          class="enter-fluid w-full overflow-hidden rounded-2xl border border-ink-200/70 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:shadow-none"
         >
-          <ng-template #body let-member>
-            <tr>
-              <td>
-                <span
-                  [attr.data-testid]="'select-member-' + member.membershipId"
-                  (click)="selectedMembershipId.set(member.membershipId)"
-                  class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
-                >
-                  {{ member.email }}
-                </span>
-              </td>
-              <td class="text-right">
-                <button
-                  [attr.data-testid]="'remove-member-' + member.membershipId"
-                  (click)="onRemoveMember(member.membershipId)"
-                  pButton
-                  text
-                  severity="danger"
-                >
-                  {{ 'members.remove' | transloco }}
-                </button>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
+          <tbody>
+            @for (member of members(); track member.membershipId) {
+              <tr>
+                <td>
+                  <span
+                    [attr.data-testid]="'select-member-' + member.membershipId"
+                    (click)="selectedMembershipId.set(member.membershipId)"
+                    class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
+                  >
+                    {{ member.email }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <button
+                    [attr.data-testid]="'remove-member-' + member.membershipId"
+                    (click)="onRemoveMember(member.membershipId)"
+                    [class]="removeButtonClass"
+                  >
+                    {{ 'members.remove' | transloco }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
 
         @if (selectedMembershipId(); as membershipId) {
           <div class="mt-6">
@@ -98,6 +86,8 @@ export class MembersPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly memberService = inject(MemberService);
 
+  protected readonly addButtonClass = buttonClass('primary');
+  protected readonly removeButtonClass = buttonClass('danger', { ghost: true });
   protected readonly members = signal<Member[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<MembersError>(null);
