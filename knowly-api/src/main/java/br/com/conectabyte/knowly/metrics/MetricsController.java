@@ -35,15 +35,16 @@ public class MetricsController {
     @GetMapping("/conversations")
     @RequiresPermission(Permission.DASHBOARD_VIEW)
     @AuditLog(action = "metrics.conversations.view", resourceType = "Metrics")
-    public ConversationsMetricDto conversationsMetric() {
-        return metricsService.conversationsMetric();
+    public ConversationsMetricDto conversationsMetric(
+            @RequestParam(required = false) String period) {
+        return metricsService.conversationsMetric(MetricsPeriod.from(period));
     }
 
     @GetMapping("/messages")
     @RequiresPermission(Permission.DASHBOARD_VIEW)
     @AuditLog(action = "metrics.messages.view", resourceType = "Metrics")
-    public MessagesMetricDto messagesMetric() {
-        return metricsService.messagesMetric();
+    public MessagesMetricDto messagesMetric(@RequestParam(required = false) String period) {
+        return metricsService.messagesMetric(MetricsPeriod.from(period));
     }
 
     @GetMapping("/conversations/timeseries")

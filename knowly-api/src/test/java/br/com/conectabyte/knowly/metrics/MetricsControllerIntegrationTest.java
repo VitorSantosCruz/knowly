@@ -468,4 +468,89 @@ class MetricsControllerIntegrationTest {
         String body = response.getResponse().getContentAsString();
         assertThat(body).contains("\"sentCount\":2").contains("\"receivedCount\":1");
     }
+
+    @Test
+    void conversationsMetricPeriodFilterCountsOnlyConversationsWithinTheWindow() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        User owner =
+                memberWithPermissions("convperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Instant now = Instant.now();
+        backdateConversation(
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner)), now);
+        backdateConversation(
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner)),
+                now.minus(60, ChronoUnit.DAYS));
+        Cookie session = logIn("convperiod@example.com");
+
+        var filtered =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/conversations?period=30d")
+                        .cookie(session)
+                        .exchange();
+        var unfiltered =
+                mockMvc.get().uri("/api/tenants/metrics/conversations").cookie(session).exchange();
+
+        assertThat(filtered).hasStatus(HttpStatus.OK);
+        assertThat(filtered.getResponse().getContentAsString()).contains("\"startedCount\":1");
+        assertThat(unfiltered).hasStatus(HttpStatus.OK);
+        assertThat(unfiltered.getResponse().getContentAsString()).contains("\"startedCount\":2");
+    }
+
+    @Test
+    void conversationsMetricRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("convbadperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("convbadperiod@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/conversations?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    @Test
+    void messagesMetricPeriodFilterCountsOnlyMessagesWithinTheWindow() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        User owner =
+                memberWithPermissions("msgperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner));
+        Instant now = Instant.now();
+        backdateMessage(
+                messageRepository.saveAndFlush(new Message(conversation, MessageRole.USER, "q1")),
+                now);
+        backdateMessage(
+                messageRepository.saveAndFlush(new Message(conversation, MessageRole.USER, "q2")),
+                now.minus(60, ChronoUnit.DAYS));
+        Cookie session = logIn("msgperiod@example.com");
+
+        var filtered =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/messages?period=30d")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(filtered).hasStatus(HttpStatus.OK);
+        assertThat(filtered.getResponse().getContentAsString()).contains("\"sentCount\":1");
+    }
+
+    @Test
+    void messagesMetricRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("msgbadperiod2@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("msgbadperiod2@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/messages?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
 }

@@ -62,21 +62,44 @@ public class MetricsService {
     }
 
     @Transactional(readOnly = true)
-    public ConversationsMetricDto conversationsMetric() {
+    public ConversationsMetricDto conversationsMetric(MetricsPeriod period) {
         Long tenantId = requireActiveTenant();
+        long startedCount =
+                period.startInstant(clock)
+                        .map(
+                                from ->
+                                        conversationRepository
+                                                .countByTenantIdAndCreatedAtGreaterThanEqual(
+                                                        tenantId, from))
+                        .orElseGet(() -> conversationRepository.countByTenantId(tenantId));
 
-        return new ConversationsMetricDto(conversationRepository.countByTenantId(tenantId));
+        return new ConversationsMetricDto(startedCount);
     }
 
     @Transactional(readOnly = true)
-    public MessagesMetricDto messagesMetric() {
+    public MessagesMetricDto messagesMetric(MetricsPeriod period) {
         Long tenantId = requireActiveTenant();
-
+        var from = period.startInstant(clock);
         long sentCount =
-                messageRepository.countByConversation_Tenant_IdAndRole(tenantId, MessageRole.USER);
+                from.map(
+                                f ->
+                                        messageRepository
+                                                .countByConversation_Tenant_IdAndRoleAndCreatedAtGreaterThanEqual(
+                                                        tenantId, MessageRole.USER, f))
+                        .orElseGet(
+                                () ->
+                                        messageRepository.countByConversation_Tenant_IdAndRole(
+                                                tenantId, MessageRole.USER));
         long receivedCount =
-                messageRepository.countByConversation_Tenant_IdAndRole(
-                        tenantId, MessageRole.ASSISTANT);
+                from.map(
+                                f ->
+                                        messageRepository
+                                                .countByConversation_Tenant_IdAndRoleAndCreatedAtGreaterThanEqual(
+                                                        tenantId, MessageRole.ASSISTANT, f))
+                        .orElseGet(
+                                () ->
+                                        messageRepository.countByConversation_Tenant_IdAndRole(
+                                                tenantId, MessageRole.ASSISTANT));
 
         return new MessagesMetricDto(sentCount, receivedCount);
     }
