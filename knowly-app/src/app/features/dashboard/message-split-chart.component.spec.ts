@@ -67,7 +67,7 @@ describe('MessageSplitChartComponent', () => {
     httpMock.expectOne((r) => r.url === URL).flush({ days: [] });
   });
 
-  it('renders a doughnut p-chart and a sr-only mirror table on success', () => {
+  it('renders a doughnut chart and a sr-only mirror table on success', () => {
     const { fixture, httpMock } = harness();
     fixture.detectChanges();
 
@@ -78,7 +78,7 @@ describe('MessageSplitChartComponent', () => {
       });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('p-chart')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeTruthy();
     const table = fixture.nativeElement.querySelector('table.sr-only');
     expect(table).toBeTruthy();
     const rows = table.querySelectorAll('tbody tr');

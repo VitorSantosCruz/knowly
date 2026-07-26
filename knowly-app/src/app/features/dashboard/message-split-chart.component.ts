@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, effect, inject, input } from '@angular/core';
-import { UIChart } from 'primeng/chart';
 import { MetricFetcher, createMetricFetcher } from '../../core/metric-fetcher';
+import { ChartCanvasComponent } from '../../shared/chart-canvas.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { Period } from './period-filter.component';
@@ -33,7 +33,7 @@ export function toDonutData(response: MessagesTimeseriesResponse): DonutChartDat
 
 @Component({
   selector: 'app-message-split-chart',
-  imports: [ErrorStateComponent, NoAccessStateComponent, UIChart],
+  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
   template: `
     <div
       data-testid="message-split-chart"
@@ -46,7 +46,7 @@ export function toDonutData(response: MessagesTimeseriesResponse): DonutChartDat
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <p-chart type="doughnut" [data]="toDonutData(data)" height="220px" />
+        <app-chart-canvas type="doughnut" [data]="toDonutData(data)" height="220px" />
         <table class="sr-only">
           <caption>
             Message split
