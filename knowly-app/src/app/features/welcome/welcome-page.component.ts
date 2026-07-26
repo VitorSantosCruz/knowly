@@ -1,7 +1,6 @@
 import { Component, OnInit, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { Card } from 'primeng/card';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { OnboardingService } from '../../core/onboarding.service';
 import { PermissionsService } from '../../core/permissions.service';
@@ -9,7 +8,7 @@ import { TourService } from '../../core/tour.service';
 
 @Component({
   selector: 'app-welcome-page',
-  imports: [TranslocoPipe, RouterLink, Card],
+  imports: [TranslocoPipe, RouterLink],
   template: `
     <div data-testid="welcome-page" class="page-shell">
       <div
@@ -51,8 +50,8 @@ import { TourService } from '../../core/tour.service';
               routerLink="/articles"
               class="group enter-fluid block transition-all duration-base ease-fluid hover:-translate-y-0.5"
             >
-              <p-card
-                styleClass="h-full hover:border-ink-300 dark:hover:border-ink-700 hover:shadow-md"
+              <div
+                class="enter-fluid h-full rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid hover:border-ink-300 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none dark:hover:border-ink-700 hover:shadow-md"
               >
                 <h2 class="text-sm font-semibold text-ink-900 dark:text-white">
                   {{ 'welcome.quickLinks.articles.title' | transloco }}
@@ -60,7 +59,7 @@ import { TourService } from '../../core/tour.service';
                 <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
                   {{ 'welcome.quickLinks.articles.description' | transloco }}
                 </p>
-              </p-card>
+              </div>
             </a>
           }
           @if (showConversations()) {
@@ -68,8 +67,8 @@ import { TourService } from '../../core/tour.service';
               routerLink="/conversations"
               class="group enter-fluid block transition-all duration-base ease-fluid hover:-translate-y-0.5"
             >
-              <p-card
-                styleClass="h-full hover:border-ink-300 dark:hover:border-ink-700 hover:shadow-md"
+              <div
+                class="enter-fluid h-full rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid hover:border-ink-300 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none dark:hover:border-ink-700 hover:shadow-md"
               >
                 <h2 class="text-sm font-semibold text-ink-900 dark:text-white">
                   {{ 'welcome.quickLinks.conversations.title' | transloco }}
@@ -77,7 +76,7 @@ import { TourService } from '../../core/tour.service';
                 <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
                   {{ 'welcome.quickLinks.conversations.description' | transloco }}
                 </p>
-              </p-card>
+              </div>
             </a>
           }
           @if (showMembers()) {
@@ -85,8 +84,8 @@ import { TourService } from '../../core/tour.service';
               routerLink="/members"
               class="group enter-fluid block transition-all duration-base ease-fluid hover:-translate-y-0.5"
             >
-              <p-card
-                styleClass="h-full hover:border-ink-300 dark:hover:border-ink-700 hover:shadow-md"
+              <div
+                class="enter-fluid h-full rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid hover:border-ink-300 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none dark:hover:border-ink-700 hover:shadow-md"
               >
                 <h2 class="text-sm font-semibold text-ink-900 dark:text-white">
                   {{ 'welcome.quickLinks.members.title' | transloco }}
@@ -94,7 +93,7 @@ import { TourService } from '../../core/tour.service';
                 <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
                   {{ 'welcome.quickLinks.members.description' | transloco }}
                 </p>
-              </p-card>
+              </div>
             </a>
           }
         </div>
