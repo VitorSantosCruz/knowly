@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { ButtonDirective } from 'primeng/button';
+import { buttonClass } from '../../shared/button-classes';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { Period } from './period-filter.component';
 
@@ -23,14 +23,14 @@ function extractFilename(response: { headers: { get(name: string): string | null
 
 @Component({
   selector: 'app-export-button',
-  imports: [ButtonDirective, TranslocoPipe, ErrorStateComponent],
+  imports: [TranslocoPipe, ErrorStateComponent],
   template: `
     <div>
       <button
         data-testid="export-button"
-        pButton
         type="button"
-        [loading]="loading()"
+        [class]="buttonClassFn"
+        [disabled]="loading()"
         (click)="onExport()"
       >
         {{ 'dashboard.export' | transloco }}
@@ -46,6 +46,7 @@ export class ExportButtonComponent {
 
   readonly period = input.required<Period>();
 
+  protected readonly buttonClassFn = buttonClass('primary');
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
   protected readonly traceId = signal<string | undefined>(undefined);
