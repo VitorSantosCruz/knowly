@@ -8,7 +8,7 @@ export interface MetricFetcher<T> {
   readonly loading: () => boolean;
   readonly error: () => MetricError | null;
   readonly traceId: () => string | undefined;
-  load(): void;
+  load(params?: Record<string, string>): void;
 }
 
 function extractTraceId(response: HttpErrorResponse): string | undefined {
@@ -32,11 +32,11 @@ export function createMetricFetcher<T>(http: HttpClient, url: string): MetricFet
     loading,
     error,
     traceId,
-    load(): void {
+    load(params?: Record<string, string>): void {
       loading.set(true);
       error.set(null);
 
-      http.get<T>(url).subscribe({
+      http.get<T>(url, { params }).subscribe({
         next: (value) => {
           data.set(value);
           loading.set(false);
