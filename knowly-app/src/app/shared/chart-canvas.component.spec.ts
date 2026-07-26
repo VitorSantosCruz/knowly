@@ -1,18 +1,25 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Chart } from 'chart.js';
-import { ChartCanvasComponent } from './chart-canvas.component';
+import { CHART_CTOR, ChartCanvasComponent } from './chart-canvas.component';
 
-// No pre-existing Chart.js mocking pattern was found in
-// conversations-activity-chart.component.spec.ts/message-split-chart.component.spec.ts
-// (those specs assert on rendered markup only, not on Chart.js
-// construction) — this is a new mocking pattern for this shared component.
-vi.mock('chart.js', () => {
-  const ChartMock = vi.fn().mockImplementation(function (this: { destroy: () => void }) {
-    this.destroy = vi.fn();
-  });
-  return { Chart: ChartMock };
-});
+// Fakes the Chart.js constructor via DI (see CHART_CTOR's doc comment)
+// rather than `vi.mock('chart.js')` — module mocking proved unreliable
+// when this spec ran alongside the other chart specs in a full-suite run,
+// since Angular's unit-test builder bundles every spec file together and
+// `chart.js` ends up a shared module instance rather than one scoped per
+// spec file.
+class FakeChart {
+  static instances: FakeChart[] = [];
+  readonly destroy = vi.fn();
+  readonly ctx: unknown;
+  readonly config: unknown;
+
+  constructor(ctx: unknown, config: unknown) {
+    this.ctx = ctx;
+    this.config = config;
+    FakeChart.instances.push(this);
+  }
+}
 
 @Component({
   selector: 'app-host',
@@ -33,11 +40,14 @@ class HostComponent {
 
 describe('ChartCanvasComponent', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    FakeChart.instances = [];
   });
 
   function harness() {
-    TestBed.configureTestingModule({ imports: [HostComponent] });
+    TestBed.configureTestingModule({
+      imports: [HostComponent],
+      providers: [{ provide: CHART_CTOR, useValue: FakeChart }],
+    });
     const fixture: ComponentFixture<HostComponent> = TestBed.createComponent(HostComponent);
     return { fixture };
   }
@@ -47,9 +57,8 @@ describe('ChartCanvasComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(Chart).toHaveBeenCalledTimes(1);
-    const [, config] = vi.mocked(Chart).mock.calls[0];
-    expect(config).toMatchObject({
+    expect(FakeChart.instances).toHaveLength(1);
+    expect(FakeChart.instances[0].config).toMatchObject({
       type: 'bar',
       data: { labels: ['a'], datasets: [{ data: [1] }] },
     });
@@ -70,14 +79,14 @@ describe('ChartCanvasComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const firstInstance = vi.mocked(Chart).mock.results[0].value;
+    const firstInstance = FakeChart.instances[0];
 
     fixture.componentInstance.data.set({ labels: ['b'], datasets: [{ data: [2] }] });
     fixture.detectChanges();
     await fixture.whenStable();
 
     expect(firstInstance.destroy).toHaveBeenCalledTimes(1);
-    expect(Chart).toHaveBeenCalledTimes(2);
+    expect(FakeChart.instances).toHaveLength(2);
   });
 
   it('destroys the chart on component destroy', async () => {
@@ -85,7 +94,7 @@ describe('ChartCanvasComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const instance = vi.mocked(Chart).mock.results[0].value;
+    const instance = FakeChart.instances[0];
     fixture.destroy();
 
     expect(instance.destroy).toHaveBeenCalledTimes(1);
