@@ -6,6 +6,7 @@ import br.com.conectabyte.knowly.conversation.MessageArticleCitationRepository;
 import br.com.conectabyte.knowly.conversation.MessageRepository;
 import br.com.conectabyte.knowly.conversation.MessageRole;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
+import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ public class MetricsService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final MessageArticleCitationRepository messageArticleCitationRepository;
+    private final TenantMembershipRepository tenantMembershipRepository;
     private final TenantContext tenantContext;
     private final Clock clock;
 
@@ -32,12 +34,14 @@ public class MetricsService {
             ConversationRepository conversationRepository,
             MessageRepository messageRepository,
             MessageArticleCitationRepository messageArticleCitationRepository,
+            TenantMembershipRepository tenantMembershipRepository,
             TenantContext tenantContext,
             Clock clock) {
         this.articleRepository = articleRepository;
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.messageArticleCitationRepository = messageArticleCitationRepository;
+        this.tenantMembershipRepository = tenantMembershipRepository;
         this.tenantContext = tenantContext;
         this.clock = clock;
     }
@@ -166,6 +170,15 @@ public class MetricsService {
         return dates.stream()
                 .map(date -> new DailyCountDto(date, counts.getOrDefault(date, 0L)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public MembersMetricDto membersMetric() {
+        Long tenantId = requireActiveTenant();
+        long activeCount = tenantMembershipRepository.countByTenantIdAndActive(tenantId, true);
+        long inactiveCount = tenantMembershipRepository.countByTenantIdAndActive(tenantId, false);
+
+        return new MembersMetricDto(activeCount, inactiveCount);
     }
 
     private Long requireActiveTenant() {

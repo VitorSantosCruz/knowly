@@ -12,4 +12,6 @@ public interface TenantMembershipRepository extends JpaRepository<TenantMembersh
     List<TenantMembership> findByUserAndActiveTrue(User user);
 
     List<TenantMembership> findByTenantIdAndActiveTrue(Long tenantId);
+
+    long countByTenantIdAndActive(Long tenantId, boolean active);
 }

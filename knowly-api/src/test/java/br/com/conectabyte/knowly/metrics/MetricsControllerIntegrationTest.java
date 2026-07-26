@@ -155,6 +155,8 @@ class MetricsControllerIntegrationTest {
                                 .cookie(session)
                                 .exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(mockMvc.get().uri("/api/tenants/metrics/members").cookie(session).exchange())
+                .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -421,6 +423,30 @@ class MetricsControllerIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    @Test
+    void membersMetricReportsActiveAndInactiveCountsForTheActiveTenantOnly() throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        memberWithPermissions("membersviewer@example.com", tenantA, Permission.DASHBOARD_VIEW);
+        User inactiveUser = userRepository.saveAndFlush(new User("inactivemember@example.com"));
+        TenantMembership inactiveMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(inactiveUser, tenantA, MembershipRole.MEMBER));
+        inactiveMembership.setActive(false);
+        tenantMembershipRepository.saveAndFlush(inactiveMembership);
+        User otherTenantUser =
+                userRepository.saveAndFlush(new User("otherTenantMember@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(otherTenantUser, tenantB, MembershipRole.MEMBER));
+        Cookie session = logIn("membersviewer@example.com");
+
+        var response = mockMvc.get().uri("/api/tenants/metrics/members").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"activeCount\":1").contains("\"inactiveCount\":1");
     }
 
     @Test

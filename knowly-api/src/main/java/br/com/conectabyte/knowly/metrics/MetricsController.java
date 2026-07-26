@@ -67,4 +67,11 @@ public class MetricsController {
     public ArticlesTimeseriesDto articlesTimeseries(@RequestParam(required = false) String period) {
         return metricsService.articlesTimeseries(MetricsPeriod.from(period));
     }
+
+    @GetMapping("/members")
+    @RequiresPermission(Permission.DASHBOARD_VIEW)
+    @AuditLog(action = "metrics.members.view", resourceType = "Metrics")
+    public MembersMetricDto membersMetric() {
+        return metricsService.membersMetric();
+    }
 }
