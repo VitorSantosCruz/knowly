@@ -1,9 +1,7 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { EMPTY, catchError, of } from 'rxjs';
-import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
-import { Listbox } from 'primeng/listbox';
+import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ConversationService, ConversationSummary, Message } from '../../core/conversation.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -15,14 +13,7 @@ let nextLocalMessageId = -1;
 
 @Component({
   selector: 'app-conversations-page',
-  imports: [
-    TranslocoPipe,
-    ErrorStateComponent,
-    NoAccessStateComponent,
-    ButtonDirective,
-    InputText,
-    Listbox,
-  ],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
   template: `
     <div data-testid="conversations-page" class="page-shell flex gap-6">
       @if (loading()) {
@@ -36,25 +27,28 @@ let nextLocalMessageId = -1;
           <button
             data-testid="new-conversation"
             (click)="onNewConversation()"
-            pButton
-            class="mb-3 w-full"
+            [class]="newConversationButtonClass + ' mb-3 w-full'"
           >
             {{ 'conversations.new' | transloco }}
           </button>
-          <p-listbox
+          <ul
             data-testid="conversation-list"
-            [options]="conversations()"
-            optionLabel="title"
-            styleClass="w-full border-0"
-            listStyleClass="flex flex-col gap-1"
-            (onClick)="onSelectConversation($event.option.id)"
+            role="listbox"
+            class="flex w-full flex-col gap-1 border-0"
           >
-            <ng-template #item let-conversation>
-              <span [attr.data-testid]="'select-conversation-' + conversation.id" class="truncate">
-                {{ conversation.title ?? ('conversations.untitled' | transloco) }}
-              </span>
-            </ng-template>
-          </p-listbox>
+            @for (conversation of conversations(); track conversation.id) {
+              <li role="option">
+                <button
+                  type="button"
+                  [attr.data-testid]="'select-conversation-' + conversation.id"
+                  class="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+                  (click)="onSelectConversation(conversation.id)"
+                >
+                  {{ conversation.title ?? ('conversations.untitled' | transloco) }}
+                </button>
+              </li>
+            }
+          </ul>
         </aside>
 
         <section class="flex flex-1 flex-col">
@@ -106,13 +100,16 @@ let nextLocalMessageId = -1;
             <input
               data-testid="message-input"
               type="text"
-              pInputText
               [value]="draft()"
               (input)="draft.set($any($event.target).value)"
               [disabled]="sending() || activeConversationId() === null"
-              class="flex-1"
+              class="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
             />
-            <button type="submit" pButton [disabled]="sending() || activeConversationId() === null">
+            <button
+              type="submit"
+              [class]="sendButtonClass"
+              [disabled]="sending() || activeConversationId() === null"
+            >
               {{ 'conversations.send' | transloco }}
             </button>
           </form>
@@ -125,6 +122,8 @@ export class ConversationsPageComponent implements OnInit {
   private readonly activeTenantService = inject(ActiveTenantService);
   private readonly conversationService = inject(ConversationService);
 
+  protected readonly newConversationButtonClass = buttonClass('primary');
+  protected readonly sendButtonClass = buttonClass('primary');
   protected readonly conversations = signal<ConversationSummary[]>([]);
   protected readonly activeConversationId = signal<number | null>(null);
   protected readonly messages = signal<Message[]>([]);
