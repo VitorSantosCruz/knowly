@@ -23,14 +23,14 @@ import { NavMenuComponent } from './nav-menu.component';
       class="flex min-h-dvh bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
     >
       <aside
-        class="sticky top-0 flex h-dvh w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-950 px-3 py-5 shadow-lg shadow-ink-950/20"
+        class="dark sticky top-0 flex h-dvh w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-950 px-3 py-5 shadow-lg shadow-ink-950/20"
       >
         <app-nav-menu />
       </aside>
       <div class="flex min-w-0 flex-1 flex-col">
         <header
           data-tour-id="main-nav"
-          class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-end gap-1 border-b border-ink-800 bg-ink-950/95 px-4 backdrop-blur-md"
+          class="dark sticky top-0 z-10 flex h-14 shrink-0 items-center justify-end gap-1 border-b border-ink-800 bg-ink-950/95 px-4 backdrop-blur-md"
         >
           <app-help-menu />
           <app-language-switcher />

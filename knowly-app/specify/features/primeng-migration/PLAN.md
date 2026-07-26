@@ -75,12 +75,16 @@
   change — a good smoke test before a full implementation pass touches
   higher-traffic screens.
 - **`angular.json`'s production budget (`maximumWarning`) raised from
-  500kB to 750kB.** Why: PrimeNG (even with only one component migrated)
-  pushes the initial bundle past the old 500kB warning threshold; 750kB
-  leaves headroom for the full migration while the 1MB `maximumError`
-  (a real CI-breaking budget) is untouched — if the full migration
-  approaches that, it's a separate, later decision (code-splitting
-  PrimeNG modules per route, etc.), not something to pre-solve here.
+  500kB to 750kB, then to 800kB (2026-07-25 chrome/menu pass).** Why:
+  PrimeNG (even with only one component migrated) pushes the initial
+  bundle past the old 500kB warning threshold; 750kB leaves headroom
+  for the full migration while the 1MB `maximumError` (a real
+  CI-breaking budget) is untouched. Adding `Menu`/`ButtonDirective` to
+  the sidebar/header/help-menu pass pushed the initial bundle to
+  752.65kB, just over 750kB, so the warning threshold was raised again
+  to 800kB in the same pass — if the full migration approaches 1MB,
+  that's a separate, later decision (code-splitting PrimeNG modules per
+  route, etc.), not something to pre-solve here.
 
 ## Components and routes
 
@@ -127,16 +131,49 @@ migration — see `DECISIONS.md`):
 - `npm run format:check && npm test && npm run build` all green as of
   this PLAN's landing commit.
 
+## Shared UI deliberately deferred (2026-07-25 chrome/menu pass)
+
+`error-state.component.ts`, `no-access-state.component.ts`, and
+`tour-overlay.component.ts` (checked as part of this pass, per this
+PLAN's item 3 "any other shared UI actually used inside the shell/nav
+today") were left as-is rather than migrated now: `error-state` is a
+reasonable `p-message`/`Toast` candidate but touches every feature page
+that renders it (dashboard, articles, etc.) well beyond "chrome," so
+it's deferred to whichever later pass migrates those feature pages
+rather than done piecemeal here; `no-access-state` is a single `<p>`,
+not really a component-library concern; `tour-overlay` is a bespoke
+positioned dialog reused by the onboarding tour and depends on exact
+`getBoundingClientRect()` timing against `data-tour-id` targets —
+revisit it once `p-dialog`/`p-popover`'s positioning behavior is
+verified not to break that.
+
+## Chrome dark-mode scoping — resolved (2026-07-25 implementation pass)
+
+The sidebar (`<aside>`) and header (`<header>`) in `app-shell.component.ts`
+now carry a static `dark` class directly on those two elements (not on
+`<html>`), independent of `ThemeService`'s toggle. Why this is the
+cleanest option, not a new mechanism: `styles.css` already defines
+`@custom-variant dark (&:where(.dark, .dark *));` — Tailwind's own dark
+variant already matches **any** descendant of a `.dark`-classed
+ancestor, not just `<html>`. `providePrimeNG`'s `darkModeSelector: '.dark'`
+generates PrimeNG's dark-token CSS rules scoped the same way (as a plain
+CSS descendant selector, not a JS-toggled state). So a static `class="dark"`
+on the chrome's two root elements makes *both* systems (Tailwind's
+`dark:` utilities and PrimeNG's dark semantic tokens) apply to
+everything inside the chrome unconditionally, while the rest of the
+document (driven by `<html>`'s own `.dark` class from `ThemeService`)
+is untouched — no second toggle, no JS-side coordination, and no change
+to `ThemeService`/`theme-toggle.component.ts` at all. This reuses an
+existing selector rather than introducing a new one, so it isn't a new
+mechanism requiring separate sign-off, but is recorded here since it's
+the resolution the "known follow-up" below was flagging.
+
 ## Known follow-ups (not solved by this PLAN)
 
 - Tailwind v4 cascade-layer (`cssLayer`) integration for PrimeNG's
   injected styles — currently unlayered; verify no precedence conflicts
   emerge as more components migrate, then wire `cssLayer` properly if
   they do.
-- Whether the permanently-dark chrome needs its own scoped dark-mode
-  context for embedded PrimeNG components (see "chrome stays dark"
-  decision above) — first thing to resolve when migrating the sidebar/
-  header itself.
 - `dashboard-analytics`'s SPEC (not yet approved) assumed ngx-charts;
   flagged back for revision to use PrimeNG's `Chart` (Chart.js wrapper)
   and `Table`/`DataTable` components instead, since no ngx-charts
@@ -145,19 +182,28 @@ migration — see `DECISIONS.md`):
 
 ## Migration order (priority, for the next implementation pass)
 
-1. **Sidebar (`app-nav-menu`) + header/topbar chrome
-   (`app-shell.component.ts`)** — most visually prominent, most
-   complained-about; also where the "chrome stays permanently dark"
-   scoping question (above) needs to be resolved first, since every
-   later item touches components that live inside this shell.
-2. **Shared buttons and icon buttons** (`logout-button.component.ts`,
-   `help-menu.component.ts`, any remaining icon-only buttons) — small,
-   low-risk, high-reuse; establishes the `[pButton]`/PrimeIcons pattern
-   the rest of the migration follows (same reasoning as this PLAN's
-   `theme-toggle` proof of concept).
-3. **Menus** (`nav-menu.component.ts`'s link rendering, `help-menu`,
-   language switcher) → PrimeNG `Menu`/`Menubar`/`TieredMenu` as
-   appropriate.
+1. ~~**Sidebar (`app-nav-menu`) + header/topbar chrome
+   (`app-shell.component.ts`)**~~ — done (2026-07-25 implementation
+   pass). `nav-menu.component.ts` now renders each permission-gated
+   category (Overview/Knowledge/Team/Workspace) as its own inline
+   (`[popup]="false"`) `p-menu`, with a custom `#submenuheader` template
+   for the translated category label and a custom `#item` template that
+   renders the exact same `<a routerLink>` markup as before (same
+   `data-testid`/`data-tour-id`/permission gates), just sourced from a
+   `computed()` `MenuItem[]` model instead of hand-written `@if` blocks
+   per link. Inline SVGs replaced with PrimeIcons (`pi-th-large` /
+   `pi-book` / `pi-comments` / `pi-users` / `pi-plus` /
+   `pi-arrow-right-arrow-left`). See "Chrome dark-mode scoping" above
+   for how the permanently-dark chrome and `darkModeSelector` coexist.
+2. ~~**Shared buttons and icon buttons**~~ — done. `logout-button`
+   and `language-switcher` migrated to `[pButton] text severity="secondary"`
+   (logout also `rounded`, with a `pi-sign-out` icon replacing its inline
+   SVG), following `theme-toggle`'s already-migrated pattern.
+3. ~~**Menus**~~ — done together with item 1's sidebar work above;
+   `help-menu.component.ts`'s dropdown now uses a `p-menu` (inline, not
+   popup, so its own `open` signal + `[attr.aria-expanded]` continue to
+   drive visibility exactly as before) with a custom `#item` template
+   for its one `restart-tour` action.
 4. **Forms** (login-code entry, tenant creation, user-management forms)
    → PrimeNG `InputText`/`Select`/`Password`/form-adjacent components.
 5. **Cards** (dashboard metric widgets, onboarding tour cards) → PrimeNG

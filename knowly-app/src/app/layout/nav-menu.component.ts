@@ -1,23 +1,38 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { Menu } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
 import { PermissionsService } from '../core/permissions.service';
 import { GlobalPermissionsService } from '../core/global-permissions.service';
 import { ActiveTenantService, TenantMembership } from '../core/active-tenant.service';
 import { AuthService } from '../core/auth.service';
 import { BrandWordmarkComponent } from '../shared/brand-wordmark.component';
 
-const LINK_CLASS =
-  'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80';
-const LINK_ACTIVE_CLASS =
-  'bg-signal-500/10 text-signal-300 shadow-[inset_2px_0_0_0_var(--color-signal-500)] hover:bg-signal-500/15 hover:text-signal-200 hover:shadow-[inset_2px_0_0_0_var(--color-signal-500),0_0_20px_-8px_var(--color-signal-500)]';
-const ICON_CLASS = 'h-4 w-4 shrink-0';
+/**
+ * A `MenuItem` extended with the fields this sidebar's custom `#item`/
+ * `#submenuheader` templates need: `testId`/`tourId` to keep every existing
+ * `data-testid`/`data-tour-id` (load-bearing for tests and the onboarding
+ * tour) and `labelKey`/`categoryKey` for Transloco translation at render
+ * time rather than baking a fixed-locale string into the model.
+ */
+interface NavMenuItem extends MenuItem {
+  labelKey?: string;
+  testId?: string;
+  tourId?: string;
+}
+
+interface NavMenuGroup extends MenuItem {
+  categoryKey: string;
+  items: NavMenuItem[];
+}
+
 const CATEGORY_LABEL_CLASS =
   'px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-ink-500 uppercase';
 
 @Component({
   selector: 'app-nav-menu',
-  imports: [RouterLink, RouterLinkActive, TranslocoPipe, BrandWordmarkComponent],
+  imports: [RouterLink, RouterLinkActive, TranslocoPipe, BrandWordmarkComponent, Menu],
   template: `
     @if (authService.isLoggedIn()) {
       <nav data-testid="nav-menu" class="flex h-full flex-col">
@@ -26,171 +41,54 @@ const CATEGORY_LABEL_CLASS =
         </div>
 
         <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
-          @if (permissionsService.has('DASHBOARD_VIEW')) {
-            <span [class]="categoryLabelClass">{{ 'nav.category.overview' | transloco }}</span>
-            <a
-              data-testid="nav-dashboard"
-              routerLink="/dashboard"
-              [routerLinkActive]="linkActiveClass"
-              [class]="linkClass"
+          @for (group of overviewGroups(); track group.categoryKey) {
+            <p-menu
+              [model]="[group]"
+              [popup]="false"
+              styleClass="w-full border-0 bg-transparent p-0"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                [class]="iconClass"
-                aria-hidden="true"
-              >
-                <rect x="3" y="3" width="7" height="9" rx="1.5" />
-                <rect x="14" y="3" width="7" height="5" rx="1.5" />
-                <rect x="14" y="12" width="7" height="9" rx="1.5" />
-                <rect x="3" y="16" width="7" height="5" rx="1.5" />
-              </svg>
-              {{ 'nav.dashboard' | transloco }}
-            </a>
-          }
-          @if (
-            permissionsService.has('ARTICLE_VIEW') || permissionsService.has('CONVERSATION_USE')
-          ) {
-            <span [class]="categoryLabelClass">{{ 'nav.category.knowledge' | transloco }}</span>
-          }
-          @if (permissionsService.has('ARTICLE_VIEW')) {
-            <a
-              data-testid="nav-articles"
-              data-tour-id="articles-nav-link"
-              routerLink="/articles"
-              [routerLinkActive]="linkActiveClass"
-              [class]="linkClass"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                [class]="iconClass"
-                aria-hidden="true"
-              >
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
-              </svg>
-              {{ 'nav.articles' | transloco }}
-            </a>
-          }
-          @if (permissionsService.has('CONVERSATION_USE')) {
-            <a
-              data-testid="nav-conversations"
-              routerLink="/conversations"
-              [routerLinkActive]="linkActiveClass"
-              [class]="linkClass"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                [class]="iconClass"
-                aria-hidden="true"
-              >
-                <path
-                  d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"
-                />
-              </svg>
-              {{ 'nav.conversations' | transloco }}
-            </a>
-          }
-          @if (permissionsService.has('TENANT_MEMBER_MANAGE')) {
-            <span [class]="categoryLabelClass">{{ 'nav.category.team' | transloco }}</span>
-            <a
-              data-testid="nav-members"
-              data-tour-id="user-management-nav-link"
-              routerLink="/members"
-              [routerLinkActive]="linkActiveClass"
-              [class]="linkClass"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                [class]="iconClass"
-                aria-hidden="true"
-              >
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-              {{ 'nav.members' | transloco }}
-            </a>
+              <ng-template #submenuheader let-item>
+                <span [class]="categoryLabelClass">{{ item.categoryKey | transloco }}</span>
+              </ng-template>
+              <ng-template #item let-item>
+                <a
+                  [attr.data-testid]="item.testId"
+                  [attr.data-tour-id]="item.tourId"
+                  [routerLink]="item.routerLink"
+                  routerLinkActive="active-nav-link"
+                  [class]="linkClass"
+                >
+                  <i [class]="item.icon + ' ' + iconClass" aria-hidden="true"></i>
+                  {{ item.labelKey | transloco }}
+                </a>
+              </ng-template>
+            </p-menu>
           }
         </div>
 
-        @if (globalPermissionsService.has('TENANT_CREATE') || canSwitchTenant()) {
+        @if (workspaceGroup(); as group) {
           <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
-            <span [class]="categoryLabelClass">{{ 'nav.category.workspace' | transloco }}</span>
-            @if (globalPermissionsService.has('TENANT_CREATE')) {
-              <a
-                data-testid="nav-create-tenant"
-                routerLink="/tenants/new"
-                [routerLinkActive]="linkActiveClass"
-                [class]="linkClass"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  [class]="iconClass"
-                  aria-hidden="true"
+            <p-menu
+              [model]="[group]"
+              [popup]="false"
+              styleClass="w-full border-0 bg-transparent p-0"
+            >
+              <ng-template #submenuheader let-item>
+                <span [class]="categoryLabelClass">{{ item.categoryKey | transloco }}</span>
+              </ng-template>
+              <ng-template #item let-item>
+                <a
+                  [attr.data-testid]="item.testId"
+                  [attr.data-tour-id]="item.tourId"
+                  [routerLink]="item.routerLink"
+                  routerLinkActive="active-nav-link"
+                  [class]="linkClass"
                 >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                {{ 'nav.createTenant' | transloco }}
-              </a>
-            }
-            @if (canSwitchTenant()) {
-              <a
-                data-testid="nav-switch-tenant"
-                routerLink="/select-tenant"
-                [routerLinkActive]="linkActiveClass"
-                [class]="linkClass"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  [class]="iconClass"
-                  aria-hidden="true"
-                >
-                  <path d="M16 3h5v5" />
-                  <path d="M8 21H3v-5" />
-                  <path d="M21 3 13 11" />
-                  <path d="M3 21l8-8" />
-                </svg>
-                {{ 'nav.switchTenant' | transloco }}
-              </a>
-            }
+                  <i [class]="item.icon + ' ' + iconClass" aria-hidden="true"></i>
+                  {{ item.labelKey | transloco }}
+                </a>
+              </ng-template>
+            </p-menu>
           </div>
         }
       </nav>
@@ -203,9 +101,9 @@ export class NavMenuComponent implements OnInit {
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly activeTenantService = inject(ActiveTenantService);
 
-  protected readonly linkClass = LINK_CLASS;
-  protected readonly linkActiveClass = LINK_ACTIVE_CLASS;
-  protected readonly iconClass = ICON_CLASS;
+  protected readonly linkClass =
+    'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
+  protected readonly iconClass = 'h-4 w-4 shrink-0';
   protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
 
   private readonly memberships = signal<TenantMembership[]>([]);
@@ -213,6 +111,86 @@ export class NavMenuComponent implements OnInit {
   // into a tenant — see below) needs this link just as much as >1 does: it's their only path
   // to any tenant. Only a single-membership session (already home, nothing to switch to) hides it.
   protected readonly canSwitchTenant = computed(() => this.memberships().length !== 1);
+
+  protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
+    const groups: NavMenuGroup[] = [];
+
+    if (this.permissionsService.has('DASHBOARD_VIEW')) {
+      groups.push({
+        categoryKey: 'nav.category.overview',
+        items: [
+          {
+            labelKey: 'nav.dashboard',
+            testId: 'nav-dashboard',
+            icon: 'pi pi-th-large',
+            routerLink: '/dashboard',
+          },
+        ],
+      });
+    }
+
+    const knowledgeItems: NavMenuItem[] = [];
+    if (this.permissionsService.has('ARTICLE_VIEW')) {
+      knowledgeItems.push({
+        labelKey: 'nav.articles',
+        testId: 'nav-articles',
+        tourId: 'articles-nav-link',
+        icon: 'pi pi-book',
+        routerLink: '/articles',
+      });
+    }
+    if (this.permissionsService.has('CONVERSATION_USE')) {
+      knowledgeItems.push({
+        labelKey: 'nav.conversations',
+        testId: 'nav-conversations',
+        icon: 'pi pi-comments',
+        routerLink: '/conversations',
+      });
+    }
+    if (knowledgeItems.length > 0) {
+      groups.push({ categoryKey: 'nav.category.knowledge', items: knowledgeItems });
+    }
+
+    if (this.permissionsService.has('TENANT_MEMBER_MANAGE')) {
+      groups.push({
+        categoryKey: 'nav.category.team',
+        items: [
+          {
+            labelKey: 'nav.members',
+            testId: 'nav-members',
+            tourId: 'user-management-nav-link',
+            icon: 'pi pi-users',
+            routerLink: '/members',
+          },
+        ],
+      });
+    }
+
+    return groups;
+  });
+
+  protected readonly workspaceGroup = computed<NavMenuGroup | null>(() => {
+    const items: NavMenuItem[] = [];
+
+    if (this.globalPermissionsService.has('TENANT_CREATE')) {
+      items.push({
+        labelKey: 'nav.createTenant',
+        testId: 'nav-create-tenant',
+        icon: 'pi pi-plus',
+        routerLink: '/tenants/new',
+      });
+    }
+    if (this.canSwitchTenant()) {
+      items.push({
+        labelKey: 'nav.switchTenant',
+        testId: 'nav-switch-tenant',
+        icon: 'pi pi-arrow-right-arrow-left',
+        routerLink: '/select-tenant',
+      });
+    }
+
+    return items.length > 0 ? { categoryKey: 'nav.category.workspace', items } : null;
+  });
 
   ngOnInit(): void {
     // Resyncs against the real session rather than trusting isLoggedIn()'s in-memory state,

@@ -30,3 +30,42 @@
 - [x] 10. Update `PROJECT_STATUS.md`'s frontend feature table and "Next
       up" section to reflect this phase's completion and the open
       follow-up work.
+
+## Batch 2 — chrome + shared buttons + menus (2026-07-25)
+
+> Covers PLAN.md's migration-order items 1-3. Items 4-7 (forms, cards,
+> tables, feature-specific screens) remain open follow-up work.
+
+- [x] 11. Migrate `nav-menu.component.ts` to PrimeNG `p-menu` (inline,
+      `[popup]="false"`, one per permission-gated category), with custom
+      `#submenuheader`/`#item` templates preserving every existing
+      `data-testid`/`data-tour-id`/`routerLink`/permission gate.
+- [x] 12. Replace `nav-menu.component.ts`'s inline SVG icons with
+      PrimeIcons (`pi-th-large`, `pi-book`, `pi-comments`, `pi-users`,
+      `pi-plus`, `pi-arrow-right-arrow-left`).
+- [x] 13. Scope the permanently-dark sidebar/header chrome
+      (`app-shell.component.ts`) so PrimeNG components inside it always
+      render in the dark palette regardless of `ThemeService`'s
+      app-wide toggle — resolved via a static `class="dark"` on the
+      `<aside>`/`<header>` themselves (see PLAN.md's "Chrome dark-mode
+      scoping" section), not a new mechanism.
+- [x] 14. Migrate `logout-button.component.ts` and
+      `language-switcher.component.ts` to `[pButton]`
+      (`text severity="secondary"`), following `theme-toggle`'s pattern;
+      `logout-button` additionally swaps its inline SVG for `pi-sign-out`.
+- [x] 15. Migrate `help-menu.component.ts`'s dropdown to a `p-menu`
+      (inline, driven by the component's own `open` signal, not
+      PrimeNG's popup visibility) with a custom `#item` template for its
+      `restart-tour` action, preserving `data-testid`/`aria-expanded`.
+- [x] 16. Raise `angular.json`'s production budget `maximumWarning` from
+      750kB to 800kB (bundle grew to 752.65kB after adding `Menu`/
+      `ButtonDirective` across five components).
+- [x] 17. Run `npm run format`, then
+      `npm run format:check && npm test && npm run build` — all green,
+      no test changes needed (existing specs query by `data-testid`/
+      text content, not structure).
+- [x] 18. Update this file, `PLAN.md`'s migration order, and
+      `PROJECT_STATUS.md` to reflect batch 2's completion and the
+      still-open follow-up work (forms, cards, tables, feature screens;
+      `error-state`/`no-access-state`/`tour-overlay` deliberately
+      deferred — see PLAN.md note).
