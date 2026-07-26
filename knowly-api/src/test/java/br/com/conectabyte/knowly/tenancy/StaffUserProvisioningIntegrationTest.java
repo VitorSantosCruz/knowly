@@ -109,8 +109,12 @@ class StaffUserProvisioningIntegrationTest {
         verify(mailSender, org.mockito.Mockito.times(2)).send((MimeMessage) any());
     }
 
+    // Per role-model-refinement (SPEC Decision 2), createStaffUser was narrowed to be
+    // STAFF_ADMIN-only: an ungranted STAFF is (still) rejected, but a STAFF holding
+    // STAFF_USER_CREATE is *also* now rejected (that grant alone no longer suffices),
+    // and only STAFF_ADMIN succeeds.
     @Test
-    void grantedStaffCanCreateAStaffUserButUngrantedStaffCannot() {
+    void ungrantedStaffCannotCreateAStaffUser() {
         limitedStaff("nogrant@example.com");
         Cookie noGrantSession = logIn("nogrant@example.com");
         Cookie csrfCookie1 = obtainCsrfCookie();
@@ -125,11 +129,29 @@ class StaffUserProvisioningIntegrationTest {
                         .content("{\"email\":\"someone@example.com\"}")
                         .exchange();
         assertThat(rejected).hasStatus(HttpStatus.FORBIDDEN);
+    }
 
+    @Test
+    void staffGrantedStaffUserCreateCannotCreateAStaffUserButStaffAdminCan() {
         User granted = limitedStaff("granted@example.com");
         directGlobalPermissionGrantRepository.saveAndFlush(
                 new DirectGlobalPermissionGrant(granted, GlobalPermission.STAFF_USER_CREATE));
         Cookie grantedSession = logIn("granted@example.com");
+        Cookie csrfCookie1 = obtainCsrfCookie();
+
+        var rejected =
+                mockMvc.post()
+                        .uri("/api/staff/users")
+                        .cookie(grantedSession)
+                        .cookie(csrfCookie1)
+                        .header("X-XSRF-TOKEN", csrfCookie1.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"someone@example.com\"}")
+                        .exchange();
+        assertThat(rejected).hasStatus(HttpStatus.FORBIDDEN);
+
+        staffAdmin("admin-provisioning@example.com");
+        Cookie adminSession = logIn("admin-provisioning@example.com");
         when(mailSender.createMimeMessage())
                 .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
         Cookie csrfCookie2 = obtainCsrfCookie();
@@ -137,7 +159,7 @@ class StaffUserProvisioningIntegrationTest {
         var allowed =
                 mockMvc.post()
                         .uri("/api/staff/users")
-                        .cookie(grantedSession)
+                        .cookie(adminSession)
                         .cookie(csrfCookie2)
                         .header("X-XSRF-TOKEN", csrfCookie2.getValue())
                         .contentType(MediaType.APPLICATION_JSON)

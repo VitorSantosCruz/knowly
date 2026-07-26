@@ -51,6 +51,10 @@ is scoped to staff provisioning specifically.
   — distinct from `STAFF_PERMISSION_MANAGE` (managing an *existing*
   staff user's permissions) — following `staff-rbac-split`'s established
   principle that no permission implies any other.
+  **Narrowed by `role-model-refinement` (2026-07-26):** despite this
+  requirement, `createStaffUser` is now gated to `STAFF_ADMIN` only —
+  holding `STAFF_USER_CREATE` as a plain `STAFF` no longer suffices. See
+  that feature's SPEC, Decision 2.
 - **REQ-5 [Event-Driven]** When a staff user is created, the system
   shall record an audit event (actor, action, outcome, the new user's
   id), per the constitution's audit requirements.
@@ -75,6 +79,11 @@ is scoped to staff provisioning specifically.
       appears with `GlobalRole.STAFF` and no permissions.
 - [x] A `STAFF` user granted `STAFF_USER_CREATE` can do the same; a
       `STAFF` user without it is rejected.
+      **Narrowed by `role-model-refinement` (2026-07-26):** `createStaffUser`
+      is now `STAFF_ADMIN`-only — a `STAFF` user holding `STAFF_USER_CREATE`
+      is rejected too. See that feature's SPEC, Decision 2. This line is
+      kept as the historical record of this feature's original acceptance
+      criterion; it no longer reflects current behavior.
 - [x] A `STAFF` user granted only `STAFF_PERMISSION_MANAGE` (not
       `STAFF_USER_CREATE`) cannot create a new staff user.
 - [x] Attempting to create a staff user with an email that already

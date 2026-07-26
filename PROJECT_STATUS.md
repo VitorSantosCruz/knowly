@@ -308,7 +308,17 @@ SPEC before implementation, roughly in this order:**
     whoever added the member should be notified in-app that it was
     accepted. This overlaps significantly with item 9 above (both need
     the same pending-membership/accept mechanism) — likely one shared
-    backend SPEC covering both.
+    backend SPEC covering both. **Exception confirmed 2026-07-26**: the
+    pending/accept flow only applies when the invitee already has a
+    `User` account to notify in-app. If the invited person has no
+    account in the system yet, there's no in-app inbox to deliver a
+    notification to, so the pending/accept step is skipped entirely for
+    that case — the membership is created active immediately, same as
+    today's behavior. (This is the existing passwordless/login-code
+    flow's normal new-user path — inviting a brand-new email already
+    creates the `User` at invite time; that path stays unchanged and
+    simply doesn't gain a pending state, since there's nobody yet to ask
+    for consent.)
 11. Tenant list pagination + search-by-name on `/select-tenant` and the
    backend's `GET /api/tenants` (currently returns everything unbounded
    — will break at scale). Needs a backend SPEC (pagination/search API
@@ -317,7 +327,16 @@ SPEC before implementation, roughly in this order:**
    single plain text field) — matches the common "one box per digit"
    pattern. Frontend-only.
 13. **Full identity/profile model — big, LGPD-sensitive, needs its own
-   SPEC(s) before any code.** Both the `Tenant` (company: CNPJ + other
+   SPEC(s) before any code.** **Tier 3 data-protection decision confirmed
+   by the user 2026-07-26 — unblocked**: CPF/RG shall be encrypted at
+   rest (e.g. a JPA `AttributeConverter` doing the cipher/decipher, key
+   managed outside the codebase — a secrets manager or env-injected key,
+   never hardcoded/committed), decrypted only in memory when shown to
+   someone holding the relevant permission. Retention: **indefinite**
+   while the `User` record exists — no automatic expiry/anonymization
+   job; deletion is manual/on-demand only (e.g. an LGPD data-subject
+   erasure request), not a scheduled process. This SPEC can now proceed.
+   Both the `Tenant` (company: CNPJ + other
    legally-unique company fields, tbd) and every `User` (person: email,
    full address, RG, CPF, phone, each enforced unique across all users
    — DB-level uniqueness, not just app validation) need complete

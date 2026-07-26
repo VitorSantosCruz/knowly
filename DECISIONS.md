@@ -464,6 +464,162 @@ silently defaulting a shared aspect's new behavior to "on for
 everyone" just because the column already exists and is convenient to
 populate.
 
+## `tenant-membership-acceptance`: "scoped by caller identity, not by an already-active tenant" methods must stay outside `@Transactional`/`TenantFilterAspect`
+
+`TenantFilterAspect` enables Hibernate's `TenantFilter` strictly from
+`TenantContext.getActiveTenantId()` (session state) on every
+`@Transactional` service method — there is no per-call override, and a
+non-staff caller with no active tenant selected gets the filter enabled
+with `NO_ACTIVE_TENANT_SENTINEL`, which fails closed (returns nothing).
+This is already why `TenantService.resolveSessionOutcome`/
+`listOwnMemberships`/`requireActiveMembership` are deliberately **not**
+`@Transactional` — they're scoped by the caller's own identity (and, for
+the last one, an explicit `(user, tenantId)` pair the caller is proving
+they belong to), not by whatever tenant happens to be active in the
+session, so wrapping them in the aspect-driven filter would incorrectly
+exclude the exact row the query exists to find.
+
+`tenant-membership-acceptance`'s `NotificationService` (accept/decline a
+pending `TenantMembership` invitation, REQ-5/REQ-7) hits the identical
+shape: the invitee is, by definition, acting on a tenant they have not
+yet switched into — that's the whole point of an invitation. Rather than
+inventing a new isolation exemption (e.g. activating the filter for an
+arbitrary tenant id pulled from request data, which would be a genuine
+new Tier 3 safeguard exemption), `NotificationService`'s `listMine`,
+`accept`, and `decline` reuse the exact same established pattern:
+non-`@Transactional`, caller-identity-scoped repository calls, mirroring
+`requireActiveMembership`'s shape exactly. Tenant isolation itself is
+never weakened — the only thing this unlocks is "the caller can act on a
+specific membership row that is provably their own (by recipient-user
+match on the referencing `Notification`), before selecting that tenant,"
+never cross-tenant listing or another user's row.
+
+**Applies to new decisions:** before writing a new
+`@Transactional`/aspect-wrapped method that needs to read or mutate a
+tenant-owned row on behalf of a user who hasn't (or can't yet have) an
+active tenant selection for that row's tenant, check whether the query
+is actually scoped by **caller identity** (an owned FK, a provable
+`(user, tenant)` pair from an unambiguous non-tenant-scoped anchor like a
+`Notification.recipient`) — if so, follow this same
+non-`@Transactional` pattern rather than reaching for a new filter
+exemption. If the query can't be scoped that tightly by caller identity
+alone, that's a real Tier 3 isolation-exemption question, not a
+free pass to copy this pattern.
+
+## `identity-profile-model`: CPF/RG blind index accepted over encrypted-column uniqueness (confirmed 2026-07-26)
+
+**Decision (Tier 3, confirmed by the product owner 2026-07-26):**
+`cpf`/`rg` are encrypted at rest with randomized-IV AES-GCM (via a JPA
+`AttributeConverter`), which makes the encrypted column itself unusable
+for DB-level uniqueness (same plaintext → different ciphertext every
+time). To still satisfy REQ-2's "globally unique, enforced by the
+database" requirement, a second, indexed `cpfBlindIndex`/`rgBlindIndex`
+column stores a keyed HMAC-SHA256 of the normalized plaintext (strip
+non-digits), computed with a key independent from the encryption key.
+The blind-index columns carry the actual unique constraints; the
+encrypted columns are never read for equality. **Why:** this is the
+standard, well-established resolution to "encrypted at rest AND
+DB-enforced-unique" being otherwise mutually exclusive with randomized
+IVs — the alternative (deterministic encryption) has the identical
+equality-revealing property with weaker cryptographic guarantees, so it
+isn't a meaningfully safer choice. **The accepted tradeoff, explicitly
+flagged and confirmed, not silently absorbed**: a blind index reveals
+*that* two `User` rows share the same CPF/RG (an equality fact) even
+though it never reveals the value itself — this is new information
+exposure beyond what "encrypt CPF/RG at rest" originally promised, and
+the product owner accepted it as the cost of also getting DB-enforced
+uniqueness. **Applies to new decisions:** any future field that needs
+both "encrypted at rest" and "DB-enforced unique" hits this exact
+conflict — don't silently pick blind-indexing (or any equality-revealing
+alternative) without this same explicit confirmation each time; the
+tradeoff being accepted once for CPF/RG does not pre-approve it for a
+different field with different sensitivity.
+
+## `identity-profile-model`: a second, independent secret pair (encryption key + HMAC key) follows the existing `${VAR}`-from-environment convention
+
+The blind-index mechanism above needs two cryptographically independent
+keys (the `AttributeConverter`'s AES key, and the blind index's HMAC
+key) — if they were the same key, an attacker who recovered one would
+recover both, defeating the point of splitting them. **Decision:** both
+are sourced exactly like every other secret already in
+`application.yaml` (bare `${CPF_RG_ENCRYPTION_KEY}` /
+`${CPF_RG_HMAC_KEY}`, no `${VAR:?msg}` — see this file's existing entry
+on why that syntax doesn't do what it looks like in `application.yaml`),
+bound via a new `@ConfigurationProperties(prefix = "knowly.identity")`
+class. **Why:** no new pattern needed — this project already has a
+working, reviewed convention for "secret sourced from environment, never
+hardcoded/committed" (`OPENAI_API_KEY`, `TURNSTILE_SECRET_KEY`, MinIO
+credentials); a second secret pair for one feature doesn't warrant
+inventing anything new. **Applies to new decisions:** any future feature
+needing more than one independent secret should default to this same
+shape (one `${VAR}` per secret, grouped under its own
+`@ConfigurationProperties` prefix) rather than reusing an unrelated
+feature's key for convenience, or introducing a different
+secrets-sourcing mechanism (e.g. a vault client) without that being a
+separate, explicit Tier 3 dependency decision first.
+
+## `identity-profile-model`: profile-edit authorization lives as explicit service-layer logic, not a single `@RequiresPermission`/`@RequiresGlobalPermission` annotation
+
+REQ-9 through REQ-14a's actual rule set ("admin bypass regardless of
+self/other, OR permission-holder allowed on *others only*, rejected on
+self") depends on both *who* holds what *and* whether the target is the
+caller — something no single `@Requires*` annotation call expresses,
+since those aspects only ever check "does the caller hold permission X,"
+not "and is the target someone other than the caller." **Decision:**
+`UserProfileController`'s edit/view endpoints carry no
+`@RequiresPermission`/`@RequiresGlobalPermission` annotation;
+`UserProfileService` implements the full decision tree itself
+(`STAFF_ADMIN`/`MEMBER_ADMIN` bypass checked directly, then
+tenant-scoped/global-scoped `PROFILE_EDIT`/`PROFILE_VIEW` checked via the
+existing `PermissionService`/`GlobalPermissionService`, plus an explicit
+self-exclusion guard for the non-admin permission paths), throwing the
+existing `PermissionDeniedException` for every rejected path so the
+existing 403 mapping and `@AuditLog`-on-failure behavior both still
+apply unchanged. **Why:** this mirrors the precedent already set by
+`NotificationService` (its recipient-identity check doesn't fit
+`PermissionAspect`'s tenant-membership model either, so it's inline
+service logic, not a forced-fit annotation) — the underlying principle
+("if the SPEC's authorization rule genuinely doesn't reduce to a single
+permission-grant check, do it explicitly in the service, don't stretch
+the aspect to cover it") already exists in this codebase, just not
+documented as reusable precedent before now. **Applies to new
+decisions:** before adding a new `@Requires*`-annotated endpoint, check
+whether the actual rule is "does the caller hold permission X" (fits the
+aspect) or something richer involving self/other, ownership, or multiple
+independent bypass paths (doesn't fit) — the latter belongs as explicit,
+testable logic inside the service method, not as a stretched annotation
+parameter or a second competing aspect.
+
+## `identity-profile-model`: reuses `Notification` by relaxing its existing `tenant_membership_id` FK to nullable, rather than building a second notification mechanism
+
+`tenant-membership-acceptance`'s `Notification` entity has
+`tenantMembership` as `@ManyToOne(optional = false)` — every row today
+is anchored to a `TenantMembership`. This feature's profile-edit-request
+notifications have no such anchor (approver may be `STAFF`/global-permission-only,
+requester may themself have no membership row in scope). **Decision:**
+add a new nullable `profile_edit_request_id` FK to `notifications`,
+relax `tenant_membership_id` to nullable, and add a `CHECK` constraint
+enforcing exactly one of the two is set per row — rather than
+duplicating a second in-app-notification table/mechanism for this
+feature alone. **Why:** confirmed by reading every existing
+`Notification` consumer (`NotificationService`,
+`NotificationController`) that none dereferences `.getTenantMembership()`
+without already being on a membership-invitation-only code path, so
+relaxing the column's nullability doesn't silently break an existing
+assumption — it only makes room for a second, equally legitimate anchor
+type. Building a second notification mechanism instead would have meant
+two inboxes, two read/resolve flows, and two things a user has to check
+for "what's pending for me," directly contradicting the SPEC's own
+non-functional requirement ("reuses `tenant-membership-acceptance`'s
+`Notification` entity rather than building a second mechanism").
+**Applies to new decisions:** a shared entity introduced by one feature
+can be extended by a later feature via an additional nullable
+FK + a `CHECK` constraint enforcing mutual exclusivity, *provided* every
+existing consumer of the entity is actually read first to confirm none
+of them assumes the relaxed column is always non-null — do not relax a
+NOT NULL constraint on a shared table without that verification step
+recorded in the PLAN, the way this entry does.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
