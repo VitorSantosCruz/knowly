@@ -143,7 +143,8 @@ public class TenantService {
                         .findByEmailIgnoreCase(adminEmail)
                         .orElseGet(() -> userRepository.save(new User(adminEmail)));
 
-        tenantMembershipRepository.save(new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+        tenantMembershipRepository.save(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
 
         return tenant;
     }
@@ -408,7 +409,7 @@ public class TenantService {
                 tenantMembershipRepository
                         .findByUserAndTenant(actor, tenant)
                         .filter(TenantMembership::isActive)
-                        .filter(membership -> membership.getRole() == MembershipRole.ADMIN)
+                        .filter(membership -> membership.getRole() == MembershipRole.MEMBER_ADMIN)
                         .isPresent();
 
         if (!isAdminOfTenant) {

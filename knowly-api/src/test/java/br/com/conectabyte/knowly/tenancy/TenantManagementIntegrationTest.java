@@ -72,7 +72,7 @@ class TenantManagementIntegrationTest {
         User admin = userRepository.findByEmailIgnoreCase("admin@acme.com").orElseThrow();
         assertThat(tenantMembershipRepository.findByUserAndActiveTrue(admin)).hasSize(1);
         assertThat(tenantMembershipRepository.findByUserAndActiveTrue(admin).get(0).getRole())
-                .isEqualTo(MembershipRole.ADMIN);
+                .isEqualTo(MembershipRole.MEMBER_ADMIN);
     }
 
     @Test
@@ -100,7 +100,7 @@ class TenantManagementIntegrationTest {
         User admin = userRepository.saveAndFlush(new User("admin@own.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Own Tenant"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
 
         Cookie session = logIn("admin@own.com");
 
@@ -134,7 +134,7 @@ class TenantManagementIntegrationTest {
         Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
         Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, tenantA, MembershipRole.ADMIN));
+                new TenantMembership(admin, tenantA, MembershipRole.MEMBER_ADMIN));
 
         Cookie session = logIn("admin@tenantA.com");
 
@@ -155,7 +155,7 @@ class TenantManagementIntegrationTest {
         User admin = userRepository.saveAndFlush(new User("admin2@own.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Own Tenant 2"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
         TenantMembership memberMembership =
                 tenantMembershipRepository.saveAndFlush(
                         new TenantMembership(member, tenant, MembershipRole.MEMBER));
@@ -223,7 +223,7 @@ class TenantManagementIntegrationTest {
         User member = userRepository.saveAndFlush(new User("member3@own.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Tenant"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(member, tenant, MembershipRole.MEMBER));
 
@@ -246,7 +246,7 @@ class TenantManagementIntegrationTest {
         Tenant ownTenant = tenantRepository.saveAndFlush(new Tenant("Own Tenant 4"));
         Tenant otherTenant = tenantRepository.saveAndFlush(new Tenant("Other Tenant 4"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, ownTenant, MembershipRole.ADMIN));
+                new TenantMembership(admin, ownTenant, MembershipRole.MEMBER_ADMIN));
 
         Cookie session = logIn("admin4@own.com");
 
@@ -265,7 +265,7 @@ class TenantManagementIntegrationTest {
         User member = userRepository.saveAndFlush(new User("member5@own.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Detail Tenant"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
         TenantMembership memberMembership =
                 tenantMembershipRepository.saveAndFlush(
                         new TenantMembership(member, tenant, MembershipRole.MEMBER));
@@ -304,7 +304,7 @@ class TenantManagementIntegrationTest {
         User member = userRepository.saveAndFlush(new User("member6@own.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Group Tenant"));
         tenantMembershipRepository.saveAndFlush(
-                new TenantMembership(admin, tenant, MembershipRole.ADMIN));
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
         TenantMembership memberMembership =
                 tenantMembershipRepository.saveAndFlush(
                         new TenantMembership(member, tenant, MembershipRole.MEMBER));

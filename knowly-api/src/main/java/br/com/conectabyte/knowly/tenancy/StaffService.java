@@ -8,9 +8,11 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
+import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.StaffUserAlreadyExistsException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +57,8 @@ public class StaffService {
     @RequiresGlobalPermission(GlobalPermission.STAFF_USER_CREATE)
     @AuditLog(action = "staff.user.create", resourceType = "User")
     public User createStaffUser(String email) {
+        enforceStaffCeiling(GlobalRole.STAFF);
+
         if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
             throw new StaffUserAlreadyExistsException();
         }
@@ -71,8 +75,13 @@ public class StaffService {
 
     @Transactional(readOnly = true)
     @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    @AuditLog(
+            action = "staff.user.detail.view",
+            resourceType = "User",
+            resourceIdExpression = "#userId")
     public StaffUserDetailDto getStaffUserDetail(Long userId) {
         User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
 
         List<GlobalPermission> direct =
                 directGlobalPermissionGrantRepository.findByUser(user).stream()
@@ -94,6 +103,7 @@ public class StaffService {
     @AuditLog(action = "staff.permission.grant", resourceType = "DirectGlobalPermissionGrant")
     public void grantPermission(Long userId, GlobalPermission permission) {
         User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
 
         directGlobalPermissionGrantRepository
                 .findByUserAndPermission(user, permission)
@@ -108,6 +118,7 @@ public class StaffService {
     @AuditLog(action = "staff.permission.revoke", resourceType = "DirectGlobalPermissionGrant")
     public void revokePermission(Long userId, GlobalPermission permission) {
         User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
 
         directGlobalPermissionGrantRepository
                 .findByUserAndPermission(user, permission)
@@ -150,6 +161,7 @@ public class StaffService {
     @AuditLog(action = "staff.member.access_group.assign", resourceType = "UserGlobalAccessGroup")
     public void assignAccessGroup(Long userId, Long accessGroupId) {
         User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
         GlobalAccessGroup accessGroup = requireAccessGroup(accessGroupId);
 
         userGlobalAccessGroupRepository
@@ -165,11 +177,26 @@ public class StaffService {
     @AuditLog(action = "staff.member.access_group.unassign", resourceType = "UserGlobalAccessGroup")
     public void unassignAccessGroup(Long userId, Long accessGroupId) {
         User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
         GlobalAccessGroup accessGroup = requireAccessGroup(accessGroupId);
 
         userGlobalAccessGroupRepository
                 .findByUserAndGlobalAccessGroup(user, accessGroup)
                 .ifPresent(userGlobalAccessGroupRepository::delete);
+    }
+
+    private void enforceStaffCeiling(GlobalRole targetGlobalRole) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User actor =
+                userRepository
+                        .findByEmailIgnoreCase(email)
+                        .orElseThrow(PermissionDeniedException::new);
+
+        if (actor.getGlobalRole() == GlobalRole.STAFF
+                && (targetGlobalRole == GlobalRole.STAFF
+                        || targetGlobalRole == GlobalRole.STAFF_ADMIN)) {
+            throw new PermissionDeniedException();
+        }
     }
 
     private User requireUser(Long userId) {
