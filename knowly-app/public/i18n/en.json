@@ -43,7 +43,14 @@
     "noAccess": "You don't have access to this.",
     "error": "Something went wrong loading this. Trace id: {{traceId}}",
     "searchArticles": "Search articles…",
-    "export": "Export CSV"
+    "export": "Export CSV",
+    "tiles": {
+      "articles": "Active articles",
+      "conversations": "Conversations",
+      "userMessages": "User messages",
+      "assistantMessages": "Assistant messages",
+      "activeMembers": "Active members"
+    }
   },
   "welcome": {
     "staffGreeting": "Welcome to knowly",

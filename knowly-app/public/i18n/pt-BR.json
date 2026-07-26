@@ -43,7 +43,14 @@
     "noAccess": "Você não tem acesso a isso.",
     "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}",
     "searchArticles": "Buscar artigos…",
-    "export": "Exportar CSV"
+    "export": "Exportar CSV",
+    "tiles": {
+      "articles": "Artigos ativos",
+      "conversations": "Conversas",
+      "userMessages": "Mensagens do usuário",
+      "assistantMessages": "Mensagens do assistente",
+      "activeMembers": "Membros ativos"
+    }
   },
   "welcome": {
     "staffGreeting": "Bem-vindo ao knowly",
