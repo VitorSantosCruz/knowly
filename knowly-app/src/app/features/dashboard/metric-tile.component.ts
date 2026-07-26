@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, effect, inject, input } from '@angular/core';
-import { UIChart } from 'primeng/chart';
 import { MetricFetcher, createMetricFetcher } from '../../core/metric-fetcher';
+import { ChartCanvasComponent } from '../../shared/chart-canvas.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { Period } from './period-filter.component';
@@ -32,7 +32,7 @@ const SPARKLINE_OPTIONS = {
 
 @Component({
   selector: 'app-metric-tile',
-  imports: [ErrorStateComponent, NoAccessStateComponent, UIChart],
+  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
   template: `
     <div
       [attr.data-testid]="testId()"
@@ -50,7 +50,7 @@ const SPARKLINE_OPTIONS = {
           {{ valueSelector()(data) }}
         </p>
         <div class="mt-2 h-12">
-          <p-chart
+          <app-chart-canvas
             type="line"
             [data]="toChartData(data)"
             [options]="sparklineOptions"

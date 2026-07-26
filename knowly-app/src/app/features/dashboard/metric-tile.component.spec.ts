@@ -95,7 +95,7 @@ describe('MetricTileComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="conversations-tile"]').textContent,
     ).toContain('8');
-    expect(fixture.nativeElement.querySelector('p-chart')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeTruthy();
   });
 
   it('shows an error state with the trace id on a network/server error', () => {
