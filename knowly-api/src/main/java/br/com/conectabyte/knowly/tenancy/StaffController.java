@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalPermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.OwnGlobalPermissionsDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
+import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -73,6 +75,12 @@ public class StaffController {
                                 List.of(),
                                 List.of(),
                                 List.of()));
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<List<StaffUserSummaryDto>> listStaffUsers(
+            @RequestParam(required = false) String email) {
+        return ResponseEntity.ok(staffService.listStaffUsers(email));
     }
 
     @GetMapping("/users/{userId}/permissions")

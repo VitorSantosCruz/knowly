@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
+import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.StaffUserAlreadyExistsException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
@@ -123,6 +124,26 @@ public class StaffService {
         directGlobalPermissionGrantRepository
                 .findByUserAndPermission(user, permission)
                 .ifPresent(directGlobalPermissionGrantRepository::delete);
+    }
+
+    /**
+     * Lists every {@code STAFF}/{@code STAFF_ADMIN} user (id/email/globalRole), optionally filtered
+     * by an email substring. Deliberately does not call {@link #enforceStaffCeiling(GlobalRole)} —
+     * per specify/features/staff-user-listing/SPEC.md REQ-6, merely seeing that a staff account
+     * exists is a distinct capability from managing it, and every management method independently
+     * re-checks the ceiling.
+     */
+    @Transactional(readOnly = true)
+    @RequiresGlobalPermission(GlobalPermission.STAFF_USER_VIEW)
+    public List<StaffUserSummaryDto> listStaffUsers(String emailFilter) {
+        List<GlobalRole> staffRoles = List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN);
+        List<User> users =
+                (emailFilter == null || emailFilter.isBlank())
+                        ? userRepository.findByGlobalRoleIn(staffRoles)
+                        : userRepository.findByGlobalRoleInAndEmailContainingIgnoreCase(
+                                staffRoles, emailFilter);
+
+        return users.stream().map(StaffUserSummaryDto::from).toList();
     }
 
     @Transactional(readOnly = true)
