@@ -69,3 +69,47 @@
       still-open follow-up work (forms, cards, tables, feature screens;
       `error-state`/`no-access-state`/`tour-overlay` deliberately
       deferred — see PLAN.md note).
+
+## Batch 3 — remaining feature screens, final pass (2026-07-25)
+
+> Covers PLAN.md's migration-order items 4-7 in full. Completes the
+> migration — no migration-order items remain open after this batch.
+
+- [x] 19. Migrate `error-state.component.ts` to `p-message`
+      (`severity="error"`); re-verify `no-access-state.component.ts` is
+      still just a `<p>`, not worth a PrimeNG wrapper.
+- [x] 20. Migrate `welcome-page.component.ts`'s quick-link cards to
+      `p-card`, keeping permission gating and `routerLink`s unchanged.
+- [x] 21. Migrate `login-page.component.ts`'s inputs/buttons to
+      `pInputText`/`pPassword`/`pButton` directives on the existing
+      native elements (no DOM restructuring), leaving the bespoke
+      code/password tab UI as-is.
+- [x] 22. Migrate `articles-page.component.ts`: `p-card` for upload/
+      detail panels, `pInputText`/`pTextarea` for text fields, `pButton`
+      for actions; article-list rows deliberately left as native markup
+      (two actions per row, not a `p-listbox` fit).
+- [x] 23. Migrate `conversations-page.component.ts`: conversation list
+      to `p-listbox` with a custom `#item` template; new-conversation/
+      send buttons to `pButton`; message input to `pInputText`; chat
+      bubbles deliberately left as bespoke markup.
+- [x] 24. Migrate `members-page.component.ts`'s member list to `p-table`
+      with a custom `#body` template; add-member form to
+      `pInputText`/`pButton`.
+- [x] 25. Migrate `select-tenant-page.component.ts`'s tenant list to
+      `p-listbox` with a custom `#item` template; create-tenant link to
+      `pButton`.
+- [x] 26. Migrate `tenant-create-page.component.ts`'s form to
+      `pInputText`/`pButton`.
+- [x] 27. Raise `angular.json`'s production budget again
+      (`maximumWarning` 800kB→900kB, `maximumError` 1MB→1.4MB — bundle
+      reached 1.27MB after the full migration; route-level lazy loading
+      flagged as the real follow-up fix, not solved here).
+- [x] 28. Run `npm run format`, then
+      `npm run format:check && npm test && npm run build` — all green,
+      all 186 pre-existing tests passing unchanged (no DOM restructuring
+      needed).
+- [x] 29. Update this file, `PLAN.md`'s "Final feature-screen pass" and
+      "Known follow-ups" sections, and `PROJECT_STATUS.md`'s frontend
+      feature table and "Next up" section to record the migration as
+      fully complete, with `tour-overlay` and lazy-route-splitting as
+      the only remaining open follow-ups.

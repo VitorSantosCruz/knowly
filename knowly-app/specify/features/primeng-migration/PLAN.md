@@ -168,6 +168,70 @@ existing selector rather than introducing a new one, so it isn't a new
 mechanism requiring separate sign-off, but is recorded here since it's
 the resolution the "known follow-up" below was flagging.
 
+## Final feature-screen pass (2026-07-25) — migration order items 4-7
+
+All remaining migration-order items are now done, completing the
+migration:
+
+- **`error-state.component.ts` → `p-message` (`severity="error"`).**
+  `no-access-state.component.ts` stayed a plain `<p>` — re-verified as
+  still just that, not a component-library concern.
+- **`welcome-page.component.ts`'s quick-link cards → `p-card`,** wrapped
+  in the existing `<a routerLink>` so the whole card stays clickable;
+  permission gating (`permissionsService.has(...)`) untouched.
+- **`login-page.component.ts` → `pInputText`/`pPassword`/`pButton`
+  directives applied directly to the existing native `<input>`/
+  `<button>` elements** (not the `p-password`/component forms) —
+  deliberately chosen because these are directives, not components, so
+  no DOM wrapper is introduced and every existing
+  `querySelector('input[type="email"]')`/`querySelector('input[name="code"]')`-
+  style spec assertion kept working unchanged. The email/code/password
+  tab UI itself (the `role="tab"` buttons) stayed hand-rolled — no
+  PrimeNG tab component was a clean fit for this app's specific
+  two-tab, non-routed pattern without restructuring the DOM tests
+  depend on.
+- **`articles-page.component.ts`**: upload form and detail panel wrapped
+  in `p-card`; title/edit-title inputs → `pInputText`, edit-text →
+  `pTextarea` (a directive, `primeng/textarea`); upload/save/delete
+  buttons → `pButton` (delete uses `text severity="danger"`). The
+  article-list `<ul>` rows were deliberately left as native markup, not
+  `p-listbox`: each row has two independent actions (select the article,
+  delete it) and `p-listbox` models a single click-to-select action per
+  option — forcing it here would mean fighting the component's model
+  rather than fitting it.
+- **`conversations-page.component.ts`**: conversation list → `p-listbox`
+  with a custom `#item` template (single action per row — a clean fit,
+  unlike articles' list); new-conversation and send buttons → `pButton`;
+  message input → `pInputText`. Chat bubbles stayed bespoke `<li>`s —
+  they're rendered content bubbles with role-based styling, not an
+  interactive/stateful UI element PrimeNG has a real component for.
+- **`members-page.component.ts`**: member list → `p-table` with a custom
+  `#body` template (two columns: email/select, remove button); add-member
+  form → `pInputText`/`pButton`.
+- **`select-tenant-page.component.ts`**: tenant list → `p-listbox` with a
+  custom `#item` template (single action per row); create-tenant link →
+  `pButton` (an `<a routerLink>` with the `pButton` directive, so
+  routing behavior is untouched).
+- **`tenant-create-page.component.ts`**: name/admin-email inputs →
+  `pInputText`; submit button → `pButton`.
+- **`angular.json`'s production budget raised again: `maximumWarning`
+  800kB → 900kB, `maximumError` 1MB → 1.4MB.** Why: the full migration's
+  bundle reached 1.27MB (up from 752.65kB after the chrome/menu pass) —
+  `Card`/`InputText`/`Password`/`Textarea`/`Listbox`/`Table` each add
+  their own component code, and none of this app's routes are
+  lazy-loaded yet (`app.routes.ts` uses eager `component:` references,
+  not `loadComponent`), so all of PrimeNG's now-larger surface area
+  still ships in the one initial chunk. Raising the budget again is the
+  same category of decision made twice already in this migration (500→
+  750→800kB), not a new kind of call; the real fix — route-level lazy
+  loading — is a bigger, separate change (routing architecture, not a
+  PrimeNG component swap) and is recorded below as a following follow-up
+  rather than done silently as part of this pass.
+- **Every existing `data-testid`/`data-tour-id`/permission gate/
+  `routerLink` survived unchanged**; no test needed to change to match
+  a restructured DOM — `npm run format:check && npm test && npm run
+  build` all green with the original 186 tests passing as-is.
+
 ## Known follow-ups (not solved by this PLAN)
 
 - Tailwind v4 cascade-layer (`cssLayer`) integration for PrimeNG's
@@ -179,6 +243,16 @@ the resolution the "known follow-up" below was flagging.
   and `Table`/`DataTable` components instead, since no ngx-charts
   dependency exists yet and nothing has been built against it — this is
   a PO-owned SPEC revision, not decided here.
+- `tour-overlay.component.ts` not migrated — its positioned-dialog
+  behavior depends on exact `getBoundingClientRect()` timing against
+  `data-tour-id` targets; revisit once `p-dialog`/`p-popover`'s
+  positioning behavior is verified not to break that.
+- Route-level lazy loading (`loadComponent` instead of eager `component:`
+  references in `app.routes.ts`) would let each feature route's PrimeNG
+  imports ship in their own chunk instead of all-in-one — the real fix
+  for the bundle-size growth this migration caused (1.27MB initial as of
+  the final pass), rather than repeatedly raising the budget. Not done
+  here since it's a routing-architecture change, not a component swap.
 
 ## Migration order (priority, for the next implementation pass)
 

@@ -62,17 +62,17 @@ all done. Next up (item 5 below) is user management screens** — no
 SPEC written for it yet.
 
 **Also queued, independent of the item-5 priority order below:**
-`primeng-migration`'s architecture/setup phase, and its first
-screen-by-screen batch (sidebar/header chrome, shared buttons, menus —
-migration order items 1-3), are both done — see its row in the frontend
+`primeng-migration` is now fully complete (2026-07-25 final pass) — all
+migration-order items 1-7 (chrome/menus, shared buttons, forms, cards,
+tables, feature-specific screens) are done. See its row in the frontend
 feature table and
-`knowly-app/specify/features/primeng-migration/PLAN.md`/`TASKS.md`.
-Remaining migration-order items (4-7: forms, cards, tables,
-feature-specific screens like articles/conversations/members/welcome/
-login/select-tenant/tenant-create) are still open follow-up work for a
-`frontend-engineer`/`design-system-ui-ux` agent — ask the user which to
-prioritize next (user-management screens vs. continuing the PrimeNG
-migration pass) if picking up cold.
+`knowly-app/specify/features/primeng-migration/PLAN.md`/`TASKS.md` for
+the full record, including the components deliberately left as
+hand-rolled markup (chat bubbles, tab UI, article-list rows with two
+independent actions) and the still-open follow-ups (Tailwind `cssLayer`
+integration; `tour-overlay` not migrated — its positioning behavior
+depends on exact `getBoundingClientRect()` timing not yet verified
+against `p-dialog`/`p-popover`).
 
 The user confirmed this order for the next several features (2026-07-25):
 
@@ -299,7 +299,7 @@ for the actual requirements and decisions.
 | `tags-list` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format, paired with the backend's `tags-crud` reference. Don't build it unless explicitly asked to turn it into a real feature. |
 | `navigation-menu` | ✅ Done | Real app-shell navigation (`nav-menu.component.ts`), links filtered by `PermissionsService`/`GlobalPermissionsService`; "switch tenant" link reusing `/select-tenant`. Fixed the `staffGuard`/create-tenant-link bug above as part of the same feature. |
 | `welcome-screen` | ✅ Done | Real `/welcome` landing screen (staff-generic or tenant-branded greeting, no sensitive/permission-gated content) — replaces `/dashboard` as the post-login/tenant-selection/root-redirect target. Fixed two real bugs: login and the root route (`''`) both used to send an already-authenticated session to the wrong place (tenant list, or unconditionally `/login`). Onboarding tour trigger moved here from `dashboard`; tour target ids moved to the global nav menu. |
-| `primeng-migration` | 🟡 Chrome + shared buttons + menus done, forms/cards/tables/feature screens open | Full replacement of hand-rolled Tailwind components with PrimeNG + PrimeIcons (owner-driven, see `DECISIONS.md`). Setup phase: `primeng@22.0.0`/`@primeuix/themes@3.0.0`/`primeicons@8.0.0`/`@angular/cdk@22.0.0` added; `core/prime-theme.ts` preset maps `ink-*`/`signal-*` onto PrimeNG's tokens for light/dark; `providePrimeNG()` wired in `app.config.ts` with `darkModeSelector: '.dark'`. 2026-07-25 pass (migration order items 1-3): `nav-menu.component.ts` rebuilt with per-category inline `p-menu`s (custom `#submenuheader`/`#item` templates keep every `data-testid`/`data-tour-id`/permission gate), PrimeIcons replace its inline SVGs; `app-shell.component.ts`'s `<aside>`/`<header>` get a static `class="dark"` so PrimeNG components in the permanently-dark chrome always render dark tokens regardless of `ThemeService`'s toggle (reuses the existing `@custom-variant dark (&:where(.dark, .dark *))` selector, not a new mechanism); `logout-button`/`language-switcher`/`help-menu` migrated to `[pButton]`/`p-menu` following `theme-toggle`'s proof-of-concept pattern. `angular.json`'s `maximumWarning` budget raised 750kB→800kB. Remaining: forms, cards, tables, feature-specific screens (migration order items 4-7) — see the feature's `PLAN.md`/`TASKS.md` for the priority order, and known follow-ups (Tailwind `cssLayer` integration; `error-state`/`no-access-state`/`tour-overlay` deliberately deferred). |
+| `primeng-migration` | 🟢 Done (all migration-order items 1-7) | Full replacement of hand-rolled Tailwind components with PrimeNG + PrimeIcons (owner-driven, see `DECISIONS.md`). Setup phase: `primeng@22.0.0`/`@primeuix/themes@3.0.0`/`primeicons@8.0.0`/`@angular/cdk@22.0.0` added; `core/prime-theme.ts` preset maps `ink-*`/`signal-*` onto PrimeNG's tokens for light/dark; `providePrimeNG()` wired in `app.config.ts` with `darkModeSelector: '.dark'`. 2026-07-25 chrome/menu pass (items 1-3): `nav-menu.component.ts` rebuilt with per-category inline `p-menu`s (custom `#submenuheader`/`#item` templates keep every `data-testid`/`data-tour-id`/permission gate), PrimeIcons replace its inline SVGs; `app-shell.component.ts`'s `<aside>`/`<header>` get a static `class="dark"` so PrimeNG components in the permanently-dark chrome always render dark tokens regardless of `ThemeService`'s toggle; `logout-button`/`language-switcher`/`help-menu` migrated to `[pButton]`/`p-menu`. 2026-07-25 final pass (items 4-7, all feature screens): `error-state` → `p-message`; `welcome-page`'s quick-link cards → `p-card`; `login-page`'s inputs/buttons → `pInputText`/`pPassword`/`pButton` directives on the same native elements (no DOM restructuring, so all `querySelector('input[...]')`-based specs kept passing unchanged); `articles-page`'s upload/detail panels → `p-card`, text inputs → `pInputText`/`pTextarea`, buttons → `pButton` (article-list rows left as native markup — two independent actions per row, not a clean `Listbox` fit); `conversations-page`'s conversation list → `p-listbox` with a custom `#item` template (chat bubbles and the new-conversation/send buttons use `pButton`/`pInputText`; bubbles themselves stay bespoke `<div>`s, no PrimeNG fit); `members-page`'s member list → `p-table`; `select-tenant-page`'s tenant list → `p-listbox`, create-tenant link → `pButton`; `tenant-create-page`'s form → `pInputText`/`pButton`. `no-access-state` (single `<p>`) and login's tab UI stayed hand-rolled — no real PrimeNG component fit either. `angular.json`'s budget raised 800kB→900kB warning, 1MB→1.4MB error (bundle reached 1.27MB after the full migration; still not lazy-route-split — flagged as a follow-up, not solved here). Known follow-ups: Tailwind `cssLayer` integration for PrimeNG's injected styles; `tour-overlay` (bespoke positioned dialog) not migrated, its `getBoundingClientRect()`-based positioning needs verifying against `p-dialog`/`p-popover` first; code-splitting PrimeNG per route if the bundle grows further. |
 
 **As of the last working session:** test suite speed (`forkCount=2` +
 JTE precompiled-templates fix, see `DECISIONS.md`), all six backend
