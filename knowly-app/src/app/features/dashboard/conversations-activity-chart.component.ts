@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, effect, inject, input } from '@angular/core';
-import { UIChart } from 'primeng/chart';
 import { MetricFetcher, createMetricFetcher } from '../../core/metric-fetcher';
+import { ChartCanvasComponent } from '../../shared/chart-canvas.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { Period } from './period-filter.component';
@@ -29,7 +29,7 @@ export function toBarData(response: ConversationsTimeseriesResponse): BarChartDa
 
 @Component({
   selector: 'app-conversations-activity-chart',
-  imports: [ErrorStateComponent, NoAccessStateComponent, UIChart],
+  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
   template: `
     <div
       data-testid="conversations-activity-chart"
@@ -42,7 +42,7 @@ export function toBarData(response: ConversationsTimeseriesResponse): BarChartDa
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <p-chart type="bar" [data]="toBarData(data)" height="220px" />
+        <app-chart-canvas type="bar" [data]="toBarData(data)" height="220px" />
         <table class="sr-only">
           <caption>
             Conversations per day
