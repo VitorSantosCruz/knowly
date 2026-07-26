@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { ButtonDirective } from 'primeng/button';
+import { buttonClass } from './button-classes';
 import { LanguageService } from '../core/language.service';
 
 const OTHER_LANG: Record<string, string> = {
@@ -9,13 +9,10 @@ const OTHER_LANG: Record<string, string> = {
 
 @Component({
   selector: 'app-language-switcher',
-  imports: [ButtonDirective],
   template: `
     <button
       type="button"
-      pButton
-      text
-      severity="secondary"
+      [class]="buttonClass"
       (click)="switch()"
       [attr.aria-label]="'Change language'"
     >
@@ -25,6 +22,7 @@ const OTHER_LANG: Record<string, string> = {
 })
 export class LanguageSwitcherComponent {
   protected readonly languageService = inject(LanguageService);
+  protected readonly buttonClass = buttonClass('secondary', { ghost: true });
 
   switch(): void {
     const next = OTHER_LANG[this.languageService.currentLang()] ?? 'en';
