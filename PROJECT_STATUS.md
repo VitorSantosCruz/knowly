@@ -65,17 +65,22 @@ SPEC/PLAN/TASKS in `knowly-app/` and is ready for implementation
 whenever picked up.
 
 **Also queued, independent of the item-5 priority order below:**
-`primeng-migration` is now fully complete (2026-07-25 final pass) — all
-migration-order items 1-7 (chrome/menus, shared buttons, forms, cards,
-tables, feature-specific screens) are done. See its row in the frontend
-feature table and
-`knowly-app/specify/features/primeng-migration/PLAN.md`/`TASKS.md` for
-the full record, including the components deliberately left as
-hand-rolled markup (chat bubbles, tab UI, article-list rows with two
-independent actions) and the still-open follow-ups (Tailwind `cssLayer`
-integration; `tour-overlay` not migrated — its positioning behavior
-depends on exact `getBoundingClientRect()` timing not yet verified
-against `p-dialog`/`p-popover`).
+`primeng-migration` (2026-07-25) was fully replaced one day later by
+`primeng-removal` (2026-07-26) — the owner reverted the PrimeNG
+adoption entirely, back to pure Tailwind + hand-rolled Angular
+components, with `@lucide/angular` for icons. See `DECISIONS.md`'s two
+consecutive dated entries and `knowly-app/specify/features/
+primeng-removal/PLAN.md`/`TASKS.md` for the full record (component-by-
+component replacement patterns, the Chart.js-direct approach for the
+dashboard charts, and two implementation-detail deviations from the
+plan — `@lucide/angular` instead of the deprecated `lucide-angular`,
+and a `CHART_CTOR` injection token for deterministic Chart.js mocking
+across bundled specs). `primeng-migration`'s row below is superseded;
+its old follow-ups (Tailwind `cssLayer` integration, `tour-overlay` not
+migrated) are moot now that PrimeNG is gone, except `tour-overlay`
+itself was never touched by either pass and still needs its own look
+whenever the onboarding tour positioning is revisited. 221/221 frontend
+tests, `format:check`, and `build` all green after the removal.
 
 The user confirmed this order for the next several features (2026-07-25):
 
@@ -144,14 +149,83 @@ The user confirmed this order for the next several features (2026-07-25):
 **Backlog (user-reported 2026-07-25, not yet SPEC'd) — each needs its own
 SPEC before implementation, roughly in this order:**
 
-7. Tenant list pagination + search-by-name on `/select-tenant` and the
+7. **Auth event audit logging gap.** `AuthController` (login-request,
+   login-code/verify, login-password/verify, logout) has zero `@AuditLog`
+   coverage today — every other mutating action in the system is
+   audit-logged (`TenantService`/`StaffService`/article/conversation/
+   onboarding), but authentication events leave no trace of who did what
+   (e.g. no record of successful/failed login attempts, lockouts, or
+   logout). User wants this closed so everything is traceable. Needs a
+   backend SPEC — decide what to log per auth event (success/failure/
+   lockout, masked email, IP?) consistent with `PiiMasker` conventions
+   already used in `AuthController`'s regular logs.
+8. **Role model rename + a real 4th tier (`MEMBER_ADMIN`).** Confirmed
+   2026-07-26 with the user: the model becomes exactly `STAFF_ADMIN` /
+   `STAFF` / `MEMBER_ADMIN` / `MEMBER` (renaming today's per-tenant
+   `MembershipRole.ADMIN` → `MEMBER_ADMIN`, and `MEMBER` stays `MEMBER`
+   — no separate "USER" role exists or is needed, "USER" was just
+   informal language for a `MEMBER` with no permissions). Needs a backend
+   SPEC covering the enum rename (migration + all call sites) plus:
+   - **`STAFF` power ceiling**: a `STAFF` user, no matter how many
+     `GlobalPermission`s they hold, can NEVER manage `STAFF`/`STAFF_ADMIN`
+     users (create, edit, grant/revoke their global permissions, etc.) —
+     that stays exclusively `STAFF_ADMIN`-only, specifically so a
+     fully-permissioned `STAFF` can't self-escalate, mint another
+     `STAFF_ADMIN` under an email they control, or elevate a friend.
+     Every other action is fine for `STAFF` to reach, provided some
+     `STAFF_ADMIN` explicitly granted the relevant `GlobalPermission` —
+     this is the one hardcoded exception carved out of "STAFF fully
+     permissioned == STAFF_ADMIN".
+   - **`GET /api/tenants/memberships` stays as-is** — no backend
+     single-vs-multi-membership restriction. Confirmed 2026-07-26: hiding
+     the tenant list when the caller belongs to only one tenant is
+     purely a frontend UX decision; calling the endpoint directly
+     (outside the app) always returns the caller's own tenants
+     regardless of count. Do not add a backend gate for this.
+9. **Staff-joins-tenant requires in-app acceptance (not email) —
+   corrected 2026-07-26 after an earlier misread of this rule.** The
+   real scenario: a `MEMBER_ADMIN` of some tenant adds an existing
+   `STAFF`/`STAFF_ADMIN` user as a `MEMBER` (or `MEMBER_ADMIN`) of their
+   tenant. Doing so must NOT silently strip that staff user's global
+   powers inside that tenant — it can only take effect once the staff
+   user explicitly accepts becoming a member of that tenant, via an
+   **in-app request/notification** (not an email-based accept flow, that
+   was this analysis's earlier misunderstanding — corrected here).
+   Until accepted, the tenant-membership row must not restrict the
+   staff user's access within that tenant. Symmetric case: if a user was
+   already a plain tenant `MEMBER` *before* becoming `STAFF`/
+   `STAFF_ADMIN`, someone must explicitly deactivate that old membership
+   — otherwise the old, pre-staff `MEMBER` role keeps silently limiting
+   them inside that specific tenant even after gaining staff powers.
+   Purpose: stop a tenant from using membership assignment/pre-existing
+   membership to blind a staff member to what's happening inside that
+   one tenant (staff must consciously accept losing/gaining tenant-local
+   scope — nothing about this affects what staff can see/do on knowly's
+   own side, only within that specific tenant's data). Needs a backend
+   SPEC: new membership state (pending/active?), an in-app
+   notification/request-accept mechanism (no email), and rules for what
+   authorization a *pending* (not yet accepted) membership grants (none
+   — staff keeps their prior effective access until acceptance).
+10. **Tenant membership invitation requires acceptance — corrected
+    2026-07-26, in-app notification, not email.** `TenantService.addMember`
+    currently adds a membership directly and synchronously, with no
+    pending/accept state and no notification of any kind (`MailService`
+    isn't even wired into `TenantService`). Confirmed rule: adding *any*
+    member should create a pending state that requires the invitee to
+    accept via an in-app notification/request (not email) before the
+    membership becomes active; once accepted, the tenant owner and
+    whoever added the member should be notified in-app that it was
+    accepted. This overlaps significantly with item 9 above (both need
+    the same pending-membership/accept mechanism) — likely one shared
+    backend SPEC covering both.
+11. Tenant list pagination + search-by-name on `/select-tenant` and the
    backend's `GET /api/tenants` (currently returns everything unbounded
    — will break at scale). Needs a backend SPEC (pagination/search API
    contract) and a frontend SPEC (UI).
-8. Boxed/segmented one-time-code input on the login screen (currently a
+12. Boxed/segmented one-time-code input on the login screen (currently a
    single plain text field) — matches the common "one box per digit"
    pattern. Frontend-only.
-9. **Full identity/profile model — big, LGPD-sensitive, needs its own
+13. **Full identity/profile model — big, LGPD-sensitive, needs its own
    SPEC(s) before any code.** Both the `Tenant` (company: CNPJ + other
    legally-unique company fields, tbd) and every `User` (person: email,
    full address, RG, CPF, phone, each enforced unique across all users
@@ -164,13 +238,73 @@ SPEC before implementation, roughly in this order:**
    and confirm the data-protection approach with the user first. Backend:
    new entity/entities, migration(s), permission gating, DB-level
    uniqueness constraints. Frontend: profile view/edit screens.
-10. **Internal team chat — big, new product surface, deferred until
+14. **Internal team chat — big, new product surface, deferred until
     after the identity model above.** 1:1 conversations and group
     conversations between team members (distinct from the existing
     chat-with-the-knowledge-base feature) — uses the profile nickname
-    from item 9 to identify people in the UI. Needs its own SPEC(s) in
-    both subprojects once prioritized.
-11. ~~Design system overhaul~~ — done (2026-07-25), no SPEC written (pure
+    from item 13 to identify people in the UI. Needs its own SPEC(s) in
+    both subprojects once prioritized. **Rules confirmed by the user
+    2026-07-26** (ahead of the SPEC, for whenever this is picked up):
+    - 1:1 and group chat between team members is open to all four roles
+      (`STAFF_ADMIN`/`STAFF`/`MEMBER_ADMIN`/`MEMBER`) with **no
+      permission required just to talk to another person** — messaging
+      itself isn't permission-gated, unlike chatting with the
+      documentation/article knowledge base, which stays
+      permission-gated for `MEMBER`s (existing `conversations` feature
+      behavior, unchanged).
+    - **Confirmed 2026-07-26, expanded scope**: the peer-to-peer model
+      covers 1:1 staff↔staff, 1:1 member↔member, staff-only groups
+      (multiple staff together), and member-only groups (multiple
+      tenant members together) — all distinct from the single fixed
+      member↔staff support channel described below. So there are three
+      shapes in total: (a) open peer-to-peer 1:1/group chat among
+      staff-with-staff or member-with-member, (b) member↔staff support
+      channel (one fixed thread per member, see below), and (c) the
+      pre-existing member↔knowledge-base article chat (already shipped,
+      unrelated to this item). Whether staff and members can be mixed
+      in the *same* peer-to-peer group (as opposed to a staff-only or
+      member-only group) is not yet decided — clarify when writing the
+      SPEC.
+    - Staff↔member support is **not** a normal 1:1/group conversation —
+      it's a single, fixed, per-member support channel: each tenant
+      member has exactly one ongoing support thread, and whichever staff
+      member is handling support replies through that same thread (not
+      one thread per staff person). Needs its own entity/relationship
+      design distinct from the peer-to-peer 1:1/group model above.
+    - **Confirmed 2026-07-26, visibility rules for the support
+      channel**: it's opened by one specific `MEMBER`/`MEMBER_ADMIN` and
+      is effectively "that member vs. the staff team" until a staff
+      member picks it up. **Tenant side — corrected 2026-07-26**: not
+      just the opener + `MEMBER_ADMIN`s — *any* tenant member who holds
+      whatever permission gates access to the support/history area can
+      see the channel's message history, not only its opener. The exact
+      permission gating that "history area" itself (new permission?
+      reuse an existing one?) is TBD for the SPEC. **Staff side**: every
+      staff user holding the relevant
+      support permission can see the channel while it's unclaimed, but
+      once a staff member accepts/picks it up, the thread effectively
+      becomes a 1:1 between that specific staff member and the member
+      who opened it — i.e. "accepting" assigns the conversation to one
+      staff person, it isn't simultaneously multi-staff after that point
+      (needs the SPEC to define whether other staff retain read access
+      after assignment, or lose it, and how reassignment/handoff works).
+    - **Confirmed 2026-07-26, view vs. participate are different**:
+      everyone covered above (tenant side: any member with the
+      support/history permission; staff side: any staff with the
+      support permission, pre-acceptance) can only *view* the history —
+      the only two people who can actually *send messages* in that
+      thread are the member who opened it and the one staff member who
+      accepted it. So visibility (who can read) is broader than
+      participation (who can write), and participation narrows to
+      exactly those two people once a staff member accepts.
+    - **Confirmed 2026-07-26, closing is terminal**: a support ticket/
+      thread can be closed; once closed, it permanently stops accepting
+      new messages and cannot be reopened (a closed ticket stays
+      closed forever — no reopen action). If the same member needs
+      support again after closing, that requires starting a brand-new
+      ticket/thread, not resuming the closed one. History remains
+      viewable per the visibility rules above even after closing.
+15. ~~Design system overhaul~~ — done (2026-07-25), no SPEC written (pure
     visual/frontend, user explicitly chose full-app scope over
     incremental). Defined knowly's first visual brand identity, "Ink &
     Signal" — no logo exists yet, so it's typographic-only: a deep navy
@@ -277,7 +411,7 @@ the feature's own SPEC.
 
 | Feature | Status | Notes |
 |---|---|---|
-| `authentication` | ✅ Done | Login-code (passwordless) flow, sessions, logout (`POST /api/auth/logout`). |
+| `authentication` | ✅ Done | Login-code (passwordless) flow, sessions, logout (`POST /api/auth/logout`). **Known minor gap (2026-07-26, reviewed, no action taken):** `/login-code/verify` and `/login-password/verify` already compare against a constant dummy hash when no real credential exists (`LoginCodeService.verify`, `OneTimePasswordService.verifyAndRotate`), so the hash-compare step itself doesn't leak email existence. However, the success branch does strictly more work than the failure branch (extra DB lookup(s), possible OTP regeneration, email dispatch, session creation) with no artificial padding, so a correct vs. incorrect credential attempt is distinguishable by response latency — this doesn't leak whether an email exists (only reachable after a valid credential), just success/failure. User reviewed fix options (fixed latency floor vs. deferring success-path side-effects to after the response) and explicitly chose not to implement either for now, prioritizing frontend work instead. Revisit if this ever needs to be closed. |
 | `tenancy` | ✅ Done | Multi-tenant session model, memberships, roles, permissions, access groups, audit log. Staff (global-admin) users can list every tenant and act as any of them without holding a membership (added after a live bug where a staff account with 0 memberships got stuck behind `TENANT_SELECTION_REQUIRED`). |
 | `article-management` | ✅ Done | Upload (text/image/PDF, OCR via tesseract), embeddings (pgvector), permission-gated CRUD. |
 | `conversations` | ✅ Done | Chat over the tenant's articles, SSE streaming, citations. |
@@ -310,7 +444,8 @@ for the actual requirements and decisions.
 | `navigation-menu` | ✅ Done | Real app-shell navigation (`nav-menu.component.ts`), links filtered by `PermissionsService`/`GlobalPermissionsService`; "switch tenant" link reusing `/select-tenant`. Fixed the `staffGuard`/create-tenant-link bug above as part of the same feature. |
 | `welcome-screen` | ✅ Done | Real `/welcome` landing screen (staff-generic or tenant-branded greeting, no sensitive/permission-gated content) — replaces `/dashboard` as the post-login/tenant-selection/root-redirect target. Fixed two real bugs: login and the root route (`''`) both used to send an already-authenticated session to the wrong place (tenant list, or unconditionally `/login`). Onboarding tour trigger moved here from `dashboard`; tour target ids moved to the global nav menu. |
 | `dashboard-analytics` | ✅ Done | Period filter (`period-filter.component.ts`, PrimeNG `SelectButton`) owned by `dashboard-page.component.ts`'s `period` signal; five reusable `metric-tile.component.ts` instances (active articles/conversations/USER messages/ASSISTANT messages/active members, each with a `p-chart` line sparkline + `toSparklineData()`), superseding the old `article-count-card`/`conversations-card`/`messages-card` (all three deleted); `message-split-chart.component.ts` (USER/ASSISTANT donut, `toDonutData()`); `conversations-activity-chart.component.ts` (per-day bar chart, `toBarData()`); every chart paired with a visually-hidden `.sr-only` mirror `<table>` generated from the same tested mapping function; `members-breakdown-card.component.ts` (`GET /api/tenants/metrics/members`); `top-articles-table.component.ts` (`p-table` + built-in global filter, replaces `article-usage-list.component.ts`); `export-button.component.ts` (CSV blob download); `metric-fetcher.ts`'s `load()` extended to accept `params`. **`chart.js@^4.5.1` added as a real dependency** (user-confirmed Tier 3 decision, `DECISIONS.md`) — discovered only during implementation that PrimeNG's `Chart` component (`p-chart`) does `import Chart from 'chart.js/auto'` internally and needs it installed, contrary to the SPEC/PLAN's original "no new npm dependency" assumption; both docs updated to record why. Production bundle budget raised again in `angular.json` (900kB→1.4MB warning, 1.4MB→1.7MB error) to accommodate it — final bundle 1.50MB raw / ~310KB estimated transfer, under the new error threshold. 210/210 frontend tests green, `format:check`/`build` clean. |
-| `primeng-migration` | 🟢 Done (all migration-order items 1-7) | Full replacement of hand-rolled Tailwind components with PrimeNG + PrimeIcons (owner-driven, see `DECISIONS.md`). Setup phase: `primeng@22.0.0`/`@primeuix/themes@3.0.0`/`primeicons@8.0.0`/`@angular/cdk@22.0.0` added; `core/prime-theme.ts` preset maps `ink-*`/`signal-*` onto PrimeNG's tokens for light/dark; `providePrimeNG()` wired in `app.config.ts` with `darkModeSelector: '.dark'`. 2026-07-25 chrome/menu pass (items 1-3): `nav-menu.component.ts` rebuilt with per-category inline `p-menu`s (custom `#submenuheader`/`#item` templates keep every `data-testid`/`data-tour-id`/permission gate), PrimeIcons replace its inline SVGs; `app-shell.component.ts`'s `<aside>`/`<header>` get a static `class="dark"` so PrimeNG components in the permanently-dark chrome always render dark tokens regardless of `ThemeService`'s toggle; `logout-button`/`language-switcher`/`help-menu` migrated to `[pButton]`/`p-menu`. 2026-07-25 final pass (items 4-7, all feature screens): `error-state` → `p-message`; `welcome-page`'s quick-link cards → `p-card`; `login-page`'s inputs/buttons → `pInputText`/`pPassword`/`pButton` directives on the same native elements (no DOM restructuring, so all `querySelector('input[...]')`-based specs kept passing unchanged); `articles-page`'s upload/detail panels → `p-card`, text inputs → `pInputText`/`pTextarea`, buttons → `pButton` (article-list rows left as native markup — two independent actions per row, not a clean `Listbox` fit); `conversations-page`'s conversation list → `p-listbox` with a custom `#item` template (chat bubbles and the new-conversation/send buttons use `pButton`/`pInputText`; bubbles themselves stay bespoke `<div>`s, no PrimeNG fit); `members-page`'s member list → `p-table`; `select-tenant-page`'s tenant list → `p-listbox`, create-tenant link → `pButton`; `tenant-create-page`'s form → `pInputText`/`pButton`. `no-access-state` (single `<p>`) and login's tab UI stayed hand-rolled — no real PrimeNG component fit either. `angular.json`'s budget raised 800kB→900kB warning, 1MB→1.4MB error (bundle reached 1.27MB after the full migration; still not lazy-route-split — flagged as a follow-up, not solved here). Known follow-ups: Tailwind `cssLayer` integration for PrimeNG's injected styles; `tour-overlay` (bespoke positioned dialog) not migrated, its `getBoundingClientRect()`-based positioning needs verifying against `p-dialog`/`p-popover` first; code-splitting PrimeNG per route if the bundle grows further. |
+| `primeng-migration` | ⛔ Superseded by `primeng-removal` | Was: full replacement of hand-rolled Tailwind components with PrimeNG + PrimeIcons (2026-07-25). Reverted one day later — see `primeng-removal` below and `DECISIONS.md`'s two consecutive dated entries. Row kept only as history; do not treat any detail below as current. Setup phase: `primeng@22.0.0`/`@primeuix/themes@3.0.0`/`primeicons@8.0.0`/`@angular/cdk@22.0.0` added; `core/prime-theme.ts` preset maps `ink-*`/`signal-*` onto PrimeNG's tokens for light/dark; `providePrimeNG()` wired in `app.config.ts` with `darkModeSelector: '.dark'`. 2026-07-25 chrome/menu pass (items 1-3): `nav-menu.component.ts` rebuilt with per-category inline `p-menu`s (custom `#submenuheader`/`#item` templates keep every `data-testid`/`data-tour-id`/permission gate), PrimeIcons replace its inline SVGs; `app-shell.component.ts`'s `<aside>`/`<header>` get a static `class="dark"` so PrimeNG components in the permanently-dark chrome always render dark tokens regardless of `ThemeService`'s toggle; `logout-button`/`language-switcher`/`help-menu` migrated to `[pButton]`/`p-menu`. 2026-07-25 final pass (items 4-7, all feature screens): `error-state` → `p-message`; `welcome-page`'s quick-link cards → `p-card`; `login-page`'s inputs/buttons → `pInputText`/`pPassword`/`pButton` directives on the same native elements (no DOM restructuring, so all `querySelector('input[...]')`-based specs kept passing unchanged); `articles-page`'s upload/detail panels → `p-card`, text inputs → `pInputText`/`pTextarea`, buttons → `pButton` (article-list rows left as native markup — two independent actions per row, not a clean `Listbox` fit); `conversations-page`'s conversation list → `p-listbox` with a custom `#item` template (chat bubbles and the new-conversation/send buttons use `pButton`/`pInputText`; bubbles themselves stay bespoke `<div>`s, no PrimeNG fit); `members-page`'s member list → `p-table`; `select-tenant-page`'s tenant list → `p-listbox`, create-tenant link → `pButton`; `tenant-create-page`'s form → `pInputText`/`pButton`. `no-access-state` (single `<p>`) and login's tab UI stayed hand-rolled — no real PrimeNG component fit either. `angular.json`'s budget raised 800kB→900kB warning, 1MB→1.4MB error (bundle reached 1.27MB after the full migration; still not lazy-route-split — flagged as a follow-up, not solved here). |
+| `primeng-removal` | ✅ Done | Reverts `primeng-migration` (see `DECISIONS.md`) — PrimeNG, `@primeuix/themes`, `primeicons`, `@angular/cdk` fully removed; back to pure Tailwind + hand-rolled Angular standalone components. Icons: `@lucide/angular` (not the deprecated `lucide-angular`, which has no Angular 22-compatible peer range) — each icon is its own standalone component with an attribute selector (e.g. `LucideSun` → `<svg lucideSun>`), imported directly per-component, no central provider wiring. New shared `button-classes.ts` (severity/variant class helper) and `chart-canvas.component.ts` (direct Chart.js wrapper, replacing PrimeNG's `p-chart`/`UIChart` — uses a `CHART_CTOR` injection token so specs can mock Chart.js deterministically despite Angular's bundled-spec test runner sharing module instances). All 20 former PrimeNG consumers migrated to native HTML + Tailwind (menus → `<ul role="menu">`, tables → native `<table>` + local `computed()` filter signal, listbox → `<ul role="listbox">`, forms/buttons → native elements + `button-classes.ts`). 26 atomic tasks, one commit each — see `knowly-app/specify/features/primeng-removal/PLAN.md`/`TASKS.md` (including a "Deviations" section for the two implementation-detail corrections above). 221/221 tests, `format:check`, `build` all green. |
 
 **As of the last working session:** test suite speed (`forkCount=2` +
 JTE precompiled-templates fix, see `DECISIONS.md`), all six backend

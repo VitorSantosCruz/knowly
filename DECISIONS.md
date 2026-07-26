@@ -292,6 +292,35 @@ approved SPEC assumed ngx-charts) should be revised to use PrimeNG's own
 `Chart`/`Table` components instead, rather than adding a second charting
 dependency — that revision is the PO's call, not silently made here.
 
+### Frontend drops PrimeNG, reverts to pure Tailwind + Angular (2026-07-26)
+
+One day after adopting PrimeNG (see the entry above), the app owner
+reversed that decision: PrimeNG is being removed entirely from
+`knowly-app/`, going back to hand-built Angular standalone components
+styled with Tailwind CSS utility classes only. This is a Tier 3
+decision (removing an external dependency, reverting a prior Tier 3
+decision) — recorded here as already made by the owner, not decided by
+an AI assistant. **Why:** the owner's stated trigger was noticing
+icon inconsistency and concluding the interim solution ("system
+icons") was unprofessional; on inspection this diagnosis was partly
+imprecise — the icons in use were PrimeIcons (a font-based icon system,
+not OS-native icons, and consistent across browsers/OSes by
+construction) — but the owner's underlying decision to drop PrimeNG as
+a library stands independent of that detail and was reconfirmed
+explicitly after the correction was raised. **Icon replacement:**
+PrimeIcons is replaced by **Lucide** (`lucide-angular`) — SVG-based,
+tree-shakeable, no icon-font dependency. **Applies to new decisions:**
+new interactive UI in `knowly-app/` is hand-rolled with Tailwind
+utility classes (buttons, menus, cards, forms, tables) — do not add
+PrimeNG or introduce another component library without a fresh Tier 3
+decision recorded here first. See
+`knowly-app/specify/features/primeng-removal/PLAN.md` for the
+component-by-component removal order and Tailwind-equivalent patterns
+for what PrimeNG previously provided (theme preset, menus, tables,
+charts, dashboard tiles). The dashboard chart components (currently
+using PrimeNG's `Chart`) need a replacement charting approach — chosen
+in that PLAN, not silently defaulted here.
+
 ## `dashboard-analytics` (backend): UTC calendar-day bucketing, no tenant timezone
 
 The new time-series metrics endpoints
