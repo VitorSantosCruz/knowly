@@ -178,9 +178,15 @@ branch.
 
 ## Dependencies
 
-None. PrimeNG's `Chart`, `Table`, `SelectButton`, `Button`, `InputText`,
-and `Message` components are already installed post-`primeng-migration`.
-No new `package.json` entry.
+**Revised during implementation:** `chart.js@^4.5.1` was added as a new
+`package.json` dependency — discovered only once `p-chart` was actually
+wired up that PrimeNG's `Chart` component does
+`import Chart from 'chart.js/auto'` internally, and `chart.js` was not
+installed anywhere in this repo (unlike `Table`/`SelectButton`/`Button`/
+`InputText`/`Message`, which needed nothing extra). This is a new
+external dependency (Tier 3 per `DECISIONS.md`) — confirmed with the
+user before adding it. See SPEC.md's "Bundle size" non-functional
+requirement for the bundle-budget follow-up.
 
 ## Testing strategy
 

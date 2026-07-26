@@ -135,10 +135,17 @@ already used elsewhere post-migration, e.g. `members-page.component.ts`).
 - Responsiveness: supports the breakpoints already used elsewhere in the
   app (see requirement 11); `p-chart` must resize with its container
   instead of overflowing.
-- Bundle size: this feature adds no new npm dependency (PrimeNG's
-  `Chart`/`Table` are already installed) — keep it that way; watch the
-  production bundle budget in `angular.json`, already raised twice
-  during the PrimeNG migration.
+- Bundle size: **`chart.js` (^4.5.1, ~200KB) was added as a new npm
+  dependency during implementation** — this SPEC originally assumed
+  PrimeNG's `Chart` component needed no new dependency, but that was
+  only discovered to be wrong once implementation started: `primeng/chart`
+  does `import Chart from 'chart.js/auto'`, and `chart.js` was not
+  installed anywhere in this repo (`Table` needed nothing extra, `Chart`
+  does). Adding it was confirmed with the user as a Tier 3 decision per
+  `DECISIONS.md` before proceeding. The production bundle budget in
+  `angular.json` was raised again to accommodate it (900kB→1.4MB warning,
+  1.4MB→1.7MB error), on top of the two raises already done during the
+  PrimeNG migration.
 
 ## Acceptance criteria
 
