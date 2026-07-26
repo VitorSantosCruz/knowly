@@ -19,7 +19,8 @@ describe('createMetricFetcher', () => {
     fetcher.load({ period: '30d' });
 
     const req = httpMock.expectOne(
-      (request) => request.url === '/api/tenants/metrics/foo' && request.params.get('period') === '30d',
+      (request) =>
+        request.url === '/api/tenants/metrics/foo' && request.params.get('period') === '30d',
     );
     req.flush({ totalCount: 1 });
 
