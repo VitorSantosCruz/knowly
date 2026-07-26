@@ -27,6 +27,8 @@ import br.com.conectabyte.knowly.tenancy.TenantRepository;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -56,6 +59,7 @@ class MetricsControllerIntegrationTest {
     @Autowired private ConversationRepository conversationRepository;
     @Autowired private MessageRepository messageRepository;
     @Autowired private MessageArticleCitationRepository messageArticleCitationRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
     @MockitoBean private JavaMailSender mailSender;
 
     private Cookie logIn(String email) {
@@ -85,6 +89,27 @@ class MetricsControllerIntegrationTest {
         return user;
     }
 
+    private void backdateConversation(Conversation conversation, Instant createdAt) {
+        jdbcTemplate.update(
+                "update conversations set created_at = ? where id = ?",
+                java.sql.Timestamp.from(createdAt),
+                conversation.getId());
+    }
+
+    private void backdateArticle(Article article, Instant createdAt) {
+        jdbcTemplate.update(
+                "update articles set created_at = ? where id = ?",
+                java.sql.Timestamp.from(createdAt),
+                article.getId());
+    }
+
+    private void backdateMessage(Message message, Instant createdAt) {
+        jdbcTemplate.update(
+                "update messages set created_at = ? where id = ?",
+                java.sql.Timestamp.from(createdAt),
+                message.getId());
+    }
+
     private Article anArticle(Tenant tenant, String title) {
         return articleRepository.saveAndFlush(
                 new Article(tenant, title, "key", "file.pdf", "application/pdf"));
@@ -111,6 +136,12 @@ class MetricsControllerIntegrationTest {
                                 .exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
         assertThat(mockMvc.get().uri("/api/tenants/metrics/messages").cookie(session).exchange())
+                .hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(
+                        mockMvc.get()
+                                .uri("/api/tenants/metrics/conversations/timeseries")
+                                .cookie(session)
+                                .exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 
@@ -194,6 +225,65 @@ class MetricsControllerIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response.getResponse().getContentAsString()).contains("\"startedCount\":2");
+    }
+
+    @Test
+    void conversationsTimeseriesReturnsSevenChronologicalDaysWithZeroCountDaysForTenantAOnly()
+            throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        User caller =
+                memberWithPermissions("timeseries@example.com", tenantA, Permission.DASHBOARD_VIEW);
+        User otherUser = userRepository.saveAndFlush(new User("othertimeseries@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(otherUser, tenantB, MembershipRole.MEMBER));
+        Instant now = Instant.now();
+        // Tenant A: conversations on today and 2 days ago only (5 of the 7 days have none).
+        backdateConversation(
+                conversationRepository.saveAndFlush(new Conversation(tenantA, caller)), now);
+        backdateConversation(
+                conversationRepository.saveAndFlush(new Conversation(tenantA, caller)),
+                now.minus(2, ChronoUnit.DAYS));
+        // Tenant B conversation must never leak into tenant A's response.
+        backdateConversation(
+                conversationRepository.saveAndFlush(new Conversation(tenantB, otherUser)), now);
+        Cookie session = logIn("timeseries@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/conversations/timeseries?period=7d")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"days\":[");
+        long dateOccurrences =
+                java.util.regex.Pattern.compile("\"date\":").matcher(body).results().count();
+        assertThat(dateOccurrences).isEqualTo(7);
+        long totalCount =
+                java.util.regex.Pattern.compile("\"count\":(\\d+)")
+                        .matcher(body)
+                        .results()
+                        .mapToLong(m -> Long.parseLong(m.group(1)))
+                        .sum();
+        assertThat(totalCount).isEqualTo(2);
+    }
+
+    @Test
+    void conversationsTimeseriesRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("badperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("badperiod@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/conversations/timeseries?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
     }
 
     @Test

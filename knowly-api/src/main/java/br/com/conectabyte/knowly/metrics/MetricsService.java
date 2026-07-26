@@ -7,6 +7,11 @@ import br.com.conectabyte.knowly.conversation.MessageRepository;
 import br.com.conectabyte.knowly.conversation.MessageRole;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,18 +23,21 @@ public class MetricsService {
     private final MessageRepository messageRepository;
     private final MessageArticleCitationRepository messageArticleCitationRepository;
     private final TenantContext tenantContext;
+    private final Clock clock;
 
     public MetricsService(
             ArticleRepository articleRepository,
             ConversationRepository conversationRepository,
             MessageRepository messageRepository,
             MessageArticleCitationRepository messageArticleCitationRepository,
-            TenantContext tenantContext) {
+            TenantContext tenantContext,
+            Clock clock) {
         this.articleRepository = articleRepository;
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.messageArticleCitationRepository = messageArticleCitationRepository;
         this.tenantContext = tenantContext;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +73,36 @@ public class MetricsService {
                         tenantId, MessageRole.ASSISTANT);
 
         return new MessagesMetricDto(sentCount, receivedCount);
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationsTimeseriesDto conversationsTimeseries(MetricsPeriod period) {
+        Long tenantId = requireActiveTenant();
+        List<DailyCountProjection> rows =
+                period.startInstant(clock)
+                        .map(
+                                from ->
+                                        conversationRepository.countByDayForTenantSince(
+                                                tenantId, from))
+                        .orElseGet(() -> conversationRepository.countByDayForTenant(tenantId));
+
+        return new ConversationsTimeseriesDto(mergeZeroCountDays(rows, period));
+    }
+
+    private List<DailyCountDto> mergeZeroCountDays(
+            List<DailyCountProjection> rows, MetricsPeriod period) {
+        Map<LocalDate, Long> counts =
+                rows.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        DailyCountProjection::getDay,
+                                        DailyCountProjection::getCount));
+        List<LocalDate> dates =
+                period.dateRange(clock).orElseGet(() -> counts.keySet().stream().sorted().toList());
+
+        return dates.stream()
+                .map(date -> new DailyCountDto(date, counts.getOrDefault(date, 0L)))
+                .toList();
     }
 
     private Long requireActiveTenant() {

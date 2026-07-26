@@ -5,6 +5,7 @@ import br.com.conectabyte.knowly.audit.RequiresPermission;
 import br.com.conectabyte.knowly.tenancy.Permission;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -43,5 +44,13 @@ public class MetricsController {
     @AuditLog(action = "metrics.messages.view", resourceType = "Metrics")
     public MessagesMetricDto messagesMetric() {
         return metricsService.messagesMetric();
+    }
+
+    @GetMapping("/conversations/timeseries")
+    @RequiresPermission(Permission.DASHBOARD_VIEW)
+    @AuditLog(action = "metrics.conversations.timeseries.view", resourceType = "Metrics")
+    public ConversationsTimeseriesDto conversationsTimeseries(
+            @RequestParam(required = false) String period) {
+        return metricsService.conversationsTimeseries(MetricsPeriod.from(period));
     }
 }
