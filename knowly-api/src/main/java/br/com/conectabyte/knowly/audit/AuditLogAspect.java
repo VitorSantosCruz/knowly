@@ -1,6 +1,9 @@
 package br.com.conectabyte.knowly.audit;
 
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
+import br.com.conectabyte.knowly.auth.exception.InvalidCredentialsException;
+import br.com.conectabyte.knowly.observability.PiiMasker;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
@@ -18,6 +21,8 @@ import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Aspect
 @Component
@@ -27,15 +32,15 @@ public class AuditLogAspect {
             new DefaultParameterNameDiscoverer();
     private static final ExpressionParser EXPRESSION_PARSER = new SpelExpressionParser();
 
-    private final AuditEventRepository auditEventRepository;
+    private final AuditEventWriter auditEventWriter;
     private final UserRepository userRepository;
     private final TenantContext tenantContext;
 
     public AuditLogAspect(
-            AuditEventRepository auditEventRepository,
+            AuditEventWriter auditEventWriter,
             UserRepository userRepository,
             TenantContext tenantContext) {
-        this.auditEventRepository = auditEventRepository;
+        this.auditEventWriter = auditEventWriter;
         this.userRepository = userRepository;
         this.tenantContext = tenantContext;
     }
@@ -53,6 +58,12 @@ public class AuditLogAspect {
             return result;
         } catch (PermissionDeniedException | TenantAccessDeniedException ex) {
             record(joinPoint, auditLog, AuditOutcome.DENIED);
+            throw ex;
+        } catch (InvalidCredentialsException ex) {
+            record(joinPoint, auditLog, AuditOutcome.FAILURE);
+            throw ex;
+        } catch (AccountLockedException ex) {
+            record(joinPoint, auditLog, AuditOutcome.LOCKED_OUT);
             throw ex;
         } catch (Throwable ex) {
             record(joinPoint, auditLog, AuditOutcome.ERROR);
@@ -73,8 +84,33 @@ public class AuditLogAspect {
                         auditLog.resourceType().isEmpty() ? null : auditLog.resourceType(),
                         resourceId,
                         outcome);
+        event.setMetadata(resolveMetadata(auditLog));
 
-        auditEventRepository.save(event);
+        auditEventWriter.write(event);
+    }
+
+    private String resolveMetadata(AuditLog auditLog) {
+        if (!auditLog.captureSourceIp()) {
+            return null;
+        }
+
+        String sourceIp = resolveSourceIp();
+        if (sourceIp == null) {
+            return null;
+        }
+
+        String maskedIp = PiiMasker.maskIp(sourceIp);
+        return maskedIp.isEmpty() ? null : "{\"sourceIp\": \"" + maskedIp + "\"}";
+    }
+
+    private String resolveSourceIp() {
+        var requestAttributes = RequestContextHolder.getRequestAttributes();
+
+        if (!(requestAttributes instanceof ServletRequestAttributes servletRequestAttributes)) {
+            return null;
+        }
+
+        return servletRequestAttributes.getRequest().getRemoteAddr();
     }
 
     private Long resolveActorUserId() {

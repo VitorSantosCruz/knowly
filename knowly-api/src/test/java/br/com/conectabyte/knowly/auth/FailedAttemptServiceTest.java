@@ -25,11 +25,23 @@ class FailedAttemptServiceTest {
     void locksAfterReachingTheConfiguredMaxAttempts() {
         String email = "brute-forced@example.com";
 
-        failedAttemptService.recordFailure(email);
-        failedAttemptService.recordFailure(email);
+        assertThat(failedAttemptService.recordFailure(email)).isFalse();
+        assertThat(failedAttemptService.recordFailure(email)).isFalse();
         assertThat(failedAttemptService.isLocked(email)).isFalse();
 
+        assertThat(failedAttemptService.recordFailure(email)).isTrue();
+        assertThat(failedAttemptService.isLocked(email)).isTrue();
+    }
+
+    @Test
+    void recordFailureReturnsFalseOnceAlreadyLocked() {
+        String email = "already-locked-recorder@example.com";
+
         failedAttemptService.recordFailure(email);
+        failedAttemptService.recordFailure(email);
+        assertThat(failedAttemptService.recordFailure(email)).isTrue();
+
+        assertThat(failedAttemptService.recordFailure(email)).isFalse();
         assertThat(failedAttemptService.isLocked(email)).isTrue();
     }
 

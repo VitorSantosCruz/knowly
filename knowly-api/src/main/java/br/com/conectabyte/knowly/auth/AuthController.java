@@ -1,5 +1,9 @@
 package br.com.conectabyte.knowly.auth;
 
+import br.com.conectabyte.knowly.audit.AuditEvent;
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
+import br.com.conectabyte.knowly.audit.AuditLog;
+import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.dto.LoginRequestDto;
 import br.com.conectabyte.knowly.auth.dto.VerifyCodeRequestDto;
 import br.com.conectabyte.knowly.auth.dto.VerifyPasswordRequestDto;
@@ -50,6 +54,7 @@ public class AuthController {
     private final AuthProperties properties;
     private final TenantService tenantService;
     private final PermissionService permissionService;
+    private final AuditEventRepository auditEventRepository;
 
     public AuthController(
             UserRepository userRepository,
@@ -62,7 +67,8 @@ public class AuthController {
             LoginRequestThrottleService loginRequestThrottleService,
             AuthProperties properties,
             TenantService tenantService,
-            PermissionService permissionService) {
+            PermissionService permissionService,
+            AuditEventRepository auditEventRepository) {
         this.userRepository = userRepository;
         this.loginCodeService = loginCodeService;
         this.oneTimePasswordService = oneTimePasswordService;
@@ -74,8 +80,15 @@ public class AuthController {
         this.properties = properties;
         this.tenantService = tenantService;
         this.permissionService = permissionService;
+        this.auditEventRepository = auditEventRepository;
     }
 
+    @AuditLog(
+            action = "auth.login_request",
+            resourceType = "auth-email",
+            resourceIdExpression =
+                    "T(br.com.conectabyte.knowly.observability.PiiMasker).maskEmail(#request.email())",
+            captureSourceIp = true)
     @PostMapping("/login-request")
     public ResponseEntity<Void> requestLogin(
             @Valid @RequestBody LoginRequestDto request, HttpServletRequest httpRequest) {
@@ -101,6 +114,12 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    @AuditLog(
+            action = "auth.login_code_verify",
+            resourceType = "auth-email",
+            resourceIdExpression =
+                    "T(br.com.conectabyte.knowly.observability.PiiMasker).maskEmail(#request.email())",
+            captureSourceIp = true)
     @PostMapping("/login-code/verify")
     public ResponseEntity<Void> verifyCode(
             @Valid @RequestBody VerifyCodeRequestDto request,
@@ -129,7 +148,9 @@ public class AuthController {
         }
 
         if (!loginCodeService.verify(request.email(), request.code())) {
-            failedAttemptService.recordFailure(request.email());
+            if (failedAttemptService.recordFailure(request.email())) {
+                recordLockoutEvent(request.email(), httpRequest);
+            }
             log.warn(
                     "auth.login_code_verify email={} outcome=invalid_code",
                     PiiMasker.maskEmail(request.email()));
@@ -156,6 +177,12 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    @AuditLog(
+            action = "auth.login_password_verify",
+            resourceType = "auth-email",
+            resourceIdExpression =
+                    "T(br.com.conectabyte.knowly.observability.PiiMasker).maskEmail(#request.email())",
+            captureSourceIp = true)
     @PostMapping("/login-password/verify")
     public ResponseEntity<Void> verifyPassword(
             @Valid @RequestBody VerifyPasswordRequestDto request,
@@ -188,7 +215,9 @@ public class AuthController {
                 oneTimePasswordService.verifyAndRotate(user, request.password());
 
         if (newPassword.isEmpty()) {
-            failedAttemptService.recordFailure(request.email());
+            if (failedAttemptService.recordFailure(request.email())) {
+                recordLockoutEvent(request.email(), httpRequest);
+            }
             log.warn(
                     "auth.login_password_verify email={} outcome=invalid_password",
                     PiiMasker.maskEmail(request.email()));
@@ -207,9 +236,39 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        Long actorUserId =
+                userRepository
+                        .findByEmailIgnoreCase(
+                                SecurityContextHolder.getContext().getAuthentication().getName())
+                        .map(User::getId)
+                        .orElse(null);
+
+        AuditEvent event =
+                new AuditEvent(actorUserId, null, "auth.logout", null, null, AuditOutcome.SUCCESS);
+        event.setMetadata(resolveSourceIpMetadata(request));
+        auditEventRepository.save(event);
+
         new SecurityContextLogoutHandler()
                 .logout(request, response, SecurityContextHolder.getContext().getAuthentication());
         return ResponseEntity.ok().build();
+    }
+
+    private void recordLockoutEvent(String email, HttpServletRequest request) {
+        AuditEvent event =
+                new AuditEvent(
+                        null,
+                        null,
+                        "auth.login.lockout",
+                        "auth-email",
+                        PiiMasker.maskEmail(email),
+                        AuditOutcome.DENIED);
+        event.setMetadata(resolveSourceIpMetadata(request));
+        auditEventRepository.save(event);
+    }
+
+    private String resolveSourceIpMetadata(HttpServletRequest request) {
+        String maskedIp = PiiMasker.maskIp(request.getRemoteAddr());
+        return maskedIp.isEmpty() ? null : "{\"sourceIp\": \"" + maskedIp + "\"}";
     }
 
     private void establishSession(

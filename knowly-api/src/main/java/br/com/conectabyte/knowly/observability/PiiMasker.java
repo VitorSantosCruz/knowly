@@ -1,5 +1,7 @@
 package br.com.conectabyte.knowly.observability;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -33,6 +35,36 @@ public final class PiiMasker {
         }
 
         return normalized.charAt(0) + "***" + normalized.substring(at) + "#" + hash;
+    }
+
+    /**
+     * Masks a source IP address for audit/log purposes, truncating it to a /24 (IPv4) or /48 (IPv6)
+     * network prefix so enough remains for coarse geo/abuse correlation without recording a raw,
+     * individually-identifying address.
+     */
+    public static String maskIp(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return "";
+        }
+
+        try {
+            InetAddress address = InetAddress.getByName(ip.trim());
+            byte[] bytes = address.getAddress();
+
+            if (bytes.length == 4) {
+                bytes[3] = 0;
+            } else if (bytes.length == 16) {
+                for (int i = 6; i < bytes.length; i++) {
+                    bytes[i] = 0;
+                }
+            } else {
+                return "";
+            }
+
+            return InetAddress.getByAddress(bytes).getHostAddress();
+        } catch (UnknownHostException e) {
+            return "";
+        }
     }
 
     private static String shortHash(String value) {

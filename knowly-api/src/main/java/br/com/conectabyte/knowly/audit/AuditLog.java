@@ -20,4 +20,12 @@ public @interface AuditLog {
 
     /** SpEL expression evaluated against the method's arguments, e.g. "#id". */
     String resourceIdExpression() default "";
+
+    /**
+     * Opt-in only: when {@code true}, the current request's source IP (masked via {@link
+     * br.com.conectabyte.knowly.observability.PiiMasker#maskIp}) is recorded in {@code
+     * metadata.sourceIp}. Defaults to {@code false} so this stays scoped to the handful of call
+     * sites that need it (authentication events) rather than every {@code @AuditLog} consumer.
+     */
+    boolean captureSourceIp() default false;
 }

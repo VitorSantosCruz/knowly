@@ -353,6 +353,117 @@ but didn't pin down what date range "all" should zero-fill against
 `period=all` to also be zero-filled from the tenant's/data's earliest
 activity date.
 
+## `auth-audit-logging`: `@AuditLog`'s actor resolution runs after `proceed()`, so it can't be used on handlers that clear auth state themselves
+
+`AuditLogAspect.record` resolves `actorUserId` from
+`SecurityContextHolder` **after** `joinPoint.proceed()` returns. For
+`AuthController`'s `login-code/verify` and `login-password/verify`, this
+is exactly right — `establishSession(...)` sets the `SecurityContext`
+before the method returns on the success path, so `@AuditLog` correctly
+captures the real actor on success and `null` on every pre-auth/failure
+path (which throws before `establishSession` runs). For `logout`,
+though, the opposite happens: `SecurityContextLogoutHandler.logout(...)`
+**clears** the `SecurityContext` before the method returns, so an
+`@AuditLog` on `logout` would always record `null` for `actorUserId`,
+silently breaking the "real actor on logout" requirement. **Fix
+applied:** `logout` does a manual `AuditEventRepository.save(...)`,
+resolving the actor from `SecurityContextHolder` *before* invoking the
+logout handler, instead of using `@AuditLog`. **Applies to new
+decisions:** before putting `@AuditLog` on any handler, check whether
+that handler establishes or clears authentication state as part of its
+own body — if it clears it, `@AuditLog` will record the wrong (`null`)
+actor and a manual write is required instead; if it establishes it
+partway through, `@AuditLog` works correctly as long as the state change
+happens before the method returns.
+
+## `auth-audit-logging`: `AuditEvent.metadata` is the generic home for aspect-derived request context, starting with `sourceIp`
+
+`AuditEvent.metadata` (a JSON column) existed on the entity but was
+never populated by `AuditLogAspect` before this feature needed to record
+the request's source IP for authentication events. Rather than adding a
+dedicated `source_ip` column that every other `@AuditLog` consumer
+(tenant/staff/article/conversation actions) would have to ignore, the
+aspect derives `sourceIp` generically from
+`RequestContextHolder.currentRequestAttributes()` and writes it into
+`metadata`. **Applies to new decisions:** future per-event contextual
+data the aspect can derive ambiently (not supplied by the annotated
+method's own arguments) belongs in this same `metadata` JSON blob,
+appended as additional keys, rather than as a new dedicated column —
+reserve a new column only for a field that needs to be indexed or
+queried directly (e.g. `WHERE` clauses, `GROUP BY`), which `metadata`'s
+JSON storage doesn't support as cleanly.
+
+**Amended 2026-07-26 (see the entry directly below): this no longer
+fires for every `@AuditLog`-produced event system-wide, and the IP
+itself is masked, not raw** — the original "every event, not just
+auth's" scope and the raw-`getRemoteAddr()` capture described above were
+reverted after an AppSec review. Read the amendment entry for the
+current, correct behavior; this entry stands only for the *shape*
+of the mechanism (metadata as the generic home for aspect-derived
+context), not the scope or masking decision.
+
+## `auth-audit-logging`: source IP capture is masked (/24 or /48) and scoped to auth events only, not system-wide raw capture (2026-07-26)
+
+An AppSec review of the entry above flagged two problems with what had
+shipped: (1) `AuditLogAspect.resolveSourceIp` captured `getRemoteAddr()`
+**verbatim** — a genuinely new, unmasked PII type — into `metadata`,
+and (2) it did so for **every** `@AuditLog`-annotated action
+system-wide (tenant, staff, article, conversation), even though the
+SPEC that motivated it (`auth-audit-logging`) only ever scoped "capture
+source IP" to the four auth endpoints; extending the shared aspect to
+every consumer was a judgment call the SPEC never asked for. AppSec
+presented four options (mask+scope / raw+scope / raw+system-wide as-is
+/ drop entirely) and the product owner explicitly delegated the choice
+("leve para os agentes decidirem, não me pergunte nada") rather than
+picking one — this entry records that delegated decision, not one made
+unilaterally without the PO's sign-off.
+
+**Decision: mask + scope to auth only** (option a). `sourceIp` is
+truncated before it's written — IPv4 to its `/24` (last octet zeroed,
+e.g. `203.0.113.0`), IPv6 to its `/48` (last 80 bits zeroed) — via a new
+`PiiMasker.maskIp(String)`, the same module that already masks email for
+this exact reason. Capture is scoped to the four `AuthController`
+endpoints this feature actually covers (`login-request`,
+`login-code/verify`, `login-password/verify`, `logout`'s manual write),
+not extended to every `@AuditLog` consumer codebase-wide; `AuditLog`
+gains a `captureSourceIp` boolean attribute (default `false`) that only
+the four auth annotations/manual writes set `true` — `AuditLogAspect`
+only resolves/writes `metadata.sourceIp` when that flag is set.
+
+**Why:** this project already has an established precedent
+(`PiiMasker.maskEmail`) that raw PII does not belong in a permanent,
+queryable log/audit column even for legitimate operational purposes —
+a truncated identifier (subnet/allocation-block granularity) still
+carries essentially all the forensic value auth abuse detection needs
+(same-network repeated attempts, geographic/ISP-level correlation,
+distinguishing "many attempts from one place" from "credential-stuffing
+from everywhere") without pinning down an exact device/individual the
+way a full IP can. Scoping capture back to auth-only matches the
+SPEC's actual, approved scope (`auth-audit-logging`'s own PLAN never
+asked for this to become a system-wide capability) — extending a shared
+mechanism's blast radius to tenant/staff/article/conversation actions
+is exactly the kind of scope expansion this file's Tier 3 rules exist
+to catch, and it happened here as an unreviewed side effect of "it's
+convenient to put it in the shared aspect," not a deliberate decision
+that those other consumers' data needed IP capture too. If article/
+conversation/tenant actions later have their own genuine security
+justification for IP capture, that's a fresh SPEC/PLAN decision for
+that feature, not something that should have piggybacked silently on
+auth's.
+
+**Applies to new decisions:** (1) any future PII field being added to a
+shared, cross-feature logging/audit mechanism must be masked using the
+same pattern as `PiiMasker` (truncate/hash, never raw) unless a
+specific, reviewed justification for the raw form is documented
+alongside it — "it's technically easy to capture more" is not that
+justification. (2) A mechanism instrumented for one feature's SPEC
+(e.g. `@AuditLog`'s `metadata`) should default to *not* firing for
+other consumers unless those consumers' own SPECs asked for it — add an
+explicit opt-in flag (as done here with `captureSourceIp`) rather than
+silently defaulting a shared aspect's new behavior to "on for
+everyone" just because the column already exists and is convenient to
+populate.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

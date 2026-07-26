@@ -21,7 +21,10 @@ public class FailedAttemptService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(lockoutKey(email)));
     }
 
-    public void recordFailure(String email) {
+    /**
+     * @return true iff this call is the one that just crossed the lockout threshold.
+     */
+    public boolean recordFailure(String email) {
         String attemptsKey = attemptsKey(email);
         Long attempts = redisTemplate.opsForValue().increment(attemptsKey);
 
@@ -34,7 +37,10 @@ public class FailedAttemptService {
                     .opsForValue()
                     .set(lockoutKey(email), "1", properties.lockout().duration());
             redisTemplate.delete(attemptsKey);
+            return true;
         }
+
+        return false;
     }
 
     public void lockForAbuse(String email) {

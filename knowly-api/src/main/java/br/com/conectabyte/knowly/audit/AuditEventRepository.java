@@ -11,4 +11,7 @@ public interface AuditEventRepository extends Repository<AuditEvent, Long> {
     List<AuditEvent> findByTenantIdOrderByOccurredAtDesc(Long tenantId);
 
     List<AuditEvent> findByActorUserIdOrderByOccurredAtDesc(Long actorUserId);
+
+    List<AuditEvent> findByActionAndResourceIdOrderByOccurredAtDesc(
+            String action, String resourceId);
 }

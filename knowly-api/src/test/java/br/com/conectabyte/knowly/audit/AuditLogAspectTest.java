@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
+import br.com.conectabyte.knowly.auth.exception.InvalidCredentialsException;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
@@ -17,10 +19,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Import({TestcontainersConfiguration.class, AuditLogAspectTest.Config.class})
 @SpringBootTest
@@ -37,6 +42,7 @@ class AuditLogAspectTest {
     void cleanUp() {
         tenantContext.clear();
         SecurityContextHolder.clearContext();
+        RequestContextHolder.resetRequestAttributes();
     }
 
     private User authenticateAs(String email) {
@@ -81,6 +87,76 @@ class AuditLogAspectTest {
     }
 
     @Test
+    void writesAnAuditEventWithFailureOutcomeWhenTheMethodThrowsInvalidCredentials() {
+        User user = authenticateAs("invalid-credentials@example.com");
+
+        assertThatThrownBy(() -> auditedService.doSomethingWithInvalidCredentials())
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.FAILURE);
+    }
+
+    @Test
+    void writesAnAuditEventWithLockedOutOutcomeWhenTheMethodThrowsAccountLocked() {
+        User user = authenticateAs("account-locked@example.com");
+
+        assertThatThrownBy(() -> auditedService.doSomethingWithAccountLocked())
+                .isInstanceOf(AccountLockedException.class);
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.LOCKED_OUT);
+    }
+
+    @Test
+    void capturesTheMaskedSourceIpIntoMetadataWhenCaptureSourceIpIsTrueAndARequestContextExists() {
+        User user = authenticateAs("source-ip@example.com");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("203.0.113.7");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        auditedService.doSomethingWithSourceIpCapture("1");
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getMetadata()).contains("203.0.113.0");
+        assertThat(events.get(0).getMetadata()).doesNotContain("203.0.113.7");
+    }
+
+    @Test
+    void doesNotThrowWhenCaptureSourceIpIsTrueButNoRequestContextIsAvailable() {
+        User user = authenticateAs("no-request-context@example.com");
+        RequestContextHolder.resetRequestAttributes();
+
+        auditedService.doSomethingWithSourceIpCapture("1");
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getMetadata()).isNull();
+    }
+
+    @Test
+    void neverPopulatesMetadataWhenCaptureSourceIpIsFalseEvenWithARequestContext() {
+        User user = authenticateAs("default-no-capture@example.com");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("203.0.113.7");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        auditedService.doSomething("1");
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getMetadata()).isNull();
+    }
+
+    @Test
     void writesAnAuditEventForAReadOnlyMethodWithNoStateChange() {
         User user = authenticateAs("reader@example.com");
 
@@ -107,9 +183,24 @@ class AuditLogAspectTest {
             throw new IllegalStateException("boom");
         }
 
+        @AuditLog(action = "test.do-something-with-invalid-credentials")
+        void doSomethingWithInvalidCredentials() {
+            throw new InvalidCredentialsException();
+        }
+
+        @AuditLog(action = "test.do-something-with-account-locked")
+        void doSomethingWithAccountLocked() {
+            throw new AccountLockedException();
+        }
+
         @AuditLog(action = "test.read-something")
         String readSomething() {
             return "read-only, no state change";
+        }
+
+        @AuditLog(action = "test.do-something-with-source-ip-capture", captureSourceIp = true)
+        String doSomethingWithSourceIpCapture(String id) {
+            return "ok:" + id;
         }
     }
 

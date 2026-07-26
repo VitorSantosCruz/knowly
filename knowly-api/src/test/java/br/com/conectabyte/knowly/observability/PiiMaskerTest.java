@@ -53,4 +53,27 @@ class PiiMaskerTest {
         assertThat(masked).doesNotContain("not-an-email");
         assertThat(masked).contains("#");
     }
+
+    @Test
+    void masksAnIpv4AddressToItsSlash24() {
+        assertThat(PiiMasker.maskIp("203.0.113.45")).isEqualTo("203.0.113.0");
+    }
+
+    @Test
+    void masksAnIpv6AddressToItsSlash48() {
+        assertThat(PiiMasker.maskIp("2001:db8:85a3::8a2e:370:7334"))
+                .isEqualTo("2001:db8:85a3:0:0:0:0:0");
+    }
+
+    @Test
+    void handlesBlankIpInputWithoutThrowing() {
+        assertThat(PiiMasker.maskIp(null)).isEmpty();
+        assertThat(PiiMasker.maskIp("")).isEmpty();
+        assertThat(PiiMasker.maskIp("   ")).isEmpty();
+    }
+
+    @Test
+    void handlesUnparsableIpInputWithoutThrowing() {
+        assertThat(PiiMasker.maskIp("not-an-ip")).isEmpty();
+    }
 }

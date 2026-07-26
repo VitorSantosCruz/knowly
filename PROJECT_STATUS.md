@@ -137,14 +137,67 @@ The user confirmed this order for the next several features (2026-07-25):
    listing/searching all staff users — `staff-rbac-split` only added
    per-user detail/grant endpoints, not a listing one) and a frontend
    SPEC in `knowly-app/` for the screens themselves, per the "Feature SPEC
-   placement" rule in `specify/memory/constitution.md`.
+   placement" rule in `specify/memory/constitution.md`. **Rules confirmed
+   by the user 2026-07-26**, ahead of the SPEC:
+   - **One screen, two contexts, never both menus at once.** The
+     user-management screen exists in both contexts (inside a tenant:
+     manage that tenant's members only; outside/staff context: manage
+     staff users globally) — but which one a given staff user sees
+     depends purely on whether they're currently "inside" a tenant or
+     not, mirroring the general nav rule below. Inside a tenant, a staff
+     user managing users can only ever act on that tenant's members —
+     never staff/global users — precisely to preserve the
+     staff-escalation protections already documented in item 8/9 above
+     (a tenant-scoped context must never expose staff/global user
+     management, or a tenant could indirectly manipulate staff there).
+   - **General nav rule this generalizes from**: once a staff user is
+     "inside" a specific tenant, every staff-only/global-scope nav
+     option (tenant create/list/edit/delete, staff user management,
+     global metrics dashboard, etc.) disappears from the menu entirely
+     — the UI at that point should look and behave exactly like a
+     regular tenant member's UI (plus whatever extra the staff user's
+     tenant-level role/permissions grant them within that tenant, same
+     as any other member). Those options only reappear once the staff
+     user leaves the tenant back to the tenant list. This is a strict
+     either/or, not a "staff sees extra options inside a tenant too."
 6. ~~Expanded metrics dashboard~~ — **backend done**, see
    `knowly-api/specify/features/dashboard-analytics/` and its row in the
    backend feature table above. Frontend SPEC/PLAN/TASKS already exist
    at `knowly-app/specify/features/dashboard-analytics/` (written
    alongside the backend SPEC per the cross-folder placement rule) but
    are **not yet implemented** — that's the next concrete action for
-   this item.
+   this item. **New scope confirmed by the user 2026-07-26**, not yet
+   covered by the existing SPEC — will need a follow-up backend SPEC
+   (new endpoints/metrics) before the frontend work above can be
+   considered complete:
+   - **Inside a tenant**: dashboard shows that tenant's own numbers —
+     article count, most-used/top articles, query count per member,
+     usage graphs, and (new, once support tickets exist per item 14)
+     support-ticket metrics for that tenant specifically. This is
+     largely what today's `dashboard-analytics` backend already
+     provides (`members`/timeseries/`export` endpoints) — mostly a
+     frontend implementation gap, not a new backend needed, except for
+     support-ticket metrics which don't exist until item 14 lands.
+   - **Outside any tenant (staff global view)**: a *different* set of
+     metrics scoped across all tenants — total tenant count, new
+     tenants in the last calendar month, total articles read across
+     every tenant, total support tickets across every tenant, staff
+     member count — plus a staff-specific welcome screen (distinct from
+     the tenant member's welcome screen) and a member-listing screen
+     that lets a staff user open a profile, edit it (subject to the
+     profile-editing permission rules in item 13), and view that
+     person's audit trail. None of this global/staff-scope aggregation
+     exists in the backend today — `dashboard-analytics`'s endpoints are
+     all tenant-scoped (`TenantFilter`-gated). This needs its own
+     backend SPEC for global/cross-tenant metrics endpoints, gated by a
+     `GlobalPermission` (not tenant `Permission`), separate from the
+     existing tenant-scoped `dashboard-analytics` feature.
+   - **Tenant CRUD stays staff-only and only visible outside a
+     tenant** — see item 5's "general nav rule" above; staff can
+     create/list/edit/delete tenants only from the staff-side (outside
+     any tenant) screens, and that capability disappears from the menu
+     entirely once the staff user is inside a tenant, even for
+     `STAFF_ADMIN`.
 
 **Backlog (user-reported 2026-07-25, not yet SPEC'd) — each needs its own
 SPEC before implementation, roughly in this order:**
@@ -159,7 +212,45 @@ SPEC before implementation, roughly in this order:**
    backend SPEC — decide what to log per auth event (success/failure/
    lockout, masked email, IP?) consistent with `PiiMasker` conventions
    already used in `AuthController`'s regular logs.
-8. **Role model rename + a real 4th tier (`MEMBER_ADMIN`).** Confirmed
+   **Status (2026-07-26): done.** SPEC/PLAN/TASKS at
+   `knowly-api/specify/features/auth-audit-logging/`. Every auth event
+   (login-request, code/password verify success/failure, lockout,
+   logout) now audited via the existing `@AuditLog`/`AuditLogAspect`
+   mechanism (manual `AuditEventRepository`/new `AuditEventWriter` write
+   for `logout`/lockout, since `@AuditLog` can't observe post-`proceed()`
+   session teardown). An AppSec review flagged the source-IP capture as
+   raw/unmasked and scoped system-wide instead of to auth events; the
+   product owner delegated the fix choice to the agents, who decided to
+   mask (`/24`/`/48` truncation, new `PiiMasker.maskIp`) and scope to
+   auth-only (new `AuditLog.captureSourceIp()` opt-in flag, default
+   `false`, so every non-auth `@AuditLog` consumer is unaffected). See
+   `DECISIONS.md`'s 2026-07-26 entries for the full reasoning. QA and
+   AppSec re-verified targeted tests green; full-suite `mvn verify` is
+   deliberately deferred until all in-flight backlog work this session
+   is done (see item 8 and this section's own note below), then run
+   once for the whole batch.
+8. **Role model rename + a real 4th tier (`MEMBER_ADMIN`).**
+   **Status (2026-07-26): done.** SPEC/PLAN/TASKS at
+   `knowly-api/specify/features/role-model-refinement/`.
+   `MembershipRole.ADMIN` renamed to `MEMBER_ADMIN` everywhere
+   (entity, all call sites, `V15` data migration for existing
+   `tenant_memberships`/its Envers audit table). `StaffService`'s
+   `createStaffUser`/`getStaffUserDetail`/`grantPermission`/
+   `revokePermission`/`assignAccessGroup`/`unassignAccessGroup` now
+   route through a new `enforceStaffCeiling` check: a `STAFF` user,
+   however permissioned, can never manage a `STAFF`/`STAFF_ADMIN`
+   target — `STAFF_ADMIN` is unaffected. A real bug was caught and fixed
+   during combined testing: `getStaffUserDetail`'s new `@AuditLog` tried
+   to `INSERT` inside that method's `readOnly = true` transaction and
+   Postgres rejected it — fixed with a new `AuditEventWriter`
+   (`REQUIRES_NEW` propagation) that `AuditLogAspect` now uses for every
+   audit write, so no future `@AuditLog` usage on a read-only method can
+   hit the same failure. **Known follow-up, not yet done**: `PROJECT_STATUS.md`'s frontend feature table isn't updated yet —
+   `MembershipRole` serializes by enum name, so `knowly-app/` will start
+   seeing `"MEMBER_ADMIN"` instead of `"ADMIN"` in API responses; this is
+   a breaking contract change for the frontend that needs its own
+   follow-up task whenever frontend work resumes (flagged, not
+   addressed here — this SPEC was backend-only by design). Confirmed
    2026-07-26 with the user: the model becomes exactly `STAFF_ADMIN` /
    `STAFF` / `MEMBER_ADMIN` / `MEMBER` (renaming today's per-tenant
    `MembershipRole.ADMIN` → `MEMBER_ADMIN`, and `MEMBER` stays `MEMBER`
@@ -230,9 +321,46 @@ SPEC before implementation, roughly in this order:**
    legally-unique company fields, tbd) and every `User` (person: email,
    full address, RG, CPF, phone, each enforced unique across all users
    — DB-level uniqueness, not just app validation) need complete
-   records. Self-edit is restricted to whoever holds the relevant
-   permission; a user only sees their own profile and their own chat
-   display nickname. Must decide retention/at-rest-encryption/
+   records. Today's profiles are effectively anonymous — no field
+   actually identifies the real-world person behind an account; this
+   item is what introduces that (name, address, documents). **Profile
+   editing rule, corrected 2026-07-26 (previous write-up here had this
+   backwards)**: `MEMBER_ADMIN`/`STAFF_ADMIN` CAN edit their own profile
+   — it's part of their general admin power, no exception for self.
+   Everyone else needs a specific granted "edit profiles" permission to
+   edit personal-data fields (name/address/documents/etc.) at all, and
+   for **that non-admin permission holder specifically**, it excludes
+   their own record — they can edit everyone else's profile but not
+   their own, closing the obvious self-escalation hole (grant yourself
+   edit rights, then edit your own record). So the "can't edit own
+   profile" restriction applies only to the permission-holder path, not
+   to admins. **Self-requested edit, corrected 2026-07-26**: a plain
+   user with no edit-profiles permission still isn't fully locked out of
+   changing their own data — they can *submit* a change request for
+   their own profile (name/document/email/etc.), but it doesn't apply
+   immediately; it goes into a pending state and requires explicit
+   approval, via an in-app notification, from someone holding the
+   edit-profiles permission (or an admin) before it takes effect.
+   Purpose: stop a bad actor from unilaterally rewriting their own
+   identity fields to pin blame on someone else or dodge accountability
+   for something already tied to their profile, while still letting
+   people fix a genuine typo/change of address without needing to beg
+   someone to type it in for them. This reuses the same in-app
+   notification/request-approval infrastructure already needed for
+   items 9/10 (tenant-membership acceptance) — worth designing that
+   infra once, shared across all three approval flows, rather than
+   building it three times. **This "edit profiles" permission is a
+   distinct capability
+   from user/role management in item 5** — editing someone's personal
+   data (name/address/documents) is separate from managing their
+   role/tenant-membership/permissions; holding one does not imply the
+   other, and — per item 8's `STAFF` ceiling and the general
+   nobody-grants-themselves-permissions rule — nobody (staff or member,
+   admin or not) can change their *own* role/permission grants regardless
+   of what permissions they hold; that's exclusively a `STAFF_ADMIN`/
+   `MEMBER_ADMIN`-on-others action. A user only sees their own profile
+   and their own chat display nickname; must decide retention/at-rest-
+   encryption/
    access-control for CPF/RG *before* writing any migration — this is
    Tier 3 (new kind of sensitive-data exposure) per `DECISIONS.md`, stop
    and confirm the data-protection approach with the user first. Backend:

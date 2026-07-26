@@ -11,6 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.audit.AuditEvent;
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
+import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.observability.PiiMasker;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -18,6 +21,7 @@ import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
+import java.util.List;
 import java.util.Properties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +58,8 @@ class AuthControllerIntegrationTest {
 
     @Autowired private LoginRequestThrottleService loginRequestThrottleService;
 
+    @Autowired private AuditEventRepository auditEventRepository;
+
     @MockitoSpyBean private CaptchaService captchaService;
 
     @MockitoBean private JavaMailSender mailSender;
@@ -66,6 +72,20 @@ class AuthControllerIntegrationTest {
         logAppender.start();
         ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AuthController.class))
                 .addAppender(logAppender);
+
+        // The real velocity counter is keyed by IP+action in shared Redis, so it accumulates
+        // across every test in this class (all issued from the same loopback address). Defaulting
+        // it to "not exceeded" here keeps that shared counter from tipping over as more tests are
+        // added; the two dedicated velocity tests below override this per-action as needed.
+        doReturn(false)
+                .when(captchaService)
+                .recordRequestAndIsVelocityExceeded(any(), any(), anyInt());
+
+        // mailSender.send(...) verifications in this class use a generic any(MimeMessage.class)
+        // matcher (the mock has no visibility into the message's recipient), so a slow async
+        // login-request listener from a previous test that only completes after that test's own
+        // await() succeeded can otherwise bleed a stray invocation into this test's count.
+        org.mockito.Mockito.clearInvocations(mailSender);
     }
 
     @AfterEach
@@ -508,6 +528,352 @@ class AuthControllerIntegrationTest {
                         .exchange();
 
         assertThat(protectedResult).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void loginRequestProducesExactlyOneAuditEventForAnExistingEmail() {
+        userRepository.saveAndFlush(new User("audit-login-request-known@example.com"));
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+        String maskedEmail = PiiMasker.maskEmail("audit-login-request-known@example.com");
+
+        mockMvc.post()
+                .uri("/api/auth/login-request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"audit-login-request-known@example.com\"}")
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_request", maskedEmail);
+        assertThat(events).hasSize(1);
+        AuditEvent event = events.get(0);
+        assertThat(event.getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+        assertThat(event.getActorUserId()).isNull();
+        assertThat(event.getResourceType()).isEqualTo("auth-email");
+        assertThat(event.getMetadata()).contains("127.0.0.0");
+        assertThat(event.getMetadata()).doesNotContain("127.0.0.1");
+
+        // Drains the async login-request-listener's mail send before this test ends, so it can't
+        // straggle into a later test's mailSender verification (the mock has no per-recipient
+        // matcher to tell them apart).
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> verify(mailSender).send(any(MimeMessage.class)));
+    }
+
+    @Test
+    void loginRequestProducesExactlyOneAuditEventForANonExistingEmail() {
+        String maskedEmail = PiiMasker.maskEmail("audit-login-request-unknown@example.com");
+
+        mockMvc.post()
+                .uri("/api/auth/login-request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"audit-login-request-unknown@example.com\"}")
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_request", maskedEmail);
+        assertThat(events).hasSize(1);
+        AuditEvent event = events.get(0);
+        assertThat(event.getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+        assertThat(event.getActorUserId()).isNull();
+        assertThat(event.getResourceType()).isEqualTo("auth-email");
+    }
+
+    @Test
+    void verifyCodeSuccessProducesAnAuditEventWithTheRealActor() {
+        String email = "audit-code-success@example.com";
+        User user = userRepository.saveAndFlush(new User(email));
+        String code = loginCodeService.generate(email);
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}")
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_code_verify", PiiMasker.maskEmail(email));
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+        assertThat(events.get(0).getActorUserId()).isEqualTo(user.getId());
+        assertThat(events.get(0).getMetadata()).contains("127.0.0.0");
+        assertThat(events.get(0).getMetadata()).doesNotContain("127.0.0.1");
+    }
+
+    @Test
+    void verifyCodeFailureProducesAnAuditEventWithNoActor() {
+        String email = "audit-code-failure@example.com";
+        userRepository.saveAndFlush(new User(email));
+        loginCodeService.generate(email);
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"code\":\"000000\"}")
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_code_verify", PiiMasker.maskEmail(email));
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.FAILURE);
+        assertThat(events.get(0).getActorUserId()).isNull();
+    }
+
+    @Test
+    void verifyPasswordSuccessProducesAnAuditEventWithTheRealActor() {
+        String email = "audit-password-success@example.com";
+        User user = userRepository.saveAndFlush(new User(email));
+        String password = oneTimePasswordService.generateFor(user);
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        mockMvc.post()
+                .uri("/api/auth/login-password/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}")
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_password_verify", PiiMasker.maskEmail(email));
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+        assertThat(events.get(0).getActorUserId()).isEqualTo(user.getId());
+        assertThat(events.get(0).getMetadata()).contains("127.0.0.0");
+        assertThat(events.get(0).getMetadata()).doesNotContain("127.0.0.1");
+    }
+
+    @Test
+    void verifyPasswordFailureProducesAnAuditEventWithNoActor() {
+        String email = "audit-password-failure@example.com";
+        userRepository.saveAndFlush(new User(email));
+
+        mockMvc.post()
+                .uri("/api/auth/login-password/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"wrong\"}")
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_password_verify", PiiMasker.maskEmail(email));
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.FAILURE);
+        assertThat(events.get(0).getActorUserId()).isNull();
+    }
+
+    @Test
+    void lockedOutCodeVerificationProducesALockedOutOutcomeDistinctFromFailure() {
+        String email = "audit-code-locked-rejection@example.com";
+        String body = "{\"email\":\"" + email + "\",\"code\":\"000000\"}";
+        for (int i = 0; i < 3; i++) {
+            mockMvc.post()
+                    .uri("/api/auth/login-code/verify")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)
+                    .exchange();
+        }
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_code_verify", PiiMasker.maskEmail(email));
+        assertThat(events).anyMatch(e -> e.getOutcome() == AuditOutcome.LOCKED_OUT);
+        assertThat(events)
+                .filteredOn(e -> e.getOutcome() == AuditOutcome.LOCKED_OUT)
+                .allMatch(e -> e.getActorUserId() == null);
+    }
+
+    @Test
+    void lockedOutPasswordVerificationProducesALockedOutOutcomeDistinctFromFailure() {
+        String email = "audit-password-locked-rejection@example.com";
+        userRepository.saveAndFlush(new User(email));
+        String body = "{\"email\":\"" + email + "\",\"password\":\"wrong\"}";
+        for (int i = 0; i < 3; i++) {
+            mockMvc.post()
+                    .uri("/api/auth/login-password/verify")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)
+                    .exchange();
+        }
+
+        mockMvc.post()
+                .uri("/api/auth/login-password/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_password_verify", PiiMasker.maskEmail(email));
+        assertThat(events).anyMatch(e -> e.getOutcome() == AuditOutcome.LOCKED_OUT);
+        assertThat(events)
+                .filteredOn(e -> e.getOutcome() == AuditOutcome.LOCKED_OUT)
+                .allMatch(e -> e.getActorUserId() == null);
+    }
+
+    @Test
+    void crossingTheLockoutThresholdProducesASeparateLockoutEvent() {
+        String email = "audit-lockout-threshold@example.com";
+        String body = "{\"email\":\"" + email + "\",\"code\":\"000000\"}";
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+        List<AuditEvent> lockoutEventsAfterFirstFailure =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login.lockout", PiiMasker.maskEmail(email));
+        assertThat(lockoutEventsAfterFirstFailure).isEmpty();
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
+
+        List<AuditEvent> lockoutEvents =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login.lockout", PiiMasker.maskEmail(email));
+        assertThat(lockoutEvents).hasSize(1);
+        assertThat(lockoutEvents.get(0).getOutcome()).isEqualTo(AuditOutcome.DENIED);
+        assertThat(lockoutEvents.get(0).getMetadata()).contains("127.0.0.0");
+        assertThat(lockoutEvents.get(0).getMetadata()).doesNotContain("127.0.0.1");
+
+        List<AuditEvent> failureEvents =
+                auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                        "auth.login_code_verify", PiiMasker.maskEmail(email));
+        assertThat(failureEvents).hasSize(3);
+        assertThat(failureEvents).allMatch(e -> e.getOutcome() == AuditOutcome.FAILURE);
+    }
+
+    @Test
+    void authenticatedLogoutProducesAnAuditEventWithTheRealActor() {
+        String email = "audit-logout@example.com";
+        User user = userRepository.saveAndFlush(new User(email));
+        String code = loginCodeService.generate(email);
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        var loginResult =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}")
+                        .exchange();
+        Cookie sessionCookie = loginResult.getResponse().getCookie("SESSION");
+        Cookie csrfCookie = obtainCsrfCookie();
+
+        mockMvc.post()
+                .uri("/api/auth/logout")
+                .cookie(sessionCookie)
+                .cookie(csrfCookie)
+                .header("X-XSRF-TOKEN", csrfCookie.getValue())
+                .exchange();
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).anyMatch(e -> e.getAction().equals("auth.logout"));
+        AuditEvent logoutEvent =
+                events.stream().filter(e -> e.getAction().equals("auth.logout")).findFirst().get();
+        assertThat(logoutEvent.getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+        assertThat(logoutEvent.getActorUserId()).isEqualTo(user.getId());
+        assertThat(logoutEvent.getMetadata()).contains("127.0.0.0");
+        assertThat(logoutEvent.getMetadata()).doesNotContain("127.0.0.1");
+    }
+
+    @Test
+    void unauthenticatedLogoutProducesNoAuditEvent() {
+        int before =
+                auditEventRepository
+                        .findByActionAndResourceIdOrderByOccurredAtDesc("auth.logout", null)
+                        .size();
+        Cookie csrfCookie = obtainCsrfCookie();
+
+        mockMvc.post()
+                .uri("/api/auth/logout")
+                .cookie(csrfCookie)
+                .header("X-XSRF-TOKEN", csrfCookie.getValue())
+                .exchange();
+
+        int after =
+                auditEventRepository
+                        .findByActionAndResourceIdOrderByOccurredAtDesc("auth.logout", null)
+                        .size();
+        assertThat(after).isEqualTo(before);
+    }
+
+    @Test
+    void noAuditEventContainsARawEmailAcrossAllOfThisFeaturesScenarios() {
+        String[] emails = {
+            "pii-sweep-1@example.com", "pii-sweep-2@example.com", "pii-sweep-3@example.com"
+        };
+        userRepository.saveAndFlush(new User(emails[0]));
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        mockMvc.post()
+                .uri("/api/auth/login-request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + emails[0] + "\"}")
+                .exchange();
+        // Drains the async login-request-listener's mail send before moving on, so it can't
+        // straggle into a later test's mailSender verification.
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> verify(mailSender).send(any(MimeMessage.class)));
+        mockMvc.post()
+                .uri("/api/auth/login-code/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + emails[1] + "\",\"code\":\"000000\"}")
+                .exchange();
+        mockMvc.post()
+                .uri("/api/auth/login-password/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + emails[2] + "\",\"password\":\"wrong\"}")
+                .exchange();
+
+        for (String email : emails) {
+            List<AuditEvent> events =
+                    auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                            "auth.login_request", PiiMasker.maskEmail(email));
+            events.addAll(
+                    auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                            "auth.login_code_verify", PiiMasker.maskEmail(email)));
+            events.addAll(
+                    auditEventRepository.findByActionAndResourceIdOrderByOccurredAtDesc(
+                            "auth.login_password_verify", PiiMasker.maskEmail(email)));
+
+            for (AuditEvent event : events) {
+                assertThat(event.getResourceId()).doesNotContain(email);
+                assertThat(event.getMetadata() == null ? "" : event.getMetadata())
+                        .doesNotContain(email);
+                // No raw (unmasked) source IP either — only the /24-truncated form is ever
+                // written.
+                assertThat(event.getMetadata() == null ? "" : event.getMetadata())
+                        .doesNotContain("127.0.0.1");
+                if (event.getMetadata() != null) {
+                    assertThat(event.getMetadata()).contains("127.0.0.0");
+                }
+            }
+        }
     }
 
     // Deliberately not using SecurityMockMvcRequestPostProcessors.csrf(): it works by
