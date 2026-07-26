@@ -2,9 +2,7 @@ import { Component, OnDestroy, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { ButtonDirective } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
-import { PasswordDirective } from 'primeng/password';
+import { buttonClass } from '../../shared/button-classes';
 import { AuthService, AuthErrorCode } from '../../core/auth.service';
 import { ConfigService } from '../../core/config.service';
 import { loadTurnstileScript } from '../../core/turnstile-loader';
@@ -15,7 +13,7 @@ type CredentialTab = 'code' | 'password';
 
 @Component({
   selector: 'app-login-page',
-  imports: [TranslocoPipe, BrandWordmarkComponent, ButtonDirective, InputText, PasswordDirective],
+  imports: [TranslocoPipe, BrandWordmarkComponent],
   template: `
     <div class="flex min-h-dvh items-center justify-center bg-ink-50 p-4 dark:bg-ink-950 sm:p-6">
       @if (step() === 'email') {
@@ -35,11 +33,10 @@ type CredentialTab = 'code' | 'password';
             name="email"
             type="email"
             required
-            pInputText
             [value]="email()"
             (input)="email.set($any($event.target).value)"
             placeholder="{{ 'login.emailPlaceholder' | transloco }}"
-            class="mb-6 w-full"
+            [class]="inputClass"
           />
           @if (captchaRequired()) {
             <div
@@ -50,9 +47,8 @@ type CredentialTab = 'code' | 'password';
           }
           <button
             type="submit"
-            pButton
+            [class]="submitButtonClass"
             [disabled]="submitting() || (captchaRequired() && !captchaToken())"
-            class="w-full"
           >
             {{ 'login.continue' | transloco }}
           </button>
@@ -99,11 +95,10 @@ type CredentialTab = 'code' | 'password';
                 name="code"
                 type="text"
                 required
-                pInputText
                 [value]="code()"
                 [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
                 (input)="code.set($any($event.target).value)"
-                class="mb-6 w-full"
+                [class]="inputClass"
               />
               @if (errorCode(); as code) {
                 <p
@@ -118,7 +113,7 @@ type CredentialTab = 'code' | 'password';
                   }}
                 </p>
               }
-              <button type="submit" pButton [disabled]="submitting()" class="w-full">
+              <button type="submit" [class]="submitButtonClass" [disabled]="submitting()">
                 {{ 'login.continue' | transloco }}
               </button>
             </form>
@@ -137,12 +132,10 @@ type CredentialTab = 'code' | 'password';
                 name="password"
                 type="password"
                 required
-                pPassword
-                [feedback]="false"
                 [value]="password()"
                 [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
                 (input)="password.set($any($event.target).value)"
-                class="mb-6 w-full"
+                [class]="inputClass"
               />
               @if (errorCode(); as code) {
                 <p
@@ -157,7 +150,7 @@ type CredentialTab = 'code' | 'password';
                   }}
                 </p>
               }
-              <button type="submit" pButton [disabled]="submitting()" class="w-full">
+              <button type="submit" [class]="submitButtonClass" [disabled]="submitting()">
                 {{ 'login.continue' | transloco }}
               </button>
             </form>
@@ -193,6 +186,9 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly labelClass = 'mb-2 block text-sm font-medium text-ink-700 dark:text-ink-300';
   protected readonly errorClass =
     'mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400';
+  protected readonly inputClass =
+    'mb-6 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white';
+  protected readonly submitButtonClass = buttonClass('primary') + ' w-full';
 
   ngOnDestroy(): void {
     delete (window as unknown as Record<string, unknown>)[this.callbackName];
