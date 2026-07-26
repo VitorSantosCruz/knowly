@@ -201,6 +201,23 @@ SPEC before implementation, roughly in this order:**
     `build` — no shell/bash tool was available in this agent invocation;
     a human or `frontend-engineer` must run knowly-app's verification
     commands before trusting this is green.
+    **Second follow-up (2026-07-25)**, after the sidebar/motion pass above
+    was actually seen running (not just reviewed as a diff): borders were
+    too low-contrast to read as real dividers, the welcome screen was a
+    small floating card in an otherwise empty canvas, and the
+    theme/language/help/logout controls sat oddly at the bottom of the
+    sidebar. Fixed: those four controls now live in a horizontal top
+    header bar (`app-shell.component.ts`), separate from primary
+    navigation, which stays permanently dark chrome like the sidebar;
+    sidebar links are grouped under category labels (Overview/Knowledge/
+    Team/Workspace, new `nav.category.*` i18n keys) for faster scanning;
+    a single `.page-shell` spacing convention (`styles.css`) was
+    introduced and adopted by dashboard/articles/conversations/members so
+    page gutters and vertical rhythm aren't reinvented per screen; the
+    welcome screen gained permission-gated quick-link cards (articles/
+    conversations/members) instead of just a lone greeting card. Verified
+    this time: `npm run format`, `format:check`, `test` (186 passing),
+    `build` all green; committed.
 
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
