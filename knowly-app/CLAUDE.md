@@ -41,16 +41,23 @@ security), including this subproject's own section.
 ## Conventions already established in this subproject
 
 - Angular standalone + strict TypeScript, no `any`.
-- **PrimeNG is the component library for interactive UI** (buttons,
-  menus, cards, forms, tables) — new UI needs a PrimeNG component
-  checked first before hand-rolling one; PrimeIcons (`pi pi-*`) for
-  iconography instead of inline SVGs. Theme preset (mapping the "Ink and
-  Signal" brand onto PrimeNG's design tokens) lives at
-  `src/app/core/prime-theme.ts`; wired via `providePrimeNG()` in
-  `app.config.ts`. See `specify/features/primeng-migration/PLAN.md` for
-  the full rationale and migration order, and `../DECISIONS.md`.
-- Tailwind CSS remains for page layout, spacing, and utility classes —
-  not a component-styling replacement now that PrimeNG covers that.
+- **No component library — pure Tailwind CSS + hand-rolled Angular
+  standalone components** (buttons, menus, cards, forms, tables).
+  PrimeNG was adopted then reverted the next day; see `../DECISIONS.md`
+  ("Frontend drops PrimeNG, reverts to pure Tailwind + Angular") before
+  reaching for any UI library again. **Lucide** (`@lucide/angular` —
+  not the deprecated `lucide-angular`, which has no Angular 22-
+  compatible peer range) is the icon set — SVG-based components, not
+  an icon font — instead of PrimeIcons or inline ad-hoc SVGs. Each icon
+  is its own standalone component with an attribute selector (e.g.
+  `LucideSun` → `<svg lucideSun>`), imported directly into the
+  `imports` array of the component that uses it — no
+  `LucideAngularModule.pick({...})`/central provider wiring in
+  `app.config.ts`; this is tree-shaken by construction. See
+  `specify/features/primeng-removal/PLAN.md` for the removal order and
+  the Tailwind-equivalent patterns replacing each PrimeNG component
+  (including its "Deviations from this PLAN" section for the two
+  implementation-detail corrections made while executing it).
 - Vitest for tests (`npm test`).
 - Prettier for formatting (`.prettierrc`) — always run the formatter
   instead of adjusting spacing by hand.
