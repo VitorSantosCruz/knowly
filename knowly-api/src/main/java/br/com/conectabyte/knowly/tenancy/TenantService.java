@@ -10,6 +10,7 @@ import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class TenantService {
     private final UserAccessGroupRepository userAccessGroupRepository;
     private final PermissionService permissionService;
     private final GlobalPermissionService globalPermissionService;
+    private final NotificationRepository notificationRepository;
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -35,7 +37,8 @@ public class TenantService {
             AccessGroupPermissionRepository accessGroupPermissionRepository,
             UserAccessGroupRepository userAccessGroupRepository,
             PermissionService permissionService,
-            GlobalPermissionService globalPermissionService) {
+            GlobalPermissionService globalPermissionService,
+            NotificationRepository notificationRepository) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
@@ -45,6 +48,7 @@ public class TenantService {
         this.userAccessGroupRepository = userAccessGroupRepository;
         this.permissionService = permissionService;
         this.globalPermissionService = globalPermissionService;
+        this.notificationRepository = notificationRepository;
     }
 
     /**
@@ -149,7 +153,12 @@ public class TenantService {
         return tenant;
     }
 
-    /** REQ-9/16: tenant admin (own tenant) or staff (any tenant) can add members. */
+    /**
+     * REQ-9/16: tenant admin (own tenant) or staff (any tenant) can add members. Per REQ-1/REQ-1a:
+     * a user who already has an account is added as a pending membership requiring their acceptance
+     * (REQ-4 notification); a brand-new email is created active immediately, matching today's
+     * behavior, since there is no existing account to notify/ask for consent.
+     */
     @Transactional
     @AuditLog(action = "tenant.member.add", resourceType = "TenantMembership")
     public TenantMembership addMember(
@@ -158,19 +167,32 @@ public class TenantService {
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
-        User user =
-                userRepository
-                        .findByEmailIgnoreCase(email)
-                        .orElseGet(() -> userRepository.save(new User(email)));
+        Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
+        boolean userAlreadyExisted = existingUser.isPresent();
+        User user = existingUser.orElseGet(() -> userRepository.save(new User(email)));
 
         TenantMembership membership =
                 tenantMembershipRepository
                         .findByUserAndTenant(user, tenant)
                         .orElseGet(() -> new TenantMembership(user, tenant, role));
         membership.setRole(role);
-        membership.setActive(true);
 
-        return tenantMembershipRepository.save(membership);
+        if (userAlreadyExisted) {
+            membership.setStatus(MembershipStatus.PENDING);
+            membership.setActive(false);
+        } else {
+            membership.setStatus(MembershipStatus.ACTIVE);
+            membership.setActive(true);
+        }
+
+        TenantMembership saved = tenantMembershipRepository.save(membership);
+
+        if (userAlreadyExisted) {
+            notificationRepository.save(
+                    new Notification(user, NotificationType.MEMBERSHIP_INVITATION_PENDING, saved));
+        }
+
+        return saved;
     }
 
     /** REQ-9/19: always a soft removal, never a hard delete. */

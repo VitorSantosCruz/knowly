@@ -73,7 +73,10 @@ public class SecurityConfig {
                                                 "/api/auth/login-code/verify",
                                                 "/api/auth/login-password/verify",
                                                 "/api/tenants/**",
-                                                "/api/users/me/onboarding-complete"))
+                                                "/api/notifications/**",
+                                                "/api/users/me/onboarding-complete",
+                                                "/api/users/**",
+                                                "/api/profile-edit-requests/**"))
                 .exceptionHandling(
                         ex ->
                                 ex.authenticationEntryPoint(

@@ -22,7 +22,9 @@ public class TenantContextFilter extends OncePerRequestFilter {
                     "/api/auth",
                     "/api/tenants/active",
                     "/api/tenants/memberships",
-                    "/api/users/me/onboarding");
+                    "/api/users",
+                    "/api/profile-edit-requests",
+                    "/api/notifications");
 
     private final TenantContext tenantContext;
 

@@ -36,4 +36,18 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new TenancyErrorResponseDto("STAFF_USER_ALREADY_EXISTS"));
     }
+
+    @ExceptionHandler(NotificationAlreadyResolvedException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleNotificationAlreadyResolved(
+            NotificationAlreadyResolvedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new TenancyErrorResponseDto("NOTIFICATION_ALREADY_RESOLVED"));
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleNotificationNotFound(
+            NotificationNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new TenancyErrorResponseDto("NOTIFICATION_NOT_FOUND"));
+    }
 }
