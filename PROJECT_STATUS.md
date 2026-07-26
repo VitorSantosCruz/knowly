@@ -57,9 +57,12 @@
 >    <what it is>"), not just "in progress."
 
 **Current state: `staff-bootstrap-user`, `staff-rbac-split`,
-`staff-user-provisioning`, `navigation-menu`, and `welcome-screen` are
-all done. Next up (item 5 below) is user management screens** — no
-SPEC written for it yet.
+`staff-user-provisioning`, `navigation-menu`, `welcome-screen`, and the
+`dashboard-analytics` backend are all done. Next up (item 5 below) is
+user management screens** — no SPEC written for it yet. The
+`dashboard-analytics` frontend (item 6) already has an approved
+SPEC/PLAN/TASKS in `knowly-app/` and is ready for implementation
+whenever picked up.
 
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` is now fully complete (2026-07-25 final pass) — all
@@ -130,7 +133,13 @@ The user confirmed this order for the next several features (2026-07-25):
    per-user detail/grant endpoints, not a listing one) and a frontend
    SPEC in `knowly-app/` for the screens themselves, per the "Feature SPEC
    placement" rule in `specify/memory/constitution.md`.
-6. Expanded metrics dashboard.
+6. ~~Expanded metrics dashboard~~ — **backend done**, see
+   `knowly-api/specify/features/dashboard-analytics/` and its row in the
+   backend feature table above. Frontend SPEC/PLAN/TASKS already exist
+   at `knowly-app/specify/features/dashboard-analytics/` (written
+   alongside the backend SPEC per the cross-folder placement rule) but
+   are **not yet implemented** — that's the next concrete action for
+   this item.
 
 **Backlog (user-reported 2026-07-25, not yet SPEC'd) — each needs its own
 SPEC before implementation, roughly in this order:**
@@ -279,6 +288,7 @@ the feature's own SPEC.
 | `staff-bootstrap-user` | ✅ Done | One migration-created staff `User` (email via required `KNOWLY_BOOTSTRAP_STAFF_EMAIL` env var, no password) so a fresh deployment has a first login via the existing login-code flow. No new mechanism, no freeze/expiry — see SPEC's "Out of scope" for why. |
 | `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. Small known test-coverage gap — see "Next up" above. |
 | `staff-user-provisioning` | ✅ Done | `POST /api/staff/users` lets `STAFF_ADMIN` (or a granted `STAFF`) create a new `STAFF` user, gated by its own `GlobalPermission.STAFF_USER_CREATE`; emails a one-time password via the existing mechanism. Tenant member provisioning needed no change. |
+| `dashboard-analytics` | ✅ Done (backend) | Extends `metrics` with date-bucketed time-series (`/conversations/timeseries`, `/messages/timeseries`, `/articles/timeseries`, UTC calendar-day, zero-count days included), a tenant membership active/inactive snapshot (`/members`), `period` filtering (`7d`/`30d`/`90d`/`all`, default `all`) on every metrics endpoint via a new `MetricsPeriod` enum + `InvalidPeriodException`/`MetricsExceptionHandler`, and a hand-built CSV export (`/export`, no new dependency). All still `DASHBOARD_VIEW`-gated, tenant-isolated via `TenantFilter`. Frontend consuming these is a separate SPEC (`knowly-app/specify/features/dashboard-analytics/`). See `DECISIONS.md` for the UTC-bucketing rationale. |
 
 ## Feature status — frontend (`knowly-app/`)
 

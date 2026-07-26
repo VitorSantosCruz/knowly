@@ -292,6 +292,38 @@ approved SPEC assumed ngx-charts) should be revised to use PrimeNG's own
 `Chart`/`Table` components instead, rather than adding a second charting
 dependency — that revision is the PO's call, not silently made here.
 
+## `dashboard-analytics` (backend): UTC calendar-day bucketing, no tenant timezone
+
+The new time-series metrics endpoints
+(`/api/tenants/metrics/{conversations,messages,articles}/timeseries`)
+bucket `created_at` by **UTC calendar day**
+(`date_trunc('day', created_at)::date` at the Postgres layer), not
+tenant-local day. `Conversation.createdAt`, `Message.createdAt`, and
+`Article.createdAt` are all `java.time.Instant` (UTC instants); `Tenant`
+has no timezone column or concept anywhere in the schema today.
+Introducing tenant-local bucketing would require a new
+`Tenant.timezone` field plus DST-aware conversion logic that nothing in
+that SPEC asked for. UTC calendar-day is therefore the correct default:
+it's what the data already is, it's what every other timestamp in this
+codebase already assumes, and it avoids inventing tenant-timezone
+schema/config out of scope. **Applies to new decisions:** any future
+per-day/per-week bucketing feature (for any entity) should default to
+UTC calendar-day bucketing the same way, unless/until a `Tenant.timezone`
+field is deliberately introduced as its own Tier 3 decision.
+
+A related, smaller judgment call made during implementation (not
+pre-specified in the PLAN): for `period=all`, the zero-count-day merge
+is skipped entirely — the response contains only the calendar days that
+actually have at least one row, sorted chronologically, rather than a
+zero-filled range back to some arbitrary "beginning of time." Zero-fill
+only applies to the bounded periods (`7d`/`30d`/`90d`), where the exact
+calendar range is well-defined (last N days including today). This was
+a Tier 2 call made because the PLAN specified the zero-fill mechanism
+but didn't pin down what date range "all" should zero-fill against
+(there's no natural lower bound); flag if a future consumer needs
+`period=all` to also be zero-filled from the tenant's/data's earliest
+activity date.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

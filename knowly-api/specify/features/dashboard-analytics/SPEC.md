@@ -140,32 +140,35 @@ and is not addressed by this feature.
 
 ## Acceptance criteria
 
-- [ ] `GET /api/tenants/metrics/conversations/timeseries` returns
+- [x] `GET /api/tenants/metrics/conversations/timeseries` returns
       per-day conversation counts for the active tenant only, honoring
       `period`, including zero-count days, for all four `period` values.
-- [ ] `GET /api/tenants/metrics/messages/timeseries` returns per-day
+      (Zero-count-day merge covers `7d`/`30d`/`90d`; `period=all` returns
+      only days with data — no natural lower bound to zero-fill against,
+      see `DECISIONS.md`.)
+- [x] `GET /api/tenants/metrics/messages/timeseries` returns per-day
       USER/ASSISTANT message counts for the active tenant only, honoring
       `period`, including zero-count days.
-- [ ] `GET /api/tenants/metrics/articles/timeseries` returns per-day
+- [x] `GET /api/tenants/metrics/articles/timeseries` returns per-day
       active-article-creation counts for the active tenant only,
       honoring `period`, including zero-count days.
-- [ ] `GET /api/tenants/metrics/members` returns active/inactive
+- [x] `GET /api/tenants/metrics/members` returns active/inactive
       membership counts for the active tenant only.
-- [ ] `GET /api/tenants/metrics/export` returns a downloadable CSV
+- [x] `GET /api/tenants/metrics/export` returns a downloadable CSV
       containing the aggregate values above for the requested period, and
       no raw article/message/conversation content.
-- [ ] `GET /api/tenants/metrics/conversations` and
+- [x] `GET /api/tenants/metrics/conversations` and
       `GET /api/tenants/metrics/messages` honor an optional `period`
       query parameter without breaking their current default (`all`)
       behavior or response shape.
-- [ ] An invalid `period` value returns `400`, never a silent fallback or
+- [x] An invalid `period` value returns `400`, never a silent fallback or
       stack trace.
-- [ ] Every endpoint in this SPEC is denied with `403` to a caller
+- [x] Every endpoint in this SPEC is denied with `403` to a caller
       lacking `DASHBOARD_VIEW`, and is tenant-isolated (verified with an
       integration test asserting tenant A's data is never visible while
       tenant B is active), matching `MetricsControllerIntegrationTest`'s
       existing pattern.
-- [ ] `./mvnw spotless:apply && ./mvnw verify` passes.
+- [x] `./mvnw spotless:apply && ./mvnw verify` passes.
 
 ## Out of scope
 

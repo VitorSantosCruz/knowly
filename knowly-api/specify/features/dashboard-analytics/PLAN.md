@@ -106,6 +106,35 @@
   integration tests). If no `Clock` bean already exists in this codebase, one
   is added (`@Bean Clock.systemUTC()`) — checked as part of task 1.
 
+## Implementation notes (post-hoc, recorded per task 39)
+
+- **Task 0.1 findings**: the `metrics` package had no `exception/`/`dto/`
+  subpackages of its own (its existing DTOs sit flat in the package), but
+  the codebase-wide convention (`article`, `tenancy`) is to introduce
+  `exception/`/`dto/` subpackages for *new* exception/error-DTO types
+  without necessarily moving pre-existing flat DTOs. This PLAN's new
+  `InvalidPeriodException`/`MetricsExceptionHandler` went into
+  `metrics/exception/`, and `MetricsErrorResponseDto` into `metrics/dto/`;
+  every other new metrics DTO (`DailyCountDto`, `ConversationsTimeseriesDto`,
+  etc.) stayed flat in `metrics/`, matching the existing ones. No
+  `java.time.Clock` bean existed anywhere in `br.com.conectabyte.knowly`,
+  so `ClockConfig` (`br.com.conectabyte.knowly.config`, alongside the
+  other `*Config` classes) was added as planned.
+- **`period=all` zero-fill deviation**: the PLAN specified a zero-count-day
+  merge mechanism but didn't pin down what date range `all` should
+  zero-fill against (there's no natural lower bound for "all time").
+  Implemented as: zero-fill only applies to the bounded periods
+  (`7d`/`30d`/`90d`); for `all`, the response contains only the calendar
+  days that actually have at least one row, sorted chronologically. See
+  the corresponding `DECISIONS.md` entry for the full rationale — this is
+  the one deviation from a literal reading of this PLAN's "Time-series
+  queries" bullet.
+- Native queries were used for all three day-bucketed aggregate queries
+  (`date_trunc('day', created_at)::date`), each with a tenant-scoped
+  `WHERE tenant_id = :tenantId` clause added explicitly (native queries
+  bypass Hibernate's `@Filter`), matching the explicit-tenant-filter
+  precedent already set by `MessageArticleCitationRepository#usageByTenant`.
+
 ## Data schema
 
 No new tables/entities/migrations. This feature is read-only against
