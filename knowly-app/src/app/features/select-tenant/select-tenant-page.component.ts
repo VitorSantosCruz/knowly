@@ -2,8 +2,8 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
-import { ButtonDirective } from 'primeng/button';
-import { Listbox } from 'primeng/listbox';
+import { LucidePlus } from '@lucide/angular';
+import { buttonClass } from '../../shared/button-classes';
 import {
   ActiveTenantService,
   TenantMembership,
@@ -18,7 +18,7 @@ interface TenantOption {
 
 @Component({
   selector: 'app-select-tenant-page',
-  imports: [TranslocoPipe, RouterLink, ButtonDirective, Listbox],
+  imports: [TranslocoPipe, RouterLink, LucidePlus],
   template: `
     <div
       data-testid="select-tenant-page"
@@ -29,25 +29,31 @@ interface TenantOption {
           {{ 'selectTenant.title' | transloco }}
         </h1>
         @if (canCreateTenant()) {
-          <a data-testid="create-tenant-link" routerLink="/tenants/new" pButton icon="pi pi-plus">
+          <a
+            data-testid="create-tenant-link"
+            routerLink="/tenants/new"
+            [class]="createTenantLinkClass"
+          >
+            <svg lucidePlus class="h-4 w-4" aria-hidden="true"></svg>
             {{ 'selectTenant.createTenant' | transloco }}
           </a>
         }
       </div>
       @if (options().length > 0) {
-        <p-listbox
-          [options]="options()"
-          optionLabel="tenantName"
-          styleClass="w-full border-0"
-          listStyleClass="flex flex-col gap-2"
-          (onClick)="onSelect($event.option)"
-        >
-          <ng-template #item let-option>
-            <span [attr.data-testid]="'select-tenant-' + option.tenantId" class="block w-full">
-              {{ option.tenantName }}
-            </span>
-          </ng-template>
-        </p-listbox>
+        <ul role="listbox" class="flex w-full flex-col gap-2 border-0">
+          @for (option of options(); track option.tenantId) {
+            <li role="option">
+              <button
+                type="button"
+                [attr.data-testid]="'select-tenant-' + option.tenantId"
+                class="block w-full rounded-xl border border-ink-200/70 bg-white px-4 py-3 text-left text-sm text-ink-900 transition-colors duration-fast ease-fluid hover:border-signal-400 dark:border-ink-800/70 dark:bg-ink-900 dark:text-white dark:hover:border-signal-500"
+                (click)="onSelect(option)"
+              >
+                {{ option.tenantName }}
+              </button>
+            </li>
+          }
+        </ul>
       } @else if (loaded()) {
         <p data-testid="select-tenant-empty" class="enter-fluid text-ink-600 dark:text-ink-400">
           {{ 'selectTenant.empty' | transloco }}
@@ -61,6 +67,7 @@ export class SelectTenantPageComponent implements OnInit {
   private readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly router = inject(Router);
 
+  protected readonly createTenantLinkClass = buttonClass('primary');
   protected readonly options = signal<TenantOption[]>([]);
   protected readonly loaded = signal(false);
   protected readonly canCreateTenant = computed(() =>
