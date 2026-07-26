@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ArticleCountCardComponent } from './article-count-card.component';
 import { ConversationsCardComponent } from './conversations-card.component';
+import { ExportButtonComponent } from './export-button.component';
 import { MembersBreakdownCardComponent } from './members-breakdown-card.component';
 import { MessagesCardComponent } from './messages-card.component';
 import { Period, PeriodFilterComponent } from './period-filter.component';
@@ -19,10 +20,14 @@ import { TopArticlesTableComponent } from './top-articles-table.component';
     MessagesCardComponent,
     MembersBreakdownCardComponent,
     PeriodFilterComponent,
+    ExportButtonComponent,
   ],
   template: `
     <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
-      <app-period-filter [(period)]="period" class="sm:col-span-2" />
+      <div class="flex items-center justify-between gap-4 sm:col-span-2">
+        <app-period-filter [(period)]="period" />
+        <app-export-button [period]="period()" />
+      </div>
       <app-article-count-card />
       <app-top-articles-table />
       <app-conversations-card />

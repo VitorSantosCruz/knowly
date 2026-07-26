@@ -69,5 +69,6 @@ describe('DashboardPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="members-breakdown-card"]'),
     ).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="export-button"]')).toBeTruthy();
   });
 });
