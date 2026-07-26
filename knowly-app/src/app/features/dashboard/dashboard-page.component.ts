@@ -2,11 +2,11 @@ import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ArticleCountCardComponent } from './article-count-card.component';
-import { ArticleUsageListComponent } from './article-usage-list.component';
 import { ConversationsCardComponent } from './conversations-card.component';
 import { MembersBreakdownCardComponent } from './members-breakdown-card.component';
 import { MessagesCardComponent } from './messages-card.component';
 import { Period, PeriodFilterComponent } from './period-filter.component';
+import { TopArticlesTableComponent } from './top-articles-table.component';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -14,7 +14,7 @@ import { Period, PeriodFilterComponent } from './period-filter.component';
     TranslocoPipe,
     RouterLink,
     ArticleCountCardComponent,
-    ArticleUsageListComponent,
+    TopArticlesTableComponent,
     ConversationsCardComponent,
     MessagesCardComponent,
     MembersBreakdownCardComponent,
@@ -24,7 +24,7 @@ import { Period, PeriodFilterComponent } from './period-filter.component';
     <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
       <app-period-filter [(period)]="period" class="sm:col-span-2" />
       <app-article-count-card />
-      <app-article-usage-list />
+      <app-top-articles-table />
       <app-conversations-card />
       <app-messages-card />
       <app-members-breakdown-card />

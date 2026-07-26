@@ -61,7 +61,9 @@ describe('DashboardPageComponent', () => {
     flushMetricRequests();
 
     expect(fixture.nativeElement.querySelector('[data-testid="article-count-card"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="article-usage-list"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="top-articles-table"]'),
+    ).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="conversations-card"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="messages-card"]')).toBeTruthy();
     expect(

@@ -41,7 +41,9 @@
   "dashboard": {
     "articlesLink": "View articles",
     "noAccess": "You don't have access to this.",
-    "error": "Something went wrong loading this. Trace id: {{traceId}}"
+    "error": "Something went wrong loading this. Trace id: {{traceId}}",
+    "searchArticles": "Search articles…",
+    "export": "Export CSV"
   },
   "welcome": {
     "staffGreeting": "Welcome to knowly",

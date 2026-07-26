@@ -41,7 +41,9 @@
   "dashboard": {
     "articlesLink": "Ver artigos",
     "noAccess": "Você não tem acesso a isso.",
-    "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}"
+    "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}",
+    "searchArticles": "Buscar artigos…",
+    "export": "Exportar CSV"
   },
   "welcome": {
     "staffGreeting": "Bem-vindo ao knowly",

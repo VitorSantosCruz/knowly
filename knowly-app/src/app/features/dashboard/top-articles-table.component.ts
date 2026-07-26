@@ -1,5 +1,8 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
+import { InputText } from 'primeng/inputtext';
+import { Table } from 'primeng/table';
 import { createMetricFetcher } from '../../core/metric-fetcher';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
@@ -15,12 +18,11 @@ interface ArticleUsageResponse {
 }
 
 @Component({
-  selector: 'app-article-usage-list',
-  imports: [ErrorStateComponent, NoAccessStateComponent],
+  selector: 'app-top-articles-table',
+  imports: [ErrorStateComponent, NoAccessStateComponent, Table, InputText, TranslocoPipe],
   template: `
     <div
-      data-testid="article-usage-list"
-      style="animation-delay: 60ms"
+      data-testid="top-articles-table"
       class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
     >
       @if (fetcher.loading()) {
@@ -30,23 +32,30 @@ interface ArticleUsageResponse {
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <ul>
-          @for (article of data.articles; track article.id) {
-            <li
-              data-testid="usage-item"
-              class="flex justify-between rounded-lg px-1 py-1.5 text-sm transition-colors duration-fast ease-fluid hover:bg-ink-50 dark:hover:bg-ink-800/60"
-            >
-              <span class="text-ink-800 dark:text-ink-100">{{ article.title }}</span>
-              <span class="text-ink-500 dark:text-ink-400">{{ article.useCount }}</span>
-            </li>
-          }
-        </ul>
+        <input
+          data-testid="article-search"
+          type="text"
+          pInputText
+          class="mb-3 w-full"
+          [placeholder]="'dashboard.searchArticles' | transloco"
+          (input)="dt.filterGlobal($any($event.target).value, 'contains')"
+        />
+        <p-table #dt [value]="data.articles" [globalFilterFields]="['title']">
+          <ng-template #body let-article>
+            <tr data-testid="article-row">
+              <td>{{ article.title }}</td>
+              <td class="text-right">{{ article.useCount }}</td>
+            </tr>
+          </ng-template>
+        </p-table>
       }
     </div>
   `,
 })
-export class ArticleUsageListComponent implements OnInit {
+export class TopArticlesTableComponent implements OnInit {
   private readonly http = inject(HttpClient);
+
+  @ViewChild('dt') protected dt!: Table;
 
   protected readonly fetcher = createMetricFetcher<ArticleUsageResponse>(
     this.http,
