@@ -33,7 +33,7 @@
 	<properties>
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.0</spring-ai.version>
-		<awssdk.version>2.44.9</awssdk.version>
+		<awssdk.version>2.49.3</awssdk.version>
 	</properties>
 	<dependencies>
 		<dependency>
