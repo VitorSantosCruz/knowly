@@ -43,11 +43,15 @@ describe('WelcomePageComponent', () => {
       active: boolean;
     }[];
     onboardingCompleted?: boolean;
+    globalPermissions?: string[];
   }): void {
     httpMock
       .expectOne('/api/users/me/onboarding-status')
       .flush({ completed: options.onboardingCompleted ?? true });
     httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
+    httpMock
+      .expectOne('/api/staff/permissions')
+      .flush({ permissions: options.globalPermissions ?? [] });
   }
 
   it('shows a staff greeting with no dashboard link when there is no active tenant', () => {
@@ -57,6 +61,63 @@ describe('WelcomePageComponent', () => {
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="welcome-dashboard-link"]'),
+    ).toBeFalsy();
+  });
+
+  it('shows a global-dashboard quick-link card when staff-outside-tenant holds DASHBOARD_VIEW_GLOBAL', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['DASHBOARD_VIEW_GLOBAL'] });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="welcome-global-dashboard-link"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows a global-dashboard quick-link card for a STAFF_ADMIN-shaped (all permissions) session', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [],
+      globalPermissions: [
+        'TENANT_CREATE',
+        'TENANT_ACT_AS_ANY',
+        'TENANT_MEMBER_MANAGE_ANY',
+        'TENANT_ACCESS_GROUP_MANAGE_ANY',
+        'TENANT_PERMISSION_GRANT_MANAGE_ANY',
+        'STAFF_PERMISSION_MANAGE',
+        'STAFF_USER_CREATE',
+        'STAFF_USER_VIEW',
+        'DASHBOARD_VIEW_GLOBAL',
+        'AUDIT_TRAIL_VIEW',
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="welcome-global-dashboard-link"]'),
+    ).toBeTruthy();
+  });
+
+  it('hides the global-dashboard quick-link card when staff-outside-tenant holds neither permission', () => {
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="welcome-global-dashboard-link"]'),
+    ).toBeFalsy();
+  });
+
+  it('hides the global-dashboard quick-link card whenever tenantName() is set', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      globalPermissions: ['DASHBOARD_VIEW_GLOBAL'],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="welcome-global-dashboard-link"]'),
     ).toBeFalsy();
   });
 

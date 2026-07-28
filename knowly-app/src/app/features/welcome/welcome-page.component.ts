@@ -1,7 +1,9 @@
-import { Component, OnInit, effect, inject } from '@angular/core';
+import { Component, OnInit, computed, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ActiveTenantService } from '../../core/active-tenant.service';
+import { ALL_GLOBAL_PERMISSIONS } from '../../core/global-permission';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { OnboardingService } from '../../core/onboarding.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { TourService } from '../../core/tour.service';
@@ -98,6 +100,27 @@ import { TourService } from '../../core/tour.service';
           }
         </div>
       }
+
+      @if (showGlobalDashboard()) {
+        <div class="mt-6 grid gap-4 sm:grid-cols-3">
+          <a
+            data-testid="welcome-global-dashboard-link"
+            routerLink="/dashboard"
+            class="group enter-fluid block transition-all duration-base ease-fluid hover:-translate-y-0.5"
+          >
+            <div
+              class="enter-fluid h-full rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid hover:border-ink-300 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none dark:hover:border-ink-700 hover:shadow-md"
+            >
+              <h2 class="text-sm font-semibold text-ink-900 dark:text-white">
+                {{ 'welcome.quickLinks.globalDashboard.title' | transloco }}
+              </h2>
+              <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
+                {{ 'welcome.quickLinks.globalDashboard.description' | transloco }}
+              </p>
+            </div>
+          </a>
+        </div>
+      }
     </div>
   `,
 })
@@ -105,12 +128,25 @@ export class WelcomePageComponent implements OnInit {
   private readonly activeTenantService = inject(ActiveTenantService);
   private readonly onboardingService = inject(OnboardingService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly tourService = inject(TourService);
 
   protected readonly tenantName = this.activeTenantService.activeTenantName;
   protected readonly showArticles = () => this.permissionsService.has('ARTICLE_VIEW');
   protected readonly showConversations = () => this.permissionsService.has('CONVERSATION_USE');
   protected readonly showMembers = () => this.permissionsService.has('TENANT_MEMBER_MANAGE');
+
+  // Same viewerIsStaffAdmin inference already used in StaffDirectoryPageComponent/
+  // GlobalDashboardPageComponent — accepted, precedented repetition (see PLAN.md).
+  private readonly viewerIsStaffAdmin = computed(() =>
+    ALL_GLOBAL_PERMISSIONS.every((permission) => this.globalPermissionsService.has(permission)),
+  );
+
+  protected readonly showGlobalDashboard = computed(
+    () =>
+      !this.tenantName() &&
+      (this.globalPermissionsService.has('DASHBOARD_VIEW_GLOBAL') || this.viewerIsStaffAdmin()),
+  );
 
   private hasAutoStarted = false;
 
@@ -128,5 +164,6 @@ export class WelcomePageComponent implements OnInit {
   ngOnInit(): void {
     this.onboardingService.fetch();
     this.activeTenantService.fetch();
+    this.globalPermissionsService.fetch();
   }
 }
