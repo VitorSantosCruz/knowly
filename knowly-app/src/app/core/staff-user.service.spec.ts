@@ -116,4 +116,12 @@ describe('StaffUserService', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush({});
   });
+
+  it('getAuditTrail() fetches the target user audit trail', () => {
+    service.getAuditTrail(1).subscribe();
+
+    const req = httpMock.expectOne('/api/staff/users/1/audit-trail');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
 });

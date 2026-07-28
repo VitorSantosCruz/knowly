@@ -24,6 +24,16 @@ export interface StaffUserDetail {
   effectivePermissions: GlobalPermission[];
 }
 
+export interface AuditEvent {
+  occurredAt: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  tenantId: string | null;
+  outcome: string;
+  metadata: unknown;
+}
+
 @Injectable({ providedIn: 'root' })
 export class StaffUserService {
   private readonly http = inject(HttpClient);
@@ -72,5 +82,9 @@ export class StaffUserService {
 
   unassignAccessGroup(userId: number, accessGroupId: number): Observable<void> {
     return this.http.delete<void>(`/api/staff/users/${userId}/access-groups/${accessGroupId}`);
+  }
+
+  getAuditTrail(userId: number): Observable<AuditEvent[]> {
+    return this.http.get<AuditEvent[]>(`/api/staff/users/${userId}/audit-trail`);
   }
 }
