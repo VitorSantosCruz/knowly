@@ -61,9 +61,9 @@ describe('OwnProfilePageComponent', () => {
     flushMemberships();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('[data-testid="profile-email"]').textContent).toContain(
-      'jane@example.com',
-    );
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-email"]').textContent,
+    ).toContain('jane@example.com');
     expect(fixture.nativeElement.querySelector('[data-testid="profile-field-email"]')).toBeNull();
   });
 
@@ -95,9 +95,9 @@ describe('OwnProfilePageComponent', () => {
     req.flush({ ...profile, fullName: 'Jane Updated' });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('[data-testid="profile-field-fullName"]').value).toBe(
-      'Jane Updated',
-    );
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-field-fullName"]').value,
+    ).toBe('Jane Updated');
   });
 
   it('a tenant ADMIN membership session submits via the same PUT branch', async () => {
@@ -154,15 +154,13 @@ describe('OwnProfilePageComponent', () => {
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="profile-fields-submit"]').click();
-    httpMock
-      .expectOne('/api/users/me/profile/edit-requests')
-      .flush({
-        id: 1,
-        requesterUserId: 1,
-        proposedFields: profile,
-        status: 'PENDING',
-        createdAt: '2026-07-28T00:00:00Z',
-      });
+    httpMock.expectOne('/api/users/me/profile/edit-requests').flush({
+      id: 1,
+      requesterUserId: 1,
+      proposedFields: profile,
+      status: 'PENDING',
+      createdAt: '2026-07-28T00:00:00Z',
+    });
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="profile-fields-submit"]').click();

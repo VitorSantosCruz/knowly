@@ -51,8 +51,9 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     httpMock.expectOne('/api/profile-edit-requests').flush([request]);
     fixture.detectChanges();
 
-    const text = fixture.nativeElement.querySelector('[data-testid="profile-edit-request-7"]')
-      .textContent;
+    const text = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-7"]',
+    ).textContent;
     expect(text).toContain('3');
     expect(text).toContain('Jane Doe');
     expect(text).toContain('2026-07-28T10:00:00Z');
@@ -124,9 +125,7 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-edit-request-7"]'),
     ).toBeTruthy();
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="conflict-request-7"]'),
-    ).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="conflict-request-7"]')).toBeTruthy();
   });
 
   it('a 403 or non-uniqueness 409 refreshes the list and shows the error state', async () => {

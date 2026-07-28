@@ -57,9 +57,9 @@ describe('ProfileFieldsFormComponent', () => {
     input('profile-field-fullName').dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]').dispatchEvent(
-      new Event('submit', { cancelable: true }),
-    );
+    fixture.nativeElement
+      .querySelector('[data-testid="profile-fields-form"]')
+      .dispatchEvent(new Event('submit', { cancelable: true }));
 
     expect(emitted).toEqual([{ ...fields, fullName: 'Jane Smith' }]);
     expect(emitted[0]).not.toHaveProperty('email');
@@ -71,9 +71,9 @@ describe('ProfileFieldsFormComponent', () => {
     const emitted: unknown[] = [];
     fixture.componentInstance.submitted.subscribe((value: ProfileFields) => emitted.push(value));
 
-    fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]').dispatchEvent(
-      new Event('submit', { cancelable: true }),
-    );
+    fixture.nativeElement
+      .querySelector('[data-testid="profile-fields-form"]')
+      .dispatchEvent(new Event('submit', { cancelable: true }));
 
     expect(emitted).toEqual([]);
     expect(input('profile-field-fullName').disabled).toBe(true);

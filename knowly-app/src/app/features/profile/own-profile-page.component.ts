@@ -89,7 +89,8 @@ export class OwnProfilePageComponent implements OnInit {
   // REQ-13a/14a (that grant never covers self).
   protected readonly hasDirectEditRight = computed(
     () =>
-      this.viewerIsStaffAdmin() || this.memberships().some((membership) => membership.role === 'ADMIN'),
+      this.viewerIsStaffAdmin() ||
+      this.memberships().some((membership) => membership.role === 'ADMIN'),
   );
 
   ngOnInit(): void {

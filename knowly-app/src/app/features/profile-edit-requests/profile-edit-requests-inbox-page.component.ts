@@ -29,7 +29,9 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
               class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-4 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
             >
               <p class="text-sm font-medium text-ink-900 dark:text-white">
-                {{ 'profileEditRequests.requester' | transloco: { userId: request.requesterUserId } }}
+                {{
+                  'profileEditRequests.requester' | transloco: { userId: request.requesterUserId }
+                }}
               </p>
               <p class="text-sm text-ink-600 dark:text-ink-400">
                 {{ request.proposedFields.fullName }} · {{ request.proposedFields.address }} ·
