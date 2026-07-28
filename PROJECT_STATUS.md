@@ -60,12 +60,14 @@
 `staff-user-provisioning`, `navigation-menu`, `welcome-screen`, and the
 `dashboard-analytics` backend are all done. Item 5 (user management
 screens) is now done on both sides**: the backend half
-(`staff-user-listing`, `GET /api/staff/users`) is implemented (final
-verification/review/commit pass still pending, see its table row
-below); the frontend half (`user-management-screens`) is fully
-implemented, tested (253/253 frontend tests green), AppSec-reviewed (no
-blocking findings), and committed — see
-`knowly-app/specify/features/user-management-screens/`. The
+(`staff-user-listing`, `GET /api/staff/users`) is fully done — verified,
+`qa-test-automation`/`appsec`-reviewed, and committed; the frontend half
+(`user-management-screens`) is fully implemented, tested (253/253
+frontend tests green), AppSec-reviewed (no blocking findings), and
+committed — see `knowly-app/specify/features/user-management-screens/`.
+`tenant-membership-acceptance`, `identity-profile-model`, and
+`global-staff-dashboard-metrics` are also now fully done (verified,
+reviewed, committed) — see their table rows below. The
 `dashboard-analytics` frontend (item 6) already has an approved
 SPEC/PLAN/TASKS in `knowly-app/` and is ready for implementation
 whenever picked up — that's the next concrete action.
@@ -585,10 +587,10 @@ the feature's own SPEC.
 | `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. Small known test-coverage gap — see "Next up" above. |
 | `staff-user-provisioning` | ✅ Done | `POST /api/staff/users` lets `STAFF_ADMIN` (or a granted `STAFF`) create a new `STAFF` user, gated by its own `GlobalPermission.STAFF_USER_CREATE`; emails a one-time password via the existing mechanism. Tenant member provisioning needed no change. |
 | `dashboard-analytics` | ✅ Done (backend) | Extends `metrics` with date-bucketed time-series (`/conversations/timeseries`, `/messages/timeseries`, `/articles/timeseries`, UTC calendar-day, zero-count days included), a tenant membership active/inactive snapshot (`/members`), `period` filtering (`7d`/`30d`/`90d`/`all`, default `all`) on every metrics endpoint via a new `MetricsPeriod` enum + `InvalidPeriodException`/`MetricsExceptionHandler`, and a hand-built CSV export (`/export`, no new dependency). All still `DASHBOARD_VIEW`-gated, tenant-isolated via `TenantFilter`. Frontend consuming these is a separate SPEC (`knowly-app/specify/features/dashboard-analytics/`). See `DECISIONS.md` for the UTC-bucketing rationale. |
-| `staff-user-listing` | 🟡 Mostly done, pending final verify/review/commit | `GET /api/staff/users` (optional `?email=` case-insensitive substring filter) lists every `STAFF`/`STAFF_ADMIN` user, gated by new `GlobalPermission.STAFF_USER_VIEW` (independent of `STAFF_USER_CREATE`/management ceiling checks). `StaffController.listStaffUsers`/`StaffService.listStaffUsers`/`StaffUserSummaryDto` implemented and tested (`StaffUserListingIntegrationTest`). TASKS.md items 11-13 (full-suite `./mvnw verify`, `qa-test-automation`/`appsec` review, commit) still unchecked. |
-| `tenant-membership-acceptance` | 🟡 Mostly done, pending final verify/review | New `Notification`/`NotificationType` model (`V16` migration) plus `NotificationController`/`NotificationService`/`NotificationDto` (`/api/notifications`) for accept/decline-style tenant membership notifications, with `NotificationAlreadyResolvedException`/`NotificationNotFoundException` wired into the existing exception-handling convention. Confirmed `removeMember` needs no code change. TASKS.md items 21-24 (`spotless:apply`, full `./mvnw verify`, doc updates, `qa-test-automation`/`appsec` review) still unchecked. |
-| `identity-profile-model` | 🟡 Mostly done, pending final verify/review | Adds encrypted `cpf`/`rg` identity fields (`CpfRgEncryptionConverter`, blind-index lookup via `BlindIndexService`) plus a profile-edit-request flow (`ProfileEditRequest`/`ProfileEditRequestService`, `UserProfileController`/`UserProfileService`, `UserProfileDto`/`ProfileFieldsDto`). Confirmed non-plaintext storage at the raw column level and `cnpj`/`inscricaoEstadual` tenant uniqueness by integration test. TASKS.md items 27-30 (`spotless:apply`, full `./mvnw verify`, doc updates including a `users_aud`/key-rotation flag, `qa-test-automation`/`appsec` review — appsec specifically flagged for the blind-index equality-revealing tradeoff) still unchecked. |
-| `global-staff-dashboard-metrics` | 🟡 Mostly done, pending final verify/review/commit | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case. TASKS.md items 12-14 (full-suite `./mvnw verify`, `qa-test-automation`/`appsec` review, commit) still unchecked. |
+| `staff-user-listing` | ✅ Done | `GET /api/staff/users` (optional `?email=` case-insensitive substring filter) lists every `STAFF`/`STAFF_ADMIN` user, gated by new `GlobalPermission.STAFF_USER_VIEW` (independent of `STAFF_USER_CREATE`/management ceiling checks). `StaffController.listStaffUsers`/`StaffService.listStaffUsers`/`StaffUserSummaryDto` implemented and tested (`StaffUserListingIntegrationTest`). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
+| `tenant-membership-acceptance` | ✅ Done | New `Notification`/`NotificationType` model (`V16` migration) plus `NotificationController`/`NotificationService`/`NotificationDto` (`/api/notifications`) for accept/decline-style tenant membership notifications, with `NotificationAlreadyResolvedException`/`NotificationNotFoundException` wired into the existing exception-handling convention. Confirmed `removeMember` needs no code change. Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings (IDOR/replay/privilege-escalation checks all confirmed clean). |
+| `identity-profile-model` | ✅ Done | Adds encrypted `cpf`/`rg` identity fields (`CpfRgEncryptionConverter`, blind-index lookup via `BlindIndexService`) plus a profile-edit-request flow (`ProfileEditRequest`/`ProfileEditRequestService`, `UserProfileController`/`UserProfileService`, `UserProfileDto`/`ProfileFieldsDto`). Confirmed non-plaintext storage at the raw column level (genuine AES-256-GCM, not reversible encoding) and `cnpj`/`inscricaoEstadual` tenant uniqueness (including both fields' independent null-coexistence cases) by integration test. Full-suite `./mvnw verify` green (339/339); `appsec`-reviewed with no blocking findings — blind-index equality-revealing tradeoff confirmed deliberate/documented, `users_aud`/key-rotation gap confirmed real but out of scope and now flagged in "Known operational/tooling notes" below. |
+| `global-staff-dashboard-metrics` | ✅ Done | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case (tightened during QA review to assert the exact millisecond boundary, not just a ±1-day margin). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
 
 ## Feature status — frontend (`knowly-app/`)
 
@@ -644,6 +646,14 @@ rule.
   `minio-init-permissions` container to `chown` its data volume — MinIO's
   own entrypoint does not do this itself under the hardened
   `cap_drop: ALL` + non-root setup this project uses.
+- `identity-profile-model`'s `cpf`/`rg` encryption (`CpfRgEncryptionConverter`)
+  has no key-rotation strategy: `users_aud` (envers audit history) mirrors
+  the same ciphertext as the live column, so rotating the encryption key
+  would need to also re-encrypt every historical audit row, not just
+  `users`. Out of scope for that feature (appsec-reviewed, no blocking
+  finding — the blind-index equality-revealing tradeoff is deliberate per
+  its SPEC), but flagged here so a future key-rotation task doesn't
+  discover the audit-table coupling from scratch.
 - `spring.ai.vectorstore.pgvector.dimensions` is pinned explicitly (1536,
   matching `text-embedding-3-small`) in both test and production config —
   without it, Spring AI calls the real OpenAI embeddings endpoint just to
