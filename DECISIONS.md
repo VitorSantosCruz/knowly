@@ -672,6 +672,58 @@ than either (a) forking a new near-duplicate component, or (b) forcing
 a page-level data shape into N redundant per-widget HTTP calls just to
 reuse the existing self-fetching path unmodified.
 
+## `tenant-pagination-search`: first page/size pagination contract — `@Query`+`Pageable` over `Specification`, sort fixed server-side, envelope DTO stays local until a second consumer exists
+
+This is the first page/size pagination endpoint anywhere in this
+codebase (`GET /api/tenants`, previously an unbounded
+`tenantRepository.findAll()`). No existing precedent to copy —
+`staff-user-listing` stayed deliberately unpaginated, `staff-audit-trail-view`
+uses a hard row cap, not offset pagination. Three judgment calls had no
+exact analog and were decided here rather than escalated, since none
+touch scope, security, or a new dependency (all Tier 2 per this file's
+authority section):
+
+1. **DB-level filtering across three OR'd fields uses a single JPQL
+   `@Query` + `Pageable` on the repository, not a `Specification`.**
+   `staff-user-listing` chose two explicit derived methods over a
+   `Specification` for one optional filter; three OR'd fields plus an
+   optional presence check can't be named cleanly as a derived method,
+   but the criteria never combine dynamically (search is present or
+   absent, never partial/composable) — the actual justification for a
+   `Specification` (dynamically composed criteria) doesn't apply here,
+   so one `@Query` with a `:search IS NULL OR ...` guard covers both the
+   filtered and unfiltered case in one method.
+2. **Sort order is built by the service (`Sort.by("name").ascending()`
+   passed into the `Pageable`), never taken from a client-supplied
+   parameter, and not duplicated as an `ORDER BY` inside the `@Query`
+   string.** Spring Data appends a `Pageable`'s `Sort` as `ORDER BY`
+   automatically for a `@Query` method that doesn't declare its own —
+   one source of truth for "alphabetical by name is the only supported
+   order," matching this SPEC's explicit no-custom-sort scope.
+3. **The response envelope (`PageResponseDto<T>`) lives in the
+   `tenancy.dto` package that owns its only consumer, not a new
+   top-level `common`/`shared` package**, even though the SPEC frames
+   this shape as the intended default template for future paginated
+   endpoints. This codebase has no existing shared/common package to
+   extend, and creating one for a type with exactly one consumer is
+   premature structure ahead of an actual second use.
+
+**Why:** in each case, the more "generic-looking" tool
+(`Specification`, a client-controlled sort param, a new shared package)
+would add real surface area to solve a problem that doesn't exist yet
+here — dynamic criteria composition, configurable sort, or a second
+consumer. YAGNI over premature generality, same principle as
+`dashboard-analytics`'s CSV-export decision (hand-built CSV over a new
+library dependency for ~7 known columns).
+
+**Applies to new decisions:** when a future feature adds the *second*
+paginated list endpoint in this codebase, that is the trigger — not
+before — to (a) revisit whether a shared `Specification`-building
+helper is now justified by an actual second dynamic-filter shape, and
+(b) move `PageResponseDto` out of `tenancy.dto` into a shared location
+and update both call sites. Until that trigger exists, don't
+pre-build either piece of shared machinery off of one endpoint's shape.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

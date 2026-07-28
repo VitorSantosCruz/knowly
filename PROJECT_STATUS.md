@@ -315,10 +315,16 @@ SPEC before implementation, roughly in this order:**
    the backend feature table above and
    `knowly-api/specify/features/tenant-membership-acceptance/`
    (SPEC/PLAN/TASKS) for the full rules and implementation record.
-11. Tenant list pagination + search-by-name on `/select-tenant` and the
-   backend's `GET /api/tenants` (currently returns everything unbounded
-   — will break at scale). Needs a backend SPEC (pagination/search API
-   contract) and a frontend SPEC (UI).
+11. ~~Tenant list pagination + search-by-name on `/select-tenant` and the
+   backend's `GET /api/tenants`~~ — **backend half done**, see
+   `tenant-pagination-search`'s row in the backend feature table above
+   and `knowly-api/specify/features/tenant-pagination-search/`
+   (SPEC/PLAN/TASKS). `GET /api/tenants` now returns a
+   `PageResponseDto<TenantSummaryDto>` envelope with `page`/`size`/
+   `search` query params instead of an unbounded array (breaking
+   response-shape change, accepted per SPEC). **Still needed:** the
+   companion frontend SPEC updating `/select-tenant`'s 0-membership
+   staff fallback to consume the new envelope shape and add search UI.
 12. ~~Boxed/segmented one-time-code input on the login screen~~ — **done**,
    see `boxed-otp-input`'s row in the frontend feature table above and
    `knowly-app/specify/features/boxed-otp-input/` (SPEC/PLAN/TASKS).
@@ -570,6 +576,7 @@ the feature's own SPEC.
 | `tenant-membership-acceptance` | ✅ Done | New `Notification`/`NotificationType` model (`V16` migration) plus `NotificationController`/`NotificationService`/`NotificationDto` (`/api/notifications`) for accept/decline-style tenant membership notifications, with `NotificationAlreadyResolvedException`/`NotificationNotFoundException` wired into the existing exception-handling convention. Confirmed `removeMember` needs no code change. Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings (IDOR/replay/privilege-escalation checks all confirmed clean). |
 | `identity-profile-model` | ✅ Done | Adds encrypted `cpf`/`rg` identity fields (`CpfRgEncryptionConverter`, blind-index lookup via `BlindIndexService`) plus a profile-edit-request flow (`ProfileEditRequest`/`ProfileEditRequestService`, `UserProfileController`/`UserProfileService`, `UserProfileDto`/`ProfileFieldsDto`). Confirmed non-plaintext storage at the raw column level (genuine AES-256-GCM, not reversible encoding) and `cnpj`/`inscricaoEstadual` tenant uniqueness (including both fields' independent null-coexistence cases) by integration test. Full-suite `./mvnw verify` green (339/339); `appsec`-reviewed with no blocking findings — blind-index equality-revealing tradeoff confirmed deliberate/documented, `users_aud`/key-rotation gap confirmed real but out of scope and now flagged in "Known operational/tooling notes" below. |
 | `global-staff-dashboard-metrics` | ✅ Done | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case (tightened during QA review to assert the exact millisecond boundary, not just a ±1-day margin). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
+| `tenant-pagination-search` | ✅ Done (backend) | `GET /api/tenants` breaking-changed from an unbounded `List<TenantSummaryDto>` to a paginated `PageResponseDto<TenantSummaryDto>` envelope (`content`/`page`/`size`/`totalElements`/`totalPages`). New `page`/`size` query params (defaults `0`/`20`, `size` clamped to `100`, negative `page` or `size<=0` rejected with `400 INVALID_PAGINATION` via new `InvalidPaginationException`), plus an optional `search` param matching `Tenant.name`/`cnpj`/`razaoSocial` case-insensitively (OR'd) via a new DB-level `TenantRepository.search(String, Pageable)` `@Query`, sorted server-side by `name` ascending only (no client-supplied sort). Authorization unchanged (`requireStaff`/`GlobalPermission.TENANT_ACT_AS_ANY`). This is the first page/size pagination contract in this codebase — see `DECISIONS.md` for the `@Query`-over-`Specification`/fixed-sort/`PageResponseDto`-placement judgment calls, intended as the default template for future paginated endpoints. Full-suite `./mvnw verify` green (377/377, ~21 min real elapsed — the ~12 min figure previously in this file was stale). Companion frontend SPEC for `/select-tenant`'s consumption of the new envelope shape is not yet started — backend half only. |
 | `staff-audit-trail-view` | ✅ Done | `GET /api/staff/users/{userId}/audit-trail` (`StaffController.auditTrail`/`StaffService.getAuditTrail`/`AuditEventDto`) returns a target user's full audit history — deliberately **cross-tenant, `TenantFilter`-bypassing by design** (`AuditEvent` isn't a `TenantAwareEntity`, so no special plumbing was needed) — capped at the 500 most recent rows via a new `AuditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc` (DB-enforced `LIMIT`, backed by the pre-existing `ix_audit_events_actor_time` composite index, no new migration). Gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`, ceiling-independent (REQ-9: viewing a `STAFF`/`STAFF_ADMIN` target's trail is unaffected by the `role-model-refinement` management ceiling). The call itself is audited (`staff.audit_trail.view`). Full-suite `./mvnw verify` green; `qa-test-automation` independently confirmed every REQ/acceptance criterion (including the cross-tenant, 500-cap, ceiling-independence, and self-audit cases) is covered by a real passing test; `appsec` re-reviewed the implementation against the SPEC's confirmed REQ-4 exposure and found no new issue — verdict "ship it," no blocking findings. |
 
 ## Feature status — frontend (`knowly-app/`)
@@ -617,9 +624,13 @@ rule.
   re-validated. `forkCount=2` (concurrent isolated forks) was re-validated
   2026-07-25 — full suite ~14m10s → ~12m (two clean runs); `forkCount=4`
   was rejected (no further speedup, intermittent JTE template-compile race
-  — see `DECISIONS.md`). Full suite still takes ~12 minutes; further
-  speedup would need reducing per-class Spring Boot context startup cost
-  itself (~20-25s/class), not just more parallelism — not yet attempted.
+  — see `DECISIONS.md`). **Re-measured 2026-07-28** (`tenant-pagination-search`,
+  377 tests, real elapsed clocked end-to-end): **~21 minutes** — the ~12m
+  figure above no longer holds as the suite has grown since 2026-07-25;
+  treat "~12 minutes" as stale and budget closer to ~20+ minutes for a
+  full `./mvnw verify` going forward. Further speedup would need reducing
+  per-class Spring Boot context startup cost itself (~20-25s/class), not
+  just more parallelism — not yet attempted.
 - Tests must run with `gg.jte.use-precompiled-templates: true` /
   `development-mode: false` (`src/test/resources/application-test.yaml`),
   not main's dev-mode hot-reload — see `DECISIONS.md` for why (CWD-shared

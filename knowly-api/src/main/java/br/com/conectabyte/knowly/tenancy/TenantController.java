@@ -10,6 +10,7 @@ import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.OwnPermissionsDto;
+import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.PermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.SwitchActiveTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantMembershipDto;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -85,8 +87,11 @@ public class TenantController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TenantSummaryDto>> listAllTenants() {
-        return ResponseEntity.ok(tenantService.listAllTenants(currentUser()));
+    public ResponseEntity<PageResponseDto<TenantSummaryDto>> listAllTenants(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(tenantService.listAllTenants(currentUser(), page, size, search));
     }
 
     @PostMapping("/active")

@@ -6,11 +6,16 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
+import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -98,15 +103,31 @@ public class TenantService {
                 .orElseThrow(TenantAccessDeniedException::new);
     }
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     /**
      * Every tenant in the system — staff-only, powers a staff "act as this tenant" picker (staff
      * have no memberships of their own to pick from, unlike a regular multi-membership user).
+     * specify/features/tenant-pagination-search/SPEC.md REQ-1/2/3/4/5/6/7/8/9: DB-level pagination
+     * plus an optional cross-field ({@code name}/{@code cnpj}/{@code razaoSocial}) search, fixed
+     * server-side sort by {@code name} ascending. Negative {@code page} or {@code size <= 0} are
+     * rejected before an over-{@value #MAX_PAGE_SIZE} {@code size} is clamped, so an
+     * out-of-range-and-negative value like {@code size=-500} is rejected, not silently clamped.
      */
     @Transactional(readOnly = true)
-    public List<TenantSummaryDto> listAllTenants(User actor) {
+    public PageResponseDto<TenantSummaryDto> listAllTenants(
+            User actor, int page, int size, String search) {
         requireStaff(actor, GlobalPermission.TENANT_ACT_AS_ANY);
 
-        return tenantRepository.findAll().stream().map(TenantSummaryDto::from).toList();
+        if (page < 0 || size <= 0) {
+            throw new InvalidPaginationException("page must be >= 0 and size must be > 0");
+        }
+
+        int effectiveSize = Math.min(size, MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(page, effectiveSize, Sort.by("name").ascending());
+
+        return PageResponseDto.from(
+                tenantRepository.search(search, pageable).map(TenantSummaryDto::from));
     }
 
     /** Confirms a tenant exists, for staff switching to act as it without holding a membership. */

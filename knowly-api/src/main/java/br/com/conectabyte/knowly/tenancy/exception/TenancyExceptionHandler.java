@@ -50,4 +50,11 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new TenancyErrorResponseDto("NOTIFICATION_NOT_FOUND"));
     }
+
+    @ExceptionHandler(InvalidPaginationException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidPagination(
+            InvalidPaginationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_PAGINATION"));
+    }
 }

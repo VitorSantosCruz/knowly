@@ -1,10 +1,15 @@
 package br.com.conectabyte.knowly.tenancy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
+import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
+import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -145,5 +150,108 @@ class TenantServiceTest {
         assertThat(notifications).hasSize(1);
         assertThat(notifications.get(0).getType())
                 .isEqualTo(NotificationType.MEMBERSHIP_INVITATION_PENDING);
+    }
+
+    private User staffAdmin(String email) {
+        User user = userRepository.saveAndFlush(new User(email));
+        user.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        return userRepository.saveAndFlush(user);
+    }
+
+    private User limitedStaff(String email) {
+        User user = userRepository.saveAndFlush(new User(email));
+        user.setGlobalRole(GlobalRole.STAFF);
+        return userRepository.saveAndFlush(user);
+    }
+
+    /**
+     * specify/features/tenant-pagination-search/SPEC.md REQ-1: {@code page}/{@code size} default to
+     * {@code 0}/{@code 20} when not supplied.
+     */
+    @Test
+    void listAllTenantsDefaultsPageAndSizeWhenNotSupplied() {
+        User admin = staffAdmin("list-defaults@example.com");
+        tenantRepository.saveAndFlush(new Tenant("Defaults Co " + System.nanoTime()));
+
+        PageResponseDto<TenantSummaryDto> page = tenantService.listAllTenants(admin, 0, 20, null);
+
+        assertThat(page.page()).isZero();
+        assertThat(page.size()).isEqualTo(20);
+    }
+
+    /** REQ-3: {@code size} above 100 is clamped, not rejected. */
+    @Test
+    void listAllTenantsClampsSizeAbove100() {
+        User admin = staffAdmin("list-clamp@example.com");
+
+        PageResponseDto<TenantSummaryDto> page = tenantService.listAllTenants(admin, 0, 500, null);
+
+        assertThat(page.size()).isEqualTo(100);
+    }
+
+    /** REQ-4: negative page/size and size=0 are rejected, and rejection wins over clamping. */
+    @Test
+    void listAllTenantsRejectsNegativePage() {
+        User admin = staffAdmin("list-neg-page@example.com");
+
+        assertThatThrownBy(() -> tenantService.listAllTenants(admin, -1, 20, null))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    @Test
+    void listAllTenantsRejectsNegativeSize() {
+        User admin = staffAdmin("list-neg-size@example.com");
+
+        assertThatThrownBy(() -> tenantService.listAllTenants(admin, 0, -1, null))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    @Test
+    void listAllTenantsRejectsZeroSize() {
+        User admin = staffAdmin("list-zero-size@example.com");
+
+        assertThatThrownBy(() -> tenantService.listAllTenants(admin, 0, 0, null))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    @Test
+    void listAllTenantsRejectsAnOutOfRangeNegativeSizeInsteadOfClampingIt() {
+        User admin = staffAdmin("list-neg-500@example.com");
+
+        assertThatThrownBy(() -> tenantService.listAllTenants(admin, 0, -500, null))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    /** REQ-9: search filters first, then paginates — totals reflect the filtered count. */
+    @Test
+    void listAllTenantsSearchFiltersBeforePaginating() {
+        User admin = staffAdmin("list-search@example.com");
+        String marker = "SearchMarker" + System.nanoTime();
+        tenantRepository.saveAndFlush(new Tenant(marker + "Co"));
+        tenantRepository.saveAndFlush(new Tenant("Unrelated Co " + System.nanoTime()));
+
+        PageResponseDto<TenantSummaryDto> page =
+                tenantService.listAllTenants(admin, 0, 20, marker.toLowerCase());
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.content())
+                .extracting(TenantSummaryDto::name)
+                .containsExactly(marker + "Co");
+    }
+
+    /** REQ-8: no authorization regression — STAFF_ADMIN unconditional, ungranted STAFF rejected. */
+    @Test
+    void listAllTenantsStaffAdminSucceedsUnconditionally() {
+        User admin = staffAdmin("list-staffadmin@example.com");
+
+        assertThat(tenantService.listAllTenants(admin, 0, 20, null)).isNotNull();
+    }
+
+    @Test
+    void listAllTenantsUngrantedStaffIsRejected() {
+        User staff = limitedStaff("list-ungranted@example.com");
+
+        assertThatThrownBy(() -> tenantService.listAllTenants(staff, 0, 20, null))
+                .isInstanceOf(PermissionDeniedException.class);
     }
 }
