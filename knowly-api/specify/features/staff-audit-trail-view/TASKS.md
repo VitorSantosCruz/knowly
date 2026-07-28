@@ -5,45 +5,45 @@
 
 ## GlobalPermission
 
-- [ ] 1. Add `AUDIT_TRAIL_VIEW` to `GlobalPermission` enum. (No test —
+- [x] 1. Add `AUDIT_TRAIL_VIEW` to `GlobalPermission` enum. (No test —
       pure enum addition, no behavior yet.)
 
 ## AuditEventRepository — 500-row cap
 
-- [ ] 2. Write a repository test (Red) for
+- [x] 2. Write a repository test (Red) for
       `findTop500ByActorUserIdOrderByOccurredAtDesc`: seed >500
       `AuditEvent` rows for one `actorUserId` plus rows for a different
       `actorUserId`, assert exactly 500 rows returned, most-recent-first,
       none belonging to the other actor.
-- [ ] 3. Implement `findTop500ByActorUserIdOrderByOccurredAtDesc` on
+- [x] 3. Implement `findTop500ByActorUserIdOrderByOccurredAtDesc` on
       `AuditEventRepository` (Green).
 
 ## StaffService.getAuditTrail
 
-- [ ] 4. Write `StaffServiceTest` case (Red) for REQ-8: a nonexistent
+- [x] 4. Write `StaffServiceTest` case (Red) for REQ-8: a nonexistent
       `userId` throws `UserNotFoundException`.
-- [ ] 5. Write `StaffServiceTest` case (Red) for REQ-6: a `STAFF` caller
+- [x] 5. Write `StaffServiceTest` case (Red) for REQ-6: a `STAFF` caller
       without `AUDIT_TRAIL_VIEW` calling `getAuditTrail` throws
       `PermissionDeniedException`.
-- [ ] 6. Write `StaffServiceTest` case (Red) for REQ-2: `STAFF_ADMIN`
+- [x] 6. Write `StaffServiceTest` case (Red) for REQ-2: `STAFF_ADMIN`
       calls `getAuditTrail` and succeeds without an explicit grant.
-- [ ] 7. Write `StaffServiceTest` case (Red) for REQ-5: a `STAFF` caller
+- [x] 7. Write `StaffServiceTest` case (Red) for REQ-5: a `STAFF` caller
       holding `AUDIT_TRAIL_VIEW` (direct grant, matching existing
       `grantPermission` test setup convention) succeeds and gets back
       the target's events, reverse-chronological, mapped to
       `occurredAt/action/resourceType/resourceId/tenantId/outcome/
       metadata`; also cover the target-has-zero-events case returning an
       empty list, not an error.
-- [ ] 8. Write `StaffServiceTest` case (Red) for the cross-tenant
+- [x] 8. Write `StaffServiceTest` case (Red) for the cross-tenant
       acceptance criterion (REQ-4): seed `AuditEvent` rows for the same
       `actorUserId` with two distinct non-null `tenantId` values plus one
       null-`tenantId` row, assert all three come back in a single call
       with no active tenant selected by the caller.
-- [ ] 9. Write `StaffServiceTest` case (Red) for REQ-9: a `STAFF` caller
+- [x] 9. Write `StaffServiceTest` case (Red) for REQ-9: a `STAFF` caller
       holding `AUDIT_TRAIL_VIEW` can call `getAuditTrail` against a
       `STAFF`/`STAFF_ADMIN`-role target and succeeds (no
       `enforceStaffCeiling` block on this read-only path).
-- [ ] 10. Implement `StaffService.getAuditTrail(Long userId)`
+- [x] 10. Implement `StaffService.getAuditTrail(Long userId)`
       (`@Transactional(readOnly = true)`,
       `@RequiresGlobalPermission(GlobalPermission.AUDIT_TRAIL_VIEW)`,
       `@AuditLog(action = "staff.audit_trail.view", resourceType =
@@ -55,13 +55,13 @@
 
 ## DTO + controller
 
-- [ ] 11a. Add `AuditEventDto(Instant occurredAt, String action, String
+- [x] 11a. Add `AuditEventDto(Instant occurredAt, String action, String
       resourceType, String resourceId, Long tenantId, AuditOutcome
       outcome, String metadata)` record with `static from(AuditEvent)`,
       in `br.com.conectabyte.knowly.tenancy.dto`. (No standalone test —
       a plain mapping record, exercised indirectly by the controller
       test below.)
-- [ ] 11b. Write a controller/integration test (Red,
+- [x] 11b. Write a controller/integration test (Red,
       `StaffControllerIT`-style Testcontainers pattern) covering the
       full `GET /api/staff/users/{userId}/audit-trail` contract: 200
       with correctly ordered/mapped body for a `STAFF_ADMIN` caller, 200
@@ -70,22 +70,36 @@
       caller with no `GlobalRole` (REQ-7), 404 for a nonexistent
       `userId` — matching this feature's SPEC acceptance criteria
       item-for-item.
-- [ ] 11c. Write a controller/integration test (Red) asserting the call
+- [x] 11c. Write a controller/integration test (Red) asserting the call
       itself produces a new `AuditEvent` row for the *caller* (action
       `staff.audit_trail.view`, `resourceType = "User"`, `resourceId =
       {userId}`) — query via
       `AuditEventRepository.findByActorUserIdOrderByOccurredAtDesc` on
       the caller's id after the call.
-- [ ] 11d. Implement `GET /api/staff/users/{userId}/audit-trail` on
+- [x] 11d. Implement `GET /api/staff/users/{userId}/audit-trail` on
       `StaffController` (`@PathVariable Long userId`, delegates to
       `staffService.getAuditTrail(userId)`, returns
       `List<AuditEventDto>`) to make tasks 11b/11c green.
-- [ ] 12. Run `./mvnw test -Dtest=StaffControllerIT` (or the actual
+- [x] 12. Run `./mvnw test -Dtest=StaffControllerIT` (or the actual
       integration test class name used) and confirm tasks 11b/11c pass.
+
+**Implementation note (deviation from the letter of tasks 4-9/11b/11c,
+not the intent):** this codebase has no precedent of testing
+`StaffService`'s `@RequiresGlobalPermission`/`@AuditLog`-annotated
+methods with mocked unit tests — every existing `StaffService` method is
+exercised exclusively through `MockMvcTester` integration tests (see
+`StaffServiceCeilingIntegrationTest`, `StaffUserListingIntegrationTest`),
+because the permission/audit aspects only fire inside a real Spring
+context. Rather than inventing a new, unprecedented pure-unit test style
+for this one feature, tasks 4-9 and 11b/11c were implemented as a single
+`StaffAuditTrailIntegrationTest` (`src/test/java/br/com/conectabyte/
+knowly/tenancy/StaffAuditTrailIntegrationTest.java`) covering every
+REQ/acceptance criterion those tasks describe end-to-end over HTTP —
+same coverage, same TDAD Red/Green discipline, existing convention.
 
 ## Final pass
 
-- [ ] 13. Run `./mvnw spotless:apply` then `./mvnw verify` for the full
+- [x] 13. Run `./mvnw spotless:apply` then `./mvnw verify` for the full
       suite (this feature's tests plus every pre-existing test) and fix
       any regression surfaced.
 - [ ] 14. Hand off to `qa-test-automation` and `appsec` for review of
