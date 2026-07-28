@@ -3,6 +3,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-permission';
 import {
+  AuditEvent,
   GlobalAccessGroup,
   StaffUserDetail,
   StaffUserService,
@@ -111,13 +112,68 @@ type DetailError = 'network' | 'permission-denied' | null;
           }
         </section>
 
-        <section data-testid="staff-effective-permissions">
+        <section data-testid="staff-effective-permissions" class="mb-5">
           <h3 class="mb-1 text-sm font-medium text-ink-700 dark:text-ink-300">
             {{ 'staffDirectory.effectivePermissions' | transloco }}
           </h3>
           <p class="text-sm text-ink-600 dark:text-ink-400">
             {{ detail.effectivePermissions.join(', ') }}
           </p>
+        </section>
+
+        <section data-testid="staff-audit-trail">
+          <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
+            {{ 'staffDirectory.auditTrail.title' | transloco }}
+          </h3>
+          @if (auditTrailError() === 'permission-denied') {
+            <app-no-access-state />
+          } @else if (auditTrailError() === 'network') {
+            <app-error-state />
+          } @else if (auditTrail(); as events) {
+            @if (events.length === 0) {
+              <p
+                data-testid="staff-audit-trail-empty"
+                class="text-sm text-ink-500 dark:text-ink-400"
+              >
+                {{ 'staffDirectory.auditTrail.noHistory' | transloco }}
+              </p>
+            } @else {
+              <table class="w-full text-left text-sm text-ink-700 dark:text-ink-300">
+                <thead>
+                  <tr class="text-xs tracking-wide text-ink-500 uppercase dark:text-ink-400">
+                    <th class="py-1 pr-2">
+                      {{ 'staffDirectory.auditTrail.occurredAt' | transloco }}
+                    </th>
+                    <th class="py-1 pr-2">{{ 'staffDirectory.auditTrail.action' | transloco }}</th>
+                    <th class="py-1 pr-2">
+                      {{ 'staffDirectory.auditTrail.resourceType' | transloco }}
+                    </th>
+                    <th class="py-1 pr-2">
+                      {{ 'staffDirectory.auditTrail.resourceId' | transloco }}
+                    </th>
+                    <th class="py-1 pr-2">
+                      {{ 'staffDirectory.auditTrail.tenantId' | transloco }}
+                    </th>
+                    <th class="py-1 pr-2">{{ 'staffDirectory.auditTrail.outcome' | transloco }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (event of events; track $index) {
+                    <tr>
+                      <td class="py-1 pr-2">{{ event.occurredAt }}</td>
+                      <td class="py-1 pr-2">{{ event.action }}</td>
+                      <td class="py-1 pr-2">{{ event.resourceType }}</td>
+                      <td class="py-1 pr-2">{{ event.resourceId }}</td>
+                      <td class="py-1 pr-2">
+                        {{ event.tenantId ?? ('staffDirectory.auditTrail.global' | transloco) }}
+                      </td>
+                      <td class="py-1 pr-2">{{ event.outcome }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          }
         </section>
       </div>
     }
@@ -135,9 +191,16 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   protected readonly allPermissions = ALL_GLOBAL_PERMISSIONS;
   protected readonly error = signal<DetailError>(null);
 
+  // Independent of `error`/`detail` above, matching this panel's existing per-section
+  // signal pattern — a 403 from the audit-trail endpoint only sets this, never the
+  // permissions/access-groups sections' own state (REQ-12).
+  protected readonly auditTrail = signal<AuditEvent[] | null>(null);
+  protected readonly auditTrailError = signal<DetailError>(null);
+
   ngOnChanges(): void {
     this.loadDetail();
     this.loadAccessGroups();
+    this.loadAuditTrail();
   }
 
   protected assignableAccessGroups(detail: StaffUserDetail): GlobalAccessGroup[] {
@@ -177,6 +240,22 @@ export class StaffUserDetailPanelComponent implements OnChanges {
       .subscribe((groups) => {
         if (groups !== null) {
           this.availableAccessGroups.set(groups);
+        }
+      });
+  }
+
+  private loadAuditTrail(): void {
+    this.staffUserService
+      .getAuditTrail(this.userId())
+      .pipe(
+        catchError((err) => {
+          this.auditTrailError.set(err.status === 403 ? 'permission-denied' : 'network');
+          return of(null);
+        }),
+      )
+      .subscribe((events) => {
+        if (events !== null) {
+          this.auditTrail.set(events);
         }
       });
   }

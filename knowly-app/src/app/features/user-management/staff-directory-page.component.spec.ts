@@ -136,6 +136,7 @@ describe('StaffDirectoryPageComponent', () => {
       effectivePermissions: [],
     });
     httpMock.expectOne('/api/staff/access-groups').flush([]);
+    httpMock.expectOne('/api/staff/users/1/audit-trail').flush([]);
     fixture.detectChanges();
 
     expect(
