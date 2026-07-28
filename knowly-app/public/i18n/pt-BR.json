@@ -170,5 +170,36 @@
     "submit": "Criar",
     "invalid": "Informe um nome de tenant e um e-mail de admin válido.",
     "submitError": "Não foi possível criar o tenant. Verifique os dados e tente novamente."
+  },
+  "profile": {
+    "myProfile": "Meu perfil",
+    "title": "Meu perfil",
+    "email": "E-mail",
+    "fields": {
+      "fullName": "Nome completo",
+      "address": "Endereço",
+      "rg": "RG",
+      "cpf": "CPF",
+      "phone": "Telefone",
+      "save": "Salvar"
+    },
+    "pending": "Sua alteração de perfil está aguardando aprovação.",
+    "alreadyPending": "Já existe uma solicitação de alteração de perfil pendente.",
+    "conflict": "Esta atualização conflita com dados já existentes em: {{fields}}.",
+    "section": {
+      "title": "Perfil",
+      "edit": "Editar",
+      "cancel": "Cancelar"
+    }
+  },
+  "profileEditRequests": {
+    "navLabel": "Solicitações de alteração de perfil",
+    "title": "Solicitações de alteração de perfil",
+    "requester": "Usuário #{{userId}}",
+    "submittedAt": "Enviado em",
+    "approve": "Aprovar",
+    "reject": "Rejeitar",
+    "empty": "Nenhuma solicitação pendente.",
+    "conflict": "Esta atualização conflita com dados já existentes em: {{fields}}."
   }
 }

@@ -170,5 +170,36 @@
     "submit": "Create",
     "invalid": "Enter a tenant name and a valid admin email.",
     "submitError": "Couldn't create the tenant. Please check the details and try again."
+  },
+  "profile": {
+    "myProfile": "My profile",
+    "title": "My profile",
+    "email": "Email",
+    "fields": {
+      "fullName": "Full name",
+      "address": "Address",
+      "rg": "RG",
+      "cpf": "CPF",
+      "phone": "Phone",
+      "save": "Save"
+    },
+    "pending": "Your profile change is pending approval.",
+    "alreadyPending": "A profile change request is already pending approval.",
+    "conflict": "This update conflicts with existing data on: {{fields}}.",
+    "section": {
+      "title": "Profile",
+      "edit": "Edit",
+      "cancel": "Cancel"
+    }
+  },
+  "profileEditRequests": {
+    "navLabel": "Profile edit requests",
+    "title": "Profile edit requests",
+    "requester": "User #{{userId}}",
+    "submittedAt": "Submitted at",
+    "approve": "Approve",
+    "reject": "Reject",
+    "empty": "No pending requests.",
+    "conflict": "This update conflicts with existing data on: {{fields}}."
   }
 }
