@@ -116,12 +116,12 @@ themselves; only the *running* of them is deferred, and only for this
 ## Final pass (only once all currently planned backlog work, not just
 ## this feature, is done)
 
-- [ ] 12. Run `./mvnw spotless:apply` then `./mvnw verify` for the full
+- [x] 12. Run `./mvnw spotless:apply` then `./mvnw verify` for the full
       suite (this feature's tests plus every pre-existing test) and fix
       any regression surfaced.
-- [ ] 13. Hand off to `qa-test-automation` and `appsec` for review of
+- [x] 13. Hand off to `qa-test-automation` and `appsec` for review of
       this feature during that same final pass — not before, and not
       as a substitute for task 12's own green run.
-- [ ] 14. Commit the completed, verified work (Conventional Commits),
+- [x] 14. Commit the completed, verified work (Conventional Commits),
       once — and only once — task 12's full suite is green and task 13's
       reviews are addressed.

@@ -161,6 +161,28 @@ class GlobalMetricsServiceTest {
         assertThat(result.staffCount()).isEqualTo(staffCountBaseline + 2);
     }
 
+    @Test
+    void newTenantsThisMonthBoundaryIsExactAtTheUtcMonthStart() {
+        long newTenantsBaseline =
+                tenantRepository.countByCreatedAtGreaterThanEqual(START_OF_CURRENT_UTC_MONTH);
+
+        staffAdmin("global-metrics-boundary-actor@example.com");
+        authenticateAs("global-metrics-boundary-actor@example.com");
+        tenantContext.setStaffAdmin(true);
+
+        Tenant lastInstantOfPreviousMonth =
+                tenantRepository.saveAndFlush(new Tenant("Boundary Co 1"));
+        backdateTenant(lastInstantOfPreviousMonth, START_OF_CURRENT_UTC_MONTH.minusMillis(1));
+
+        Tenant firstInstantOfCurrentMonth =
+                tenantRepository.saveAndFlush(new Tenant("Boundary Co 2"));
+        backdateTenant(firstInstantOfCurrentMonth, START_OF_CURRENT_UTC_MONTH);
+
+        GlobalMetricsDto result = globalMetricsService.globalMetrics();
+
+        assertThat(result.newTenantsThisMonth()).isEqualTo(newTenantsBaseline + 1);
+    }
+
     // --- REQ-9: STAFF caller without the grant is rejected ---
 
     @Test
