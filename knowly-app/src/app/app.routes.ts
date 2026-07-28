@@ -12,6 +12,7 @@ import { staffGuard } from './core/staff.guard';
 import { rootRedirectGuard } from './core/root-redirect.guard';
 import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
 import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
+import { ProfileEditRequestsInboxPageComponent } from './features/profile-edit-requests/profile-edit-requests-inbox-page.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
@@ -20,6 +21,10 @@ export const routes: Routes = [
   // (SPEC judgment call 2/3) — an unauthenticated visit degrades to the existing
   // generic network-error UI on the first API call, exactly like elsewhere in this app.
   { path: 'profile', component: OwnProfilePageComponent },
+  // No guard: GET /api/profile-edit-requests never 403s, it returns an empty list for a
+  // caller with no applicable right — same reasoning already established for staffGuard
+  // not being needed on /api/staff/permissions callers.
+  { path: 'profile-edit-requests', component: ProfileEditRequestsInboxPageComponent },
   {
     path: 'welcome',
     component: WelcomePageComponent,
