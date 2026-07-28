@@ -133,3 +133,16 @@
        matching `user-management-screens`' PLAN precedent).
 - [x] 35. Update `SPEC.md`'s acceptance-criteria checkboxes to reflect
        what's now verified by tests.
+- [x] 36. Hand off to `qa-test-automation` and `appsec` for independent
+       final review. **Resolved (2026-07-28):** `qa-test-automation` ran
+       the full suite independently (271/271, build/format clean) and
+       confirmed every REQ is covered by a real test; flagged one dead
+       code item (`metric-tile.component.ts`'s unused `loading` input),
+       fixed by removing it (and its now-redundant `[loading]` bindings
+       in `global-dashboard-page.component.ts`) — re-verified green after
+       the fix. `appsec` confirmed nav/quick-link hiding is cosmetic only
+       (server-side 403 is the real boundary), no new cross-tenant
+       exposure beyond what was already accepted at the backend level, no
+       XSS surface (all bindings use Angular interpolation), and frontend
+       `GlobalPermission` enum values match the backend exactly — verdict
+       "ship it," no blocking findings.

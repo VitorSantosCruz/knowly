@@ -620,6 +620,58 @@ of them assumes the relaxed column is always non-null — do not relax a
 NOT NULL constraint on a shared table without that verification step
 recorded in the PLAN, the way this entry does.
 
+## `staff-global-dashboard`: `metric-tile.component.ts` gains an additive "pre-fetched value" presentational mode
+
+`metric-tile.component.ts` (from `dashboard-analytics`) was built as a
+self-fetching component: every instance owns its own `MetricFetcher`,
+calling its own `url` with its own `period`, and renders its own
+loading/error/permission-denied state independently per tile — correct
+for the tenant-scoped dashboard's five tiles, each backed by a distinct
+timeseries/point-in-time endpoint with per-tile-independent failure
+semantics (`dashboard-analytics`'s SPEC req. 9: one failing tile can't
+blank the rest). `staff-global-dashboard`'s four global-metrics tiles
+don't fit that shape: all four numbers come from a **single**
+`GET /api/staff/metrics/global` call, and that SPEC's REQ-5 explicitly
+wants the 403/network failure handled **once, at the page level**, not
+per-tile — four independent self-fetching tiles would mean four
+redundant HTTP calls for data that's already a single response, and four
+separate (necessarily identical) error-state renders where the SPEC
+wants exactly one.
+
+**Decision:** rather than forking a second, near-identical tile
+component, `metric-tile.component.ts` gains two new, additive,
+optional inputs — `value` (a pre-computed number; when set, skip
+self-fetching and any sparkline chart/table entirely) and `disabled`
+(renders a static "coming soon" label, no fetch attempted). A third
+input, `loading`, was added alongside these initially but removed
+during `qa-test-automation`'s final review as dead code — the
+consuming page already gates tile rendering on its own loading state
+before mounting any tiles, so a per-tile loading input had no code path
+that ever read it.
+`url`/`valueSelector`/`period` become optional rather than required, but
+the self-fetching code path (used unchanged by all five existing
+tenant-scoped tiles) is untouched — this is additive, not a breaking
+change to any existing call site.
+
+**Why extend rather than fork:** identical reasoning to
+`dashboard-analytics`'s own PLAN for extending `createMetricFetcher`
+instead of writing a second fetch helper — a second near-identical
+presentational component would violate this app's "one shape per
+concern, don't duplicate" convention (see also `PermissionsService`/
+`GlobalPermissionsService`/`ActiveTenantService`/`AuthService` all being
+variations on one state-service shape) and double the surface that has
+to be kept visually/behaviorally in sync going forward.
+
+**Applies to new decisions:** before adding a new self-fetching widget
+component whose data actually comes from a call a *parent* already
+made (single endpoint serving multiple displayed values, or a
+page-level error-handling requirement rather than per-widget), check
+whether the existing self-fetching component can be extended with an
+optional "pre-fetched value" presentational mode the same way, rather
+than either (a) forking a new near-duplicate component, or (b) forcing
+a page-level data shape into N redundant per-widget HTTP calls just to
+reuse the existing self-fetching path unmodified.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
