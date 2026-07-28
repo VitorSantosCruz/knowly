@@ -103,6 +103,16 @@
     "unassign": "Remover atribuição",
     "createGroup": "Criar grupo"
   },
+  "staffDirectory": {
+    "searchPlaceholder": "Buscar por e-mail…",
+    "create": "Criar usuário staff",
+    "directPermissions": "Permissões diretas",
+    "accessGroups": "Grupos de acesso",
+    "effectivePermissions": "Permissões efetivas",
+    "assign": "Atribuir",
+    "unassign": "Remover atribuição",
+    "createGroup": "Criar grupo"
+  },
   "conversations": {
     "new": "Nova conversa",
     "untitled": "Conversa sem título",

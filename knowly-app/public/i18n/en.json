@@ -103,6 +103,16 @@
     "unassign": "Unassign",
     "createGroup": "Create group"
   },
+  "staffDirectory": {
+    "searchPlaceholder": "Search by email…",
+    "create": "Create staff user",
+    "directPermissions": "Direct permissions",
+    "accessGroups": "Access groups",
+    "effectivePermissions": "Effective permissions",
+    "assign": "Assign",
+    "unassign": "Unassign",
+    "createGroup": "Create group"
+  },
   "conversations": {
     "new": "New conversation",
     "untitled": "Untitled conversation",
