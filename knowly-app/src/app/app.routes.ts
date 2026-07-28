@@ -11,10 +11,15 @@ import { tenantSelectionGuard } from './core/tenant-selection.guard';
 import { staffGuard } from './core/staff.guard';
 import { rootRedirectGuard } from './core/root-redirect.guard';
 import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
+import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
   { path: 'select-tenant', component: SelectTenantPageComponent },
+  // No guard: universal to any authenticated session regardless of tenant context
+  // (SPEC judgment call 2/3) — an unauthenticated visit degrades to the existing
+  // generic network-error UI on the first API call, exactly like elsewhere in this app.
+  { path: 'profile', component: OwnProfilePageComponent },
   {
     path: 'welcome',
     component: WelcomePageComponent,

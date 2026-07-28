@@ -1,4 +1,4 @@
-import { Component, OnInit, input, output, signal } from '@angular/core';
+import { Component, effect, input, output, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ProfileFields } from '../core/profile.service';
 
@@ -73,7 +73,7 @@ import { ProfileFields } from '../core/profile.service';
     </form>
   `,
 })
-export class ProfileFieldsFormComponent implements OnInit {
+export class ProfileFieldsFormComponent {
   readonly fields = input.required<ProfileFields>();
   readonly disabled = input(false);
   readonly submitted = output<ProfileFields>();
@@ -86,8 +86,14 @@ export class ProfileFieldsFormComponent implements OnInit {
     phone: '',
   });
 
-  ngOnInit(): void {
-    this.localFields.set(this.fields());
+  constructor() {
+    // Re-syncs whenever the parent hands in a new `fields` value (initial load, or a
+    // refreshed value after a successful edit) — never overwrites values the user is
+    // actively typing outside of a genuine parent-driven update, matching this codebase's
+    // "own the signal, react to input changes via effect" pattern.
+    effect(() => {
+      this.localFields.set(this.fields());
+    });
   }
 
   protected onFieldChange(field: keyof ProfileFields, value: string): void {
