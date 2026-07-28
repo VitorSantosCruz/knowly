@@ -1,4 +1,4 @@
-import { Component, OnDestroy, signal } from '@angular/core';
+import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -89,17 +89,32 @@ type CredentialTab = 'code' | 'password';
               aria-labelledby="tab-code"
               (submit)="onSubmitCode($event)"
             >
-              <label for="code" [class]="labelClass">{{ 'login.codeLabel' | transloco }}</label>
-              <input
-                id="code"
-                name="code"
-                type="text"
-                required
-                [value]="code()"
-                [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
-                (input)="code.set($any($event.target).value)"
-                [class]="inputClass"
-              />
+              <div
+                role="group"
+                [attr.aria-label]="'login.codeGroupLabel' | transloco"
+                class="mb-6 flex justify-between gap-2"
+                (paste)="onPaste($event)"
+              >
+                @for (i of otpIndexes; track i) {
+                  <input
+                    [id]="'otp-digit-' + i"
+                    [attr.data-otp-index]="i"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    maxlength="1"
+                    required
+                    [attr.aria-label]="
+                      'login.codeDigitLabel' | transloco: { position: i + 1, total: 6 }
+                    "
+                    [attr.aria-describedby]="errorCode() ? 'credential-error' : null"
+                    [value]="digits()[i]"
+                    (keydown)="onDigitKeydown($event, i)"
+                    (input)="onDigitInput($event, i)"
+                    class="h-12 w-12 rounded-lg border border-ink-200 bg-white text-center text-lg text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
+                  />
+                }
+              </div>
               @if (errorCode(); as code) {
                 <p
                   id="credential-error"
@@ -178,7 +193,9 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly captchaToken = signal<string | undefined>(undefined);
 
   protected readonly activeTab = signal<CredentialTab>('code');
-  protected readonly code = signal('');
+  protected readonly otpIndexes = [0, 1, 2, 3, 4, 5];
+  protected readonly digits = signal<string[]>(Array(6).fill(''));
+  protected readonly code = computed(() => this.digits().join(''));
   protected readonly password = signal('');
 
   protected readonly cardClass =
@@ -215,6 +232,71 @@ export class LoginPageComponent implements OnDestroy {
     event.preventDefault();
     this.selectTab(this.activeTab() === 'code' ? 'password' : 'code');
     (document.getElementById(`tab-${this.activeTab()}`) as HTMLElement | null)?.focus();
+  }
+
+  onDigitInput(event: Event, index: number): void {
+    const value = (event.target as HTMLInputElement).value;
+    const digit = value.slice(-1);
+
+    this.digits.update((digits) => {
+      const next = [...digits];
+      next[index] = digit;
+      return next;
+    });
+
+    if (digit && index < this.otpIndexes.length - 1) {
+      (document.getElementById(`otp-digit-${index + 1}`) as HTMLInputElement | null)?.focus();
+    }
+  }
+
+  onDigitKeydown(event: KeyboardEvent, index: number): void {
+    if (event.key.length === 1 && !/^\d$/.test(event.key)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === 'Backspace') {
+      const box = event.target as HTMLInputElement;
+      if (box.value === '' && index > 0) {
+        event.preventDefault();
+        const prevIndex = index - 1;
+        this.digits.update((digits) => {
+          const next = [...digits];
+          next[prevIndex] = '';
+          return next;
+        });
+        (document.getElementById(`otp-digit-${prevIndex}`) as HTMLInputElement | null)?.focus();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      (document.getElementById(`otp-digit-${index - 1}`) as HTMLInputElement | null)?.focus();
+      return;
+    }
+
+    if (event.key === 'ArrowRight' && index < this.otpIndexes.length - 1) {
+      event.preventDefault();
+      (document.getElementById(`otp-digit-${index + 1}`) as HTMLInputElement | null)?.focus();
+    }
+  }
+
+  onPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text') ?? '';
+    const digits = text.match(/\d/g)?.slice(0, 6) ?? [];
+
+    this.digits.update((current) => {
+      const next = [...current];
+      digits.forEach((digit, i) => {
+        next[i] = digit;
+      });
+      return next;
+    });
+
+    const nextIndex = Math.min(digits.length, this.otpIndexes.length - 1);
+    (document.getElementById(`otp-digit-${nextIndex}`) as HTMLInputElement | null)?.focus();
   }
 
   onSubmitCode(event: Event): void {

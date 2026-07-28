@@ -27,6 +27,16 @@ function setup() {
   return fixture;
 }
 
+function fillOtpBoxes(fixture: ReturnType<typeof setup>, code: string) {
+  const boxes: NodeListOf<HTMLInputElement> =
+    fixture.nativeElement.querySelectorAll('input[data-otp-index]');
+  for (let i = 0; i < code.length && i < boxes.length; i++) {
+    boxes[i].value = code[i];
+    boxes[i].dispatchEvent(new Event('input'));
+  }
+  fixture.detectChanges();
+}
+
 function submitEmail(fixture: ReturnType<typeof setup>, email: string) {
   const input: HTMLInputElement = fixture.nativeElement.querySelector('input[type="email"]');
   input.value = email;
@@ -143,11 +153,12 @@ describe('LoginPageComponent', () => {
       expect(tabs[1].textContent).toContain('Password');
     });
 
-    it('shows the code input on the Code tab by default', () => {
+    it('shows the boxed code input on the Code tab by default', () => {
       const fixture = setup();
       goToCredentialStep(fixture);
 
-      expect(fixture.nativeElement.querySelector('input[name="code"]')).toBeTruthy();
+      expect(fixture.nativeElement.querySelectorAll('input[data-otp-index]').length).toBe(6);
+      expect(fixture.nativeElement.querySelector('input[name="code"]')).toBeFalsy();
       expect(fixture.nativeElement.querySelector('input[name="password"]')).toBeFalsy();
     });
 
@@ -161,7 +172,7 @@ describe('LoginPageComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('input[name="password"]')).toBeTruthy();
-      expect(fixture.nativeElement.querySelector('input[name="code"]')).toBeFalsy();
+      expect(fixture.nativeElement.querySelectorAll('input[data-otp-index]').length).toBe(0);
     });
 
     it('logs the user in when the code is correct', () => {
@@ -172,10 +183,7 @@ describe('LoginPageComponent', () => {
       vi.spyOn(authService, 'verifyCode').mockReturnValue(of(undefined));
       vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
-      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
-      codeInput.value = '123456';
-      codeInput.dispatchEvent(new Event('input'));
-      fixture.detectChanges();
+      fillOtpBoxes(fixture, '123456');
 
       const form: HTMLFormElement = fixture.nativeElement.querySelector(
         '[data-testid="credential-step"] form',
@@ -230,10 +238,7 @@ describe('LoginPageComponent', () => {
         ),
       );
 
-      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
-      codeInput.value = '000000';
-      codeInput.dispatchEvent(new Event('input'));
-      fixture.detectChanges();
+      fillOtpBoxes(fixture, '000000');
 
       const form: HTMLFormElement = fixture.nativeElement.querySelector(
         '[data-testid="credential-step"] form',
@@ -244,7 +249,13 @@ describe('LoginPageComponent', () => {
       const tooltip: HTMLElement = fixture.nativeElement.querySelector('[role="alert"]');
       expect(tooltip).toBeTruthy();
       expect(tooltip.textContent).not.toContain('locked');
-      expect(codeInput.value).toBe('000000');
+      const boxes: NodeListOf<HTMLInputElement> =
+        fixture.nativeElement.querySelectorAll('input[data-otp-index]');
+      expect(
+        Array.from(boxes)
+          .map((box) => box.value)
+          .join(''),
+      ).toBe('000000');
     });
 
     it('shows a distinct account-locked tooltip', () => {
@@ -255,10 +266,7 @@ describe('LoginPageComponent', () => {
         throwError(() => new HttpErrorResponse({ status: 429, error: { code: 'ACCOUNT_LOCKED' } })),
       );
 
-      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
-      codeInput.value = '000000';
-      codeInput.dispatchEvent(new Event('input'));
-      fixture.detectChanges();
+      fillOtpBoxes(fixture, '000000');
 
       const form: HTMLFormElement = fixture.nativeElement.querySelector(
         '[data-testid="credential-step"] form',
@@ -281,7 +289,6 @@ describe('LoginPageComponent', () => {
         ),
       );
 
-      const codeInput: HTMLInputElement = fixture.nativeElement.querySelector('input[name="code"]');
       const form: HTMLFormElement = fixture.nativeElement.querySelector(
         '[data-testid="credential-step"] form',
       );
@@ -289,7 +296,11 @@ describe('LoginPageComponent', () => {
       fixture.detectChanges();
 
       const tooltip: HTMLElement = fixture.nativeElement.querySelector('[role="alert"]');
-      expect(codeInput.getAttribute('aria-describedby')).toBe(tooltip.id);
+      const boxes: NodeListOf<HTMLInputElement> =
+        fixture.nativeElement.querySelectorAll('input[data-otp-index]');
+      boxes.forEach((box) => {
+        expect(box.getAttribute('aria-describedby')).toBe(tooltip.id);
+      });
     });
 
     it('clears the tooltip when switching tabs', () => {
@@ -315,6 +326,135 @@ describe('LoginPageComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeFalsy();
+    });
+
+    describe('boxed OTP input', () => {
+      function boxes(fixture: ReturnType<typeof setup>): NodeListOf<HTMLInputElement> {
+        return fixture.nativeElement.querySelectorAll('input[data-otp-index]');
+      }
+
+      it('renders six digit boxes and no legacy single input', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+
+        expect(boxes(fixture).length).toBe(6);
+        expect(fixture.nativeElement.querySelector('input[name="code"]')).toBeFalsy();
+      });
+
+      it('advances focus to the next box when a digit is typed', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const box0 = boxes(fixture)[0];
+
+        box0.value = '1';
+        box0.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+
+        expect(box0.value).toBe('1');
+        expect(document.activeElement).toBe(boxes(fixture)[1]);
+      });
+
+      it('rejects a non-digit keystroke and does not advance focus', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const box0 = boxes(fixture)[0];
+        box0.focus();
+
+        const event = new KeyboardEvent('keydown', { key: 'a', cancelable: true });
+        box0.dispatchEvent(event);
+        fixture.detectChanges();
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(box0.value).toBe('');
+        expect(document.activeElement).toBe(box0);
+      });
+
+      it('moves focus back and clears the previous box on Backspace from an empty box', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const [box0, box1] = boxes(fixture);
+
+        box0.value = '1';
+        box0.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+        box1.focus();
+
+        box1.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true }));
+        fixture.detectChanges();
+
+        expect(document.activeElement).toBe(box0);
+        expect(box0.value).toBe('');
+      });
+
+      it('distributes a pasted 6-digit code across all boxes and focuses the last box', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const group: HTMLElement = fixture.nativeElement.querySelector('[role="group"]');
+
+        const clipboardData = { getData: () => '12-3456 extra' };
+        const event = Object.assign(new Event('paste', { cancelable: true }), { clipboardData });
+        group.dispatchEvent(event);
+        fixture.detectChanges();
+
+        const allBoxes = boxes(fixture);
+        expect(
+          Array.from(allBoxes)
+            .map((box) => box.value)
+            .join(''),
+        ).toBe('123456');
+        expect(document.activeElement).toBe(allBoxes[5]);
+      });
+
+      it('distributes a partial paste and focuses the box after the last filled digit', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const group: HTMLElement = fixture.nativeElement.querySelector('[role="group"]');
+
+        const clipboardData = { getData: () => '123' };
+        const event = Object.assign(new Event('paste', { cancelable: true }), { clipboardData });
+        group.dispatchEvent(event);
+        fixture.detectChanges();
+
+        const allBoxes = boxes(fixture);
+        expect(
+          Array.from(allBoxes)
+            .map((box) => box.value)
+            .join(''),
+        ).toBe('123');
+        expect(document.activeElement).toBe(allBoxes[3]);
+      });
+
+      it('moves focus with ArrowLeft/ArrowRight between boxes', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const allBoxes = boxes(fixture);
+        allBoxes[2].focus();
+
+        allBoxes[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+        fixture.detectChanges();
+        expect(document.activeElement).toBe(allBoxes[3]);
+
+        allBoxes[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+        fixture.detectChanges();
+        expect(document.activeElement).toBe(allBoxes[2]);
+      });
+
+      it('prevents submission when a box is left empty', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const authService = TestBed.inject(AuthService);
+        vi.spyOn(authService, 'verifyCode').mockReturnValue(of(undefined));
+
+        fillOtpBoxes(fixture, '12345');
+
+        const button: HTMLButtonElement = fixture.nativeElement.querySelector(
+          '[data-testid="credential-step"] form button[type="submit"]',
+        );
+        button.click();
+        fixture.detectChanges();
+
+        expect(authService.verifyCode).not.toHaveBeenCalled();
+      });
     });
   });
 });

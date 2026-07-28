@@ -7,7 +7,8 @@
     "continue": "Continuar",
     "codeTab": "Código",
     "passwordTab": "Senha",
-    "codeLabel": "Código de uso único",
+    "codeGroupLabel": "Código de uso único",
+    "codeDigitLabel": "Dígito {{position}} de {{total}}",
     "passwordLabel": "Senha de uso único",
     "invalidCredentials": "Algo está errado com o que você digitou. Tente novamente.",
     "accountLocked": "Muitas tentativas. Tente novamente mais tarde."
