@@ -207,7 +207,10 @@ export class NavMenuComponent implements OnInit {
       groups.push({ categoryKey: 'nav.category.knowledge', items: knowledgeItems });
     }
 
-    if (this.permissionsService.has('TENANT_MEMBER_MANAGE')) {
+    if (
+      this.permissionsService.has('TENANT_MEMBER_MANAGE') ||
+      this.globalPermissionsService.has('STAFF_USER_VIEW')
+    ) {
       groups.push({
         categoryKey: 'nav.category.team',
         items: [

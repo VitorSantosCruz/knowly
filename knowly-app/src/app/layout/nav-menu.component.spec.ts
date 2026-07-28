@@ -103,6 +103,42 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
   });
 
+  it('shows the members link for STAFF_USER_VIEW alone (no tenant permission)', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['STAFF_USER_VIEW'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeTruthy();
+  });
+
+  it('shows the members link for a STAFF_ADMIN-shaped ("all permissions") response', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [],
+      globalPermissions: [
+        'TENANT_CREATE',
+        'TENANT_ACT_AS_ANY',
+        'TENANT_MEMBER_MANAGE_ANY',
+        'TENANT_ACCESS_GROUP_MANAGE_ANY',
+        'TENANT_PERMISSION_GRANT_MANAGE_ANY',
+        'STAFF_PERMISSION_MANAGE',
+        'STAFF_USER_CREATE',
+        'STAFF_USER_VIEW',
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeTruthy();
+  });
+
+  it('hides the members link when neither TENANT_MEMBER_MANAGE nor STAFF_USER_VIEW is held', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], tenantPermissions: ['ARTICLE_VIEW'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeFalsy();
+  });
+
   it('shows the create-tenant link only when granted TENANT_CREATE', () => {
     fixture.detectChanges();
     flush({ memberships: [], globalPermissions: ['TENANT_CREATE'] });
