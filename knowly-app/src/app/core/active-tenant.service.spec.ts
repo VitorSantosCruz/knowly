@@ -24,6 +24,27 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantName()).toBeNull();
   });
 
+  it('starts unresolved and resolves after fetch() completes', () => {
+    expect(service.activeTenantResolved()).toBe(false);
+
+    service.fetch();
+    expect(service.activeTenantResolved()).toBe(false);
+
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+
+    expect(service.activeTenantResolved()).toBe(true);
+  });
+
+  it('resolves even on the "no active membership found, preserve prior value" branch', () => {
+    service.fetch();
+    httpMock
+      .expectOne('/api/tenants/memberships')
+      .flush([{ tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false }]);
+
+    expect(service.activeTenantId()).toBeNull();
+    expect(service.activeTenantResolved()).toBe(true);
+  });
+
   it('exposes the active membership after fetching', () => {
     service.fetch();
 

@@ -24,6 +24,11 @@ export class ActiveTenantService {
   private readonly _activeTenantName = signal<string | null>(null);
   readonly activeTenantName = this._activeTenantName.asReadonly();
 
+  private readonly _activeTenantResolved = signal(false);
+  /** True once the first fetch() call has resolved, so callers can tell "still loading"
+   * apart from "genuinely no active tenant" — both look like a null activeTenantId(). */
+  readonly activeTenantResolved = this._activeTenantResolved.asReadonly();
+
   /**
    * A staff session acting as a tenant (via selectTenant()) never gets a real
    * TenantMembership row — only server-side session state — so this list never reflects
@@ -37,6 +42,7 @@ export class ActiveTenantService {
       const active = memberships.find((membership) => membership.active);
       this._activeTenantId.set(active?.tenantId ?? this._activeTenantId());
       this._activeTenantName.set(active?.tenantName ?? this._activeTenantName());
+      this._activeTenantResolved.set(true);
     });
   }
 
