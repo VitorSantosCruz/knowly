@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { LoginPageComponent } from './features/login/login-page.component';
 import { WelcomePageComponent } from './features/welcome/welcome-page.component';
 import { DashboardPageComponent } from './features/dashboard/dashboard-page.component';
-import { MembersPageComponent } from './features/members/members-page.component';
+import { UserManagementPageComponent } from './features/user-management/user-management-page.component';
 import { ConversationsPageComponent } from './features/conversations/conversations-page.component';
 import { ArticlesPageComponent } from './features/articles/articles-page.component';
 import { SelectTenantPageComponent } from './features/select-tenant/select-tenant-page.component';
@@ -32,7 +32,7 @@ export const routes: Routes = [
   },
   {
     path: 'members',
-    component: MembersPageComponent,
+    component: UserManagementPageComponent,
     canActivate: [tenantSelectionGuard],
   },
   {
