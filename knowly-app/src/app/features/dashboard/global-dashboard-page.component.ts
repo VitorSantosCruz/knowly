@@ -37,25 +37,21 @@ type GlobalDashboardError = 'network' | 'permission-denied' | null;
           testId="tenant-count-tile"
           label="{{ 'dashboard.tiles.tenantCount' | transloco }}"
           [value]="metrics()?.tenantCount"
-          [loading]="loading()"
         />
         <app-metric-tile
           testId="new-tenants-tile"
           label="{{ 'dashboard.tiles.newTenantsThisMonth' | transloco }}"
           [value]="metrics()?.newTenantsThisMonth"
-          [loading]="loading()"
         />
         <app-metric-tile
           testId="articles-read-tile"
           label="{{ 'dashboard.tiles.articlesReadTotal' | transloco }}"
           [value]="metrics()?.articlesReadTotal"
-          [loading]="loading()"
         />
         <app-metric-tile
           testId="staff-count-tile"
           label="{{ 'dashboard.tiles.staffCount' | transloco }}"
           [value]="metrics()?.staffCount"
-          [loading]="loading()"
         />
         <app-metric-tile
           testId="support-tickets-tile"

@@ -110,7 +110,6 @@ export class MetricTileComponent {
   /** Additive "pre-fetched value" mode — see DECISIONS.md. When set, the tile renders this
    * number directly and skips its own fetch entirely (no sparkline chart/table either). */
   readonly value = input<number | undefined>(undefined);
-  readonly loading = input<boolean>(false);
   /** Renders a visibly muted "coming soon" label instead of a value; no fetch attempted. */
   readonly disabled = input(false);
 
