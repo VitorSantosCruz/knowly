@@ -150,4 +150,14 @@ class IdentityUniquenessIntegrationTest {
                 .extracting(Tenant::getName)
                 .contains("No Cnpj Co 1", "No Cnpj Co 2");
     }
+
+    @Test
+    void multipleTenantsWithUnsetInscricaoEstadualCoexist() {
+        tenantRepository.saveAndFlush(new Tenant("No Inscricao Co 1"));
+        tenantRepository.saveAndFlush(new Tenant("No Inscricao Co 2"));
+
+        assertThat(tenantRepository.findAll())
+                .extracting(Tenant::getName)
+                .contains("No Inscricao Co 1", "No Inscricao Co 2");
+    }
 }

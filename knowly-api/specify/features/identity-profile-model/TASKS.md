@@ -212,18 +212,18 @@ that creates a `PROFILE_EDIT_REQUEST_PENDING` notification.
 
 ## Final verification pass (only after every other planned backlog item alongside this one is also implemented)
 
-- [ ] 27. Run `./mvnw spotless:apply` once, across all accumulated
+- [x] 27. Run `./mvnw spotless:apply` once, across all accumulated
        changes.
-- [ ] 28. Run the full `./mvnw verify` (formatting + entire test suite,
+- [x] 28. Run the full `./mvnw verify` (formatting + entire test suite,
        not just this feature's tests) and fix any real failures
        surfaced — this is the first and only test execution for this
        feature's work, per Task 0.
-- [ ] 29. Update `PROJECT_STATUS.md`/`PLAN.md`/`DECISIONS.md` if any
+- [x] 29. Update `PROJECT_STATUS.md`/`PLAN.md`/`DECISIONS.md` if any
        decision changed during implementation (in particular: flag the
        `users_aud`/key-rotation note from PLAN.md's Data schema section
        if not already tracked in `PROJECT_STATUS.md`'s operational
        gotchas).
-- [ ] 30. Hand off to `qa-test-automation` and `appsec` for review now
+- [x] 30. Hand off to `qa-test-automation` and `appsec` for review now
        that the final full verification pass has actually run — not
        before, and not per-task. Flag for `appsec` specifically: the
        blind-index equality-revealing tradeoff (already confirmed, but
