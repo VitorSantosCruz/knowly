@@ -44,6 +44,18 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/users/1/audit-trail').flush(events);
   }
 
+  function flushProfile(): void {
+    httpMock.expectOne('/api/users/1/profile').flush({
+      userId: 1,
+      email: 'staffer@example.com',
+      fullName: 'Staffer',
+      address: '123 Main St',
+      rg: '11.111.111-1',
+      cpf: '111.111.111-11',
+      phone: '+15550000',
+    });
+  }
+
   it('renders direct permissions, access groups, and effective permissions as distinct sections', async () => {
     await createFixture(true);
     fixture.detectChanges();
@@ -56,6 +68,8 @@ describe('StaffUserDetailPanelComponent', () => {
     });
     httpMock.expectOne('/api/staff/access-groups').flush([{ id: 5, name: 'Support' }]);
     flushAuditTrail();
+    fixture.detectChanges();
+    flushProfile();
     fixture.detectChanges();
 
     expect(
@@ -94,6 +108,8 @@ describe('StaffUserDetailPanelComponent', () => {
       },
     ]);
     fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
 
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
     expect(section).toBeTruthy();
@@ -116,6 +132,8 @@ describe('StaffUserDetailPanelComponent', () => {
       .expectOne('/api/staff/users/1/audit-trail')
       .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
 
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
     expect(section.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
@@ -133,6 +151,8 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/access-groups').flush([]);
     flushAuditTrail([]);
     fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
 
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
     expect(section.querySelector('[data-testid="staff-audit-trail-empty"]')).toBeTruthy();
@@ -146,6 +166,8 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/users/1/permissions').flush(emptyDetail);
     httpMock.expectOne('/api/staff/access-groups').flush([]);
     flushAuditTrail();
+    fixture.detectChanges();
+    flushProfile();
     fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -176,6 +198,8 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/access-groups').flush([]);
     flushAuditTrail();
     fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
 
     const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
       '[data-testid="staff-new-access-group-name"]',
@@ -205,6 +229,8 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/users/1/permissions').flush(emptyDetail);
     httpMock.expectOne('/api/staff/access-groups').flush([{ id: 5, name: 'Support' }]);
     flushAuditTrail();
+    fixture.detectChanges();
+    flushProfile();
     fixture.detectChanges();
 
     const assignButton: HTMLButtonElement = fixture.nativeElement.querySelector(
@@ -246,6 +272,8 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/access-groups').flush([{ id: 5, name: 'Support' }]);
     flushAuditTrail();
     fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
       '[data-testid="staff-permission-toggle-STAFF_USER_CREATE"]',
@@ -271,6 +299,8 @@ describe('StaffUserDetailPanelComponent', () => {
       .flush({ ...emptyDetail, accessGroups: [{ id: 5, name: 'Support' }] });
     httpMock.expectOne('/api/staff/access-groups').flush([{ id: 5, name: 'Support' }]);
     flushAuditTrail();
+    fixture.detectChanges();
+    flushProfile();
     fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -300,5 +330,22 @@ describe('StaffUserDetailPanelComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
+  });
+
+  it('renders the profile section alongside its other, untouched sections', async () => {
+    await createFixture(true);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/staff/users/1/permissions').flush(emptyDetail);
+    httpMock.expectOne('/api/staff/access-groups').flush([]);
+    flushAuditTrail();
+    fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-section"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="staff-effective-permissions"]'),
+    ).toBeTruthy();
   });
 });

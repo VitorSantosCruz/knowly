@@ -138,6 +138,16 @@ describe('StaffDirectoryPageComponent', () => {
     httpMock.expectOne('/api/staff/access-groups').flush([]);
     httpMock.expectOne('/api/staff/users/1/audit-trail').flush([]);
     fixture.detectChanges();
+    httpMock.expectOne('/api/users/1/profile').flush({
+      userId: 1,
+      email: 'staffer@example.com',
+      fullName: 'Staffer',
+      address: '123 Main St',
+      rg: '11.111.111-1',
+      cpf: '111.111.111-11',
+      phone: '+15550000',
+    });
+    fixture.detectChanges();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]'),

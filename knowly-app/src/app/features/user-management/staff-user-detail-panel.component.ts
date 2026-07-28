@@ -2,6 +2,7 @@ import { Component, OnChanges, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-permission';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import {
   AuditEvent,
   GlobalAccessGroup,
@@ -10,12 +11,13 @@ import {
 } from '../../core/staff-user.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-staff-user-detail-panel',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, ProfileSectionComponent],
   template: `
     @if (error() === 'permission-denied') {
       <app-no-access-state />
@@ -175,12 +177,18 @@ type DetailError = 'network' | 'permission-denied' | null;
             }
           }
         </section>
+
+        <app-profile-section
+          [userId]="userId()"
+          [canEdit]="viewerIsStaffAdmin() || globalPermissionsService.has('PROFILE_EDIT')"
+        />
       </div>
     }
   `,
 })
 export class StaffUserDetailPanelComponent implements OnChanges {
   private readonly staffUserService = inject(StaffUserService);
+  protected readonly globalPermissionsService = inject(GlobalPermissionsService);
 
   readonly userId = input.required<number>();
   readonly viewerIsStaffAdmin = input.required<boolean>();
