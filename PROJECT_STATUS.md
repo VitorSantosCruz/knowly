@@ -309,52 +309,12 @@ SPEC before implementation, roughly in this order:**
      purely a frontend UX decision; calling the endpoint directly
      (outside the app) always returns the caller's own tenants
      regardless of count. Do not add a backend gate for this.
-9. **Staff-joins-tenant requires in-app acceptance (not email) —
-   corrected 2026-07-26 after an earlier misread of this rule.** The
-   real scenario: a `MEMBER_ADMIN` of some tenant adds an existing
-   `STAFF`/`STAFF_ADMIN` user as a `MEMBER` (or `MEMBER_ADMIN`) of their
-   tenant. Doing so must NOT silently strip that staff user's global
-   powers inside that tenant — it can only take effect once the staff
-   user explicitly accepts becoming a member of that tenant, via an
-   **in-app request/notification** (not an email-based accept flow, that
-   was this analysis's earlier misunderstanding — corrected here).
-   Until accepted, the tenant-membership row must not restrict the
-   staff user's access within that tenant. Symmetric case: if a user was
-   already a plain tenant `MEMBER` *before* becoming `STAFF`/
-   `STAFF_ADMIN`, someone must explicitly deactivate that old membership
-   — otherwise the old, pre-staff `MEMBER` role keeps silently limiting
-   them inside that specific tenant even after gaining staff powers.
-   Purpose: stop a tenant from using membership assignment/pre-existing
-   membership to blind a staff member to what's happening inside that
-   one tenant (staff must consciously accept losing/gaining tenant-local
-   scope — nothing about this affects what staff can see/do on knowly's
-   own side, only within that specific tenant's data). Needs a backend
-   SPEC: new membership state (pending/active?), an in-app
-   notification/request-accept mechanism (no email), and rules for what
-   authorization a *pending* (not yet accepted) membership grants (none
-   — staff keeps their prior effective access until acceptance).
-10. **Tenant membership invitation requires acceptance — corrected
-    2026-07-26, in-app notification, not email.** `TenantService.addMember`
-    currently adds a membership directly and synchronously, with no
-    pending/accept state and no notification of any kind (`MailService`
-    isn't even wired into `TenantService`). Confirmed rule: adding *any*
-    member should create a pending state that requires the invitee to
-    accept via an in-app notification/request (not email) before the
-    membership becomes active; once accepted, the tenant owner and
-    whoever added the member should be notified in-app that it was
-    accepted. This overlaps significantly with item 9 above (both need
-    the same pending-membership/accept mechanism) — likely one shared
-    backend SPEC covering both. **Exception confirmed 2026-07-26**: the
-    pending/accept flow only applies when the invitee already has a
-    `User` account to notify in-app. If the invited person has no
-    account in the system yet, there's no in-app inbox to deliver a
-    notification to, so the pending/accept step is skipped entirely for
-    that case — the membership is created active immediately, same as
-    today's behavior. (This is the existing passwordless/login-code
-    flow's normal new-user path — inviting a brand-new email already
-    creates the `User` at invite time; that path stays unchanged and
-    simply doesn't gain a pending state, since there's nobody yet to ask
-    for consent.)
+9. ~~Staff-joins-tenant requires in-app acceptance~~ / 10. ~~Tenant
+   membership invitation requires acceptance~~ — **both done**, covered
+   together by one feature: see `tenant-membership-acceptance`'s row in
+   the backend feature table above and
+   `knowly-api/specify/features/tenant-membership-acceptance/`
+   (SPEC/PLAN/TASKS) for the full rules and implementation record.
 11. Tenant list pagination + search-by-name on `/select-tenant` and the
    backend's `GET /api/tenants` (currently returns everything unbounded
    — will break at scale). Needs a backend SPEC (pagination/search API
