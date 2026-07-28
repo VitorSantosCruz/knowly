@@ -157,14 +157,14 @@ work; do not batch commits either.
 
 ## Final verification pass (only after every other planned backlog item alongside this one is also implemented)
 
-- [ ] 21. Run `./mvnw spotless:apply` once, across all accumulated
+- [x] 21. Run `./mvnw spotless:apply` once, across all accumulated
       changes.
-- [ ] 22. Run the full `./mvnw verify` (formatting + entire test suite,
+- [x] 22. Run the full `./mvnw verify` (formatting + entire test suite,
       not just this feature's tests) and fix any real failures
       surfaced — this is the first and only test execution for this
       feature's work, per Task 0.
-- [ ] 23. Update `PROJECT_STATUS.md`/`PLAN.md`/`DECISIONS.md` if any
+- [x] 23. Update `PROJECT_STATUS.md`/`PLAN.md`/`DECISIONS.md` if any
       decision changed during implementation.
-- [ ] 24. Hand off to `qa-test-automation` and `appsec` for review now
+- [x] 24. Hand off to `qa-test-automation` and `appsec` for review now
       that the final full verification pass has actually run — not
       before, and not per-task.
