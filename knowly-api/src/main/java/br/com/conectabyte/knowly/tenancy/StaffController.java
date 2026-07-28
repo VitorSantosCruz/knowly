@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.tenancy;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateGlobalAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateStaffUserRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
@@ -81,6 +82,11 @@ public class StaffController {
     public ResponseEntity<List<StaffUserSummaryDto>> listStaffUsers(
             @RequestParam(required = false) String email) {
         return ResponseEntity.ok(staffService.listStaffUsers(email));
+    }
+
+    @GetMapping("/users/{userId}/audit-trail")
+    public ResponseEntity<List<AuditEventDto>> auditTrail(@PathVariable Long userId) {
+        return ResponseEntity.ok(staffService.getAuditTrail(userId));
     }
 
     @GetMapping("/users/{userId}/permissions")

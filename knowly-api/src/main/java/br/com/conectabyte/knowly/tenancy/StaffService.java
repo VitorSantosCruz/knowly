@@ -1,11 +1,14 @@
 package br.com.conectabyte.knowly.tenancy;
 
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.audit.RequiresGlobalPermission;
 import br.com.conectabyte.knowly.auth.MailService;
 import br.com.conectabyte.knowly.auth.OneTimePasswordService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
+import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
@@ -34,6 +37,7 @@ public class StaffService {
     private final GlobalPermissionService globalPermissionService;
     private final OneTimePasswordService oneTimePasswordService;
     private final MailService mailService;
+    private final AuditEventRepository auditEventRepository;
 
     public StaffService(
             UserRepository userRepository,
@@ -43,7 +47,8 @@ public class StaffService {
             UserGlobalAccessGroupRepository userGlobalAccessGroupRepository,
             GlobalPermissionService globalPermissionService,
             OneTimePasswordService oneTimePasswordService,
-            MailService mailService) {
+            MailService mailService,
+            AuditEventRepository auditEventRepository) {
         this.userRepository = userRepository;
         this.directGlobalPermissionGrantRepository = directGlobalPermissionGrantRepository;
         this.globalAccessGroupRepository = globalAccessGroupRepository;
@@ -52,6 +57,7 @@ public class StaffService {
         this.globalPermissionService = globalPermissionService;
         this.oneTimePasswordService = oneTimePasswordService;
         this.mailService = mailService;
+        this.auditEventRepository = auditEventRepository;
     }
 
     @Transactional
@@ -204,6 +210,31 @@ public class StaffService {
         userGlobalAccessGroupRepository
                 .findByUserAndGlobalAccessGroup(user, accessGroup)
                 .ifPresent(userGlobalAccessGroupRepository::delete);
+    }
+
+    /**
+     * specify/features/staff-audit-trail-view/SPEC.md REQ-1..REQ-9: returns the target user's full
+     * audit history, including rows from every tenant they've ever acted in — {@code AuditEvent} is
+     * not a {@code TenantAwareEntity} and has no {@code @Filter}, so no special-case plumbing is
+     * needed to bypass tenant scoping. This is a deliberate, confirmed exception (see SPEC's
+     * "Context and motivation"/"Tier 3 flag"). Deliberately does not call {@link
+     * #enforceStaffCeiling(GlobalRole)} — per REQ-9, viewing a STAFF/STAFF_ADMIN target's history
+     * grants no ability to act on the account, mirroring {@link #listStaffUsers(String)}.
+     */
+    @Transactional(readOnly = true)
+    @RequiresGlobalPermission(GlobalPermission.AUDIT_TRAIL_VIEW)
+    @AuditLog(
+            action = "staff.audit_trail.view",
+            resourceType = "User",
+            resourceIdExpression = "#userId")
+    public List<AuditEventDto> getAuditTrail(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new UserNotFoundException();
+        }
+
+        return auditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc(userId).stream()
+                .map(AuditEventDto::from)
+                .toList();
     }
 
     private void enforceStaffCeiling(GlobalRole targetGlobalRole) {
