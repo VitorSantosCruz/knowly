@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
@@ -12,6 +12,14 @@ export interface TenantMembership {
 export interface TenantSummary {
   id: number;
   name: string;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -50,8 +58,16 @@ export class ActiveTenantService {
     return this.http.get<TenantMembership[]>('/api/tenants/memberships');
   }
 
-  listAllTenants(): Observable<TenantSummary[]> {
-    return this.http.get<TenantSummary[]>('/api/tenants');
+  listAllTenants(
+    page: number,
+    size: number,
+    search?: string,
+  ): Observable<PageResponse<TenantSummary>> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (search) {
+      params = params.set('search', search);
+    }
+    return this.http.get<PageResponse<TenantSummary>>('/api/tenants', { params });
   }
 
   createTenant(name: string, adminEmail: string): Observable<void> {

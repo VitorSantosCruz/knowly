@@ -156,7 +156,12 @@
   "selectTenant": {
     "title": "Choose a tenant to continue",
     "empty": "No tenants are available to select.",
-    "createTenant": "Create tenant"
+    "createTenant": "Create tenant",
+    "searchLabel": "Search tenants",
+    "searchPlaceholder": "Search by name, CNPJ, or razão social",
+    "previousPage": "Previous",
+    "nextPage": "Next",
+    "noSearchResults": "No tenants match your search."
   },
   "tenantCreate": {
     "title": "Create tenant",

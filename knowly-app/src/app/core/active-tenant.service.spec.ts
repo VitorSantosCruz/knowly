@@ -93,21 +93,42 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantId()).toBeNull();
   });
 
-  it('listAllTenants() fetches every tenant in the system', () => {
+  it('listAllTenants() fetches a page of every tenant in the system', () => {
     let result: unknown;
-    service.listAllTenants().subscribe((tenants) => (result = tenants));
+    service.listAllTenants(0, 20).subscribe((page) => (result = page));
 
-    const req = httpMock.expectOne('/api/tenants');
+    const req = httpMock.expectOne(
+      (r) =>
+        r.url === '/api/tenants' && r.params.get('page') === '0' && r.params.get('size') === '20',
+    );
     expect(req.request.method).toBe('GET');
-    req.flush([
-      { id: 1, name: 'Tenant A' },
-      { id: 2, name: 'Tenant B' },
-    ]);
+    expect(req.request.params.has('search')).toBe(false);
+    const envelope = {
+      content: [
+        { id: 1, name: 'Tenant A' },
+        { id: 2, name: 'Tenant B' },
+      ],
+      page: 0,
+      size: 20,
+      totalElements: 2,
+      totalPages: 1,
+    };
+    req.flush(envelope);
 
-    expect(result).toEqual([
-      { id: 1, name: 'Tenant A' },
-      { id: 2, name: 'Tenant B' },
-    ]);
+    expect(result).toEqual(envelope);
+  });
+
+  it('listAllTenants() includes the search param only when supplied', () => {
+    service.listAllTenants(1, 10, 'acme').subscribe();
+
+    const req = httpMock.expectOne(
+      (r) =>
+        r.url === '/api/tenants' &&
+        r.params.get('page') === '1' &&
+        r.params.get('size') === '10' &&
+        r.params.get('search') === 'acme',
+    );
+    req.flush({ content: [], page: 1, size: 10, totalElements: 0, totalPages: 0 });
   });
 
   it('createTenant() posts the name and admin email', () => {
