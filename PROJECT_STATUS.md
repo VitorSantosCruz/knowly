@@ -72,9 +72,15 @@ reviewed, committed) — see their table rows below. `staff-audit-trail-view`
 done — implemented, tested, `./mvnw verify` green,
 `qa-test-automation`/`appsec` reviewed with no blocking findings
 (cross-tenant REQ-4 exposure re-confirmed as intentional/approved, not a
-gap), and committed. The `dashboard-analytics` frontend (item 6) already
-has an approved SPEC/PLAN/TASKS in `knowly-app/` and is ready for
-implementation whenever picked up — that's the next concrete action.
+gap), and committed. The `dashboard-analytics` frontend (item 6's
+tenant-scoped half) is now also fully implemented, tested (253/253
+frontend tests green), and committed — see its table row below. What
+item 6 still leaves open is the **staff global-view dashboard UI**
+(cross-tenant metrics, distinct staff welcome screen, member-listing →
+profile → audit-trail navigation) — `global-staff-dashboard-metrics`'s
+backend endpoint (`GET /api/staff/metrics/global`) exists and is done,
+but nothing in `knowly-app/` consumes it yet; that's the next concrete
+action for this item.
 
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
@@ -181,24 +187,17 @@ The user confirmed this order for the next several features (2026-07-25):
      as any other member). Those options only reappear once the staff
      user leaves the tenant back to the tenant list. This is a strict
      either/or, not a "staff sees extra options inside a tenant too."
-6. ~~Expanded metrics dashboard~~ — **backend done**, see
-   `knowly-api/specify/features/dashboard-analytics/` and its row in the
-   backend feature table above. Frontend SPEC/PLAN/TASKS already exist
-   at `knowly-app/specify/features/dashboard-analytics/` (written
-   alongside the backend SPEC per the cross-folder placement rule) but
-   are **not yet implemented** — that's the next concrete action for
-   this item. **New scope confirmed by the user 2026-07-26**, not yet
-   covered by the existing SPEC — will need a follow-up backend SPEC
-   (new endpoints/metrics) before the frontend work above can be
-   considered complete:
-   - **Inside a tenant**: dashboard shows that tenant's own numbers —
-     article count, most-used/top articles, query count per member,
-     usage graphs, and (new, once support tickets exist per item 14)
-     support-ticket metrics for that tenant specifically. This is
-     largely what today's `dashboard-analytics` backend already
-     provides (`members`/timeseries/`export` endpoints) — mostly a
-     frontend implementation gap, not a new backend needed, except for
-     support-ticket metrics which don't exist until item 14 lands.
+6. ~~Expanded metrics dashboard~~ — **backend done, tenant-scoped
+   frontend done**, see `knowly-api/specify/features/dashboard-analytics/`
+   and `knowly-app/specify/features/dashboard-analytics/` and their rows
+   in the feature tables above/below. The tenant-scoped in-app dashboard
+   (period filter, five metric tiles with sparklines, message-split
+   donut, conversations bar chart, members breakdown, searchable
+   top-articles table, CSV export) is fully implemented, tested
+   (253/253 frontend tests green), and committed. **New scope confirmed
+   by the user 2026-07-26**, not yet covered by the existing SPEC — the
+   **staff global-view half is still open**:
+   - **Inside a tenant**: done — see above.
    - **Outside any tenant (staff global view)**: a *different* set of
      metrics scoped across all tenants — total tenant count, new
      tenants in the last calendar month, total articles read across
@@ -207,12 +206,13 @@ The user confirmed this order for the next several features (2026-07-25):
      the tenant member's welcome screen) and a member-listing screen
      that lets a staff user open a profile, edit it (subject to the
      profile-editing permission rules in item 13), and view that
-     person's audit trail. None of this global/staff-scope aggregation
-     exists in the backend today — `dashboard-analytics`'s endpoints are
-     all tenant-scoped (`TenantFilter`-gated). This needs its own
-     backend SPEC for global/cross-tenant metrics endpoints, gated by a
-     `GlobalPermission` (not tenant `Permission`), separate from the
-     existing tenant-scoped `dashboard-analytics` feature.
+     person's audit trail. The backend half of this
+     (`global-staff-dashboard-metrics`, `GET /api/staff/metrics/global`)
+     is now done (see its table row below) — what remains is the
+     **frontend** consuming it: no `knowly-app/` screen calls this
+     endpoint yet. This is the next concrete action for this item, and
+     will need its own frontend SPEC (`knowly-app/specify/features/`)
+     before implementation, per this repo's SDD process.
    - **Tenant CRUD stays staff-only and only visible outside a
      tenant** — see item 5's "general nav rule" above; staff can
      create/list/edit/delete tenants only from the staff-side (outside
@@ -617,7 +617,7 @@ for the actual requirements and decisions.
 | `tags-list` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format, paired with the backend's `tags-crud` reference. Don't build it unless explicitly asked to turn it into a real feature. |
 | `navigation-menu` | ✅ Done | Real app-shell navigation (`nav-menu.component.ts`), links filtered by `PermissionsService`/`GlobalPermissionsService`; "switch tenant" link reusing `/select-tenant`. Fixed the `staffGuard`/create-tenant-link bug above as part of the same feature. |
 | `welcome-screen` | ✅ Done | Real `/welcome` landing screen (staff-generic or tenant-branded greeting, no sensitive/permission-gated content) — replaces `/dashboard` as the post-login/tenant-selection/root-redirect target. Fixed two real bugs: login and the root route (`''`) both used to send an already-authenticated session to the wrong place (tenant list, or unconditionally `/login`). Onboarding tour trigger moved here from `dashboard`; tour target ids moved to the global nav menu. |
-| `dashboard-analytics` | ✅ Done | Period filter (`period-filter.component.ts`, PrimeNG `SelectButton`) owned by `dashboard-page.component.ts`'s `period` signal; five reusable `metric-tile.component.ts` instances (active articles/conversations/USER messages/ASSISTANT messages/active members, each with a `p-chart` line sparkline + `toSparklineData()`), superseding the old `article-count-card`/`conversations-card`/`messages-card` (all three deleted); `message-split-chart.component.ts` (USER/ASSISTANT donut, `toDonutData()`); `conversations-activity-chart.component.ts` (per-day bar chart, `toBarData()`); every chart paired with a visually-hidden `.sr-only` mirror `<table>` generated from the same tested mapping function; `members-breakdown-card.component.ts` (`GET /api/tenants/metrics/members`); `top-articles-table.component.ts` (`p-table` + built-in global filter, replaces `article-usage-list.component.ts`); `export-button.component.ts` (CSV blob download); `metric-fetcher.ts`'s `load()` extended to accept `params`. **`chart.js@^4.5.1` added as a real dependency** (user-confirmed Tier 3 decision, `DECISIONS.md`) — discovered only during implementation that PrimeNG's `Chart` component (`p-chart`) does `import Chart from 'chart.js/auto'` internally and needs it installed, contrary to the SPEC/PLAN's original "no new npm dependency" assumption; both docs updated to record why. Production bundle budget raised again in `angular.json` (900kB→1.4MB warning, 1.4MB→1.7MB error) to accommodate it — final bundle 1.50MB raw / ~310KB estimated transfer, under the new error threshold. 210/210 frontend tests green, `format:check`/`build` clean. |
+| `dashboard-analytics` | ✅ Done | Period filter (`period-filter.component.ts`, native Tailwind toggle-button group post-`primeng-removal`) owned by `dashboard-page.component.ts`'s `period` signal; five reusable `metric-tile.component.ts` instances (active articles/conversations/USER messages/ASSISTANT messages/active members, each with a line sparkline via the shared `chart-canvas.component.ts` + `toSparklineData()`), superseding the old `article-count-card`/`conversations-card`/`messages-card` (all three deleted); `message-split-chart.component.ts` (USER/ASSISTANT donut, `toDonutData()`); `conversations-activity-chart.component.ts` (per-day bar chart, `toBarData()`); every chart paired with a visually-hidden `.sr-only` mirror `<table>` generated from the same tested mapping function; `members-breakdown-card.component.ts` (`GET /api/tenants/metrics/members`); `top-articles-table.component.ts` (native `<table>` + a local `computed()` filter signal, replaces `article-usage-list.component.ts`); `export-button.component.ts` (native button + CSV blob download); `metric-fetcher.ts`'s `load()` extended to accept `params`. Originally built against PrimeNG (`p-chart`/`SelectButton`/`p-table`) per the SPEC written before `primeng-removal`; every widget was subsequently migrated to the current native-Tailwind conventions (`chart-canvas.component.ts` + its `CHART_CTOR` injection token, native `<table>`/toggle group) as part of `primeng-removal`'s cleanup — `chart.js@^4.5.1` (user-confirmed Tier 3 dependency, `DECISIONS.md`) stays a direct dependency of `chart-canvas.component.ts`, not PrimeNG's `Chart` wrapper. 253/253 frontend tests green, `format:check`/`build` clean (production bundle 577KB raw / ~138KB estimated transfer — well under budget, no PrimeNG chrome anymore). |
 | `primeng-migration` | ⛔ Superseded by `primeng-removal` | Was: full replacement of hand-rolled Tailwind components with PrimeNG + PrimeIcons (2026-07-25). Reverted one day later — see `primeng-removal` below and `DECISIONS.md`'s two consecutive dated entries. Row kept only as history; do not treat any detail below as current. Setup phase: `primeng@22.0.0`/`@primeuix/themes@3.0.0`/`primeicons@8.0.0`/`@angular/cdk@22.0.0` added; `core/prime-theme.ts` preset maps `ink-*`/`signal-*` onto PrimeNG's tokens for light/dark; `providePrimeNG()` wired in `app.config.ts` with `darkModeSelector: '.dark'`. 2026-07-25 chrome/menu pass (items 1-3): `nav-menu.component.ts` rebuilt with per-category inline `p-menu`s (custom `#submenuheader`/`#item` templates keep every `data-testid`/`data-tour-id`/permission gate), PrimeIcons replace its inline SVGs; `app-shell.component.ts`'s `<aside>`/`<header>` get a static `class="dark"` so PrimeNG components in the permanently-dark chrome always render dark tokens regardless of `ThemeService`'s toggle; `logout-button`/`language-switcher`/`help-menu` migrated to `[pButton]`/`p-menu`. 2026-07-25 final pass (items 4-7, all feature screens): `error-state` → `p-message`; `welcome-page`'s quick-link cards → `p-card`; `login-page`'s inputs/buttons → `pInputText`/`pPassword`/`pButton` directives on the same native elements (no DOM restructuring, so all `querySelector('input[...]')`-based specs kept passing unchanged); `articles-page`'s upload/detail panels → `p-card`, text inputs → `pInputText`/`pTextarea`, buttons → `pButton` (article-list rows left as native markup — two independent actions per row, not a clean `Listbox` fit); `conversations-page`'s conversation list → `p-listbox` with a custom `#item` template (chat bubbles and the new-conversation/send buttons use `pButton`/`pInputText`; bubbles themselves stay bespoke `<div>`s, no PrimeNG fit); `members-page`'s member list → `p-table`; `select-tenant-page`'s tenant list → `p-listbox`, create-tenant link → `pButton`; `tenant-create-page`'s form → `pInputText`/`pButton`. `no-access-state` (single `<p>`) and login's tab UI stayed hand-rolled — no real PrimeNG component fit either. `angular.json`'s budget raised 800kB→900kB warning, 1MB→1.4MB error (bundle reached 1.27MB after the full migration; still not lazy-route-split — flagged as a follow-up, not solved here). |
 | `primeng-removal` | ✅ Done | Reverts `primeng-migration` (see `DECISIONS.md`) — PrimeNG, `@primeuix/themes`, `primeicons`, `@angular/cdk` fully removed; back to pure Tailwind + hand-rolled Angular standalone components. Icons: `@lucide/angular` (not the deprecated `lucide-angular`, which has no Angular 22-compatible peer range) — each icon is its own standalone component with an attribute selector (e.g. `LucideSun` → `<svg lucideSun>`), imported directly per-component, no central provider wiring. New shared `button-classes.ts` (severity/variant class helper) and `chart-canvas.component.ts` (direct Chart.js wrapper, replacing PrimeNG's `p-chart`/`UIChart` — uses a `CHART_CTOR` injection token so specs can mock Chart.js deterministically despite Angular's bundled-spec test runner sharing module instances). All 20 former PrimeNG consumers migrated to native HTML + Tailwind (menus → `<ul role="menu">`, tables → native `<table>` + local `computed()` filter signal, listbox → `<ul role="listbox">`, forms/buttons → native elements + `button-classes.ts`). 26 atomic tasks, one commit each — see `knowly-app/specify/features/primeng-removal/PLAN.md`/`TASKS.md` (including a "Deviations" section for the two implementation-detail corrections above). 221/221 tests, `format:check`, `build` all green. |
 
