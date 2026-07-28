@@ -103,6 +103,36 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
   });
 
+  it('shows the dashboard link for DASHBOARD_VIEW_GLOBAL alone (staff, no active tenant)', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['DASHBOARD_VIEW_GLOBAL'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
+  });
+
+  it('shows the dashboard link for a STAFF_ADMIN-shaped ("all permissions") response even without DASHBOARD_VIEW', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [],
+      globalPermissions: [
+        'TENANT_CREATE',
+        'TENANT_ACT_AS_ANY',
+        'TENANT_MEMBER_MANAGE_ANY',
+        'TENANT_ACCESS_GROUP_MANAGE_ANY',
+        'TENANT_PERMISSION_GRANT_MANAGE_ANY',
+        'STAFF_PERMISSION_MANAGE',
+        'STAFF_USER_CREATE',
+        'STAFF_USER_VIEW',
+        'DASHBOARD_VIEW_GLOBAL',
+        'AUDIT_TRAIL_VIEW',
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
+  });
+
   it('shows the members link for STAFF_USER_VIEW alone (no tenant permission)', () => {
     fixture.detectChanges();
     flush({ memberships: [], globalPermissions: ['STAFF_USER_VIEW'] });

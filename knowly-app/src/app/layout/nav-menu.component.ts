@@ -171,7 +171,10 @@ export class NavMenuComponent implements OnInit {
   protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
     const groups: NavMenuGroup[] = [];
 
-    if (this.permissionsService.has('DASHBOARD_VIEW')) {
+    if (
+      this.permissionsService.has('DASHBOARD_VIEW') ||
+      this.globalPermissionsService.has('DASHBOARD_VIEW_GLOBAL')
+    ) {
       groups.push({
         categoryKey: 'nav.category.overview',
         items: [
