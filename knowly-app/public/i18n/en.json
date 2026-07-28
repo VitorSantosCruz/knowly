@@ -44,12 +44,18 @@
     "error": "Something went wrong loading this. Trace id: {{traceId}}",
     "searchArticles": "Search articles…",
     "export": "Export CSV",
+    "comingSoon": "Coming soon",
     "tiles": {
       "articles": "Active articles",
       "conversations": "Conversations",
       "userMessages": "User messages",
       "assistantMessages": "Assistant messages",
-      "activeMembers": "Active members"
+      "activeMembers": "Active members",
+      "tenantCount": "Total tenants",
+      "newTenantsThisMonth": "New tenants this month",
+      "articlesReadTotal": "Total articles read",
+      "staffCount": "Staff members",
+      "supportTickets": "Support tickets"
     }
   },
   "welcome": {
@@ -69,6 +75,10 @@
       "members": {
         "title": "Manage members",
         "description": "See who's on the team and manage access."
+      },
+      "globalDashboard": {
+        "title": "View global dashboard",
+        "description": "See cross-tenant metrics for the whole platform."
       }
     }
   },
@@ -111,7 +121,18 @@
     "effectivePermissions": "Effective permissions",
     "assign": "Assign",
     "unassign": "Unassign",
-    "createGroup": "Create group"
+    "createGroup": "Create group",
+    "auditTrail": {
+      "title": "Audit trail",
+      "occurredAt": "Occurred at",
+      "action": "Action",
+      "resourceType": "Resource type",
+      "resourceId": "Resource id",
+      "tenantId": "Tenant",
+      "outcome": "Outcome",
+      "global": "global",
+      "noHistory": "No audit history"
+    }
   },
   "conversations": {
     "new": "New conversation",

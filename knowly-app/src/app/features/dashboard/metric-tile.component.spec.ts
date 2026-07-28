@@ -145,3 +145,63 @@ describe('MetricTileComponent', () => {
     httpMock.expectOne((r) => r.url === URL && r.params.get('period') === '7d').flush({ days: [] });
   });
 });
+
+@Component({
+  selector: 'app-value-host',
+  imports: [MetricTileComponent],
+  template: ` <app-metric-tile testId="value-tile" label="Total tenants" [value]="value()" /> `,
+})
+class ValueHostComponent {
+  readonly value = signal<number | undefined>(undefined);
+}
+
+@Component({
+  selector: 'app-disabled-host',
+  imports: [MetricTileComponent],
+  template: `
+    <app-metric-tile testId="disabled-tile" label="Support tickets" [disabled]="true" />
+  `,
+})
+class DisabledHostComponent {}
+
+describe('MetricTileComponent (pre-fetched value / disabled modes)', () => {
+  function harness<T>(component: new () => T) {
+    TestBed.configureTestingModule({
+      imports: [component as never],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideTransloco({
+          config: { availableLangs: ['en', 'pt-BR'], defaultLang: 'en' },
+          loader: FakeTranslocoLoader,
+        }),
+      ],
+    });
+    const fixture = TestBed.createComponent(component);
+    const httpMock = TestBed.inject(HttpTestingController);
+    return { fixture, httpMock };
+  }
+
+  it('renders the given value directly with no HTTP call and no sparkline', () => {
+    const { fixture, httpMock } = harness(ValueHostComponent);
+    fixture.componentInstance.value.set(42);
+    fixture.detectChanges();
+
+    const tile = fixture.nativeElement.querySelector('[data-testid="value-tile"]');
+    expect(tile.textContent).toContain('42');
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('table')).toBeFalsy();
+    httpMock.verify();
+  });
+
+  it('renders a "coming soon" state with no HTTP call when disabled, regardless of other inputs', () => {
+    const { fixture, httpMock } = harness(DisabledHostComponent);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="metric-tile-coming-soon"]'),
+    ).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="metric-tile-value"]')).toBeFalsy();
+    httpMock.verify();
+  });
+});

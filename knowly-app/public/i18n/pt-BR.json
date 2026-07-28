@@ -44,12 +44,18 @@
     "error": "Algo deu errado ao carregar isso. Trace id: {{traceId}}",
     "searchArticles": "Buscar artigos…",
     "export": "Exportar CSV",
+    "comingSoon": "Em breve",
     "tiles": {
       "articles": "Artigos ativos",
       "conversations": "Conversas",
       "userMessages": "Mensagens do usuário",
       "assistantMessages": "Mensagens do assistente",
-      "activeMembers": "Membros ativos"
+      "activeMembers": "Membros ativos",
+      "tenantCount": "Total de tenants",
+      "newTenantsThisMonth": "Novos tenants neste mês",
+      "articlesReadTotal": "Total de artigos lidos",
+      "staffCount": "Membros da equipe interna",
+      "supportTickets": "Chamados de suporte"
     }
   },
   "welcome": {
@@ -69,6 +75,10 @@
       "members": {
         "title": "Gerenciar membros",
         "description": "Veja quem está na equipe e gerencie o acesso."
+      },
+      "globalDashboard": {
+        "title": "Ver painel global",
+        "description": "Veja métricas entre tenants de toda a plataforma."
       }
     }
   },
@@ -111,7 +121,18 @@
     "effectivePermissions": "Permissões efetivas",
     "assign": "Atribuir",
     "unassign": "Remover atribuição",
-    "createGroup": "Criar grupo"
+    "createGroup": "Criar grupo",
+    "auditTrail": {
+      "title": "Trilha de auditoria",
+      "occurredAt": "Ocorrido em",
+      "action": "Ação",
+      "resourceType": "Tipo de recurso",
+      "resourceId": "Id do recurso",
+      "tenantId": "Tenant",
+      "outcome": "Resultado",
+      "global": "global",
+      "noHistory": "Sem histórico de auditoria"
+    }
   },
   "conversations": {
     "new": "Nova conversa",

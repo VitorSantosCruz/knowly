@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, effect, inject, input } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { MetricFetcher, createMetricFetcher } from '../../core/metric-fetcher';
 import { ChartCanvasComponent } from '../../shared/chart-canvas.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -32,13 +33,26 @@ const SPARKLINE_OPTIONS = {
 
 @Component({
   selector: 'app-metric-tile',
-  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
+  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent, TranslocoPipe],
   template: `
     <div
       [attr.data-testid]="testId()"
       class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
     >
-      @if (fetcher?.loading()) {
+      @if (disabled()) {
+        <p class="text-sm text-ink-500 dark:text-ink-400">{{ label() }}</p>
+        <p
+          data-testid="metric-tile-coming-soon"
+          class="text-lg font-semibold text-ink-400 dark:text-ink-600"
+        >
+          {{ 'dashboard.comingSoon' | transloco }}
+        </p>
+      } @else if (value() !== undefined) {
+        <p class="text-sm text-ink-500 dark:text-ink-400">{{ label() }}</p>
+        <p data-testid="metric-tile-value" class="text-3xl font-bold text-ink-900 dark:text-white">
+          {{ value() }}
+        </p>
+      } @else if (fetcher?.loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (fetcher?.error() === 'permission-denied') {
         <app-no-access-state />
@@ -47,7 +61,7 @@ const SPARKLINE_OPTIONS = {
       } @else if (fetcher?.data(); as data) {
         <p class="text-sm text-ink-500 dark:text-ink-400">{{ label() }}</p>
         <p data-testid="metric-tile-value" class="text-3xl font-bold text-ink-900 dark:text-white">
-          {{ valueSelector()(data) }}
+          {{ valueSelector()!(data) }}
         </p>
         <div class="mt-2 h-12">
           <app-chart-canvas
@@ -71,7 +85,7 @@ const SPARKLINE_OPTIONS = {
             </tr>
           </thead>
           <tbody>
-            @for (day of sparklineSelector()(data); track day.date) {
+            @for (day of sparklineSelector()!(data); track day.date) {
               <tr>
                 <td>{{ day.date }}</td>
                 <td>{{ day.count }}</td>
@@ -86,25 +100,38 @@ const SPARKLINE_OPTIONS = {
 export class MetricTileComponent {
   private readonly http = inject(HttpClient);
 
-  readonly period = input.required<Period>();
-  readonly url = input.required<string>();
+  readonly period = input<Period | undefined>(undefined);
+  readonly url = input<string | undefined>(undefined);
   readonly label = input.required<string>();
   readonly testId = input<string>('metric-tile');
-  readonly valueSelector = input.required<(data: unknown) => number>();
-  readonly sparklineSelector = input.required<(data: unknown) => SparklineDay[]>();
+  readonly valueSelector = input<((data: unknown) => number) | undefined>(undefined);
+  readonly sparklineSelector = input<((data: unknown) => SparklineDay[]) | undefined>(undefined);
+
+  /** Additive "pre-fetched value" mode — see DECISIONS.md. When set, the tile renders this
+   * number directly and skips its own fetch entirely (no sparkline chart/table either). */
+  readonly value = input<number | undefined>(undefined);
+  readonly loading = input<boolean>(false);
+  /** Renders a visibly muted "coming soon" label instead of a value; no fetch attempted. */
+  readonly disabled = input(false);
 
   protected readonly sparklineOptions = SPARKLINE_OPTIONS;
   protected fetcher?: MetricFetcher<unknown>;
 
   constructor() {
     effect(() => {
+      const url = this.url();
       const period = this.period();
-      this.fetcher ??= createMetricFetcher(this.http, this.url());
-      this.fetcher.load({ period });
+
+      if (this.disabled() || this.value() !== undefined || url === undefined) {
+        return;
+      }
+
+      this.fetcher ??= createMetricFetcher(this.http, url);
+      this.fetcher.load(period !== undefined ? { period } : undefined);
     });
   }
 
   protected toChartData(data: unknown): SparklineChartData {
-    return toSparklineData(this.sparklineSelector()(data));
+    return toSparklineData(this.sparklineSelector()!(data));
   }
 }
