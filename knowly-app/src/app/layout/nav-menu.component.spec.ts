@@ -209,4 +209,86 @@ describe('NavMenuComponent', () => {
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeFalsy();
   });
+
+  it('always shows "My profile" once logged in, regardless of tenant/permission state', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], tenantPermissions: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-my-profile"]')).toBeTruthy();
+  });
+
+  it('shows the edit-request inbox link for a tenant PROFILE_EDIT holder', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: ['PROFILE_EDIT'],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows the edit-request inbox link for a global PROFILE_EDIT holder', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['PROFILE_EDIT'] });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows the edit-request inbox link for a tenant ADMIN membership', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: true }],
+      tenantPermissions: [],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows the edit-request inbox link for a STAFF_ADMIN-shaped session', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [],
+      globalPermissions: [
+        'TENANT_CREATE',
+        'TENANT_ACT_AS_ANY',
+        'TENANT_MEMBER_MANAGE_ANY',
+        'TENANT_ACCESS_GROUP_MANAGE_ANY',
+        'TENANT_PERMISSION_GRANT_MANAGE_ANY',
+        'STAFF_PERMISSION_MANAGE',
+        'STAFF_USER_CREATE',
+        'STAFF_USER_VIEW',
+        'DASHBOARD_VIEW_GLOBAL',
+        'AUDIT_TRAIL_VIEW',
+        'PROFILE_EDIT',
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
+    ).toBeTruthy();
+  });
+
+  it('hides the edit-request inbox link for a session with none of the above', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: ['ARTICLE_VIEW'],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
+    ).toBeFalsy();
+  });
 });

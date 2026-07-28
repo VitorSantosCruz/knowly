@@ -11,6 +11,7 @@ import {
 } from '@lucide/angular';
 import { PermissionsService } from '../core/permissions.service';
 import { GlobalPermissionsService } from '../core/global-permissions.service';
+import { ALL_GLOBAL_PERMISSIONS } from '../core/global-permission';
 import { ActiveTenantService, TenantMembership } from '../core/active-tenant.service';
 import { AuthService } from '../core/auth.service';
 import { BrandWordmarkComponent } from '../shared/brand-wordmark.component';
@@ -147,6 +148,25 @@ const CATEGORY_LABEL_CLASS =
             </ul>
           </div>
         }
+
+        <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
+          <ul class="w-full border-0 bg-transparent p-0">
+            <li>
+              <span [class]="categoryLabelClass">{{ 'nav.category.account' | transloco }}</span>
+            </li>
+            <li>
+              <a
+                data-testid="nav-my-profile"
+                routerLink="/profile"
+                routerLinkActive="active-nav-link"
+                [class]="linkClass"
+              >
+                <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                {{ 'profile.myProfile' | transloco }}
+              </a>
+            </li>
+          </ul>
+        </div>
       </nav>
     }
   `,
@@ -167,6 +187,24 @@ export class NavMenuComponent implements OnInit {
   // into a tenant — see below) needs this link just as much as >1 does: it's their only path
   // to any tenant. Only a single-membership session (already home, nothing to switch to) hides it.
   protected readonly canSwitchTenant = computed(() => this.memberships().length !== 1);
+
+  // Fourth occurrence of this page-local computed, precedented by staff-global-dashboard's
+  // PLAN (StaffDirectoryPageComponent/WelcomePageComponent/OwnProfilePageComponent) — not
+  // extracted, same accepted tradeoff.
+  private readonly viewerIsStaffAdmin = computed(() =>
+    ALL_GLOBAL_PERMISSIONS.every((permission) => this.globalPermissionsService.has(permission)),
+  );
+
+  // Tier 2 judgment call (PLAN.md): only reflects the currently active tenant's PROFILE_EDIT
+  // grant, not every tenant the caller might hold that permission in — accepted, consistent
+  // with the "hidden, not shown-then-blocked" nav rule erring toward hiding.
+  protected readonly canSeeProfileEditRequests = computed(
+    () =>
+      this.permissionsService.has('PROFILE_EDIT') ||
+      this.globalPermissionsService.has('PROFILE_EDIT') ||
+      this.memberships().some((membership) => membership.role === 'ADMIN') ||
+      this.viewerIsStaffAdmin(),
+  );
 
   protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
     const groups: NavMenuGroup[] = [];
@@ -210,22 +248,29 @@ export class NavMenuComponent implements OnInit {
       groups.push({ categoryKey: 'nav.category.knowledge', items: knowledgeItems });
     }
 
+    const teamItems: NavMenuItem[] = [];
     if (
       this.permissionsService.has('TENANT_MEMBER_MANAGE') ||
       this.globalPermissionsService.has('STAFF_USER_VIEW')
     ) {
-      groups.push({
-        categoryKey: 'nav.category.team',
-        items: [
-          {
-            labelKey: 'nav.members',
-            testId: 'nav-members',
-            tourId: 'user-management-nav-link',
-            icon: 'users',
-            routerLink: '/members',
-          },
-        ],
+      teamItems.push({
+        labelKey: 'nav.members',
+        testId: 'nav-members',
+        tourId: 'user-management-nav-link',
+        icon: 'users',
+        routerLink: '/members',
       });
+    }
+    if (this.canSeeProfileEditRequests()) {
+      teamItems.push({
+        labelKey: 'profileEditRequests.navLabel',
+        testId: 'nav-profile-edit-requests',
+        icon: 'users',
+        routerLink: '/profile-edit-requests',
+      });
+    }
+    if (teamItems.length > 0) {
+      groups.push({ categoryKey: 'nav.category.team', items: teamItems });
     }
 
     return groups;
