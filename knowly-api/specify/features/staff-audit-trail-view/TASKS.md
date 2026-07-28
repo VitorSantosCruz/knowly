@@ -102,11 +102,20 @@ same coverage, same TDAD Red/Green discipline, existing convention.
 - [x] 13. Run `./mvnw spotless:apply` then `./mvnw verify` for the full
       suite (this feature's tests plus every pre-existing test) and fix
       any regression surfaced.
-- [ ] 14. Hand off to `qa-test-automation` and `appsec` for review of
+- [x] 14. Hand off to `qa-test-automation` and `appsec` for review of
       this feature — in particular re-confirming REQ-4's cross-tenant
       row-level exposure is being treated as documented/approved (per
       SPEC's "Tier 3 flag" section) and not silently "fixed" back to
-      tenant-scoped filtering.
+      tenant-scoped filtering. **Resolved (2026-07-28):** `qa-test-
+      automation` independently ran the full suite (exit 0) and confirmed
+      every REQ/acceptance criterion is covered by a real test, including
+      the cross-tenant (REQ-4), 500-cap, STAFF-ceiling-not-applied
+      (REQ-9), and self-audit cases — no gaps found. `appsec` re-reviewed
+      the implementation against the SPEC's confirmed REQ-4 exposure,
+      confirmed permission gating, DTO field set, the DB-enforced
+      `Top500` cap, and the self-audit `@AuditLog` call all match what
+      was approved with no new issue — verdict "ship it," no blocking
+      findings.
 - [x] 15. ~~Raise the "no index on `audit_events.actor_user_id`" flag~~
       — resolved (`data-architect-dba` review, 2026-07-28): the
       composite index `ix_audit_events_actor_time (actor_user_id,
@@ -117,6 +126,6 @@ same coverage, same TDAD Red/Green discipline, existing convention.
       PLAN.md's "Data schema" section for the corrected reasoning. No
       escalation to the product owner required — this was a research
       gap, not an open design question.
-- [ ] 16. Commit the completed, verified work (Conventional Commits),
+- [x] 16. Commit the completed, verified work (Conventional Commits),
       once — and only once — task 13's full suite is green and tasks 14's
       reviews are addressed.

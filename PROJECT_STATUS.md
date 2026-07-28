@@ -68,15 +68,13 @@ committed — see `knowly-app/specify/features/user-management-screens/`.
 `tenant-membership-acceptance`, `identity-profile-model`, and
 `global-staff-dashboard-metrics` are also now fully done (verified,
 reviewed, committed) — see their table rows below. `staff-audit-trail-view`
-(`GET /api/staff/users/{userId}/audit-trail`, backend) is implemented,
-tested, and verified (`./mvnw verify` green) but **still needs its
-`qa-test-automation`/`appsec` review pass** (TASKS.md task 14) before
-being considered fully closed out — in particular re-confirming REQ-4's
-deliberate cross-tenant, `TenantFilter`-bypassing row-level exposure is
-treated as documented/approved, not a gap. The `dashboard-analytics`
-frontend (item 6) already has an approved SPEC/PLAN/TASKS in
-`knowly-app/` and is ready for implementation whenever picked up —
-that's the next concrete action alongside the review above.
+(`GET /api/staff/users/{userId}/audit-trail`, backend) is now also fully
+done — implemented, tested, `./mvnw verify` green,
+`qa-test-automation`/`appsec` reviewed with no blocking findings
+(cross-tenant REQ-4 exposure re-confirmed as intentional/approved, not a
+gap), and committed. The `dashboard-analytics` frontend (item 6) already
+has an approved SPEC/PLAN/TASKS in `knowly-app/` and is ready for
+implementation whenever picked up — that's the next concrete action.
 
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
@@ -597,7 +595,7 @@ the feature's own SPEC.
 | `tenant-membership-acceptance` | ✅ Done | New `Notification`/`NotificationType` model (`V16` migration) plus `NotificationController`/`NotificationService`/`NotificationDto` (`/api/notifications`) for accept/decline-style tenant membership notifications, with `NotificationAlreadyResolvedException`/`NotificationNotFoundException` wired into the existing exception-handling convention. Confirmed `removeMember` needs no code change. Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings (IDOR/replay/privilege-escalation checks all confirmed clean). |
 | `identity-profile-model` | ✅ Done | Adds encrypted `cpf`/`rg` identity fields (`CpfRgEncryptionConverter`, blind-index lookup via `BlindIndexService`) plus a profile-edit-request flow (`ProfileEditRequest`/`ProfileEditRequestService`, `UserProfileController`/`UserProfileService`, `UserProfileDto`/`ProfileFieldsDto`). Confirmed non-plaintext storage at the raw column level (genuine AES-256-GCM, not reversible encoding) and `cnpj`/`inscricaoEstadual` tenant uniqueness (including both fields' independent null-coexistence cases) by integration test. Full-suite `./mvnw verify` green (339/339); `appsec`-reviewed with no blocking findings — blind-index equality-revealing tradeoff confirmed deliberate/documented, `users_aud`/key-rotation gap confirmed real but out of scope and now flagged in "Known operational/tooling notes" below. |
 | `global-staff-dashboard-metrics` | ✅ Done | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case (tightened during QA review to assert the exact millisecond boundary, not just a ±1-day margin). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
-| `staff-audit-trail-view` | ✅ Done | `GET /api/staff/users/{userId}/audit-trail` (`StaffController.auditTrail`/`StaffService.getAuditTrail`/`AuditEventDto`) returns a target user's full audit history — deliberately **cross-tenant, `TenantFilter`-bypassing by design** (`AuditEvent` isn't a `TenantAwareEntity`, so no special plumbing was needed) — capped at the 500 most recent rows via a new `AuditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc` (DB-enforced `LIMIT`, backed by the pre-existing `ix_audit_events_actor_time` composite index, no new migration). Gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`, ceiling-independent (REQ-9: viewing a `STAFF`/`STAFF_ADMIN` target's trail is unaffected by the `role-model-refinement` management ceiling). The call itself is audited (`staff.audit_trail.view`). Full-suite `./mvnw verify` green. **Still needs a `qa-test-automation`/`appsec` review pass** (TASKS.md task 14) re-confirming the intentional cross-tenant row-level exposure (REQ-4/SPEC's "Tier 3 flag") isn't later mistaken for a gap and "fixed" back to tenant-scoped filtering. |
+| `staff-audit-trail-view` | ✅ Done | `GET /api/staff/users/{userId}/audit-trail` (`StaffController.auditTrail`/`StaffService.getAuditTrail`/`AuditEventDto`) returns a target user's full audit history — deliberately **cross-tenant, `TenantFilter`-bypassing by design** (`AuditEvent` isn't a `TenantAwareEntity`, so no special plumbing was needed) — capped at the 500 most recent rows via a new `AuditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc` (DB-enforced `LIMIT`, backed by the pre-existing `ix_audit_events_actor_time` composite index, no new migration). Gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`, ceiling-independent (REQ-9: viewing a `STAFF`/`STAFF_ADMIN` target's trail is unaffected by the `role-model-refinement` management ceiling). The call itself is audited (`staff.audit_trail.view`). Full-suite `./mvnw verify` green; `qa-test-automation` independently confirmed every REQ/acceptance criterion (including the cross-tenant, 500-cap, ceiling-independence, and self-audit cases) is covered by a real passing test; `appsec` re-reviewed the implementation against the SPEC's confirmed REQ-4 exposure and found no new issue — verdict "ship it," no blocking findings. |
 
 ## Feature status — frontend (`knowly-app/`)
 
