@@ -74,13 +74,13 @@ done — implemented, tested, `./mvnw verify` green,
 (cross-tenant REQ-4 exposure re-confirmed as intentional/approved, not a
 gap), and committed. The `dashboard-analytics` frontend (item 6's
 tenant-scoped half) is now also fully implemented, tested (253/253
-frontend tests green), and committed — see its table row below. What
-item 6 still leaves open is the **staff global-view dashboard UI**
-(cross-tenant metrics, distinct staff welcome screen, member-listing →
-profile → audit-trail navigation) — `global-staff-dashboard-metrics`'s
-backend endpoint (`GET /api/staff/metrics/global`) exists and is done,
-but nothing in `knowly-app/` consumes it yet; that's the next concrete
-action for this item.
+frontend tests green), and committed — see its table row below.
+**Item 6's remaining staff global-view half is also now done**
+(`staff-global-dashboard`, frontend, 2026-07-28): global metrics on
+`/dashboard` for staff-outside-tenant, a `/welcome` quick-link, and an
+audit-trail section on the staff directory's detail panel — 271/271
+frontend tests green, committed, see its table row below and item 6's
+detail above. Item 6 is now fully closed on both sides.
 
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
@@ -187,32 +187,47 @@ The user confirmed this order for the next several features (2026-07-25):
      as any other member). Those options only reappear once the staff
      user leaves the tenant back to the tenant list. This is a strict
      either/or, not a "staff sees extra options inside a tenant too."
-6. ~~Expanded metrics dashboard~~ — **backend done, tenant-scoped
-   frontend done**, see `knowly-api/specify/features/dashboard-analytics/`
-   and `knowly-app/specify/features/dashboard-analytics/` and their rows
+6. ~~Expanded metrics dashboard~~ — **done, both sides**, see
+   `knowly-api/specify/features/dashboard-analytics/`,
+   `knowly-app/specify/features/dashboard-analytics/`, and
+   `knowly-app/specify/features/staff-global-dashboard/`, and their rows
    in the feature tables above/below. The tenant-scoped in-app dashboard
    (period filter, five metric tiles with sparklines, message-split
    donut, conversations bar chart, members breakdown, searchable
    top-articles table, CSV export) is fully implemented, tested
-   (253/253 frontend tests green), and committed. **New scope confirmed
-   by the user 2026-07-26**, not yet covered by the existing SPEC — the
-   **staff global-view half is still open**:
+   (253/253 frontend tests green), and committed. The **staff
+   global-view half is now also done** (`staff-global-dashboard`,
+   frontend, 2026-07-28): `/dashboard` (`DashboardWrapperPageComponent`)
+   now branches on `ActiveTenantService.activeTenantResolved()` the same
+   "one screen, two contexts" way `/members` already does —
+   `DashboardPageComponent` unchanged when a tenant is active, a new
+   `GlobalDashboardPageComponent` when staff has no active tenant, one
+   page-level fetch to `GET /api/staff/metrics/global` rendering 4
+   `metric-tile.component.ts` tiles (extended with an additive,
+   backward-compatible pre-fetched-`[value]`/`[disabled]` mode — see
+   `DECISIONS.md`) plus a 5th visibly-disabled "support tickets — coming
+   soon" tile, `app-no-access-state` on a page-level 403. `/welcome`
+   gains one additive quick-link card to `/dashboard` gated on new
+   `GlobalPermission.DASHBOARD_VIEW_GLOBAL` (or `STAFF_ADMIN`-shaped),
+   without adding any metrics content to `/welcome` itself.
+   `StaffUserDetailPanelComponent` gains a new, independent
+   `auditTrail`/`auditTrailError` section (own `ngOnChanges`-driven
+   `loadAuditTrail()`, same per-section-error pattern as its existing
+   permissions/access-groups sections) consuming
+   `GET /api/staff/users/{userId}/audit-trail`, gated by new
+   `GlobalPermission.AUDIT_TRAIL_VIEW`; a 403 there only affects that
+   section. Nav's `nav.dashboard` entry now also shows for
+   `DASHBOARD_VIEW_GLOBAL`, mirroring `nav.members`'s existing dual-gate
+   shape. 271/271 frontend tests green, `format:check`/`build` clean,
+   committed. **Deferred, per that SPEC's "Out of scope"**: profile
+   view/edit UI (belongs to item 13's not-yet-built frontend half),
+   audit-trail viewing from the tenant-scoped `MembersPageComponent`
+   (staff-directory-only for now), support-ticket real data (still a
+   placeholder tile — backend doesn't return it), and any
+   pagination/filtering of the audit trail beyond the backend's existing
+   500-row cap.
    - **Inside a tenant**: done — see above.
-   - **Outside any tenant (staff global view)**: a *different* set of
-     metrics scoped across all tenants — total tenant count, new
-     tenants in the last calendar month, total articles read across
-     every tenant, total support tickets across every tenant, staff
-     member count — plus a staff-specific welcome screen (distinct from
-     the tenant member's welcome screen) and a member-listing screen
-     that lets a staff user open a profile, edit it (subject to the
-     profile-editing permission rules in item 13), and view that
-     person's audit trail. The backend half of this
-     (`global-staff-dashboard-metrics`, `GET /api/staff/metrics/global`)
-     is now done (see its table row below) — what remains is the
-     **frontend** consuming it: no `knowly-app/` screen calls this
-     endpoint yet. This is the next concrete action for this item, and
-     will need its own frontend SPEC (`knowly-app/specify/features/`)
-     before implementation, per this repo's SDD process.
+   - **Outside any tenant (staff global view)**: done — see above.
    - **Tenant CRUD stays staff-only and only visible outside a
      tenant** — see item 5's "general nav rule" above; staff can
      create/list/edit/delete tenants only from the staff-side (outside
@@ -618,6 +633,7 @@ for the actual requirements and decisions.
 | `navigation-menu` | ✅ Done | Real app-shell navigation (`nav-menu.component.ts`), links filtered by `PermissionsService`/`GlobalPermissionsService`; "switch tenant" link reusing `/select-tenant`. Fixed the `staffGuard`/create-tenant-link bug above as part of the same feature. |
 | `welcome-screen` | ✅ Done | Real `/welcome` landing screen (staff-generic or tenant-branded greeting, no sensitive/permission-gated content) — replaces `/dashboard` as the post-login/tenant-selection/root-redirect target. Fixed two real bugs: login and the root route (`''`) both used to send an already-authenticated session to the wrong place (tenant list, or unconditionally `/login`). Onboarding tour trigger moved here from `dashboard`; tour target ids moved to the global nav menu. |
 | `dashboard-analytics` | ✅ Done | Period filter (`period-filter.component.ts`, native Tailwind toggle-button group post-`primeng-removal`) owned by `dashboard-page.component.ts`'s `period` signal; five reusable `metric-tile.component.ts` instances (active articles/conversations/USER messages/ASSISTANT messages/active members, each with a line sparkline via the shared `chart-canvas.component.ts` + `toSparklineData()`), superseding the old `article-count-card`/`conversations-card`/`messages-card` (all three deleted); `message-split-chart.component.ts` (USER/ASSISTANT donut, `toDonutData()`); `conversations-activity-chart.component.ts` (per-day bar chart, `toBarData()`); every chart paired with a visually-hidden `.sr-only` mirror `<table>` generated from the same tested mapping function; `members-breakdown-card.component.ts` (`GET /api/tenants/metrics/members`); `top-articles-table.component.ts` (native `<table>` + a local `computed()` filter signal, replaces `article-usage-list.component.ts`); `export-button.component.ts` (native button + CSV blob download); `metric-fetcher.ts`'s `load()` extended to accept `params`. Originally built against PrimeNG (`p-chart`/`SelectButton`/`p-table`) per the SPEC written before `primeng-removal`; every widget was subsequently migrated to the current native-Tailwind conventions (`chart-canvas.component.ts` + its `CHART_CTOR` injection token, native `<table>`/toggle group) as part of `primeng-removal`'s cleanup — `chart.js@^4.5.1` (user-confirmed Tier 3 dependency, `DECISIONS.md`) stays a direct dependency of `chart-canvas.component.ts`, not PrimeNG's `Chart` wrapper. 253/253 frontend tests green, `format:check`/`build` clean (production bundle 577KB raw / ~138KB estimated transfer — well under budget, no PrimeNG chrome anymore). |
+| `staff-global-dashboard` | ✅ Done | Closes item 6's remaining staff global-view half. `DashboardWrapperPageComponent` (mounted at `/dashboard`, replacing the direct `DashboardPageComponent` route mapping) branches on `ActiveTenantService.activeTenantResolved()`, same "one screen, two contexts" shape as `UserManagementPageComponent`: `DashboardPageComponent` unchanged when a tenant is active, a new `GlobalDashboardPageComponent` when staff has no active tenant. `GlobalDashboardPageComponent` makes one page-level fetch to `GET /api/staff/metrics/global`, rendering 4 `metric-tile.component.ts` tiles (total tenants, new tenants this month, total articles read, staff count) plus a 5th visibly-disabled "support tickets — coming soon" tile, `app-no-access-state` on a page-level 403 (not per-tile). `metric-tile.component.ts` gained an additive, backward-compatible pre-fetched-`[value]`/`[loading]`/`[disabled]` mode (`url`/`valueSelector`/`period` now optional, self-fetch `effect()` gated on `url()` being defined) — every existing self-fetching tenant tile stays byte-for-byte unchanged; see `DECISIONS.md`. `/welcome` gains one additive quick-link card to `/dashboard`, gated on new `GlobalPermission.DASHBOARD_VIEW_GLOBAL` (or `STAFF_ADMIN`-shaped, via a page-local `viewerIsStaffAdmin` computed matching `StaffDirectoryPageComponent`'s existing pattern) — no other content added to `/welcome` itself. `StaffUserDetailPanelComponent` gains a 4th, independent `<section data-testid="staff-audit-trail">` (own `auditTrail`/`auditTrailError` signals, own `loadAuditTrail()` wired into the existing `ngOnChanges`), consuming `GET /api/staff/users/{userId}/audit-trail` (new `AuditEvent` type + `getAuditTrail()` on `StaffUserService`), gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`; a 403 there only shows `app-no-access-state` in that section, permissions/access-groups sections keep rendering. `nav-menu.component.ts`'s `nav.dashboard` entry now also shows for `DASHBOARD_VIEW_GLOBAL`, mirroring `nav.members`'s existing `TENANT_MEMBER_MANAGE`-OR-`STAFF_USER_VIEW` dual-gate shape. 271/271 frontend tests green, `format:check`/`build` clean, 8 atomic commits. |
 | `primeng-migration` | ⛔ Superseded by `primeng-removal` | Was: full replacement of hand-rolled Tailwind components with PrimeNG + PrimeIcons (2026-07-25). Reverted one day later — see `primeng-removal` below and `DECISIONS.md`'s two consecutive dated entries. Row kept only as history; do not treat any detail below as current. Setup phase: `primeng@22.0.0`/`@primeuix/themes@3.0.0`/`primeicons@8.0.0`/`@angular/cdk@22.0.0` added; `core/prime-theme.ts` preset maps `ink-*`/`signal-*` onto PrimeNG's tokens for light/dark; `providePrimeNG()` wired in `app.config.ts` with `darkModeSelector: '.dark'`. 2026-07-25 chrome/menu pass (items 1-3): `nav-menu.component.ts` rebuilt with per-category inline `p-menu`s (custom `#submenuheader`/`#item` templates keep every `data-testid`/`data-tour-id`/permission gate), PrimeIcons replace its inline SVGs; `app-shell.component.ts`'s `<aside>`/`<header>` get a static `class="dark"` so PrimeNG components in the permanently-dark chrome always render dark tokens regardless of `ThemeService`'s toggle; `logout-button`/`language-switcher`/`help-menu` migrated to `[pButton]`/`p-menu`. 2026-07-25 final pass (items 4-7, all feature screens): `error-state` → `p-message`; `welcome-page`'s quick-link cards → `p-card`; `login-page`'s inputs/buttons → `pInputText`/`pPassword`/`pButton` directives on the same native elements (no DOM restructuring, so all `querySelector('input[...]')`-based specs kept passing unchanged); `articles-page`'s upload/detail panels → `p-card`, text inputs → `pInputText`/`pTextarea`, buttons → `pButton` (article-list rows left as native markup — two independent actions per row, not a clean `Listbox` fit); `conversations-page`'s conversation list → `p-listbox` with a custom `#item` template (chat bubbles and the new-conversation/send buttons use `pButton`/`pInputText`; bubbles themselves stay bespoke `<div>`s, no PrimeNG fit); `members-page`'s member list → `p-table`; `select-tenant-page`'s tenant list → `p-listbox`, create-tenant link → `pButton`; `tenant-create-page`'s form → `pInputText`/`pButton`. `no-access-state` (single `<p>`) and login's tab UI stayed hand-rolled — no real PrimeNG component fit either. `angular.json`'s budget raised 800kB→900kB warning, 1MB→1.4MB error (bundle reached 1.27MB after the full migration; still not lazy-route-split — flagged as a follow-up, not solved here). |
 | `primeng-removal` | ✅ Done | Reverts `primeng-migration` (see `DECISIONS.md`) — PrimeNG, `@primeuix/themes`, `primeicons`, `@angular/cdk` fully removed; back to pure Tailwind + hand-rolled Angular standalone components. Icons: `@lucide/angular` (not the deprecated `lucide-angular`, which has no Angular 22-compatible peer range) — each icon is its own standalone component with an attribute selector (e.g. `LucideSun` → `<svg lucideSun>`), imported directly per-component, no central provider wiring. New shared `button-classes.ts` (severity/variant class helper) and `chart-canvas.component.ts` (direct Chart.js wrapper, replacing PrimeNG's `p-chart`/`UIChart` — uses a `CHART_CTOR` injection token so specs can mock Chart.js deterministically despite Angular's bundled-spec test runner sharing module instances). All 20 former PrimeNG consumers migrated to native HTML + Tailwind (menus → `<ul role="menu">`, tables → native `<table>` + local `computed()` filter signal, listbox → `<ul role="listbox">`, forms/buttons → native elements + `button-classes.ts`). 26 atomic tasks, one commit each — see `knowly-app/specify/features/primeng-removal/PLAN.md`/`TASKS.md` (including a "Deviations" section for the two implementation-detail corrections above). 221/221 tests, `format:check`, `build` all green. |
 
