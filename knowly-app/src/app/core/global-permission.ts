@@ -8,7 +8,8 @@ export type GlobalPermission =
   | 'STAFF_USER_CREATE'
   | 'STAFF_USER_VIEW'
   | 'DASHBOARD_VIEW_GLOBAL'
-  | 'AUDIT_TRAIL_VIEW';
+  | 'AUDIT_TRAIL_VIEW'
+  | 'PROFILE_EDIT';
 
 export const ALL_GLOBAL_PERMISSIONS: GlobalPermission[] = [
   'TENANT_CREATE',
@@ -21,4 +22,5 @@ export const ALL_GLOBAL_PERMISSIONS: GlobalPermission[] = [
   'STAFF_USER_VIEW',
   'DASHBOARD_VIEW_GLOBAL',
   'AUDIT_TRAIL_VIEW',
+  'PROFILE_EDIT',
 ];

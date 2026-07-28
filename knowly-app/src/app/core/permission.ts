@@ -5,7 +5,8 @@ export type Permission =
   | 'ARTICLE_EDIT'
   | 'ARTICLE_DELETE'
   | 'CONVERSATION_USE'
-  | 'DASHBOARD_VIEW';
+  | 'DASHBOARD_VIEW'
+  | 'PROFILE_EDIT';
 
 export const ALL_PERMISSIONS: Permission[] = [
   'TENANT_MEMBER_MANAGE',
@@ -15,4 +16,5 @@ export const ALL_PERMISSIONS: Permission[] = [
   'ARTICLE_DELETE',
   'CONVERSATION_USE',
   'DASHBOARD_VIEW',
+  'PROFILE_EDIT',
 ];
