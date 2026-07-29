@@ -110,6 +110,29 @@ approve/reject, view-only profile sections) but both are real gaps
 worth a small follow-up backend SPEC. 336/336 frontend tests green,
 `format:check`/`build` clean.
 
+**`member-admin-tenant-bypass` is now fully done (backend, 2026-07-29,
+appsec-approved-with-notes at PLAN stage).** Closes the long-standing
+asymmetry where `MembershipRole.MEMBER_ADMIN` had no equivalent of
+`STAFF_ADMIN`'s unconditional `PermissionAspect` bypass: a `MEMBER_ADMIN`
+with an active membership in `TenantContext`'s active tenant now
+bypasses `@RequiresPermission` checks, scoped strictly to that tenant
+via the existing `requireActiveMembership()` lookup (no new DB round
+trip, no client-supplied tenant id — REQ-1/2/3/6). A new
+`TenantService.requireNotSelfTarget` guard (REQ-4) blocks any caller —
+not just `MEMBER_ADMIN` — from targeting their own account via
+`addMember`/`grantPermission`/`revokePermission`/`assignAccessGroup`/
+`unassignAccessGroup`; denial is recorded as a `DENIED` audit event for
+free via the existing `AuditLogAspect`/`@AuditLog` wiring (REQ-5, zero
+new audit code). PLAN-time correction of the SPEC's factual premise:
+`requireAdminOfTenantOrStaff` already had a `MEMBER_ADMIN` bypass branch
+(REQ-1b) before this feature — only `PermissionAspect`'s bypass and the
+self-escalation guard were actually missing. `TenantService.removeMember`
+is deliberately *not* covered by the new self-target guard — appsec
+flagged this as a known follow-up, out of this feature's TASKS.md scope,
+not yet filed as its own SPEC. Full-suite `./mvnw verify` green
+(416/416, spotless-check clean). See
+`knowly-api/specify/features/member-admin-tenant-bypass/`.
+
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
 `primeng-removal` (2026-07-26) — the owner reverted the PrimeNG
@@ -607,6 +630,7 @@ the feature's own SPEC.
 | `global-staff-dashboard-metrics` | ✅ Done | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case (tightened during QA review to assert the exact millisecond boundary, not just a ±1-day margin). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
 | `tenant-pagination-search` | ✅ Done (backend) | `GET /api/tenants` breaking-changed from an unbounded `List<TenantSummaryDto>` to a paginated `PageResponseDto<TenantSummaryDto>` envelope (`content`/`page`/`size`/`totalElements`/`totalPages`). New `page`/`size` query params (defaults `0`/`20`, `size` clamped to `100`, negative `page` or `size<=0` rejected with `400 INVALID_PAGINATION` via new `InvalidPaginationException`), plus an optional `search` param matching `Tenant.name`/`cnpj`/`razaoSocial` case-insensitively (OR'd) via a new DB-level `TenantRepository.search(String, Pageable)` `@Query`, sorted server-side by `name` ascending only (no client-supplied sort). Authorization unchanged (`requireStaff`/`GlobalPermission.TENANT_ACT_AS_ANY`). This is the first page/size pagination contract in this codebase — see `DECISIONS.md` for the `@Query`-over-`Specification`/fixed-sort/`PageResponseDto`-placement judgment calls, intended as the default template for future paginated endpoints. Full-suite `./mvnw verify` green (377/377, ~21 min real elapsed — the ~12 min figure previously in this file was stale). Companion frontend SPEC for `/select-tenant`'s consumption of the new envelope shape is not yet started — backend half only. |
 | `staff-audit-trail-view` | ✅ Done | `GET /api/staff/users/{userId}/audit-trail` (`StaffController.auditTrail`/`StaffService.getAuditTrail`/`AuditEventDto`) returns a target user's full audit history — deliberately **cross-tenant, `TenantFilter`-bypassing by design** (`AuditEvent` isn't a `TenantAwareEntity`, so no special plumbing was needed) — capped at the 500 most recent rows via a new `AuditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc` (DB-enforced `LIMIT`, backed by the pre-existing `ix_audit_events_actor_time` composite index, no new migration). Gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`, ceiling-independent (REQ-9: viewing a `STAFF`/`STAFF_ADMIN` target's trail is unaffected by the `role-model-refinement` management ceiling). The call itself is audited (`staff.audit_trail.view`). Full-suite `./mvnw verify` green; `qa-test-automation` independently confirmed every REQ/acceptance criterion (including the cross-tenant, 500-cap, ceiling-independence, and self-audit cases) is covered by a real passing test; `appsec` re-reviewed the implementation against the SPEC's confirmed REQ-4 exposure and found no new issue — verdict "ship it," no blocking findings. |
+| `member-admin-tenant-bypass` | ✅ Done | `MembershipRole.MEMBER_ADMIN` now gets an unconditional `PermissionAspect.checkPermission` bypass in their own active tenant (mirrors `STAFF_ADMIN`'s global bypass), scoped via the existing `requireActiveMembership()` lookup — no new DB round trip, no client-supplied tenant id. New `TenantService.requireNotSelfTarget` guard blocks any caller (role-agnostic) from targeting their own account via `addMember`/`grantPermission`/`revokePermission`/`assignAccessGroup`/`unassignAccessGroup`; denial is a `DENIED` audit event via the pre-existing `AuditLogAspect`, no new audit code. `TenantService.removeMember` is a known, deliberately out-of-scope follow-up (not covered by the self-target guard). Full-suite `./mvnw verify` green (416/416). |
 
 ## Feature status — frontend (`knowly-app/`)
 
