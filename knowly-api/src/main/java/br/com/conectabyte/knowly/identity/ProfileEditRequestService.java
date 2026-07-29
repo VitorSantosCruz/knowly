@@ -84,6 +84,25 @@ public class ProfileEditRequestService {
         return profileEditRequestContactRepository.findByProfileEditRequest(request);
     }
 
+    /**
+     * The proposed field values persisted on {@code request}, including its structured proposed
+     * address -- shared by {@link #approveEditRequest} and both controllers' {@code toDto} so the
+     * address is never silently dropped from an API response (a previous response-mapping gap).
+     * {@code contacts} is deliberately left {@code null} here: the proposed contact add/update/
+     * remove set is represented separately by {@link #proposedContactChangesOf}/{@code
+     * ProfileEditRequestDto#proposedContactChanges}, not as a flattened {@code ContactDto} list.
+     */
+    public ProfileFieldsDto proposedFieldsOf(ProfileEditRequest request) {
+        return new ProfileFieldsDto(
+                request.getProposedFullName(),
+                request.getProposedCpf(),
+                request.getProposedRg(),
+                request.getProposedRgOrgaoEmissor(),
+                request.getProposedBirthDate(),
+                proposedAddressOf(request),
+                null);
+    }
+
     /** REQ-14/16/20: create a pending request and notify every applicable edit-right holder. */
     @AuditLog(action = "identity.profile.edit_request.submit", resourceType = "ProfileEditRequest")
     public ProfileEditRequest submitEditRequest(User requester, ProfileEditRequestFieldsDto body) {
@@ -150,15 +169,7 @@ public class ProfileEditRequestService {
     public ProfileEditRequest approveEditRequest(User caller, Long requestId) {
         ProfileEditRequest request = requirePendingRequest(caller, requestId);
 
-        ProfileFieldsDto proposed =
-                new ProfileFieldsDto(
-                        request.getProposedFullName(),
-                        request.getProposedCpf(),
-                        request.getProposedRg(),
-                        request.getProposedRgOrgaoEmissor(),
-                        request.getProposedBirthDate(),
-                        proposedAddressOf(request),
-                        null);
+        ProfileFieldsDto proposed = proposedFieldsOf(request);
 
         List<ContactChangeDto> contactChanges =
                 profileEditRequestContactRepository.findByProfileEditRequest(request).stream()

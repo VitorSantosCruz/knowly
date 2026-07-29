@@ -164,13 +164,31 @@ public class UserProfileService {
             resourceType = "User",
             resourceIdExpression = "#targetUserId")
     public UserProfileDto directEdit(User caller, Long targetUserId, ProfileFieldsDto fields) {
+        return directEdit(caller, targetUserId, fields, List.of());
+    }
+
+    /**
+     * Same as {@link #directEdit(User, Long, ProfileFieldsDto)}, additionally applying any contact
+     * add/update/remove the caller submitted -- a direct-edit caller (e.g. {@code
+     * MEMBER_ADMIN}/{@code STAFF_ADMIN}) can change the target's contacts in the same call, the
+     * same way {@code ProfileEditRequestService}'s approve path already does.
+     */
+    @AuditLog(
+            action = "identity.profile.edit",
+            resourceType = "User",
+            resourceIdExpression = "#targetUserId")
+    public UserProfileDto directEdit(
+            User caller,
+            Long targetUserId,
+            ProfileFieldsDto fields,
+            List<ContactChangeDto> contactChanges) {
         User target = requireUser(targetUserId);
 
         if (!hasDirectEditRight(caller, target)) {
             throw new PermissionDeniedException();
         }
 
-        applyFields(target, fields, List.of());
+        applyFields(target, fields, contactChanges);
 
         return toDto(target);
     }

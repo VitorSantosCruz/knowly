@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrant;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrantRepository;
@@ -20,6 +21,7 @@ import br.com.conectabyte.knowly.tenancy.TenantMembership;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -201,6 +203,29 @@ class UserProfileServiceTest {
 
         assertThatThrownBy(() -> userProfileService.directEdit(caller, other.getId(), FIELDS))
                 .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void directEditAlsoAppliesContactChangesForTheTarget() {
+        User staffAdmin = user("staff-admin-edit-contacts@example.com");
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        User other = user("staff-admin-edit-contacts-other@example.com");
+        List<ContactChangeDto> contactChanges =
+                List.of(
+                        new ContactChangeDto(
+                                ContactChangeAction.ADD,
+                                null,
+                                ContactType.PHONE,
+                                "+5511988887777",
+                                "Mobile",
+                                true));
+
+        var result =
+                userProfileService.directEdit(staffAdmin, other.getId(), FIELDS, contactChanges);
+
+        assertThat(result.fields().contacts()).hasSize(1);
+        assertThat(result.fields().contacts().get(0).value()).isEqualTo("+5511988887777");
     }
 
     // ---- avatar (REQ-10): always self-editable, no approval, no permission check ----

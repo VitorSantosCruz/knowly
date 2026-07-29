@@ -4,7 +4,6 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestDto;
-import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -72,14 +71,7 @@ public class ProfileEditRequestController {
         return new ProfileEditRequestDto(
                 request.getId(),
                 request.getRequester().getId(),
-                new ProfileFieldsDto(
-                        request.getProposedFullName(),
-                        request.getProposedCpf(),
-                        request.getProposedRg(),
-                        request.getProposedRgOrgaoEmissor(),
-                        request.getProposedBirthDate(),
-                        null,
-                        null),
+                profileEditRequestService.proposedFieldsOf(request),
                 contactChanges,
                 request.getStatus(),
                 request.getCreatedAt());

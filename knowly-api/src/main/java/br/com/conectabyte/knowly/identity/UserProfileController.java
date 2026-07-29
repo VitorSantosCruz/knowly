@@ -5,7 +5,6 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestFieldsDto;
-import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -54,8 +53,10 @@ public class UserProfileController {
 
     @PutMapping("/{id}/profile")
     public ResponseEntity<UserProfileDto> directEdit(
-            @PathVariable Long id, @RequestBody ProfileFieldsDto fields) {
-        return ResponseEntity.ok(userProfileService.directEdit(currentUser(), id, fields));
+            @PathVariable Long id, @RequestBody ProfileEditRequestFieldsDto body) {
+        return ResponseEntity.ok(
+                userProfileService.directEdit(
+                        currentUser(), id, body.fields(), body.contactChanges()));
     }
 
     @PostMapping("/me/profile/avatar")
@@ -90,14 +91,7 @@ public class UserProfileController {
         return new ProfileEditRequestDto(
                 request.getId(),
                 request.getRequester().getId(),
-                new ProfileFieldsDto(
-                        request.getProposedFullName(),
-                        request.getProposedCpf(),
-                        request.getProposedRg(),
-                        request.getProposedRgOrgaoEmissor(),
-                        request.getProposedBirthDate(),
-                        null,
-                        null),
+                profileEditRequestService.proposedFieldsOf(request),
                 contactChanges,
                 request.getStatus(),
                 request.getCreatedAt());

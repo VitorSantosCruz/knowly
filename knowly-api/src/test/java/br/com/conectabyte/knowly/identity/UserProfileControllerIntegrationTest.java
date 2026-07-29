@@ -52,6 +52,9 @@ class UserProfileControllerIntegrationTest {
             "{\"fullName\":\"%s\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,"
                     + "\"birthDate\":null,\"address\":null,\"contacts\":null}";
 
+    private static final String DIRECT_EDIT_BODY =
+            "{\"fields\":" + FIELDS_JSON + ",\"contactChanges\":[]}";
+
     private Cookie logIn(String email) {
         when(mailSender.createMimeMessage())
                 .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
@@ -108,7 +111,7 @@ class UserProfileControllerIntegrationTest {
                         .uri("/api/users/" + target.getId() + "/profile")
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(FIELDS_JSON.formatted("Edited Name"))
+                        .content(DIRECT_EDIT_BODY.formatted("Edited Name"))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -119,10 +122,39 @@ class UserProfileControllerIntegrationTest {
                         .uri("/api/users/" + staffAdmin.getId() + "/profile")
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(FIELDS_JSON.formatted("Self Edit Attempt"))
+                        .content(DIRECT_EDIT_BODY.formatted("Self Edit Attempt"))
                         .exchange();
 
         assertThat(selfEditResponse).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void aDirectEditCanAlsoApplyContactChanges() throws Exception {
+        User staffAdmin =
+                userRepository.saveAndFlush(
+                        new User("controller-edit-contacts-staffadmin@example.com"));
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        User target =
+                userRepository.saveAndFlush(
+                        new User("controller-edit-contacts-target@example.com"));
+        Cookie session = logIn("controller-edit-contacts-staffadmin@example.com");
+
+        var response =
+                mockMvc.put()
+                        .uri("/api/users/" + target.getId() + "/profile")
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"fields\":"
+                                        + FIELDS_JSON.formatted("Contact Edited Name")
+                                        + ",\"contactChanges\":[{\"action\":\"ADD\",\"contactId\":null,"
+                                        + "\"type\":\"PHONE\",\"value\":\"+5511999999999\","
+                                        + "\"label\":\"Mobile\",\"isPrimary\":true}]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("+5511999999999");
     }
 
     @Test
@@ -138,7 +170,7 @@ class UserProfileControllerIntegrationTest {
                         .uri("/api/users/" + holder.getId() + "/profile")
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(FIELDS_JSON.formatted("Self Edit"))
+                        .content(DIRECT_EDIT_BODY.formatted("Self Edit"))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -164,6 +196,30 @@ class UserProfileControllerIntegrationTest {
         assertThat(response.getResponse().getContentAsString())
                 .contains("Requested Name")
                 .contains("PENDING");
+    }
+
+    @Test
+    void submittingASelfEditRequestWithAnAddressReturnsItInTheResponse() throws Exception {
+        userRepository.saveAndFlush(new User("controller-submit-address@example.com"));
+        Cookie session = logIn("controller-submit-address@example.com");
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/users/me/profile/edit-requests")
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"fields\":{\"fullName\":\"Address Requester\",\"cpf\":null,"
+                                        + "\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,"
+                                        + "\"address\":{\"cep\":\"01310-000\",\"logradouro\":\"Av"
+                                        + " Paulista\",\"numero\":\"1000\",\"complemento\":null,"
+                                        + "\"bairro\":\"Bela Vista\",\"cidade\":\"São"
+                                        + " Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                                        + "\"contacts\":null},\"contactChanges\":[]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CREATED);
+        assertThat(response.getResponse().getContentAsString()).contains("Av Paulista");
     }
 
     @Test

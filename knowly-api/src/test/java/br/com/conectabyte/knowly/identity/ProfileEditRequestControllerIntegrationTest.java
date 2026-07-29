@@ -89,6 +89,39 @@ class ProfileEditRequestControllerIntegrationTest {
     }
 
     @Test
+    void listingReturnsTheProposedAddressForAPendingRequest() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Address Co"));
+        User requester =
+                userRepository.saveAndFlush(new User("list-address-requester@example.com"));
+        User admin = userRepository.saveAndFlush(new User("list-address-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(requester, tenant, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        Cookie requesterSession = logIn("list-address-requester@example.com");
+        mockMvc.post()
+                .uri("/api/users/me/profile/edit-requests")
+                .cookie(requesterSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        "{\"fields\":{\"fullName\":\"Address Listed\",\"cpf\":null,\"rg\":null,"
+                                + "\"rgOrgaoEmissor\":null,\"birthDate\":null,"
+                                + "\"address\":{\"cep\":\"01310-000\",\"logradouro\":\"Av"
+                                + " Paulista\",\"numero\":\"1000\",\"complemento\":null,"
+                                + "\"bairro\":\"Bela Vista\",\"cidade\":\"São"
+                                + " Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                                + "\"contacts\":null},\"contactChanges\":[]}")
+                .exchange();
+
+        Cookie adminSession = logIn("list-address-admin@example.com");
+        var response =
+                mockMvc.get().uri("/api/profile-edit-requests").cookie(adminSession).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("Av Paulista");
+    }
+
+    @Test
     void approvingAPendingRequestSucceeds() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Approve Controller Co"));
         User requester =
