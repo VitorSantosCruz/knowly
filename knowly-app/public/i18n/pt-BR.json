@@ -178,11 +178,31 @@
     "email": "E-mail",
     "fields": {
       "fullName": "Nome completo",
-      "address": "Endereço",
       "rg": "RG",
       "cpf": "CPF",
-      "phone": "Telefone",
-      "save": "Salvar"
+      "rgOrgaoEmissor": "Orgao emissor do RG",
+      "birthDate": "Data de nascimento",
+      "save": "Salvar",
+      "address": {
+        "title": "Endereco",
+        "cep": "CEP",
+        "logradouro": "Logradouro",
+        "numero": "Numero",
+        "complemento": "Complemento",
+        "bairro": "Bairro",
+        "cidade": "Cidade",
+        "estado": "Estado",
+        "pais": "Pais"
+      },
+      "contacts": {
+        "title": "Contatos",
+        "value": "Valor",
+        "label": "Rotulo",
+        "primary": "Principal",
+        "remove": "Remover",
+        "add": "Adicionar contato",
+        "limitReached": "Voce pode adicionar ate 5 contatos."
+      }
     },
     "pending": "Sua alteração de perfil está aguardando aprovação.",
     "alreadyPending": "Já existe uma solicitação de alteração de perfil pendente.",
@@ -191,6 +211,11 @@
       "title": "Perfil",
       "edit": "Editar",
       "cancel": "Cancelar"
+    },
+    "avatar": {
+      "title": "Avatar",
+      "change": "Alterar avatar",
+      "error": "Nao foi possivel atualizar seu avatar. Tente outra imagem."
     }
   },
   "profileEditRequests": {

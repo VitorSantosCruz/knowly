@@ -178,11 +178,31 @@
     "email": "Email",
     "fields": {
       "fullName": "Full name",
-      "address": "Address",
       "rg": "RG",
       "cpf": "CPF",
-      "phone": "Phone",
-      "save": "Save"
+      "rgOrgaoEmissor": "RG issuing body",
+      "birthDate": "Birth date",
+      "save": "Save",
+      "address": {
+        "title": "Address",
+        "cep": "CEP",
+        "logradouro": "Street",
+        "numero": "Number",
+        "complemento": "Complement",
+        "bairro": "Neighborhood",
+        "cidade": "City",
+        "estado": "State",
+        "pais": "Country"
+      },
+      "contacts": {
+        "title": "Contacts",
+        "value": "Value",
+        "label": "Label",
+        "primary": "Primary",
+        "remove": "Remove",
+        "add": "Add contact",
+        "limitReached": "You can add up to 5 contacts."
+      }
     },
     "pending": "Your profile change is pending approval.",
     "alreadyPending": "A profile change request is already pending approval.",
@@ -191,6 +211,11 @@
       "title": "Profile",
       "edit": "Edit",
       "cancel": "Cancel"
+    },
+    "avatar": {
+      "title": "Avatar",
+      "change": "Change avatar",
+      "error": "Could not update your avatar. Please try a different image."
     }
   },
   "profileEditRequests": {
