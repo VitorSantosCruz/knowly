@@ -107,6 +107,52 @@ class PermissionAspectTest {
     }
 
     @Test
+    void memberAdminBypassesTheCheckInTheirActiveTenantWithZeroExplicitGrants() {
+        User user = userRepository.saveAndFlush(new User("member-admin@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Acme"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER_ADMIN));
+
+        authenticateAs("member-admin@example.com");
+        tenantContext.setActiveTenantId(tenant.getId());
+
+        assertThat(protectedService.doProtectedThing()).isEqualTo("done");
+    }
+
+    @Test
+    void memberAdminBypassDoesNotApplyToADifferentActiveTenantWhereTheyAreNotAdmin() {
+        User user = userRepository.saveAndFlush(new User("member-admin-other@example.com"));
+        Tenant adminTenant = tenantRepository.saveAndFlush(new Tenant("Acme"));
+        Tenant otherTenant = tenantRepository.saveAndFlush(new Tenant("Other Co"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, adminTenant, MembershipRole.MEMBER_ADMIN));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, otherTenant, MembershipRole.MEMBER));
+
+        authenticateAs("member-admin-other@example.com");
+        tenantContext.setActiveTenantId(otherTenant.getId());
+
+        assertThatThrownBy(protectedService::doProtectedThing)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void inactiveMemberAdminMembershipDoesNotGrantTheBypass() {
+        User user = userRepository.saveAndFlush(new User("inactive-member-admin@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Acme"));
+        TenantMembership membership =
+                new TenantMembership(user, tenant, MembershipRole.MEMBER_ADMIN);
+        membership.setActive(false);
+        tenantMembershipRepository.saveAndFlush(membership);
+
+        authenticateAs("inactive-member-admin@example.com");
+        tenantContext.setActiveTenantId(tenant.getId());
+
+        assertThatThrownBy(protectedService::doProtectedThing)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
     void staffBypassesTheCheckRegardlessOfTenantContext() {
         User staff = userRepository.saveAndFlush(new User("staff@example.com"));
         staff.setGlobalRole(GlobalRole.STAFF_ADMIN);

@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.audit;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.MembershipRole;
 import br.com.conectabyte.knowly.tenancy.PermissionService;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
@@ -47,6 +48,10 @@ public class PermissionAspect {
                         .getAnnotation(RequiresPermission.class);
 
         TenantMembership membership = requireActiveMembership();
+
+        if (membership.getRole() == MembershipRole.MEMBER_ADMIN) {
+            return joinPoint.proceed();
+        }
 
         if (!permissionService.hasPermission(membership, requiresPermission.value())) {
             throw new PermissionDeniedException();
