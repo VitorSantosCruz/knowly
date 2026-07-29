@@ -1,16 +1,36 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
-import { ActiveTenantService } from '../../core/active-tenant.service';
-import { ALL_GLOBAL_PERMISSIONS } from '../../core/global-permission';
-import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { ProfileFields, ProfileService, UserProfile } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
-import { ProfileFieldsFormComponent } from '../../shared/profile-fields-form.component';
+import { AvatarUploadComponent } from '../../shared/avatar-upload.component';
+import {
+  ProfileFieldsFormComponent,
+  ProfileFieldsFormSubmission,
+} from '../../shared/profile-fields-form.component';
+
+const EMPTY_FIELDS: ProfileFields = {
+  fullName: '',
+  cpf: '',
+  rg: '',
+  rgOrgaoEmissor: '',
+  birthDate: '',
+  address: {
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    pais: '',
+  },
+  contacts: [],
+};
 
 @Component({
   selector: 'app-own-profile-page',
-  imports: [TranslocoPipe, ErrorStateComponent, ProfileFieldsFormComponent],
+  imports: [TranslocoPipe, ErrorStateComponent, ProfileFieldsFormComponent, AvatarUploadComponent],
   template: `
     <div data-testid="own-profile-page" class="page-shell">
       @if (error() === 'network') {
@@ -26,6 +46,21 @@ import { ProfileFieldsFormComponent } from '../../shared/profile-fields-form.com
           <p data-testid="profile-email" class="mb-4 text-sm text-ink-600 dark:text-ink-400">
             {{ 'profile.email' | transloco }}: {{ profile.email }}
           </p>
+
+          <app-avatar-upload
+            class="mb-4 block"
+            [avatarUrl]="profile.avatarUrl"
+            (fileSelected)="onAvatarSelected($event)"
+          />
+
+          @if (avatarError(); as messageKey) {
+            <p
+              data-testid="profile-avatar-error"
+              class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400"
+            >
+              {{ messageKey | transloco }}
+            </p>
+          }
 
           @if (pending()) {
             <p
@@ -57,40 +92,17 @@ import { ProfileFieldsFormComponent } from '../../shared/profile-fields-form.com
 })
 export class OwnProfilePageComponent implements OnInit {
   private readonly profileService = inject(ProfileService);
-  private readonly globalPermissionsService = inject(GlobalPermissionsService);
-  private readonly activeTenantService = inject(ActiveTenantService);
 
   protected readonly profile = signal<UserProfile | null>(null);
-  protected readonly formFields = signal<ProfileFields>({
-    fullName: '',
-    address: '',
-    rg: '',
-    cpf: '',
-    phone: '',
-  });
+  protected readonly formFields = signal<ProfileFields>(EMPTY_FIELDS);
   protected readonly error = signal<'network' | null>(null);
   protected readonly pending = signal(false);
   protected readonly pendingReason = signal<'submitted' | 'conflict'>('submitted');
   protected readonly conflictError = signal<string[] | null>(null);
+  protected readonly avatarError = signal<string | null>(null);
 
   protected readonly pendingMessage = computed(() =>
     this.pendingReason() === 'conflict' ? 'profile.alreadyPending' : 'profile.pending',
-  );
-
-  // Third occurrence of this page-local computed, precedented by staff-global-dashboard's PLAN
-  // (StaffDirectoryPageComponent/WelcomePageComponent) — not extracted, same accepted tradeoff.
-  private readonly viewerIsStaffAdmin = computed(() =>
-    ALL_GLOBAL_PERMISSIONS.every((permission) => this.globalPermissionsService.has(permission)),
-  );
-
-  private readonly memberships = signal<{ role: 'ADMIN' | 'MEMBER' }[]>([]);
-
-  // REQ-11/REQ-12 only — tenant/global PROFILE_EDIT holders are deliberately excluded per
-  // REQ-13a/14a (that grant never covers self).
-  protected readonly hasDirectEditRight = computed(
-    () =>
-      this.viewerIsStaffAdmin() ||
-      this.memberships().some((membership) => membership.role === 'ADMIN'),
   );
 
   ngOnInit(): void {
@@ -105,17 +117,15 @@ export class OwnProfilePageComponent implements OnInit {
       .subscribe((profile) => {
         if (profile !== null) {
           this.profile.set(profile);
-          this.formFields.set(profile);
+          this.formFields.set(profile.fields);
         }
       });
-
-    this.globalPermissionsService.fetch();
-    this.activeTenantService.list().subscribe((memberships) => {
-      this.memberships.set(memberships);
-    });
   }
 
-  protected onSubmit(fields: ProfileFields): void {
+  // REQ-2: always the pending-request path, for every session — no direct-edit branch remains
+  // for a caller's own non-avatar fields, for anyone (this replaces `user-profile`'s old
+  // `hasDirectEditRight`/admin-shortcut logic entirely).
+  protected onSubmit({ fields, contactChanges }: ProfileFieldsFormSubmission): void {
     if (this.pending()) {
       return;
     }
@@ -123,35 +133,8 @@ export class OwnProfilePageComponent implements OnInit {
     this.formFields.set(fields);
     this.conflictError.set(null);
 
-    if (this.hasDirectEditRight()) {
-      const userId = this.profile()?.userId;
-      if (userId === undefined) {
-        return;
-      }
-
-      this.profileService
-        .directEdit(userId, fields)
-        .pipe(
-          catchError((err) => {
-            if (err.status === 409) {
-              this.conflictError.set(err.error?.conflictingFields ?? []);
-            } else {
-              this.error.set('network');
-            }
-            return of(null);
-          }),
-        )
-        .subscribe((updated) => {
-          if (updated !== null) {
-            this.profile.set(updated);
-            this.formFields.set(updated);
-          }
-        });
-      return;
-    }
-
     this.profileService
-      .submitEditRequest(fields)
+      .submitEditRequest(fields, contactChanges)
       .pipe(
         catchError((err) => {
           if (err.status === 409) {
@@ -167,6 +150,26 @@ export class OwnProfilePageComponent implements OnInit {
         if (request !== null) {
           this.pendingReason.set('submitted');
           this.pending.set(true);
+        }
+      });
+  }
+
+  // REQ-8/9: self-only, direct, unconditional avatar upload — independent of the non-avatar
+  // form's pending state.
+  protected onAvatarSelected(file: File): void {
+    this.avatarError.set(null);
+
+    this.profileService
+      .uploadAvatar(file)
+      .pipe(
+        catchError(() => {
+          this.avatarError.set('profile.avatar.error');
+          return of(null);
+        }),
+      )
+      .subscribe((updated) => {
+        if (updated !== null) {
+          this.profile.set(updated);
         }
       });
   }
