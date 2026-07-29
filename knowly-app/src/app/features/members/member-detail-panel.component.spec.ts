@@ -30,13 +30,18 @@ describe('MemberDetailPanelComponent', () => {
     httpMock.verify();
   });
 
-  function setInputsAndFlushDetail() {
+  function setInputsAndFlushDetail(viewerIsMemberAdminOfThisTenant = false) {
     fixture.componentRef.setInput('tenantId', 7);
     fixture.componentRef.setInput('membershipId', 1);
+    fixture.componentRef.setInput(
+      'viewerIsMemberAdminOfThisTenant',
+      viewerIsMemberAdminOfThisTenant,
+    );
     fixture.detectChanges();
 
     httpMock.expectOne('/api/tenants/7/members/1').flush({
       membershipId: 1,
+      userId: 42,
       email: 'a@example.com',
       role: 'MEMBER',
       directPermissions: ['ARTICLE_VIEW'],
@@ -47,8 +52,22 @@ describe('MemberDetailPanelComponent', () => {
     fixture.detectChanges();
   }
 
+  function flushProfile(): void {
+    httpMock.expectOne('/api/users/42/profile').flush({
+      userId: 42,
+      email: 'a@example.com',
+      fullName: 'Member A',
+      address: '123 Main St',
+      rg: '11.111.111-1',
+      cpf: '111.111.111-11',
+      phone: '+15550000',
+    });
+  }
+
   it('shows direct permissions, access groups, and effective permissions as distinct sections', () => {
     setInputsAndFlushDetail();
+    flushProfile();
+    fixture.detectChanges();
 
     const html = fixture.nativeElement.innerHTML;
     expect(fixture.nativeElement.querySelector('[data-testid="direct-permissions"]')).toBeTruthy();
@@ -61,6 +80,8 @@ describe('MemberDetailPanelComponent', () => {
 
   it('toggling a permission grants it and re-fetches the detail', () => {
     setInputsAndFlushDetail();
+    flushProfile();
+    fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
       '[data-testid="permission-toggle-ARTICLE_CREATE"]',
@@ -70,6 +91,7 @@ describe('MemberDetailPanelComponent', () => {
     httpMock.expectOne('/api/tenants/7/members/1/permissions').flush({});
     httpMock.expectOne('/api/tenants/7/members/1').flush({
       membershipId: 1,
+      userId: 42,
       email: 'a@example.com',
       role: 'MEMBER',
       directPermissions: ['ARTICLE_VIEW', 'ARTICLE_CREATE'],
@@ -83,6 +105,8 @@ describe('MemberDetailPanelComponent', () => {
 
   it('creating an access group makes it available to assign', () => {
     setInputsAndFlushDetail();
+    flushProfile();
+    fixture.detectChanges();
 
     const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
       '[data-testid="new-access-group-name"]',
@@ -109,6 +133,8 @@ describe('MemberDetailPanelComponent', () => {
 
   it('assigning an access group updates the member access groups', () => {
     setInputsAndFlushDetail();
+    flushProfile();
+    fixture.detectChanges();
 
     fixture.componentInstance['availableAccessGroups'].set([
       { id: 3, name: 'Editors' },
@@ -124,6 +150,7 @@ describe('MemberDetailPanelComponent', () => {
     httpMock.expectOne('/api/tenants/7/members/1/access-groups/4').flush({});
     httpMock.expectOne('/api/tenants/7/members/1').flush({
       membershipId: 1,
+      userId: 42,
       email: 'a@example.com',
       role: 'MEMBER',
       directPermissions: [],
@@ -136,5 +163,36 @@ describe('MemberDetailPanelComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Reviewers');
+  });
+
+  it('renders the profile section alongside its other, untouched sections', () => {
+    setInputsAndFlushDetail();
+    flushProfile();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-section"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="effective-permissions"]'),
+    ).toBeTruthy();
+  });
+
+  it('disables profile editing for a non-admin viewer without PROFILE_EDIT', () => {
+    setInputsAndFlushDetail(false);
+    flushProfile();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]'),
+    ).toBeFalsy();
+  });
+
+  it('enables profile editing for a member admin of this tenant', () => {
+    setInputsAndFlushDetail(true);
+    flushProfile();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]'),
+    ).toBeTruthy();
   });
 });

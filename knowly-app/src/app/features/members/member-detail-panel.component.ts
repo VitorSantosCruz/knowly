@@ -1,16 +1,18 @@
-import { Component, OnChanges, inject, input, signal } from '@angular/core';
+import { Component, OnChanges, computed, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import { ALL_PERMISSIONS, Permission } from '../../core/permission';
+import { PermissionsService } from '../../core/permissions.service';
 import { AccessGroup, MemberDetail, MemberService } from '../../core/member.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { ProfileSectionComponent } from '../user-management/profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-member-detail-panel',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, ProfileSectionComponent],
   template: `
     @if (error() === 'permission-denied') {
       <app-no-access-state />
@@ -110,15 +112,23 @@ type DetailError = 'network' | 'permission-denied' | null;
             {{ detail.effectivePermissions.join(', ') }}
           </p>
         </section>
+
+        <app-profile-section [userId]="detail.userId" [canEdit]="canEdit()" />
       </div>
     }
   `,
 })
 export class MemberDetailPanelComponent implements OnChanges {
   private readonly memberService = inject(MemberService);
+  private readonly permissionsService = inject(PermissionsService);
 
   readonly tenantId = input.required<number>();
   readonly membershipId = input.required<number>();
+  readonly viewerIsMemberAdminOfThisTenant = input.required<boolean>();
+
+  protected readonly canEdit = computed(
+    () => this.viewerIsMemberAdminOfThisTenant() || this.permissionsService.has('PROFILE_EDIT'),
+  );
 
   protected readonly detail = signal<MemberDetail | null>(null);
   protected readonly availableAccessGroups = signal<AccessGroup[]>([]);

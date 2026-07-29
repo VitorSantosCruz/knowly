@@ -5,6 +5,7 @@ import { Permission } from './permission';
 
 export interface Member {
   membershipId: number;
+  userId: number;
   email: string;
   role: 'ADMIN' | 'MEMBER';
 }

@@ -99,20 +99,16 @@
       `StaffUserDetailPanelComponent` with a host-computed `canEdit`
       (`viewerIsStaffAdmin() ||
       globalPermissionsService.has('PROFILE_EDIT')`) (Green).
-- [ ] 29. **Deferred — not implemented this iteration.** Write a new case
-      in `member-detail-panel.component.spec.ts`: same panel-composition
-      assertion for `MemberDetailPanelComponent` (Red); wire
-      `ProfileSectionComponent` in with its host-computed `canEdit`
-      (`viewerIsMemberAdminOfThisTenant() ||
+- [x] 29. Write a new case in `member-detail-panel.component.spec.ts`:
+      same panel-composition assertion for `MemberDetailPanelComponent`
+      (Red); wire `ProfileSectionComponent` in with its host-computed
+      `canEdit` (`viewerIsMemberAdminOfThisTenant() ||
       permissionsService.has('PROFILE_EDIT')`), including the new
-      `tenantId` input plumbing from `MembersPageComponent` (Green).
-      Blocked: verified against the shipped backend that neither
-      `MemberDto` nor `MemberDetailDto` exposes a `userId` field (only
-      `membershipId`), so there is no way to resolve the target user id
-      `GET /api/users/{id}/profile` needs without a backend contract
-      change — out of this frontend-only feature's scope. See
-      `PLAN.md`'s "Deviations from this PLAN" section and
-      `PROJECT_STATUS.md`'s `user-profile` row for the tracked follow-up.
+      `userId` field plumbed through from `MembersPageComponent` (Green).
+      Unblocked now that the backend exposes `userId` on
+      `MemberDto`/`MemberDetailDto` (commit `c6e56b2`) — see `PLAN.md`'s
+      "Deviations from this PLAN" section for how the previous blocker
+      was resolved and how `viewerIsMemberAdminOfThisTenant` is sourced.
 
 ## Edit-request inbox
 

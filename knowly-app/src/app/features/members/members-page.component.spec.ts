@@ -109,7 +109,7 @@ describe('MembersPageComponent', () => {
 
     httpMock
       .expectOne('/api/tenants/7/members')
-      .flush([{ membershipId: 1, email: 'a@example.com', role: 'MEMBER' }]);
+      .flush([{ membershipId: 1, userId: 42, email: 'a@example.com', role: 'MEMBER' }]);
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
     fixture.detectChanges();
 
@@ -119,6 +119,7 @@ describe('MembersPageComponent', () => {
 
     httpMock.expectOne('/api/tenants/7/members/1').flush({
       membershipId: 1,
+      userId: 42,
       email: 'a@example.com',
       role: 'MEMBER',
       directPermissions: [],
@@ -128,7 +129,19 @@ describe('MembersPageComponent', () => {
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
     fixture.detectChanges();
 
+    httpMock.expectOne('/api/users/42/profile').flush({
+      userId: 42,
+      email: 'a@example.com',
+      fullName: 'Member A',
+      address: '123 Main St',
+      rg: '11.111.111-1',
+      cpf: '111.111.111-11',
+      phone: '+15550000',
+    });
+    fixture.detectChanges();
+
     expect(fixture.nativeElement.querySelector('[data-testid="member-detail-panel"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-section"]')).toBeTruthy();
   });
 
   it('shows a permission-denied state when the members list is forbidden', () => {

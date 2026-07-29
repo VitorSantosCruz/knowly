@@ -32,6 +32,12 @@ export class ActiveTenantService {
   private readonly _activeTenantName = signal<string | null>(null);
   readonly activeTenantName = this._activeTenantName.asReadonly();
 
+  private readonly _activeTenantRole = signal<'ADMIN' | 'MEMBER' | null>(null);
+  /** The viewer's own role within the active tenant — null for a staff session with no
+   * real TenantMembership row, same "preserve on no active membership found" rule as
+   * activeTenantId/activeTenantName below. */
+  readonly activeTenantRole = this._activeTenantRole.asReadonly();
+
   private readonly _activeTenantResolved = signal(false);
   /** True once the first fetch() call has resolved, so callers can tell "still loading"
    * apart from "genuinely no active tenant" — both look like a null activeTenantId(). */
@@ -50,6 +56,7 @@ export class ActiveTenantService {
       const active = memberships.find((membership) => membership.active);
       this._activeTenantId.set(active?.tenantId ?? this._activeTenantId());
       this._activeTenantName.set(active?.tenantName ?? this._activeTenantName());
+      this._activeTenantRole.set(active?.role ?? this._activeTenantRole());
       this._activeTenantResolved.set(true);
     });
   }

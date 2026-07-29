@@ -1,4 +1,4 @@
-import { Component, OnInit, effect, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
@@ -75,6 +75,7 @@ type MembersError = 'network' | 'permission-denied' | null;
             <app-member-detail-panel
               [tenantId]="activeTenantService.activeTenantId()!"
               [membershipId]="membershipId"
+              [viewerIsMemberAdminOfThisTenant]="viewerIsMemberAdminOfThisTenant()"
             />
           </div>
         }
@@ -93,6 +94,10 @@ export class MembersPageComponent implements OnInit {
   protected readonly error = signal<MembersError>(null);
   protected readonly newMemberEmail = signal('');
   protected readonly selectedMembershipId = signal<number | null>(null);
+
+  protected readonly viewerIsMemberAdminOfThisTenant = computed(
+    () => this.activeTenantService.activeTenantRole() === 'ADMIN',
+  );
 
   private hasLoaded = false;
 

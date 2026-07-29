@@ -310,29 +310,28 @@ None new.
 
 ## Deviations from this PLAN (discovered during implementation)
 
-- **`ProfileSectionComponent` is not wired into `MemberDetailPanelComponent`
-  (task 29 in TASKS.md is not implemented).** This PLAN assumed
-  `MemberDetail`/`Member` carried enough identity to resolve the target
-  `userId` `GET /api/users/{id}/profile` needs. Verified against the
-  shipped backend (`knowly-api`'s `MemberDto`/`MemberDetailDto` records):
-  neither exposes anything but `membershipId` — no `userId` field exists
-  anywhere in the tenant-members contract, and `membershipId` is a
-  distinct identifier (the `TenantMembership` row's own id), not
-  interchangeable with the target user's id. Unlike the staff directory
-  (where `StaffUserDetail.userId` already *is* the real user id, so task
-  28 wired cleanly), there is no existing tenant-members endpoint this
-  frontend feature can call to resolve membership → user id. Adding one
-  is a backend contract change, which both this SPEC's and this PLAN's
-  own "Out of scope"/"no backend SPEC accompanies this frontend SPEC"
-  lines explicitly rule out. **Decision (Tier 2, made without asking per
-  this task's standing instruction):** ship every other task in this
-  feature (own-profile screen, staff-directory profile section,
-  edit-request inbox, nav) and leave the tenant-members-side profile
-  section as a tracked, scoped follow-up requiring a minimal backend
-  addition (e.g. a `userId` field added to `MemberDto`/`MemberDetailDto`)
-  — see `PROJECT_STATUS.md` for the follow-up note. REQ-8/REQ-9/REQ-10/
-  REQ-11 are therefore only satisfied for the staff-directory panel in
-  this iteration, not yet for `MembersPageComponent`'s member-detail
+- **`ProfileSectionComponent` was not wired into `MemberDetailPanelComponent`
+  in the first iteration (task 29 in TASKS.md was deferred).** This PLAN
+  assumed `MemberDetail`/`Member` carried enough identity to resolve the
+  target `userId` `GET /api/users/{id}/profile` needs. Verified at the
+  time against the shipped backend (`knowly-api`'s `MemberDto`/
+  `MemberDetailDto` records): neither exposed anything but
+  `membershipId` — no `userId` field existed anywhere in the
+  tenant-members contract, and `membershipId` is a distinct identifier
+  (the `TenantMembership` row's own id), not interchangeable with the
+  target user's id. **This has since been resolved**: the backend now
+  exposes `userId` on both `MemberDto`/`MemberDetailDto` (commit
+  `c6e56b2`), and task 29 is now implemented — `MemberDetailPanelComponent`
+  renders `ProfileSectionComponent` with a host-computed `canEdit`
+  (`viewerIsMemberAdminOfThisTenant() || permissionsService.has('PROFILE_EDIT')`),
+  with `viewerIsMemberAdminOfThisTenant` sourced from a new
+  `ActiveTenantService#activeTenantRole` signal (the viewer's own role
+  within the active tenant, following the same "preserve prior value
+  when no active membership is found" rule as `activeTenantId`/
+  `activeTenantName`) rather than adding a second, redundant
+  `/api/tenants/memberships` call inside `MembersPageComponent`.
+  REQ-8/REQ-9/REQ-10/REQ-11 are now satisfied for both the
+  staff-directory panel and `MembersPageComponent`'s member-detail
   panel.
 
 ## Testing strategy
