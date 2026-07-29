@@ -4,17 +4,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
+import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -32,10 +38,20 @@ class TenantServiceTest {
     @Autowired private NotificationRepository notificationRepository;
     @Autowired private TenantService tenantService;
     @Autowired private TenantContext tenantContext;
+    @Autowired private AccessGroupRepository accessGroupRepository;
+    @Autowired private UserAccessGroupRepository userAccessGroupRepository;
+    @Autowired private AuditEventRepository auditEventRepository;
 
     @AfterEach
     void cleanUp() {
         tenantContext.clear();
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAs(String email) {
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(email, null, List.of()));
+        SecurityContextHolder.setContext(context);
     }
 
     private TenantMembership adminMembership(String email, Tenant tenant) {
@@ -253,5 +269,147 @@ class TenantServiceTest {
 
         assertThatThrownBy(() -> tenantService.listAllTenants(staff, 0, 20, null))
                 .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // REQ-4/REQ-5 (member-admin-tenant-bypass): self-escalation guard — no user may alter their
+    // own role or own permission/access-group grants, even a MEMBER_ADMIN acting via the bypass.
+
+    @Test
+    void addMemberRejectsAMemberAdminChangingTheirOwnRole() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Escalation Co"));
+        TenantMembership admin = adminMembership("self-add@example.com", tenant);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.addMember(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        "self-add@example.com",
+                                        MembershipRole.MEMBER))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void grantPermissionRejectsAMemberAdminGrantingThemselvesAPermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Grant Co"));
+        TenantMembership admin = adminMembership("self-grant@example.com", tenant);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.grantPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void revokePermissionRejectsAMemberAdminRevokingTheirOwnPermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Revoke Co"));
+        TenantMembership admin = adminMembership("self-revoke@example.com", tenant);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokePermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void assignAccessGroupRejectsAMemberAdminAssigningThemselves() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Assign Co"));
+        TenantMembership admin = adminMembership("self-assign@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.assignAccessGroup(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        group.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void unassignAccessGroupRejectsAMemberAdminUnassigningThemselves() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Unassign Co"));
+        TenantMembership admin = adminMembership("self-unassign@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        userAccessGroupRepository.saveAndFlush(new UserAccessGroup(admin, group));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.unassignAccessGroup(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        group.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void theFiveGuardedMethodsSucceedWhenTargetingADifferentUser() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Others Co"));
+        TenantMembership admin = adminMembership("others-admin@example.com", tenant);
+        User otherUser = userRepository.saveAndFlush(new User("other@example.com"));
+        TenantMembership otherMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(otherUser, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThat(
+                        tenantService.addMember(
+                                admin.getUser(),
+                                tenant.getId(),
+                                "another-new@example.com",
+                                MembershipRole.MEMBER))
+                .isNotNull();
+
+        tenantService.grantPermission(
+                admin.getUser(),
+                tenant.getId(),
+                otherMembership.getId(),
+                Permission.TENANT_MEMBER_MANAGE);
+        tenantService.revokePermission(
+                admin.getUser(),
+                tenant.getId(),
+                otherMembership.getId(),
+                Permission.TENANT_MEMBER_MANAGE);
+        tenantService.assignAccessGroup(
+                admin.getUser(), tenant.getId(), otherMembership.getId(), group.getId());
+        tenantService.unassignAccessGroup(
+                admin.getUser(), tenant.getId(), otherMembership.getId(), group.getId());
+    }
+
+    @Test
+    void selfEscalationRejectionIsRecordedAsADeniedAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Audit Co"));
+        TenantMembership admin = adminMembership("self-audit@example.com", tenant);
+        authenticateAs("self-audit@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.grantPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction()).isEqualTo("tenant.permission.grant");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
+                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
+                        });
     }
 }

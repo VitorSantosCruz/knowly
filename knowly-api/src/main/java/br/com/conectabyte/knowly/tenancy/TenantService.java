@@ -203,6 +203,7 @@ public class TenantService {
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
         Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
+        requireNotSelfTarget(actor, existingUser.map(User::getId).orElse(null));
         boolean userAlreadyExisted = existingUser.isPresent();
         User user = existingUser.orElseGet(() -> createUserWithProfile(email));
 
@@ -256,6 +257,7 @@ public class TenantService {
                 tenantMembershipRepository
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSelfTarget(actor, membership.getUser().getId());
         directPermissionGrantRepository
                 .findByTenantMembershipAndPermission(membership, permission)
                 .orElseGet(
@@ -276,6 +278,7 @@ public class TenantService {
                 tenantMembershipRepository
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSelfTarget(actor, membership.getUser().getId());
         directPermissionGrantRepository
                 .findByTenantMembershipAndPermission(membership, permission)
                 .ifPresent(directPermissionGrantRepository::delete);
@@ -328,6 +331,7 @@ public class TenantService {
                 tenantMembershipRepository
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSelfTarget(actor, membership.getUser().getId());
         AccessGroup accessGroup =
                 accessGroupRepository
                         .findById(accessGroupId)
@@ -412,6 +416,7 @@ public class TenantService {
                 tenantMembershipRepository
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSelfTarget(actor, membership.getUser().getId());
         AccessGroup accessGroup =
                 accessGroupRepository
                         .findById(accessGroupId)
@@ -420,6 +425,19 @@ public class TenantService {
         userAccessGroupRepository
                 .findByTenantMembershipAndAccessGroup(membership, accessGroup)
                 .ifPresent(userAccessGroupRepository::delete);
+    }
+
+    /**
+     * REQ-4 (member-admin-tenant-bypass): no user — regardless of role — may alter their own role
+     * or their own permission/access-group grants, even through the {@code MEMBER_ADMIN} bypass in
+     * {@link #requireAdminOfTenantOrStaff}. Called after the target user/membership is resolved and
+     * before any mutation in {@code addMember}/{@code grantPermission}/{@code revokePermission}/
+     * {@code assignAccessGroup}/{@code unassignAccessGroup}.
+     */
+    private void requireNotSelfTarget(User actor, Long targetUserId) {
+        if (targetUserId != null && targetUserId.equals(actor.getId())) {
+            throw new PermissionDeniedException();
+        }
     }
 
     private boolean isAnyStaff(User user) {
