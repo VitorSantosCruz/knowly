@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.identity;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import java.util.List;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/profile-edit-requests}, per specify/features/identity-profile-model/PLAN.md's API
+ * {@code /api/profile-edit-requests}, per specify/features/identity-profile-model-v2/PLAN.md's API
  * contracts table.
  */
 @RestController
@@ -55,15 +56,31 @@ public class ProfileEditRequestController {
     }
 
     private ProfileEditRequestDto toDto(ProfileEditRequest request) {
+        List<ContactChangeDto> contactChanges =
+                profileEditRequestService.proposedContactChangesOf(request).stream()
+                        .map(
+                                change ->
+                                        new ContactChangeDto(
+                                                change.getAction(),
+                                                change.getContactId(),
+                                                change.getType(),
+                                                change.getValue(),
+                                                change.getLabel(),
+                                                change.getPrimary()))
+                        .toList();
+
         return new ProfileEditRequestDto(
                 request.getId(),
                 request.getRequester().getId(),
                 new ProfileFieldsDto(
                         request.getProposedFullName(),
-                        request.getProposedAddress(),
-                        request.getProposedRg(),
                         request.getProposedCpf(),
-                        request.getProposedPhone()),
+                        request.getProposedRg(),
+                        request.getProposedRgOrgaoEmissor(),
+                        request.getProposedBirthDate(),
+                        null,
+                        null),
+                contactChanges,
                 request.getStatus(),
                 request.getCreatedAt());
     }

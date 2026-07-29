@@ -77,7 +77,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fullName\":\"Listed Name\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        "{\"fields\":{\"fullName\":\"Listed Name\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
 
         Cookie adminSession = logIn("list-requests-admin@example.com");
@@ -104,7 +104,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fullName\":\"Approve Me\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        "{\"fields\":{\"fullName\":\"Approve Me\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
         Long requestId =
                 profileEditRequestRepository
@@ -140,7 +140,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fullName\":\"Reject Me\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        "{\"fields\":{\"fullName\":\"Reject Me\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
         Long requestId =
                 profileEditRequestRepository
@@ -172,7 +172,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fullName\":\"No Right\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        "{\"fields\":{\"fullName\":\"No Right\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
         Long requestId =
                 profileEditRequestRepository

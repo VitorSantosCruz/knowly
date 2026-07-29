@@ -89,21 +89,49 @@ a debounced search input and prev/next pagination — 284/284 frontend
 tests green, `qa-test-automation`/`appsec` reviewed with no blocking
 findings, committed. See its table row below.
 
-**`user-profile` (item 13's frontend half) is now also done** (2026-07-28):
-own-profile view/edit (`/profile`), a reusable profile section embedded
-in the staff directory's detail panel, and a dedicated edit-request
-approval inbox (`/profile-edit-requests`) — 321/321 frontend tests
-green, `format:check`/`build` clean, committed. See its table row below
-for the full shape and two flagged follow-ups: (1) the same profile
-section is **not yet** wired into `MembersPageComponent`'s
-member-detail panel — blocked on a small backend addition (`userId` on
-`MemberDto`/`MemberDetailDto`, neither of which exposes it today,
-verified during implementation) needed before that wiring is possible;
-(2) the edit-request inbox lists requesters as `"User #{id}"` only, no
-display name/email (the shipped `ProfileEditRequestDto` doesn't carry
-one). Next conversation should either scope the small backend addition
-above (to unblock the `MembersPageComponent` wiring) or propose 2-4
-fresh candidate directions per the protocol above.
+**`user-profile` (item 13's frontend half) was implemented and
+committed** (2026-07-28, 11 commits `17e1b1a`..`9293e76`, not yet
+pushed to `origin/main`): own-profile view/edit (`/profile`), a
+reusable profile section embedded in the staff directory's detail
+panel, and a dedicated edit-request approval inbox
+(`/profile-edit-requests`) — 321/321 frontend tests green,
+`format:check`/`build` clean. **However, this was built against the
+old `identity-profile-model` flat contract, and is now superseded by a
+confirmed-but-unimplemented redesign — see the next paragraph before
+doing anything else with `user-profile`.** Two follow-ups were also
+flagged during that implementation, both now folded into the redesign
+scope rather than being separate small fixes: (1) the profile section
+was not wired into `MembersPageComponent`'s member-detail panel,
+blocked on `userId` not being exposed by `MemberDto`/`MemberDetailDto`
+— there are uncommitted backend changes to
+`TenantService.java`/`MemberDto.java`/`MemberDetailDto.java`/
+`TenantManagementIntegrationTest.java` in the working tree right now
+that look like an in-progress fix for exactly this, from an unknown
+prior session — **verify what they contain and whether they're
+finished before assuming they're safe to build on or discard**; (2)
+the edit-request inbox lists requesters as `"User #{id}"` only, no
+display name/email.
+
+**`identity-profile-model` backend retrofit — confirmed design, not
+yet implemented (2026-07-28).** The product owner reviewed the shipped
+`V17__add_identity_profile_fields.sql` shape (personal data flattened
+onto `users`, free-text address, single `phone` column) and rejected
+it: personal data must live outside the auth table, address must be
+structured, and a person needs multiple contact channels. Full target
+schema (`user_profiles`/`addresses`/`contacts`, LGPD-minimized field
+set, per-field self-edit-vs-request permission model, migration
+sequencing) is written up in `DECISIONS.md`'s
+"`identity-profile-model` retrofit" entry — read that before writing
+any PLAN.md for this. **Confirmed explicitly (2026-07-28): this
+proceeds even though it now also requires retrofitting the
+already-shipped `user-profile` frontend** (see previous paragraph) —
+treat as a two-subproject retrofit (new SPEC per subproject, per
+`constitution.md`'s "Feature SPEC placement" rule), not a backend-only
+change. Next conversation should route this to `software-architect`
+(and `data-architect-dba` again if the migration sequencing needs
+re-checking) to produce PLAN.md/TASKS.md for both sides before any
+code changes — do not implement ad hoc from the `DECISIONS.md` entry
+alone.
 
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
@@ -597,7 +625,8 @@ the feature's own SPEC.
 | `dashboard-analytics` | ✅ Done (backend) | Extends `metrics` with date-bucketed time-series (`/conversations/timeseries`, `/messages/timeseries`, `/articles/timeseries`, UTC calendar-day, zero-count days included), a tenant membership active/inactive snapshot (`/members`), `period` filtering (`7d`/`30d`/`90d`/`all`, default `all`) on every metrics endpoint via a new `MetricsPeriod` enum + `InvalidPeriodException`/`MetricsExceptionHandler`, and a hand-built CSV export (`/export`, no new dependency). All still `DASHBOARD_VIEW`-gated, tenant-isolated via `TenantFilter`. Frontend consuming these is a separate SPEC (`knowly-app/specify/features/dashboard-analytics/`). See `DECISIONS.md` for the UTC-bucketing rationale. |
 | `staff-user-listing` | ✅ Done | `GET /api/staff/users` (optional `?email=` case-insensitive substring filter) lists every `STAFF`/`STAFF_ADMIN` user, gated by new `GlobalPermission.STAFF_USER_VIEW` (independent of `STAFF_USER_CREATE`/management ceiling checks). `StaffController.listStaffUsers`/`StaffService.listStaffUsers`/`StaffUserSummaryDto` implemented and tested (`StaffUserListingIntegrationTest`). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
 | `tenant-membership-acceptance` | ✅ Done | New `Notification`/`NotificationType` model (`V16` migration) plus `NotificationController`/`NotificationService`/`NotificationDto` (`/api/notifications`) for accept/decline-style tenant membership notifications, with `NotificationAlreadyResolvedException`/`NotificationNotFoundException` wired into the existing exception-handling convention. Confirmed `removeMember` needs no code change. Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings (IDOR/replay/privilege-escalation checks all confirmed clean). |
-| `identity-profile-model` | ✅ Done | Adds encrypted `cpf`/`rg` identity fields (`CpfRgEncryptionConverter`, blind-index lookup via `BlindIndexService`) plus a profile-edit-request flow (`ProfileEditRequest`/`ProfileEditRequestService`, `UserProfileController`/`UserProfileService`, `UserProfileDto`/`ProfileFieldsDto`). Confirmed non-plaintext storage at the raw column level (genuine AES-256-GCM, not reversible encoding) and `cnpj`/`inscricaoEstadual` tenant uniqueness (including both fields' independent null-coexistence cases) by integration test. Full-suite `./mvnw verify` green (339/339); `appsec`-reviewed with no blocking findings — blind-index equality-revealing tradeoff confirmed deliberate/documented, `users_aud`/key-rotation gap confirmed real but out of scope and now flagged in "Known operational/tooling notes" below. |
+| `identity-profile-model` | ⛔ Superseded by `identity-profile-model-v2` | Was: encrypted `cpf`/`rg` identity fields directly on `User` (`CpfRgEncryptionConverter`, blind-index lookup via `BlindIndexService`) plus a profile-edit-request flow. Retrofitted 2026-07-28 — see `identity-profile-model-v2` below and `DECISIONS.md`'s "`identity-profile-model` retrofit" entry. Row kept only as history; do not treat any detail below as current for the shipped shape (the encryption/blind-index mechanism itself is unchanged, just relocated). |
+| `identity-profile-model-v2` | ✅ Done (backend) | Retrofits `identity-profile-model`: personal data split into new `UserProfile` (1:1, eager row per `User`, `cpf`/`rg`/`rgOrgaoEmissor`/`birthDate`/`avatarUrl`), `Address` (1:1, lazy), and `Contact` (1:n, max 5, one-primary-per-type, `ContactService`) tables/entities, replacing `User`'s old flat `fullName`/`address`/`rg`/`cpf`/`phone` columns (still present on `User`/`users` — dropped only in a later `V19` migration, deliberately deferred per PLAN.md until this code path is verified running in production, not bundled into this session). `V18__retrofit_identity_profile_tables.sql` creates the new tables + `profile_edit_request_contacts` (1:n proposed contact changes), backfills `full_name`/`cpf`/`rg`/`phone` from `users`, cancels any in-flight `PENDING` request (new `ProfileEditRequestStatus.CANCELLED`), and adds a DB-level `CHECK` blocking self-approval (defense-in-depth alongside the existing service-layer guard). REQ-11 is a genuine behavior *removal* from the shipped feature: `directEdit`'s self-exclusion is now unconditional — `STAFF_ADMIN`/`MEMBER_ADMIN` can no longer self-edit even fields they could edit on someone else; only the new dedicated `POST /api/users/me/profile/avatar` (multipart, reuses `ArticleStorageService`'s MinIO/S3 pattern via new `AvatarStorageService`/`AvatarProperties`, distinct `avatarBucket`) is self-editable, unconditionally, no approval step. `ContactType` (`PHONE`/`WHATSAPP`/`EMAIL`/`OTHER`) format validation is a plain service-layer `if` in `ContactService`, not a custom Bean Validation `@Constraint` (documented Tier 2 call in `DECISIONS.md` — first feature that could have reached for one and deliberately didn't). Full-suite `./mvnw verify` green. Companion frontend SPEC (`knowly-app/specify/features/user-profile-v2/`) not yet started — backend contract (DTOs/endpoints) is final and ready to build against. |
 | `global-staff-dashboard-metrics` | ✅ Done | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case (tightened during QA review to assert the exact millisecond boundary, not just a ±1-day margin). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
 | `tenant-pagination-search` | ✅ Done (backend) | `GET /api/tenants` breaking-changed from an unbounded `List<TenantSummaryDto>` to a paginated `PageResponseDto<TenantSummaryDto>` envelope (`content`/`page`/`size`/`totalElements`/`totalPages`). New `page`/`size` query params (defaults `0`/`20`, `size` clamped to `100`, negative `page` or `size<=0` rejected with `400 INVALID_PAGINATION` via new `InvalidPaginationException`), plus an optional `search` param matching `Tenant.name`/`cnpj`/`razaoSocial` case-insensitively (OR'd) via a new DB-level `TenantRepository.search(String, Pageable)` `@Query`, sorted server-side by `name` ascending only (no client-supplied sort). Authorization unchanged (`requireStaff`/`GlobalPermission.TENANT_ACT_AS_ANY`). This is the first page/size pagination contract in this codebase — see `DECISIONS.md` for the `@Query`-over-`Specification`/fixed-sort/`PageResponseDto`-placement judgment calls, intended as the default template for future paginated endpoints. Full-suite `./mvnw verify` green (377/377, ~21 min real elapsed — the ~12 min figure previously in this file was stale). Companion frontend SPEC for `/select-tenant`'s consumption of the new envelope shape is not yet started — backend half only. |
 | `staff-audit-trail-view` | ✅ Done | `GET /api/staff/users/{userId}/audit-trail` (`StaffController.auditTrail`/`StaffService.getAuditTrail`/`AuditEventDto`) returns a target user's full audit history — deliberately **cross-tenant, `TenantFilter`-bypassing by design** (`AuditEvent` isn't a `TenantAwareEntity`, so no special plumbing was needed) — capped at the 500 most recent rows via a new `AuditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc` (DB-enforced `LIMIT`, backed by the pre-existing `ix_audit_events_actor_time` composite index, no new migration). Gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`, ceiling-independent (REQ-9: viewing a `STAFF`/`STAFF_ADMIN` target's trail is unaffected by the `role-model-refinement` management ceiling). The call itself is audited (`staff.audit_trail.view`). Full-suite `./mvnw verify` green; `qa-test-automation` independently confirmed every REQ/acceptance criterion (including the cross-tenant, 500-cap, ceiling-independence, and self-audit cases) is covered by a real passing test; `appsec` re-reviewed the implementation against the SPEC's confirmed REQ-4 exposure and found no new issue — verdict "ship it," no blocking findings. |

@@ -3,6 +3,8 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.UserProfile;
+import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
@@ -32,6 +34,7 @@ public class TenantService {
     private final PermissionService permissionService;
     private final GlobalPermissionService globalPermissionService;
     private final NotificationRepository notificationRepository;
+    private final UserProfileRepository userProfileRepository;
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -43,7 +46,8 @@ public class TenantService {
             UserAccessGroupRepository userAccessGroupRepository,
             PermissionService permissionService,
             GlobalPermissionService globalPermissionService,
-            NotificationRepository notificationRepository) {
+            NotificationRepository notificationRepository,
+            UserProfileRepository userProfileRepository) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
@@ -54,6 +58,16 @@ public class TenantService {
         this.permissionService = permissionService;
         this.globalPermissionService = globalPermissionService;
         this.notificationRepository = notificationRepository;
+        this.userProfileRepository = userProfileRepository;
+    }
+
+    /**
+     * REQ-1 (identity-profile-model-v2): every brand-new User gets an eager, empty UserProfile row.
+     */
+    private User createUserWithProfile(String email) {
+        User user = userRepository.save(new User(email));
+        userProfileRepository.save(new UserProfile(user));
+        return user;
     }
 
     /**
@@ -166,7 +180,7 @@ public class TenantService {
         User admin =
                 userRepository
                         .findByEmailIgnoreCase(adminEmail)
-                        .orElseGet(() -> userRepository.save(new User(adminEmail)));
+                        .orElseGet(() -> createUserWithProfile(adminEmail));
 
         tenantMembershipRepository.save(
                 new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
@@ -190,7 +204,7 @@ public class TenantService {
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
         Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
         boolean userAlreadyExisted = existingUser.isPresent();
-        User user = existingUser.orElseGet(() -> userRepository.save(new User(email)));
+        User user = existingUser.orElseGet(() -> createUserWithProfile(email));
 
         TenantMembership membership =
                 tenantMembershipRepository

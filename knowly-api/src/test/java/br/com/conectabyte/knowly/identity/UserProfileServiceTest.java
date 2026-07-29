@@ -24,11 +24,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Covers {@link UserProfileService}'s full REQ-8..14a decision matrix, per
- * specify/features/identity-profile-model/SPEC.md/PLAN.md.
+ * Covers {@link UserProfileService}'s full REQ-7..14 decision matrix, per
+ * specify/features/identity-profile-model-v2/SPEC.md/PLAN.md -- REQ-11 is an unconditional
+ * self-exclusion, superseding identity-profile-model's old admin-self-edit allowance.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -43,7 +45,7 @@ class UserProfileServiceTest {
     @Autowired private UserProfileService userProfileService;
 
     private static final ProfileFieldsDto FIELDS =
-            new ProfileFieldsDto("Jane Doe", null, null, null, null);
+            new ProfileFieldsDto("Jane Doe", null, null, null, null, null, null);
 
     private User user(String email) {
         return userRepository.saveAndFlush(new User(email));
@@ -63,7 +65,7 @@ class UserProfileServiceTest {
                 new DirectGlobalPermissionGrant(user, permission));
     }
 
-    // ---- view (REQ-8/9/10/10a/10b/10c) ----
+    // ---- view (REQ-7/8/9) ----
 
     @Test
     void getOwnProfileAlwaysSucceeds() {
@@ -129,33 +131,38 @@ class UserProfileServiceTest {
                 .isEqualTo(target.getId());
     }
 
-    // ---- direct edit (REQ-11/12/13/13a/14/14a) ----
+    // ---- direct edit (REQ-11/12/13): self is ALWAYS excluded now ----
 
     @Test
-    void aMemberAdminCanEditSelfAndOthersWithinTheirTenant() {
+    void aMemberAdminCanEditOthersWithinTheirTenantButNeverThemselves() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Admin Edit Co"));
         User admin = user("admin-edit@example.com");
         User other = user("admin-edit-other@example.com");
         membershipOf(admin, tenant, MembershipRole.MEMBER_ADMIN);
         membershipOf(other, tenant, MembershipRole.MEMBER);
 
-        assertThat(userProfileService.directEdit(admin, admin.getId(), FIELDS).fullName())
+        assertThat(userProfileService.directEdit(admin, other.getId(), FIELDS).fields().fullName())
                 .isEqualTo("Jane Doe");
-        assertThat(userProfileService.directEdit(admin, other.getId(), FIELDS).fullName())
-                .isEqualTo("Jane Doe");
+        assertThatThrownBy(() -> userProfileService.directEdit(admin, admin.getId(), FIELDS))
+                .isInstanceOf(PermissionDeniedException.class);
     }
 
     @Test
-    void aStaffAdminCanEditSelfAndAnyOtherUser() {
+    void aStaffAdminCanEditAnyOtherUserButNeverThemselves() {
         User staffAdmin = user("staff-admin-edit@example.com");
         staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
         userRepository.saveAndFlush(staffAdmin);
         User other = user("staff-admin-edit-other@example.com");
 
-        assertThat(userProfileService.directEdit(staffAdmin, staffAdmin.getId(), FIELDS).fullName())
+        assertThat(
+                        userProfileService
+                                .directEdit(staffAdmin, other.getId(), FIELDS)
+                                .fields()
+                                .fullName())
                 .isEqualTo("Jane Doe");
-        assertThat(userProfileService.directEdit(staffAdmin, other.getId(), FIELDS).fullName())
-                .isEqualTo("Jane Doe");
+        assertThatThrownBy(
+                        () -> userProfileService.directEdit(staffAdmin, staffAdmin.getId(), FIELDS))
+                .isInstanceOf(PermissionDeniedException.class);
     }
 
     @Test
@@ -167,7 +174,7 @@ class UserProfileServiceTest {
         membershipOf(other, tenant, MembershipRole.MEMBER);
         grantTenantPermission(holderMembership, Permission.PROFILE_EDIT);
 
-        assertThat(userProfileService.directEdit(holder, other.getId(), FIELDS).fullName())
+        assertThat(userProfileService.directEdit(holder, other.getId(), FIELDS).fields().fullName())
                 .isEqualTo("Jane Doe");
         assertThatThrownBy(() -> userProfileService.directEdit(holder, holder.getId(), FIELDS))
                 .isInstanceOf(PermissionDeniedException.class);
@@ -181,7 +188,7 @@ class UserProfileServiceTest {
         grantGlobalPermission(holder, GlobalPermission.PROFILE_EDIT);
         User other = user("global-edit-holder-other@example.com");
 
-        assertThat(userProfileService.directEdit(holder, other.getId(), FIELDS).fullName())
+        assertThat(userProfileService.directEdit(holder, other.getId(), FIELDS).fields().fullName())
                 .isEqualTo("Jane Doe");
         assertThatThrownBy(() -> userProfileService.directEdit(holder, holder.getId(), FIELDS))
                 .isInstanceOf(PermissionDeniedException.class);
@@ -194,5 +201,16 @@ class UserProfileServiceTest {
 
         assertThatThrownBy(() -> userProfileService.directEdit(caller, other.getId(), FIELDS))
                 .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- avatar (REQ-10): always self-editable, no approval, no permission check ----
+
+    @Test
+    void updateOwnAvatarAlwaysSucceedsRegardlessOfRoleOrPermission() {
+        User user = user("avatar-self@example.com");
+        MockMultipartFile file =
+                new MockMultipartFile("file", "avatar.png", "image/png", "fake-bytes".getBytes());
+
+        assertThat(userProfileService.updateOwnAvatar(user, file).avatarUrl()).isNotBlank();
     }
 }

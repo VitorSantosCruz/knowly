@@ -107,6 +107,7 @@ knowly:
     access-key: ${MINIO_ROOT_USER}
     secret-key: ${MINIO_ROOT_PASSWORD}
     bucket: knowly-articles
+    avatar-bucket: ${AVATAR_BUCKET:knowly-avatars}
   identity:
     cpf-rg-encryption-key: ${CPF_RG_ENCRYPTION_KEY}
     cpf-rg-hmac-key: ${CPF_RG_HMAC_KEY}
@@ -119,3 +120,8 @@ knowly:
       - audio/mpeg
       - audio/wav
       - audio/mp4
+  avatar:
+    max-file-size: 5MB
+    allowed-content-types:
+      - image/png
+      - image/jpeg

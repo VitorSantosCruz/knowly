@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -49,19 +50,43 @@ public class ProfileEditRequest {
     @Column(name = "proposed_full_name")
     private String proposedFullName;
 
-    @Column(name = "proposed_address")
-    private String proposedAddress;
-
     @Convert(converter = CpfRgEncryptionConverter.class)
     @Column(name = "proposed_rg")
     private String proposedRg;
+
+    @Column(name = "proposed_rg_orgao_emissor")
+    private String proposedRgOrgaoEmissor;
 
     @Convert(converter = CpfRgEncryptionConverter.class)
     @Column(name = "proposed_cpf")
     private String proposedCpf;
 
-    @Column(name = "proposed_phone")
-    private String proposedPhone;
+    @Column(name = "proposed_birth_date")
+    private LocalDate proposedBirthDate;
+
+    @Column(name = "proposed_cep")
+    private String proposedCep;
+
+    @Column(name = "proposed_logradouro")
+    private String proposedLogradouro;
+
+    @Column(name = "proposed_numero")
+    private String proposedNumero;
+
+    @Column(name = "proposed_complemento")
+    private String proposedComplemento;
+
+    @Column(name = "proposed_bairro")
+    private String proposedBairro;
+
+    @Column(name = "proposed_cidade")
+    private String proposedCidade;
+
+    @Column(name = "proposed_estado", length = 2)
+    private String proposedEstado;
+
+    @Column(name = "proposed_pais")
+    private String proposedPais;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

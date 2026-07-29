@@ -7,6 +7,7 @@ import br.com.conectabyte.knowly.audit.AuditEvent;
 import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
@@ -66,12 +67,13 @@ class IdentityAuditLogTest {
         User staffAdmin = user("audit-direct-edit@example.com");
         staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
         userRepository.saveAndFlush(staffAdmin);
+        User target = user("audit-direct-edit-target@example.com");
         authenticateAs("audit-direct-edit@example.com");
 
         userProfileService.directEdit(
                 staffAdmin,
-                staffAdmin.getId(),
-                new ProfileFieldsDto("Audited Name", null, null, "12345678900", null));
+                target.getId(),
+                new ProfileFieldsDto("Audited Name", "12345678900", null, null, null, null, null));
 
         var events =
                 auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(staffAdmin.getId());
@@ -93,7 +95,11 @@ class IdentityAuditLogTest {
         authenticateAs("audit-requester@example.com");
         ProfileEditRequest submitted =
                 profileEditRequestService.submitEditRequest(
-                        requester, new ProfileFieldsDto("Audited Request", null, null, null, null));
+                        requester,
+                        new ProfileEditRequestFieldsDto(
+                                new ProfileFieldsDto(
+                                        "Audited Request", null, null, null, null, null, null),
+                                List.of()));
         authenticateAs("audit-admin@example.com");
         profileEditRequestService.approveEditRequest(admin, submitted.getId());
 
@@ -104,7 +110,9 @@ class IdentityAuditLogTest {
         ProfileEditRequest secondRequest =
                 profileEditRequestService.submitEditRequest(
                         secondRequesterUser,
-                        new ProfileFieldsDto("Second", null, null, null, null));
+                        new ProfileEditRequestFieldsDto(
+                                new ProfileFieldsDto("Second", null, null, null, null, null, null),
+                                List.of()));
         authenticateAs("audit-admin@example.com");
         profileEditRequestService.rejectEditRequest(admin, secondRequest.getId());
 

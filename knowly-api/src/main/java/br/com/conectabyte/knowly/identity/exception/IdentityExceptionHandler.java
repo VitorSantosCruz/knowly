@@ -48,4 +48,25 @@ public class IdentityExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new TenancyErrorResponseDto("USER_NOT_FOUND"));
     }
+
+    @ExceptionHandler(InvalidContactFormatException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidContactFormat(
+            InvalidContactFormatException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_CONTACT_FORMAT"));
+    }
+
+    @ExceptionHandler(ContactCapExceededException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleContactCapExceeded(
+            ContactCapExceededException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("CONTACT_CAP_EXCEEDED"));
+    }
+
+    @ExceptionHandler(InvalidAvatarFileException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidAvatarFile(
+            InvalidAvatarFileException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_AVATAR_FILE"));
+    }
 }

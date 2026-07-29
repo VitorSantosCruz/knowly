@@ -2,9 +2,12 @@ package br.com.conectabyte.knowly.identity;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestDto;
+import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,10 +17,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
- * {@code /api/users/{me|id}/profile}, per specify/features/identity-profile-model/PLAN.md's API
+ * {@code /api/users/{me|id}/profile}, per specify/features/identity-profile-model-v2/PLAN.md's API
  * contracts table.
  */
 @RestController
@@ -53,25 +58,47 @@ public class UserProfileController {
         return ResponseEntity.ok(userProfileService.directEdit(currentUser(), id, fields));
     }
 
+    @PostMapping("/me/profile/avatar")
+    public ResponseEntity<UserProfileDto> updateOwnAvatar(
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(userProfileService.updateOwnAvatar(currentUser(), file));
+    }
+
     @PostMapping("/me/profile/edit-requests")
     public ResponseEntity<ProfileEditRequestDto> submitEditRequest(
-            @RequestBody ProfileFieldsDto fields) {
+            @RequestBody ProfileEditRequestFieldsDto body) {
         ProfileEditRequest request =
-                profileEditRequestService.submitEditRequest(currentUser(), fields);
+                profileEditRequestService.submitEditRequest(currentUser(), body);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(request));
     }
 
     private ProfileEditRequestDto toDto(ProfileEditRequest request) {
+        List<ContactChangeDto> contactChanges =
+                profileEditRequestService.proposedContactChangesOf(request).stream()
+                        .map(
+                                change ->
+                                        new ContactChangeDto(
+                                                change.getAction(),
+                                                change.getContactId(),
+                                                change.getType(),
+                                                change.getValue(),
+                                                change.getLabel(),
+                                                change.getPrimary()))
+                        .toList();
+
         return new ProfileEditRequestDto(
                 request.getId(),
                 request.getRequester().getId(),
                 new ProfileFieldsDto(
                         request.getProposedFullName(),
-                        request.getProposedAddress(),
-                        request.getProposedRg(),
                         request.getProposedCpf(),
-                        request.getProposedPhone()),
+                        request.getProposedRg(),
+                        request.getProposedRgOrgaoEmissor(),
+                        request.getProposedBirthDate(),
+                        null,
+                        null),
+                contactChanges,
                 request.getStatus(),
                 request.getCreatedAt());
     }

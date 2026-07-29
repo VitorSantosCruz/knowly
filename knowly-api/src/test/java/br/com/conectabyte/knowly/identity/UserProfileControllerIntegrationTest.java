@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
@@ -25,12 +26,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 /**
- * {@code /api/users/{me|id}/profile}, per specify/features/identity-profile-model/PLAN.md's API
+ * {@code /api/users/{me|id}/profile}, per specify/features/identity-profile-model-v2/PLAN.md's API
  * contracts table.
  */
 @Import(TestcontainersConfiguration.class)
@@ -45,6 +47,10 @@ class UserProfileControllerIntegrationTest {
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
     @Autowired private LoginCodeService loginCodeService;
     @MockitoBean private JavaMailSender mailSender;
+
+    private static final String FIELDS_JSON =
+            "{\"fullName\":\"%s\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,"
+                    + "\"birthDate\":null,\"address\":null,\"contacts\":null}";
 
     private Cookie logIn(String email) {
         when(mailSender.createMimeMessage())
@@ -89,7 +95,7 @@ class UserProfileControllerIntegrationTest {
     }
 
     @Test
-    void aStaffAdminCanDirectlyEditAnyUsersProfile() throws Exception {
+    void aStaffAdminCanDirectlyEditAnotherUsersProfileButNotTheirOwn() throws Exception {
         User staffAdmin =
                 userRepository.saveAndFlush(new User("controller-edit-staffadmin@example.com"));
         staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
@@ -102,12 +108,21 @@ class UserProfileControllerIntegrationTest {
                         .uri("/api/users/" + target.getId() + "/profile")
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                                "{\"fullName\":\"Edited Name\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        .content(FIELDS_JSON.formatted("Edited Name"))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response.getResponse().getContentAsString()).contains("Edited Name");
+
+        var selfEditResponse =
+                mockMvc.put()
+                        .uri("/api/users/" + staffAdmin.getId() + "/profile")
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(FIELDS_JSON.formatted("Self Edit Attempt"))
+                        .exchange();
+
+        assertThat(selfEditResponse).hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -123,8 +138,7 @@ class UserProfileControllerIntegrationTest {
                         .uri("/api/users/" + holder.getId() + "/profile")
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                                "{\"fullName\":\"Self Edit\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        .content(FIELDS_JSON.formatted("Self Edit"))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -141,7 +155,9 @@ class UserProfileControllerIntegrationTest {
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"fullName\":\"Requested Name\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                                "{\"fields\":"
+                                        + FIELDS_JSON.formatted("Requested Name")
+                                        + ",\"contactChanges\":[]}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);
@@ -159,7 +175,7 @@ class UserProfileControllerIntegrationTest {
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fullName\":\"First\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                        "{\"fields\":" + FIELDS_JSON.formatted("First") + ",\"contactChanges\":[]}")
                 .exchange();
 
         var response =
@@ -168,9 +184,40 @@ class UserProfileControllerIntegrationTest {
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"fullName\":\"Second\",\"address\":null,\"rg\":null,\"cpf\":null,\"phone\":null}")
+                                "{\"fields\":"
+                                        + FIELDS_JSON.formatted("Second")
+                                        + ",\"contactChanges\":[]}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void uploadingAnAvatarUpdatesTheOwnProfileAndReturnsItInTheResponse() throws Exception {
+        userRepository.saveAndFlush(new User("controller-avatar@example.com"));
+        Cookie session = logIn("controller-avatar@example.com");
+        MockMultipartFile file =
+                new MockMultipartFile("file", "avatar.png", "image/png", "fake-bytes".getBytes());
+
+        var result =
+                mockMvc.perform(
+                        multipart("/api/users/me/profile/avatar").file(file).cookie(session));
+
+        assertThat(result).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void uploadingAnUnsupportedContentTypeIsRejected() {
+        userRepository.saveAndFlush(new User("controller-avatar-bad-type@example.com"));
+        Cookie session = logIn("controller-avatar-bad-type@example.com");
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file", "not-an-image.txt", "text/plain", "not an image".getBytes());
+
+        var result =
+                mockMvc.perform(
+                        multipart("/api/users/me/profile/avatar").file(file).cookie(session));
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
     }
 }

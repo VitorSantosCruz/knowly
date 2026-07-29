@@ -1,22 +1,14 @@
 package br.com.conectabyte.knowly.identity.dto;
 
-public record UserProfileDto(
-        Long userId,
-        String email,
-        String fullName,
-        String address,
-        String rg,
-        String cpf,
-        String phone) {
+/**
+ * {@code ProfileFieldsDto}'s fields plus {@code userId}, {@code email} (read-only) and {@code
+ * avatarUrl} (read-only in this DTO -- only settable via the dedicated avatar upload endpoint,
+ * REQ-10), per specify/features/identity-profile-model-v2/PLAN.md's API contracts.
+ */
+public record UserProfileDto(Long userId, String email, ProfileFieldsDto fields, String avatarUrl) {
 
-    public static UserProfileDto of(Long userId, String email, ProfileFieldsDto fields) {
-        return new UserProfileDto(
-                userId,
-                email,
-                fields.fullName(),
-                fields.address(),
-                fields.rg(),
-                fields.cpf(),
-                fields.phone());
+    public static UserProfileDto of(
+            Long userId, String email, ProfileFieldsDto fields, String avatarUrl) {
+        return new UserProfileDto(userId, email, fields, avatarUrl);
     }
 }

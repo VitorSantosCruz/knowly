@@ -70,11 +70,12 @@ class V17MigrationTest {
 
     @Test
     void profileEditRequestsTableExistsWithItsExpectedColumns() {
+        // proposed_address is deliberately excluded here -- V18 (identity-profile-model-v2) drops
+        // it in favor of the structured proposed_cep/logradouro/... columns, see V18MigrationTest.
         List<String> columns =
                 List.of(
                         "requester_user_id",
                         "proposed_full_name",
-                        "proposed_address",
                         "proposed_rg",
                         "proposed_cpf",
                         "proposed_phone",

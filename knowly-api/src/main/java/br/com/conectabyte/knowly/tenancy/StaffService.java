@@ -7,6 +7,8 @@ import br.com.conectabyte.knowly.auth.MailService;
 import br.com.conectabyte.knowly.auth.OneTimePasswordService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.UserProfile;
+import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
@@ -38,6 +40,7 @@ public class StaffService {
     private final OneTimePasswordService oneTimePasswordService;
     private final MailService mailService;
     private final AuditEventRepository auditEventRepository;
+    private final UserProfileRepository userProfileRepository;
 
     public StaffService(
             UserRepository userRepository,
@@ -48,7 +51,8 @@ public class StaffService {
             GlobalPermissionService globalPermissionService,
             OneTimePasswordService oneTimePasswordService,
             MailService mailService,
-            AuditEventRepository auditEventRepository) {
+            AuditEventRepository auditEventRepository,
+            UserProfileRepository userProfileRepository) {
         this.userRepository = userRepository;
         this.directGlobalPermissionGrantRepository = directGlobalPermissionGrantRepository;
         this.globalAccessGroupRepository = globalAccessGroupRepository;
@@ -56,6 +60,7 @@ public class StaffService {
         this.userGlobalAccessGroupRepository = userGlobalAccessGroupRepository;
         this.globalPermissionService = globalPermissionService;
         this.oneTimePasswordService = oneTimePasswordService;
+        this.userProfileRepository = userProfileRepository;
         this.mailService = mailService;
         this.auditEventRepository = auditEventRepository;
     }
@@ -73,6 +78,7 @@ public class StaffService {
         User user = new User(email);
         user.setGlobalRole(GlobalRole.STAFF);
         user = userRepository.save(user);
+        userProfileRepository.save(new UserProfile(user));
 
         String oneTimePassword = oneTimePasswordService.generateFor(user);
         mailService.sendNewOneTimePassword(user.getEmail(), oneTimePassword);

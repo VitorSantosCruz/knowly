@@ -3,6 +3,9 @@ package br.com.conectabyte.knowly.identity;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.dto.AddressDto;
+import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
+import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.exception.PendingProfileEditRequestExistsException;
 import br.com.conectabyte.knowly.identity.exception.ProfileEditRequestAlreadyResolvedException;
@@ -28,9 +31,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
- * Submit/approve/reject of a user's own self-requested profile-edit request (REQ-15..21), per
- * specify/features/identity-profile-model/PLAN.md. Deliberately not {@code @Transactional} on the
- * class or read-heavy methods, same rationale as {@code NotificationService}/{@link
+ * Submit/approve/reject of a user's own self-requested profile-edit request (REQ-14..22), per
+ * specify/features/identity-profile-model-v2/PLAN.md. Deliberately not {@code @Transactional} on
+ * the class or read-heavy methods, same rationale as {@code NotificationService}/{@link
  * UserProfileService}: the recipient-enumeration/right-check logic here must see every one of the
  * requester's/caller's memberships across every tenant, not just the caller's currently-active one.
  */
@@ -38,6 +41,7 @@ import org.springframework.stereotype.Service;
 public class ProfileEditRequestService {
 
     private final ProfileEditRequestRepository profileEditRequestRepository;
+    private final ProfileEditRequestContactRepository profileEditRequestContactRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final TenantMembershipRepository tenantMembershipRepository;
@@ -47,6 +51,7 @@ public class ProfileEditRequestService {
 
     public ProfileEditRequestService(
             ProfileEditRequestRepository profileEditRequestRepository,
+            ProfileEditRequestContactRepository profileEditRequestContactRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
             TenantMembershipRepository tenantMembershipRepository,
@@ -54,6 +59,7 @@ public class ProfileEditRequestService {
             GlobalPermissionService globalPermissionService,
             UserProfileService userProfileService) {
         this.profileEditRequestRepository = profileEditRequestRepository;
+        this.profileEditRequestContactRepository = profileEditRequestContactRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
@@ -65,7 +71,7 @@ public class ProfileEditRequestService {
     /**
      * GET .../profile-edit-requests: pending requests the caller holds the applicable right over.
      */
-    public java.util.List<ProfileEditRequest> listPendingForApprover(User caller) {
+    public List<ProfileEditRequest> listPendingForApprover(User caller) {
         return profileEditRequestRepository.findByStatus(ProfileEditRequestStatus.PENDING).stream()
                 .filter(
                         request ->
@@ -74,9 +80,13 @@ public class ProfileEditRequestService {
                 .toList();
     }
 
-    /** REQ-15/16/20: create a pending request and notify every applicable edit-right holder. */
+    public List<ProfileEditRequestContact> proposedContactChangesOf(ProfileEditRequest request) {
+        return profileEditRequestContactRepository.findByProfileEditRequest(request);
+    }
+
+    /** REQ-14/16/20: create a pending request and notify every applicable edit-right holder. */
     @AuditLog(action = "identity.profile.edit_request.submit", resourceType = "ProfileEditRequest")
-    public ProfileEditRequest submitEditRequest(User requester, ProfileFieldsDto proposed) {
+    public ProfileEditRequest submitEditRequest(User requester, ProfileEditRequestFieldsDto body) {
         profileEditRequestRepository
                 .findByRequesterAndStatus(requester, ProfileEditRequestStatus.PENDING)
                 .ifPresent(
@@ -84,14 +94,44 @@ public class ProfileEditRequestService {
                             throw new PendingProfileEditRequestExistsException();
                         });
 
+        ProfileFieldsDto fields = body.fields();
         ProfileEditRequest request = new ProfileEditRequest(requester);
-        request.setProposedFullName(proposed.fullName());
-        request.setProposedAddress(proposed.address());
-        request.setProposedRg(proposed.rg());
-        request.setProposedCpf(proposed.cpf());
-        request.setProposedPhone(proposed.phone());
+        if (fields != null) {
+            request.setProposedFullName(fields.fullName());
+            request.setProposedRg(fields.rg());
+            request.setProposedRgOrgaoEmissor(fields.rgOrgaoEmissor());
+            request.setProposedCpf(fields.cpf());
+            request.setProposedBirthDate(fields.birthDate());
+
+            AddressDto address = fields.address();
+            if (address != null) {
+                request.setProposedCep(address.cep());
+                request.setProposedLogradouro(address.logradouro());
+                request.setProposedNumero(address.numero());
+                request.setProposedComplemento(address.complemento());
+                request.setProposedBairro(address.bairro());
+                request.setProposedCidade(address.cidade());
+                request.setProposedEstado(address.estado());
+                request.setProposedPais(address.pais());
+            }
+        }
         request.setStatus(ProfileEditRequestStatus.PENDING);
         request = profileEditRequestRepository.save(request);
+
+        List<ContactChangeDto> contactChanges = body.contactChanges();
+        if (contactChanges != null) {
+            for (ContactChangeDto change : contactChanges) {
+                profileEditRequestContactRepository.save(
+                        new ProfileEditRequestContact(
+                                request,
+                                change.action(),
+                                change.contactId(),
+                                change.type(),
+                                change.value(),
+                                change.label(),
+                                change.isPrimary()));
+            }
+        }
 
         for (User recipient : applicableEditRightHolders(requester)) {
             notificationRepository.save(
@@ -102,7 +142,7 @@ public class ProfileEditRequestService {
         return request;
     }
 
-    /** REQ-17/21: apply the proposed fields and resolve as approved. */
+    /** REQ-17/21: apply the proposed fields/contact changes atomically and resolve as approved. */
     @AuditLog(
             action = "identity.profile.edit_request.approve",
             resourceType = "ProfileEditRequest",
@@ -113,14 +153,28 @@ public class ProfileEditRequestService {
         ProfileFieldsDto proposed =
                 new ProfileFieldsDto(
                         request.getProposedFullName(),
-                        request.getProposedAddress(),
-                        request.getProposedRg(),
                         request.getProposedCpf(),
-                        request.getProposedPhone());
+                        request.getProposedRg(),
+                        request.getProposedRgOrgaoEmissor(),
+                        request.getProposedBirthDate(),
+                        proposedAddressOf(request),
+                        null);
+
+        List<ContactChangeDto> contactChanges =
+                profileEditRequestContactRepository.findByProfileEditRequest(request).stream()
+                        .map(
+                                change ->
+                                        new ContactChangeDto(
+                                                change.getAction(),
+                                                change.getContactId(),
+                                                change.getType(),
+                                                change.getValue(),
+                                                change.getLabel(),
+                                                change.getPrimary()))
+                        .toList();
 
         try {
-            userProfileService.applyFields(request.getRequester(), proposed);
-            userRepository.save(request.getRequester());
+            userProfileService.applyFields(request.getRequester(), proposed, contactChanges);
         } catch (DataIntegrityViolationException e) {
             throw new ProfileFieldConflictException();
         }
@@ -130,6 +184,22 @@ public class ProfileEditRequestService {
         request.setResolvedAt(Instant.now());
 
         return profileEditRequestRepository.save(request);
+    }
+
+    private AddressDto proposedAddressOf(ProfileEditRequest request) {
+        if (request.getProposedCep() == null && request.getProposedLogradouro() == null) {
+            return null;
+        }
+
+        return new AddressDto(
+                request.getProposedCep(),
+                request.getProposedLogradouro(),
+                request.getProposedNumero(),
+                request.getProposedComplemento(),
+                request.getProposedBairro(),
+                request.getProposedCidade(),
+                request.getProposedEstado(),
+                request.getProposedPais());
     }
 
     /** REQ-18: discard the proposed values and resolve as rejected. */
@@ -147,7 +217,10 @@ public class ProfileEditRequestService {
         return profileEditRequestRepository.save(request);
     }
 
-    /** REQ-19: only a caller holding the applicable edit right over the requester may resolve. */
+    /**
+     * REQ-19/22: only a caller holding the applicable edit right over the requester -- and never
+     * the requester themself -- may resolve.
+     */
     private ProfileEditRequest requirePendingRequest(User caller, Long requestId) {
         ProfileEditRequest request =
                 profileEditRequestRepository
@@ -156,6 +229,10 @@ public class ProfileEditRequestService {
 
         if (request.getStatus() != ProfileEditRequestStatus.PENDING) {
             throw new ProfileEditRequestAlreadyResolvedException();
+        }
+
+        if (caller.getId().equals(request.getRequester().getId())) {
+            throw new PermissionDeniedException();
         }
 
         if (!userProfileService.hasDirectEditRight(caller, request.getRequester())) {
