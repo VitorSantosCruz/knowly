@@ -97,7 +97,7 @@ describe('ProfileSectionComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
   });
 
-  it('[canEdit]=true and a different ownUserId reveals an edit toggle; submitting calls PUT and refreshes', async () => {
+  it('[canEdit]=true and a different ownUserId reveals an edit toggle; submitting calls PUT with {fields, contactChanges} and refreshes', async () => {
     await createFixture(true, 999);
     fixture.detectChanges();
 
@@ -111,12 +111,31 @@ describe('ProfileSectionComponent', () => {
 
     const req = httpMock.expectOne('/api/users/42/profile');
     expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      fields: { ...fields, contacts: [{ ...fields.contacts[0], rowKey: 'id-1' }] },
+      contactChanges: [],
+    });
     req.flush({ ...profile, fields: { ...fields, fullName: 'Jane Updated' } });
     fixture.detectChanges();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-section"]').textContent,
     ).toContain('Jane Updated');
+  });
+
+  it('the contacts editor is shown by default in the direct-edit form (backend now applies contact changes)', async () => {
+    await createFixture(true, 999);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/users/42/profile').flush(profile);
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]').click();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-contacts-fieldset"]'),
+    ).toBeTruthy();
   });
 
   it('a 409 on the edit call shows the conflict message', async () => {

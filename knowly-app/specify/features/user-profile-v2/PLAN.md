@@ -304,17 +304,26 @@ None new.
   change) — every consumer reads `profile.fields.xxx`/`profile.email`/`profile.avatarUrl`
   accordingly.
 - **`directEdit(userId, fields)` never gained the second `contactChanges` parameter this PLAN
-  anticipated.** The shipped `PUT /api/users/{id}/profile` accepts `ProfileFieldsDto` as its whole
-  body (no wrapper), and `UserProfileService#directEdit` always calls `applyFields(target, fields,
-  List.of())` — contact changes are hardcoded to an empty list for this endpoint, so there is no
-  way for a direct edit to change contacts at all in the shipped backend. `ProfileService
-  .directEdit` therefore stays single-argument, and `ProfileFieldsFormComponent` gained a new
+  anticipated — since resolved.** At the time this feature shipped, `PUT /api/users/{id}/profile`
+  accepted `ProfileFieldsDto` as its whole body (no wrapper), and `UserProfileService#directEdit`
+  always called `applyFields(target, fields, List.of())` — contact changes were hardcoded to an
+  empty list for this endpoint, so there was no way for a direct edit to change contacts at all.
+  `ProfileService.directEdit` stayed single-argument, and `ProfileFieldsFormComponent` gained a
   `showContacts` input (default `true`) so `ProfileSectionComponent`'s inline edit of an *other*
-  user hides the contacts editor entirely (`[showContacts]="false"`) rather than showing controls
+  user hid the contacts editor entirely (`[showContacts]="false"`) rather than showing controls
   that would silently no-op. Tier 2 (UI decision reflecting a real, confirmed backend contract
-  gap) — flagged in `PROJECT_STATUS.md` as a backend follow-up candidate (contacts are only
-  editable via the caller's own edit-request flow, never via an admin's direct edit of someone
-  else's contacts).
+  gap) — flagged in `PROJECT_STATUS.md` as a backend follow-up candidate.
+  **Follow-up closed**: `knowly-api` commit `c0a817d` changed `UserProfileController.directEdit`'s
+  request body to `ProfileEditRequestFieldsDto` (`{fields, contactChanges}`, the same shape
+  `submitEditRequest` already used) and made it genuinely apply contact changes. The frontend
+  follow-up restored `directEdit(userId, fields, contactChanges)`'s second parameter, sending the
+  `{fields, contactChanges}` wrapper body; `ProfileSectionComponent` dropped
+  `[showContacts]="false"` (back to the form's default `true`) and now threads `contactChanges`
+  from `ProfileFieldsFormSubmission` through to `directEdit`, mirroring `OwnProfilePageComponent`'s
+  existing `submitEditRequest(fields, contactChanges)` wiring.
+  `staff-user-detail-panel.component.ts`/`member-detail-panel.component.ts` needed no change —
+  neither host passes `[showContacts]`, so both already inherited `ProfileSectionComponent`'s
+  default.
 - **`ProfileEditRequestDto.proposedFields.address` and `.contacts` are always `null` in both `GET
   /api/profile-edit-requests` and the `POST .../edit-requests` response**, even though the
   proposed address is genuinely persisted (`ProfileEditRequest.proposedCep`/etc., used internally

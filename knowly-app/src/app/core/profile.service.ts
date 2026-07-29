@@ -78,14 +78,15 @@ export class ProfileService {
     return this.http.get<UserProfile>(`/api/users/${userId}/profile`);
   }
 
-  // Deviation from PLAN.md: the shipped `PUT /api/users/{id}/profile` accepts `ProfileFieldsDto`
-  // as its whole body (no `contactChanges` wrapper) and `UserProfileService#directEdit` always
-  // applies contact changes as an empty list regardless of what `fields.contacts` carries — so
-  // there is no way for a direct edit to change contacts at all in this shipped backend. This
-  // method therefore stays a single-argument call, not gaining the second `contactChanges`
-  // parameter PLAN.md anticipated.
-  directEdit(userId: number, fields: ProfileFields): Observable<UserProfile> {
-    return this.http.put<UserProfile>(`/api/users/${userId}/profile`, fields);
+  // Deviation from PLAN.md resolved (knowly-api c0a817d): `PUT /api/users/{id}/profile` now
+  // accepts the same `{fields, contactChanges}` wrapper as `submitEditRequest` and genuinely
+  // applies the contact changes, so this method regains the second parameter PLAN.md anticipated.
+  directEdit(
+    userId: number,
+    fields: ProfileFields,
+    contactChanges: ContactChange[],
+  ): Observable<UserProfile> {
+    return this.http.put<UserProfile>(`/api/users/${userId}/profile`, { fields, contactChanges });
   }
 
   uploadAvatar(file: File): Observable<UserProfile> {

@@ -75,11 +75,7 @@ type DetailError = 'network' | 'permission-denied' | null;
             </button>
           }
         } @else {
-          <app-profile-fields-form
-            [fields]="profile.fields"
-            [showContacts]="false"
-            (submitted)="onSubmit($event)"
-          />
+          <app-profile-fields-form [fields]="profile.fields" (submitted)="onSubmit($event)" />
           <button
             data-testid="profile-section-cancel"
             (click)="editing.set(false)"
@@ -138,14 +134,14 @@ export class ProfileSectionComponent {
       });
   }
 
-  // Deviation from PLAN.md: `directEdit` only ever takes `fields` (see profile.service.ts's
-  // deviation note) — `contactChanges` from the form submission is intentionally discarded here
-  // since the backend's PUT endpoint never applies it.
-  protected onSubmit({ fields }: ProfileFieldsFormSubmission): void {
+  // Deviation from PLAN.md resolved (knowly-api c0a817d): `PUT /api/users/{id}/profile` now
+  // genuinely applies contact changes, so the contacts editor is shown (default `showContacts`)
+  // and `contactChanges` from the form submission is threaded through to `directEdit`.
+  protected onSubmit({ fields, contactChanges }: ProfileFieldsFormSubmission): void {
     this.conflictError.set(null);
 
     this.profileService
-      .directEdit(this.userId(), fields)
+      .directEdit(this.userId(), fields, contactChanges)
       .pipe(
         catchError((err) => {
           if (err.status === 409) {

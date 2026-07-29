@@ -65,12 +65,12 @@ describe('ProfileService', () => {
     req.flush({ userId: 42, email: 'jane@example.com', fields, avatarUrl: null });
   });
 
-  it('directEdit(userId, fields) calls PUT /api/users/{id}/profile with the flat fields body', () => {
-    service.directEdit(42, fields).subscribe();
+  it('directEdit(userId, fields, contactChanges) calls PUT /api/users/{id}/profile with a {fields, contactChanges} body', () => {
+    service.directEdit(42, fields, contactChanges).subscribe();
 
     const req = httpMock.expectOne('/api/users/42/profile');
     expect(req.request.method).toBe('PUT');
-    expect(req.request.body).toEqual(fields);
+    expect(req.request.body).toEqual({ fields, contactChanges });
     req.flush({ userId: 42, email: 'jane@example.com', fields, avatarUrl: null });
   });
 
