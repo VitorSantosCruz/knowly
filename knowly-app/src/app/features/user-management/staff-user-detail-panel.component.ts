@@ -3,6 +3,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-permission';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
+import { ProfileService } from '../../core/profile.service';
 import {
   AuditEvent,
   GlobalAccessGroup,
@@ -181,6 +182,7 @@ type DetailError = 'network' | 'permission-denied' | null;
         <app-profile-section
           [userId]="userId()"
           [canEdit]="viewerIsStaffAdmin() || globalPermissionsService.has('PROFILE_EDIT')"
+          [ownUserId]="ownUserId()"
         />
       </div>
     }
@@ -188,6 +190,7 @@ type DetailError = 'network' | 'permission-denied' | null;
 })
 export class StaffUserDetailPanelComponent implements OnChanges {
   private readonly staffUserService = inject(StaffUserService);
+  private readonly profileService = inject(ProfileService);
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
 
   readonly userId = input.required<number>();
@@ -205,10 +208,26 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   protected readonly auditTrail = signal<AuditEvent[] | null>(null);
   protected readonly auditTrailError = signal<DetailError>(null);
 
+  // REQ-12/SPEC judgment call 5: sourced once per panel-open, threaded down to
+  // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
+  protected readonly ownUserId = signal<number | null>(null);
+
   ngOnChanges(): void {
     this.loadDetail();
     this.loadAccessGroups();
     this.loadAuditTrail();
+    this.loadOwnUserId();
+  }
+
+  private loadOwnUserId(): void {
+    this.profileService
+      .getOwnProfile()
+      .pipe(catchError(() => of(null)))
+      .subscribe((profile) => {
+        if (profile !== null) {
+          this.ownUserId.set(profile.userId);
+        }
+      });
   }
 
   protected assignableAccessGroups(detail: StaffUserDetail): GlobalAccessGroup[] {

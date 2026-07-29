@@ -132,11 +132,30 @@ describe('MembersPageComponent', () => {
     httpMock.expectOne('/api/users/42/profile').flush({
       userId: 42,
       email: 'a@example.com',
-      fullName: 'Member A',
-      address: '123 Main St',
-      rg: '11.111.111-1',
-      cpf: '111.111.111-11',
-      phone: '+15550000',
+      fields: {
+        fullName: 'Member A',
+        cpf: '111.111.111-11',
+        rg: '11.111.111-1',
+        rgOrgaoEmissor: 'SSP',
+        birthDate: '1990-01-01',
+        address: null,
+        contacts: [],
+      },
+      avatarUrl: null,
+    });
+    httpMock.expectOne('/api/users/me/profile').flush({
+      userId: 999,
+      email: 'me@example.com',
+      fields: {
+        fullName: 'Me',
+        cpf: null,
+        rg: null,
+        rgOrgaoEmissor: null,
+        birthDate: null,
+        address: null,
+        contacts: [],
+      },
+      avatarUrl: null,
     });
     fixture.detectChanges();
 

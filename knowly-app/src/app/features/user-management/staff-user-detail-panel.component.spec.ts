@@ -44,15 +44,31 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/users/1/audit-trail').flush(events);
   }
 
+  const profileFields = {
+    fullName: 'Staffer',
+    cpf: '111.111.111-11',
+    rg: '11.111.111-1',
+    rgOrgaoEmissor: 'SSP',
+    birthDate: '1990-01-01',
+    address: null,
+    contacts: [],
+  };
+
   function flushProfile(): void {
     httpMock.expectOne('/api/users/1/profile').flush({
       userId: 1,
       email: 'staffer@example.com',
-      fullName: 'Staffer',
-      address: '123 Main St',
-      rg: '11.111.111-1',
-      cpf: '111.111.111-11',
-      phone: '+15550000',
+      fields: profileFields,
+      avatarUrl: null,
+    });
+  }
+
+  function flushOwnProfile(ownUserId = 999): void {
+    httpMock.expectOne('/api/users/me/profile').flush({
+      userId: ownUserId,
+      email: 'me@example.com',
+      fields: profileFields,
+      avatarUrl: null,
     });
   }
 
@@ -70,6 +86,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     expect(
@@ -109,6 +126,7 @@ describe('StaffUserDetailPanelComponent', () => {
     ]);
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
@@ -133,6 +151,7 @@ describe('StaffUserDetailPanelComponent', () => {
       .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
@@ -152,6 +171,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail([]);
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
@@ -168,6 +188,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -199,6 +220,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -231,6 +253,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const assignButton: HTMLButtonElement = fixture.nativeElement.querySelector(
@@ -273,6 +296,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -301,6 +325,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -327,6 +352,7 @@ describe('StaffUserDetailPanelComponent', () => {
       .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
     httpMock.expectOne('/api/staff/access-groups').flush([]);
     flushAuditTrail();
+    httpMock.expectOne('/api/users/me/profile').flush(null);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
@@ -341,11 +367,30 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="profile-section"]')).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="staff-effective-permissions"]'),
     ).toBeTruthy();
+  });
+
+  it('threads ownUserId into ProfileSectionComponent, sourced from one getOwnProfile() call per panel-open', async () => {
+    await createFixture(true);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/staff/users/1/permissions').flush(emptyDetail);
+    httpMock.expectOne('/api/staff/access-groups').flush([]);
+    flushAuditTrail();
+    fixture.detectChanges();
+    flushProfile();
+    flushOwnProfile(1);
+    fixture.detectChanges();
+
+    // ownUserId === userId (1) hides the edit toggle even though viewerIsStaffAdmin grants canEdit.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]'),
+    ).toBeNull();
   });
 });

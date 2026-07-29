@@ -52,21 +52,38 @@ describe('MemberDetailPanelComponent', () => {
     fixture.detectChanges();
   }
 
+  const profileFields = {
+    fullName: 'Member A',
+    cpf: '111.111.111-11',
+    rg: '11.111.111-1',
+    rgOrgaoEmissor: 'SSP',
+    birthDate: '1990-01-01',
+    address: null,
+    contacts: [],
+  };
+
   function flushProfile(): void {
     httpMock.expectOne('/api/users/42/profile').flush({
       userId: 42,
       email: 'a@example.com',
-      fullName: 'Member A',
-      address: '123 Main St',
-      rg: '11.111.111-1',
-      cpf: '111.111.111-11',
-      phone: '+15550000',
+      fields: profileFields,
+      avatarUrl: null,
+    });
+  }
+
+  function flushOwnProfile(ownUserId = 999): void {
+    httpMock.expectOne('/api/users/me/profile').flush({
+      userId: ownUserId,
+      email: 'me@example.com',
+      fields: profileFields,
+      avatarUrl: null,
     });
   }
 
   it('shows direct permissions, access groups, and effective permissions as distinct sections', () => {
     setInputsAndFlushDetail();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const html = fixture.nativeElement.innerHTML;
@@ -81,6 +98,7 @@ describe('MemberDetailPanelComponent', () => {
   it('toggling a permission grants it and re-fetches the detail', () => {
     setInputsAndFlushDetail();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const toggle: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -106,6 +124,7 @@ describe('MemberDetailPanelComponent', () => {
   it('creating an access group makes it available to assign', () => {
     setInputsAndFlushDetail();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
@@ -134,6 +153,7 @@ describe('MemberDetailPanelComponent', () => {
   it('assigning an access group updates the member access groups', () => {
     setInputsAndFlushDetail();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     fixture.componentInstance['availableAccessGroups'].set([
@@ -168,6 +188,7 @@ describe('MemberDetailPanelComponent', () => {
   it('renders the profile section alongside its other, untouched sections', () => {
     setInputsAndFlushDetail();
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="profile-section"]')).toBeTruthy();
@@ -179,6 +200,7 @@ describe('MemberDetailPanelComponent', () => {
   it('disables profile editing for a non-admin viewer without PROFILE_EDIT', () => {
     setInputsAndFlushDetail(false);
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     expect(
@@ -189,10 +211,23 @@ describe('MemberDetailPanelComponent', () => {
   it('enables profile editing for a member admin of this tenant', () => {
     setInputsAndFlushDetail(true);
     flushProfile();
+    flushOwnProfile();
     fixture.detectChanges();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]'),
     ).toBeTruthy();
+  });
+
+  it('threads ownUserId into ProfileSectionComponent, sourced from one getOwnProfile() call per panel-open', () => {
+    setInputsAndFlushDetail(true);
+    flushProfile();
+    flushOwnProfile(42);
+    fixture.detectChanges();
+
+    // ownUserId === userId (42) hides the edit toggle even though the viewer is a member admin.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]'),
+    ).toBeNull();
   });
 });

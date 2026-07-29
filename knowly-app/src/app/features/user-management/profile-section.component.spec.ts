@@ -9,17 +9,28 @@ describe('ProfileSectionComponent', () => {
   let fixture: ComponentFixture<ProfileSectionComponent>;
   let httpMock: HttpTestingController;
 
-  const profile = {
-    userId: 42,
-    email: 'jane@example.com',
+  const fields = {
     fullName: 'Jane Doe',
-    address: '123 Main St',
-    rg: '11.111.111-1',
     cpf: '111.111.111-11',
-    phone: '+15550000',
+    rg: '11.111.111-1',
+    rgOrgaoEmissor: 'SSP',
+    birthDate: '1990-01-01',
+    address: {
+      cep: '01000-000',
+      logradouro: 'Main St',
+      numero: '123',
+      complemento: null,
+      bairro: 'Centro',
+      cidade: 'Sao Paulo',
+      estado: 'SP',
+      pais: 'BR',
+    },
+    contacts: [{ id: 1, type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
   };
 
-  async function createFixture(canEdit = false): Promise<void> {
+  const profile = { userId: 42, email: 'jane@example.com', fields, avatarUrl: null };
+
+  async function createFixture(canEdit = false, ownUserId: number | null = null): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [ProfileSectionComponent],
       providers: [
@@ -35,6 +46,7 @@ describe('ProfileSectionComponent', () => {
     fixture = TestBed.createComponent(ProfileSectionComponent);
     fixture.componentRef.setInput('userId', 42);
     fixture.componentRef.setInput('canEdit', canEdit);
+    fixture.componentRef.setInput('ownUserId', ownUserId);
     httpMock = TestBed.inject(HttpTestingController);
   }
 
@@ -42,16 +54,35 @@ describe('ProfileSectionComponent', () => {
     httpMock.verify();
   });
 
-  it("renders GET /api/users/{id}/profile's fields", async () => {
+  it("renders GET /api/users/{id}/profile's fields, including the read-only avatar", async () => {
     await createFixture();
     fixture.detectChanges();
 
-    httpMock.expectOne('/api/users/42/profile').flush(profile);
+    httpMock
+      .expectOne('/api/users/42/profile')
+      .flush({ ...profile, avatarUrl: 'https://example.com/a.png' });
     fixture.detectChanges();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-section"]').textContent,
     ).toContain('jane@example.com');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-avatar"]'),
+    ).toBeTruthy();
+  });
+
+  it('renders the read-only avatar regardless of canEdit', async () => {
+    await createFixture(true, 999);
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/users/42/profile')
+      .flush({ ...profile, avatarUrl: 'https://example.com/a.png' });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-avatar"]'),
+    ).toBeTruthy();
   });
 
   it('a 403 renders app-no-access-state scoped to this section only', async () => {
@@ -66,8 +97,8 @@ describe('ProfileSectionComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
   });
 
-  it('[canEdit]=true reveals an edit toggle; submitting calls PUT and refreshes', async () => {
-    await createFixture(true);
+  it('[canEdit]=true and a different ownUserId reveals an edit toggle; submitting calls PUT and refreshes', async () => {
+    await createFixture(true, 999);
     fixture.detectChanges();
 
     httpMock.expectOne('/api/users/42/profile').flush(profile);
@@ -80,7 +111,7 @@ describe('ProfileSectionComponent', () => {
 
     const req = httpMock.expectOne('/api/users/42/profile');
     expect(req.request.method).toBe('PUT');
-    req.flush({ ...profile, fullName: 'Jane Updated' });
+    req.flush({ ...profile, fields: { ...fields, fullName: 'Jane Updated' } });
     fixture.detectChanges();
 
     expect(
@@ -89,7 +120,7 @@ describe('ProfileSectionComponent', () => {
   });
 
   it('a 409 on the edit call shows the conflict message', async () => {
-    await createFixture(true);
+    await createFixture(true, 999);
     fixture.detectChanges();
 
     httpMock.expectOne('/api/users/42/profile').flush(profile);
@@ -110,7 +141,19 @@ describe('ProfileSectionComponent', () => {
   });
 
   it('[canEdit]=false never renders the edit toggle', async () => {
-    await createFixture(false);
+    await createFixture(false, 999);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/users/42/profile').flush(profile);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-section-edit-toggle"]'),
+    ).toBeNull();
+  });
+
+  it('[ownUserId] equal to [userId] hides the edit toggle even when canEdit=true', async () => {
+    await createFixture(true, 42);
     fixture.detectChanges();
 
     httpMock.expectOne('/api/users/42/profile').flush(profile);

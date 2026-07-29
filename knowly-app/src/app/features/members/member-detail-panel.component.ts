@@ -3,6 +3,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import { ALL_PERMISSIONS, Permission } from '../../core/permission';
 import { PermissionsService } from '../../core/permissions.service';
+import { ProfileService } from '../../core/profile.service';
 import { AccessGroup, MemberDetail, MemberService } from '../../core/member.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
@@ -113,7 +114,11 @@ type DetailError = 'network' | 'permission-denied' | null;
           </p>
         </section>
 
-        <app-profile-section [userId]="detail.userId" [canEdit]="canEdit()" />
+        <app-profile-section
+          [userId]="detail.userId"
+          [canEdit]="canEdit()"
+          [ownUserId]="ownUserId()"
+        />
       </div>
     }
   `,
@@ -121,6 +126,7 @@ type DetailError = 'network' | 'permission-denied' | null;
 export class MemberDetailPanelComponent implements OnChanges {
   private readonly memberService = inject(MemberService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly profileService = inject(ProfileService);
 
   readonly tenantId = input.required<number>();
   readonly membershipId = input.required<number>();
@@ -136,9 +142,25 @@ export class MemberDetailPanelComponent implements OnChanges {
   protected readonly allPermissions = ALL_PERMISSIONS;
   protected readonly error = signal<DetailError>(null);
 
+  // REQ-12/SPEC judgment call 5: sourced once per panel-open, threaded down to
+  // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
+  protected readonly ownUserId = signal<number | null>(null);
+
   ngOnChanges(): void {
     this.loadDetail();
     this.loadAccessGroups();
+    this.loadOwnUserId();
+  }
+
+  private loadOwnUserId(): void {
+    this.profileService
+      .getOwnProfile()
+      .pipe(catchError(() => of(null)))
+      .subscribe((profile) => {
+        if (profile !== null) {
+          this.ownUserId.set(profile.userId);
+        }
+      });
   }
 
   protected assignableAccessGroups(detail: MemberDetail): AccessGroup[] {

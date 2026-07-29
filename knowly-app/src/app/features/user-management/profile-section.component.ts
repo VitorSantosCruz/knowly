@@ -1,10 +1,13 @@
-import { Component, OnChanges, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
-import { ProfileFields, ProfileService, UserProfile } from '../../core/profile.service';
+import { ProfileService, UserProfile } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
-import { ProfileFieldsFormComponent } from '../../shared/profile-fields-form.component';
+import {
+  ProfileFieldsFormComponent,
+  ProfileFieldsFormSubmission,
+} from '../../shared/profile-fields-form.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
 
@@ -31,15 +34,38 @@ type DetailError = 'network' | 'permission-denied' | null;
           </p>
         }
 
+        @if (profile.avatarUrl) {
+          <img
+            data-testid="profile-section-avatar"
+            [src]="profile.avatarUrl"
+            alt=""
+            class="mb-2 h-12 w-12 rounded-full object-cover"
+          />
+        }
+
         @if (!editing()) {
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fullName }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.address }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.rg }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.cpf }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.phone }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.fullName }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.rg }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.cpf }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.rgOrgaoEmissor }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.birthDate }}</p>
+          @if (profile.fields.address; as address) {
+            <p class="text-sm text-ink-600 dark:text-ink-400">
+              {{ address.logradouro }}, {{ address.numero }} - {{ address.bairro }},
+              {{ address.cidade }}/{{ address.estado }} - {{ address.cep }} - {{ address.pais }}
+            </p>
+          }
+          @for (contact of profile.fields.contacts; track contact.id) {
+            <p class="text-sm text-ink-600 dark:text-ink-400">
+              {{ contact.type }}: {{ contact.value }}
+              @if (contact.isPrimary) {
+                ({{ 'profile.fields.contacts.primary' | transloco }})
+              }
+            </p>
+          }
           <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.email }}</p>
 
-          @if (canEdit()) {
+          @if (showEditToggle()) {
             <button
               data-testid="profile-section-edit-toggle"
               (click)="editing.set(true)"
@@ -49,7 +75,11 @@ type DetailError = 'network' | 'permission-denied' | null;
             </button>
           }
         } @else {
-          <app-profile-fields-form [fields]="profile" (submitted)="onSubmit($event)" />
+          <app-profile-fields-form
+            [fields]="profile.fields"
+            [showContacts]="false"
+            (submitted)="onSubmit($event)"
+          />
           <button
             data-testid="profile-section-cancel"
             (click)="editing.set(false)"
@@ -62,24 +92,39 @@ type DetailError = 'network' | 'permission-denied' | null;
     </section>
   `,
 })
-export class ProfileSectionComponent implements OnChanges {
+export class ProfileSectionComponent {
   private readonly profileService = inject(ProfileService);
 
   readonly userId = input.required<number>();
   readonly canEdit = input(false);
+  // REQ-12/SPEC judgment call 5: the edit affordance is hidden — not merely disabled — when the
+  // viewer is looking at their own row, since REQ-11 (identity-profile-model-v2) removed
+  // self-direct-edit entirely, for anyone.
+  readonly ownUserId = input<number | null>(null);
 
   protected readonly profile = signal<UserProfile | null>(null);
   protected readonly profileError = signal<DetailError>(null);
   protected readonly editing = signal(false);
   protected readonly conflictError = signal<string[] | null>(null);
 
-  ngOnChanges(): void {
-    this.loadProfile();
+  protected readonly showEditToggle = computed(
+    () => this.canEdit() && this.userId() !== this.ownUserId(),
+  );
+
+  constructor() {
+    // Only reacts to `userId()` changes — `canEdit`/`ownUserId` are read outside this effect's
+    // tracking scope so they never trigger a duplicate re-fetch of the same profile (a real bug
+    // caught by TDAD: `ngOnChanges` previously re-ran `loadProfile()` on *any* input change,
+    // including `ownUserId` arriving asynchronously after the initial render).
+    effect(() => {
+      const userId = this.userId();
+      this.loadProfile(userId);
+    });
   }
 
-  private loadProfile(): void {
+  private loadProfile(userId: number): void {
     this.profileService
-      .getProfile(this.userId())
+      .getProfile(userId)
       .pipe(
         catchError((err) => {
           this.profileError.set(err.status === 403 ? 'permission-denied' : 'network');
@@ -93,7 +138,10 @@ export class ProfileSectionComponent implements OnChanges {
       });
   }
 
-  protected onSubmit(fields: ProfileFields): void {
+  // Deviation from PLAN.md: `directEdit` only ever takes `fields` (see profile.service.ts's
+  // deviation note) — `contactChanges` from the form submission is intentionally discarded here
+  // since the backend's PUT endpoint never applies it.
+  protected onSubmit({ fields }: ProfileFieldsFormSubmission): void {
     this.conflictError.set(null);
 
     this.profileService
