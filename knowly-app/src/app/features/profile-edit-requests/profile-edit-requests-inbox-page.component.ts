@@ -34,10 +34,41 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
                 }}
               </p>
               <p class="text-sm text-ink-600 dark:text-ink-400">
-                {{ request.proposedFields.fullName }} · {{ request.proposedFields.address }} ·
-                {{ request.proposedFields.rg }} · {{ request.proposedFields.cpf }} ·
-                {{ request.proposedFields.phone }}
+                {{ request.proposedFields.fullName }} · {{ request.proposedFields.rg }} ·
+                {{ request.proposedFields.cpf }} · {{ request.proposedFields.rgOrgaoEmissor }} ·
+                {{ request.proposedFields.birthDate }}
               </p>
+              @if (request.proposedFields.address; as address) {
+                <p
+                  [attr.data-testid]="'profile-edit-request-address-' + request.id"
+                  class="text-sm text-ink-600 dark:text-ink-400"
+                >
+                  {{ address.logradouro }}, {{ address.numero }} - {{ address.bairro }},
+                  {{ address.cidade }}/{{ address.estado }} - {{ address.cep }} -
+                  {{ address.pais }}
+                </p>
+              }
+              @if (request.proposedContactChanges.length > 0) {
+                <ul
+                  [attr.data-testid]="'profile-edit-request-contact-changes-' + request.id"
+                  class="text-sm text-ink-600 dark:text-ink-400"
+                >
+                  @for (change of request.proposedContactChanges; track $index) {
+                    <li>
+                      <span class="font-medium">{{ change.action }}</span>
+                      @if (change.type) {
+                        · {{ change.type }}
+                      }
+                      @if (change.value) {
+                        · {{ change.value }}
+                      }
+                      @if (change.label) {
+                        · {{ change.label }}
+                      }
+                    </li>
+                  }
+                </ul>
+              }
               <p class="text-xs text-ink-500 dark:text-ink-400">
                 {{ 'profileEditRequests.submittedAt' | transloco }}: {{ request.createdAt }}
               </p>

@@ -14,11 +14,32 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     requesterUserId: 3,
     proposedFields: {
       fullName: 'Jane Doe',
-      address: '123 Main St',
       rg: '11.111.111-1',
       cpf: '111.111.111-11',
-      phone: '+15550000',
+      rgOrgaoEmissor: 'SSP',
+      birthDate: '1990-01-01',
+      address: {
+        cep: '01000-000',
+        logradouro: 'Main St',
+        numero: '123',
+        complemento: null,
+        bairro: 'Centro',
+        cidade: 'Sao Paulo',
+        estado: 'SP',
+        pais: 'BR',
+      },
+      contacts: [],
     },
+    proposedContactChanges: [
+      {
+        action: 'ADD',
+        contactId: null,
+        type: 'EMAIL',
+        value: 'jane@example.com',
+        label: null,
+        isPrimary: true,
+      },
+    ],
     status: 'PENDING',
     createdAt: '2026-07-28T10:00:00Z',
   };
@@ -44,7 +65,7 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     httpMock.verify();
   });
 
-  it('renders every pending request (requester id, proposed fields, submission date)', async () => {
+  it('renders every pending request (requester id, proposed fields, structured address, contact changes, submission date)', async () => {
     await createFixture();
     fixture.detectChanges();
 
@@ -57,6 +78,18 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     expect(text).toContain('3');
     expect(text).toContain('Jane Doe');
     expect(text).toContain('2026-07-28T10:00:00Z');
+
+    const addressText = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-address-7"]',
+    ).textContent;
+    expect(addressText).toContain('Main St');
+    expect(addressText).toContain('Sao Paulo');
+
+    const contactChangesText = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-contact-changes-7"]',
+    ).textContent;
+    expect(contactChangesText).toContain('ADD');
+    expect(contactChangesText).toContain('jane@example.com');
   });
 
   it('renders the distinct empty state when there are zero requests', async () => {
