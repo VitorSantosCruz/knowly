@@ -1,19 +1,41 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ProfileService } from './profile.service';
+import { ProfileService, ProfileFields, ContactChange } from './profile.service';
 
 describe('ProfileService', () => {
   let service: ProfileService;
   let httpMock: HttpTestingController;
 
-  const fields = {
+  const fields: ProfileFields = {
     fullName: 'Jane Doe',
-    address: '123 Main St',
-    rg: '11.111.111-1',
     cpf: '111.111.111-11',
-    phone: '+15550000',
+    rg: '11.111.111-1',
+    rgOrgaoEmissor: 'SSP',
+    birthDate: '1990-01-01',
+    address: {
+      cep: '01000-000',
+      logradouro: 'Main St',
+      numero: '123',
+      complemento: null,
+      bairro: 'Centro',
+      cidade: 'Sao Paulo',
+      estado: 'SP',
+      pais: 'BR',
+    },
+    contacts: [{ id: 1, type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
   };
+
+  const contactChanges: ContactChange[] = [
+    {
+      action: 'ADD',
+      contactId: null,
+      type: 'EMAIL',
+      value: 'jane@example.com',
+      label: null,
+      isPrimary: true,
+    },
+  ];
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -32,7 +54,7 @@ describe('ProfileService', () => {
 
     const req = httpMock.expectOne('/api/users/me/profile');
     expect(req.request.method).toBe('GET');
-    req.flush({ userId: 1, email: 'jane@example.com', ...fields });
+    req.flush({ userId: 1, email: 'jane@example.com', fields, avatarUrl: null });
   });
 
   it('getProfile(userId) calls GET /api/users/{id}/profile', () => {
@@ -40,28 +62,44 @@ describe('ProfileService', () => {
 
     const req = httpMock.expectOne('/api/users/42/profile');
     expect(req.request.method).toBe('GET');
-    req.flush({ userId: 42, email: 'jane@example.com', ...fields });
+    req.flush({ userId: 42, email: 'jane@example.com', fields, avatarUrl: null });
   });
 
-  it('directEdit(userId, fields) calls PUT /api/users/{id}/profile', () => {
+  it('directEdit(userId, fields) calls PUT /api/users/{id}/profile with the flat fields body', () => {
     service.directEdit(42, fields).subscribe();
 
     const req = httpMock.expectOne('/api/users/42/profile');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual(fields);
-    req.flush({ userId: 42, email: 'jane@example.com', ...fields });
+    req.flush({ userId: 42, email: 'jane@example.com', fields, avatarUrl: null });
   });
 
-  it('submitEditRequest(fields) calls POST /api/users/me/profile/edit-requests', () => {
-    service.submitEditRequest(fields).subscribe();
+  it('uploadAvatar(file) posts FormData to POST /api/users/me/profile/avatar', () => {
+    const file = new File(['content'], 'avatar.png', { type: 'image/png' });
+    service.uploadAvatar(file).subscribe();
+
+    const req = httpMock.expectOne('/api/users/me/profile/avatar');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    req.flush({
+      userId: 1,
+      email: 'jane@example.com',
+      fields,
+      avatarUrl: 'https://example.com/avatar.png',
+    });
+  });
+
+  it('submitEditRequest(fields, contactChanges) calls POST /api/users/me/profile/edit-requests with both', () => {
+    service.submitEditRequest(fields, contactChanges).subscribe();
 
     const req = httpMock.expectOne('/api/users/me/profile/edit-requests');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual(fields);
+    expect(req.request.body).toEqual({ fields, contactChanges });
     req.flush({
       id: 1,
       requesterUserId: 1,
       proposedFields: fields,
+      proposedContactChanges: contactChanges,
       status: 'PENDING',
       createdAt: '2026-07-28T00:00:00Z',
     });
