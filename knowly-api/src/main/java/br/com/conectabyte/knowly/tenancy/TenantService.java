@@ -378,6 +378,7 @@ public class TenantService {
 
         return new MemberDetailDto(
                 membership.getId(),
+                membership.getUser().getId(),
                 membership.getUser().getEmail(),
                 membership.getRole(),
                 direct,

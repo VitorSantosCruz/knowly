@@ -238,6 +238,10 @@ class TenantManagementIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response.getResponse().getContentAsString()).contains("admin3@own.com");
         assertThat(response.getResponse().getContentAsString()).contains("member3@own.com");
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"userId\":" + member.getId());
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"userId\":" + admin.getId());
     }
 
     @Test
@@ -296,6 +300,8 @@ class TenantManagementIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response.getResponse().getContentAsString()).contains("TENANT_MEMBER_MANAGE");
         assertThat(response.getResponse().getContentAsString()).contains("member5@own.com");
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"userId\":" + member.getId());
     }
 
     @Test

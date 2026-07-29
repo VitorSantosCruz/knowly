@@ -6,6 +6,7 @@ import java.util.List;
 
 public record MemberDetailDto(
         Long membershipId,
+        Long userId,
         String email,
         MembershipRole role,
         List<Permission> directPermissions,
