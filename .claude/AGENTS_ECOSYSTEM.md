@@ -149,6 +149,19 @@ Concretely, this means:
   human** — no roundtable, however convened, substitutes for that. A
   roundtable resolves disagreement *between agents*; it never grants
   itself authority the process reserves for the human.
+- **Never re-run or block on a verify/build/test command a delegated
+  agent is already running as part of its own task.** When Backend
+  Engineer/Frontend Engineer/etc. run `./mvnw verify`,
+  `npm test`/`ng build`, or similar as part of TDAD, that agent owns
+  waiting for and reporting that result — the orchestrator does not
+  also run the same command in the main thread and sit blocked on it.
+  This happened for real (2026-07-28/29): the orchestrator ran
+  `./mvnw verify` itself while a background `backend-engineer` agent
+  was already running its own, and got stuck waiting on a duplicate,
+  pointless run. If you need to check whether a delegated agent's long
+  task is still alive, use a lightweight liveness check (process list,
+  file mtime on its output) at a reasonable poll interval — never a
+  second full verify run, and never continuous polling.
 
 ## Maintenance rule
 

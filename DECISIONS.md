@@ -724,6 +724,353 @@ helper is now justified by an actual second dynamic-filter shape, and
 and update both call sites. Until that trigger exists, don't
 pre-build either piece of shared machinery off of one endpoint's shape.
 
+## `identity-profile-model` retrofit: split `users` personal-data columns into `user_profiles`/`addresses`/`contacts`, LGPD-minimized field set, self-service restricted to `avatar_url` (confirmed with product owner, 2026-07-28)
+
+**Status: design confirmed in conversation with the product owner,
+not yet implemented.** No migration, entity, or service code exists
+for this yet — `identity-profile-model` as shipped (see that feature's
+own SPEC/PLAN/TASKS and `V17__add_identity_profile_fields.sql`) is
+still what's actually running. This entry exists so the next
+conversation (any AI) that picks up a backend retrofit has the full
+reasoning without re-deriving it. Treat this as the target design for
+a new backend PLAN.md, not as already-done work.
+
+**Scope correction (2026-07-28, discovered after this design was
+confirmed):** the `knowly-app` frontend feature `user-profile` was
+independently implemented and committed (11 commits, `17e1b1a`
+through `9293e76`, not yet pushed to `origin/main`) *against the old
+`V17` flat contract* (`fullName`/`address` free-text
+string/`rg`/`cpf`/`phone` on `GET/PUT /api/users/{id}/profile`) while
+this redesign was being discussed — see
+`knowly-app/specify/features/user-profile/`. The product owner
+confirmed (2026-07-28) this redesign proceeds anyway, which means the
+retrofit's scope is now bigger than originally framed: it must also
+update the already-shipped frontend consumers
+(`ProfileService`, `ProfileFieldsFormComponent`,
+`OwnProfilePageComponent`, `ProfileSectionComponent`,
+`ProfileEditRequestsInboxPageComponent`) to the new
+tables-backed contract (structured address, `contacts` list instead of
+a single `phone` field, `avatar_url` as the only directly-self-editable
+field), not just the backend. Whoever formalizes the PLAN.md for this
+should treat it as a two-subproject retrofit from the start, per
+`constitution.md`'s "Feature SPEC placement" rule (two SPECs, one per
+subproject) — not a backend-only change with a frontend follow-up.
+
+**Decision (Tier 3, confirmed by the product owner 2026-07-28): three
+new 1:1/1:n tables replace the flat columns `V17` added directly to
+`users`.**
+
+```sql
+-- 1:1 with users. Row created eagerly at account creation (see "Why"
+-- below for why this must be eager, not created on first submit).
+CREATE TABLE user_profiles (
+  user_id             BIGINT PRIMARY KEY REFERENCES users(id),
+  full_name           VARCHAR(255),         -- nullable: eager row, empty until filled
+  cpf                 VARCHAR(255),         -- encrypted, same converter as V17's User.cpf
+  cpf_blind_index     VARCHAR(64),
+  rg                  VARCHAR(255),         -- encrypted
+  rg_orgao_emissor    VARCHAR(20),          -- NOT inside the encrypted envelope: alone it
+                                             -- doesn't identify anyone, so it stays queryable
+  rg_blind_index      VARCHAR(64),
+  birth_date          DATE,
+  avatar_url          VARCHAR(500),
+  created_at/created_by/updated_at/updated_by,
+  CHECK ((cpf IS NULL) = (cpf_blind_index IS NULL)),
+  CHECK ((rg IS NULL) = (rg_blind_index IS NULL))
+);
+-- unique indexes on cpf_blind_index/rg_blind_index WHERE NOT NULL, same
+-- blind-index pattern as this file's existing CPF/RG entry above —
+-- unchanged, just moved to a new owning table.
+
+-- 1:1 with users, NOT created eagerly (only once an address is actually
+-- entered). Structured, not the V17 free-text VARCHAR(500).
+CREATE TABLE addresses (
+  user_id BIGINT PRIMARY KEY REFERENCES users(id),
+  cep VARCHAR(9) NOT NULL CHECK (cep ~ '^\d{5}-?\d{3}$'),
+  logradouro VARCHAR(255) NOT NULL,
+  numero VARCHAR(20),          -- string, not int: real addresses have "S/N", "123A"
+  complemento VARCHAR(100),
+  bairro VARCHAR(100) NOT NULL,
+  cidade VARCHAR(100) NOT NULL,
+  estado CHAR(2) NOT NULL CHECK (estado ~ '^[A-Z]{2}$'),
+  pais VARCHAR(100) NOT NULL DEFAULT 'Brasil',
+  created_at/created_by/updated_at/updated_by
+);
+
+-- 1:n with users. Multiple phone/whatsapp/email, replacing V17's single
+-- `phone` column. users.email remains the ONLY login credential and is
+-- never duplicated in here.
+CREATE TABLE contacts (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id),
+  type VARCHAR(20) NOT NULL,   -- PHONE, WHATSAPP, EMAIL, OTHER
+  value VARCHAR(255) NOT NULL,
+  label VARCHAR(50),
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  created_at/created_by/updated_at/updated_by
+);
+CREATE INDEX idx_contacts_user_id ON contacts (user_id);
+CREATE UNIQUE INDEX ux_contacts_primary_per_type
+  ON contacts (user_id, type) WHERE is_primary;
+-- max ~5 contacts/user enforced in ContactService, not the DB (see "Why").
+```
+
+`profile_edit_requests` (existing table, needs retrofit alongside the
+above) gains flattened `proposed_*` columns mirroring `user_profiles`
+and `addresses` (both 1:1, so flat columns fit the same way `V17`
+already did it), plus a new child table for the 1:n contacts case,
+which can't be flattened:
+
+```sql
+CREATE TABLE profile_edit_request_contacts (
+  id                       BIGSERIAL PRIMARY KEY,
+  profile_edit_request_id BIGINT NOT NULL REFERENCES profile_edit_requests(id),
+  action                   VARCHAR(10) NOT NULL,  -- ADD, UPDATE, REMOVE
+  contact_id               BIGINT REFERENCES contacts(id),  -- NULL only for ADD
+  type                     VARCHAR(20),
+  value                    VARCHAR(255),
+  label                    VARCHAR(50),
+  is_primary               BOOLEAN,
+  CHECK (
+    (action = 'ADD' AND contact_id IS NULL)
+    OR (action IN ('UPDATE','REMOVE') AND contact_id IS NOT NULL)
+  )
+);
+CREATE INDEX idx_profile_edit_request_contacts_request
+  ON profile_edit_request_contacts (profile_edit_request_id);
+```
+
+**Why the table split:** `users` is the authentication/session table
+(login, password/OTP, roles); personal data doesn't belong mixed into
+it — that was the product owner's core objection to `V17`'s shape, and
+it's a correct one, not just taste. `addresses` split out because
+`V17`'s free-text `VARCHAR(500)` can't support the real requirement
+(a legally-notifiable structured address); `contacts` split out
+because a single `phone` column can't represent "a person has more
+than one way to be reached" (multiple phones, WhatsApp, alternate
+email).
+
+**Why `addresses` stays 1:1, not 1:n, even though `contacts` is
+1:n:** both were considered for 1:n (a person can have a home and a
+work address, just like multiple phone numbers). The deciding
+difference is *purpose*: every field in this model exists to serve one
+stated business requirement — being able to identify/hold a user
+accountable if they misuse the platform, not building a general social
+profile. Multiple reachability channels (`contacts`) genuinely serve
+that purpose (more ways to reach the person is strictly better for
+accountability). Multiple addresses do not — they add ambiguity
+("which of the 5 addresses is the real one to legally notify?") rather
+than resolving it. A single current, correct address is what
+accountability actually needs. If a genuine second business need for
+multiple addresses shows up later (billing/shipping, e.g.), that's a
+new feature with its own justification, not a retrofit of this one.
+
+**Why the field set was cut from the first draft (LGPD data
+minimization, applied field-by-field against the stated
+purpose):** `social_name`, `gender`, and `nationality` were all in an
+earlier draft and removed — none of them serve
+identification/accountability (CPF already identifies uniquely;
+`social_name` is a respectful-treatment/UX concern, not a legal-name
+concern; `gender` has zero bearing on identifying a bad actor and is
+sensitive-adjacent data with no stated purpose, which is exactly what
+minimization exists to prevent; `nationality` is moot while the only
+supported ID documents are CPF/RG, both Brazilian). `birth_date` and
+`avatar_url` were *also* flagged as not serving accountability, but
+the product owner explicitly chose to keep both anyway, for a
+different, deliberately non-compliance reason: giving the user
+something personal to attach to in the product (retention/engagement),
+not identification. **This is a real distinction that matters for the
+permission model below — birth_date and avatar_url are kept for two
+different reasons, and only avatar_url gets the more permissive
+handling.**
+
+**Decision: permission model per field — only `avatar_url` is
+self-editable directly; everything else (including `birth_date`) can
+only be *proposed* by the owner via `profile_edit_requests`, never
+self-approved, and never edited directly by the owner even when they'd
+otherwise qualify under an existing grant.**
+
+| Field(s) | Self direct-edit | Self self-request (pending approval) |
+|---|---|---|
+| `avatar_url` | Yes, unrestricted | — |
+| `birth_date` | No | Yes — approval by someone else required |
+| `full_name`, `cpf`, `rg`, `rg_orgao_emissor`, `addresses.*`, `contacts.*` | No | Yes — approval by someone else required |
+
+This mostly *keeps* `identity-profile-model`'s existing REQ-15 shape
+(self-request allowed, self-approval never allowed) — the only actual
+change from what shipped is that `birth_date` is now explicitly
+grouped with the identification fields for this purpose (not treated
+like `avatar_url`) even though it was kept in the field set for a
+non-identification reason. **Why:** the stated worry driving this
+question was "avoid the user tampering with the data that would
+identify them" — `birth_date`, `full_name`, `cpf`, `rg`, and address/
+contact data are all inputs that could plausibly be manipulated to
+frustrate identification if a user could silently self-edit them, even
+if `birth_date` alone isn't as load-bearing as CPF for that purpose;
+`avatar_url` carries no identification weight either way (it doesn't
+prove or disprove who someone is), so it's the one field that's safe
+to leave fully self-service. **Enforcement implication:** the existing
+self-exclusion guard in `UserProfileService` (see this file's
+`profile-edit authorization lives as explicit service-layer logic`
+entry above) needs an explicit `resolved_by_user_id <> requester_user_id`
+check/constraint on `profile_edit_requests` — today that's only
+implicit in service logic; make it a DB `CHECK` too
+(`CHECK (resolved_by_user_id IS NULL OR resolved_by_user_id <>
+requester_user_id)`) so self-approval can't slip through a future code
+path that forgets the service-layer guard.
+
+**Decision: `contacts.is_primary` is unique per `(user_id, type)`, not
+one global primary per user.** Rejected "one primary contact overall"
+because the real question this field answers is "which phone number is
+the main one" and "which email is the main one" *independently* — an
+accountability flow may need to notify by primary email and call the
+primary phone in the same incident, and a single global primary would
+force picking one channel over the other for no reason tied to the
+actual purpose.
+
+**Decision: the ~5-contacts-per-user cap is enforced in
+`ContactService`, not the database.** A cross-row count can't be
+expressed as a Postgres `CHECK` (would need a trigger), and the limit
+is a mutable business rule ("~5" was stated loosely, not as a fixed
+security boundary) — a DB trigger is harder to test/maintain for a
+number that's expected to possibly change than a service-layer guard.
+Reserve a DB-level enforcement for this kind of rule only if it ever
+becomes a real anti-abuse/security boundary where an application-layer
+bypass would be a genuine risk; it isn't that today.
+
+**Decision: this ships as a direct retrofit migration with backfill,
+not a compatibility view or an expand/contract two-phase
+migration.** A compatibility view was considered and rejected: there
+is no external consumer of `users.cpf`/`users.address` outside this
+same backend/frontend deploy (both move together, monorepo) that a
+view would need to protect — it would add permanent indirection for a
+problem this codebase doesn't have. An expand/contract two-phase
+migration was also considered and rejected: that pattern earns its
+cost when old and new app versions read the same table concurrently
+during a zero-downtime rollout; nothing here suggests that
+constraint, so it's process overhead without the payoff. **Sequencing
+(per `data-architect-dba` review, 2026-07-28):**
+1. New migration creates `user_profiles`/`addresses`/`contacts`,
+   backfills `full_name`/`cpf`/`rg`/`phone` from `users` into the new
+   tables (`phone` becomes a `contacts` row, not a `user_profiles`
+   column — `email` is explicitly *not* backfilled into `contacts`,
+   `users.email` stays the sole login credential).
+2. Same or a following migration retrofits `profile_edit_requests`
+   (adds the flattened address/profile `proposed_*` columns, creates
+   `profile_edit_request_contacts`); any existing `PENDING` requests
+   need an explicit decision (migrate vs. cancel/expire) before this
+   ships — not yet made, flag for the PLAN.md that formalizes this.
+3. A later migration, only after the new code path is running and
+   verified, drops `users`/`users_aud`'s
+   `full_name`/`address`/`rg`/`cpf`/`phone`/`rg_blind_index`/
+   `cpf_blind_index` columns. **`address`'s free-text data is not
+   automatically migrated to the structured `addresses` table — the
+   product owner confirmed (2026-07-28) there is no real production
+   data in that column worth preserving, so this is a straight drop,
+   not a lossy-migration warning that needed separate handling.** If
+   this is ever revisited with real data present, that confirmation
+   would need to be re-obtained — it was scoped to this specific
+   pre-launch state, not a standing exemption.
+
+**Applies to new decisions:** any future personal-data field added to
+this system should be run through the same test applied here —
+does it serve the stated accountability purpose, or does it serve a
+different, legitimate-but-separate purpose (engagement, UX, etc.)? The
+former lives with `cpf`/`rg`/`full_name`/address/contacts and inherits
+the request-not-direct-edit restriction; the latter needs its own
+explicit self-edit-vs-request decision, not an assumption either way —
+`avatar_url`'s "self-edit is fine" was earned by having zero
+identification weight, not just by being non-compliance-flagged.
+
+## `identity-profile-model-v2`: `avatar_url` uploads reuse `article-management`'s existing MinIO/S3 infrastructure, second bucket
+
+**Decision: `avatar_url` image bytes are uploaded through a new
+`AvatarStorageService`, structurally identical to the existing
+`ArticleStorageService` (`S3Client`/`S3Presigner` against the
+already-provisioned MinIO backend, same bucket-provisioning
+`@PostConstruct` pattern), writing to a second, dedicated bucket
+(`knowly.storage.avatar-bucket`) rather than the existing article
+bucket, via a new `POST /api/users/me/profile/avatar` multipart
+endpoint mirroring `ArticleController.upload`'s exact shape.** **Why:**
+this codebase already has exactly one object-storage integration,
+already hardened (`minio-init-permissions` one-shot container, see this
+file's own entry on that pattern) and already handles the identical
+underlying problem — accept a file, store it, return a fetchable URL.
+Building a second storage mechanism for the same problem would be a new
+piece of infrastructure with no justification; reusing it needs no new
+dependency (same AWS S3 SDK already in `pom.xml`) and no new secret
+(same MinIO credentials, one more bucket name). A second bucket, not the
+shared article bucket, was chosen because avatars and article files have
+genuinely different lifecycle/access needs (one small replace-in-place
+image per user, generally viewable, vs. versioned tenant-permission-
+gated content) — mixing them would couple two unrelated retention/access
+policies for no benefit. **Applies to new decisions:** any future
+"accept a file, store it, serve it back" need in this codebase should
+default to a new `*StorageService` following this exact shape (own
+bucket, `ArticleStorageService`'s method shape) rather than reaching for
+a new library/service — a new object-storage *provider* would still be
+Tier 3, but a new *bucket* against the existing provider is not.
+
+## `identity-profile-model-v2`: existing `PENDING` `profile_edit_requests` rows are cancelled, not migrated, by the `V18` retrofit migration
+
+**Decision: any `profile_edit_requests` row still `PENDING` when the
+`V18` retrofit migration runs is marked with a new `CANCELLED` status
+(not silently deleted, not attempted to be reshaped into the new
+structured-address/contacts request format).** **Why:** the old row's
+`proposed_address` is one free-text `VARCHAR(500)`; the new shape needs
+eight independent structured address columns plus a separate
+add/update/remove contacts list — there is no reliable, generic way to
+parse an arbitrary free-text address string into structured fields as
+part of a data migration (that's a real address-parsing/geocoding
+problem, disproportionate to solve for a migration step), so any
+backfill attempt would either silently drop structure or need manual
+per-row review. This mirrors the reasoning the product owner already
+confirmed for `users.address` itself in the parent retrofit decision
+(pre-launch system, no real production data worth a lossy carry-forward)
+— applied here to the sibling table that references the same shape.
+Cancelling rather than deleting preserves the row for audit/history
+value while making it unambiguous the request was never resolved through
+approve/reject. Given `identity-profile-model` shipped only two days
+before this retrofit was scoped, on a pre-launch system, this is expected
+to affect zero or near-zero real rows — the decision exists for
+correctness regardless of realistic volume. **Applies to new decisions:**
+any future schema retrofit that changes a request/proposal table's
+proposed-value shape should default to "resolve (cancel), don't attempt
+a lossy structural backfill" for in-flight rows, unless a specific,
+justified parsing strategy exists — silently dropping data or leaving
+rows in an unreadable state are both worse than an explicit cancelled
+state.
+
+## `identity-profile-model-v2`: `contacts.type`-dependent format validation is explicit `ContactService` logic, not a custom Bean Validation `@Constraint`
+
+**Decision: per-type format validation of `contacts.value` (an `EMAIL`
+contact must look like an email, `PHONE`/`WHATSAPP` must look like a
+phone number, `OTHER` unconstrained) is implemented as an explicit
+method (`ContactService.validateFormat(type, value)`) called from every
+write path, not as a custom `jakarta.validation` `@Constraint`/
+`ConstraintValidator`.** **Why:** verified this codebase has zero
+existing custom `@Constraint` classes anywhere — every validation need
+so far (`LoginRequestDto`, `VerifyPasswordRequestDto`,
+`UpdateArticleRequestDto`, etc.) has been satisfied by Jakarta's
+built-in per-field annotations (`@NotBlank`, `@Email`). This case is
+structurally different: the correct format depends on a *sibling*
+field's value (`type`), which built-in annotations can't express without
+a class-level custom constraint — introducing that machinery for exactly
+one conditional rule would be more ceremony than this codebase's
+established precedent for cross-field business rules, which is a plain
+explicit check inside the owning service (`UserProfileService`'s
+self-exclusion guard, `TenantService`'s admin-checks,
+`NotificationService`'s recipient check — all pre-existing examples of
+the same "logic that doesn't fit a single annotation lives in the
+service" pattern). **Applies to new decisions:** a validation rule that
+depends on more than one field on the same DTO/entity should default to
+an explicit service-layer check, matching this codebase's existing
+precedent, rather than introducing this project's first custom
+`@Constraint`/`ConstraintValidator` — if a future need is genuinely
+better served by a reusable annotation (e.g. the same cross-field rule
+needed identically in many unrelated places), that tradeoff should be
+weighed explicitly at that point, not defaulted into silently.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

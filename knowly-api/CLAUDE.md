@@ -35,7 +35,16 @@ security), including this subproject's own section.
    the same way you don't need to be asked to run the tests. Leaving
    green, verified work sitting uncommitted defeats the entire point of
    `PROJECT_STATUS.md`/Git history being the thing that survives between
-   conversations.
+   conversations. **Standing rule, confirmed by the user (2026-07-29):
+   run `./mvnw spotless:apply` immediately before every commit, not just
+   once earlier in the task** — if any edit happened after the last
+   `spotless:apply` (a fixup, a review comment, a deviation noted post
+   hoc), formatting can drift again before the commit actually happens.
+   This doesn't mean re-running the full `./mvnw verify` before every
+   single commit (only when there's real reason to think the build
+   itself might be broken) — just the fast `spotless:apply` step, to
+   stop unformatted code from ever landing and breaking CI/deploy on a
+   Spotless check.
 
 ## Conventions already established in this subproject
 
