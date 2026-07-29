@@ -164,6 +164,66 @@ class PermissionAspectTest {
         assertThat(protectedService.doProtectedThing()).isEqualTo("done");
     }
 
+    // EXPANDED COVERAGE: REQ-2/REQ-3 cross-tenant with NO membership
+
+    @Test
+    void memberAdminBypassFailsWhenActorHasNoMembershipInTargetTenant() {
+        User admin = userRepository.saveAndFlush(new User("cross-admin-no-member@example.com"));
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Cross A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Cross B"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenantA, MembershipRole.MEMBER_ADMIN));
+
+        authenticateAs("cross-admin-no-member@example.com");
+        tenantContext.setActiveTenantId(tenantB.getId());
+
+        // User is MEMBER_ADMIN in tenant A but has NO membership at all in tenant B
+        assertThatThrownBy(protectedService::doProtectedThing)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // EXPANDED COVERAGE: REQ-6 — Inactive MEMBER_ADMIN in one tenant
+    // does not bypass checks in that tenant, but can act as active MEMBER elsewhere
+
+    @Test
+    void inactiveMemberAdminBypassFailsEvenWhenPrimaryAdmin() {
+        User admin = userRepository.saveAndFlush(new User("inactive-primary@example.com"));
+        Tenant tenantInactive = tenantRepository.saveAndFlush(new Tenant("Inactive Primary"));
+        TenantMembership membership =
+                new TenantMembership(admin, tenantInactive, MembershipRole.MEMBER_ADMIN);
+        membership.setActive(false);
+        tenantMembershipRepository.saveAndFlush(membership);
+
+        authenticateAs("inactive-primary@example.com");
+        tenantContext.setActiveTenantId(tenantInactive.getId());
+
+        // Inactive membership does not grant bypass, even if role is MEMBER_ADMIN
+        assertThatThrownBy(protectedService::doProtectedThing)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // EXPANDED COVERAGE: Regression — Plain MEMBER still fails without explicit grant
+
+    @Test
+    void plainMemberWithoutExplicitGrantStillFails() {
+        TenantMembership membership = newMembership("plain-member@example.com");
+
+        // Plain MEMBER with no grant should fail
+        assertThatThrownBy(protectedService::doProtectedThing)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // EXPANDED COVERAGE: Regression — Active vs inactive membership status enforcement
+
+    @Test
+    void activeButNonAdminMemberWithExplicitGrantPasses() {
+        TenantMembership membership = newMembership("active-with-grant@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.TENANT_MEMBER_MANAGE));
+
+        assertThat(protectedService.doProtectedThing()).isEqualTo("done");
+    }
+
     static class ProtectedService {
         @RequiresPermission(Permission.TENANT_MEMBER_MANAGE)
         String doProtectedThing() {

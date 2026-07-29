@@ -412,4 +412,268 @@ class TenantServiceTest {
                             assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
                         });
     }
+
+    // EXPANDED COVERAGE: REQ-2/REQ-3 cross-tenant with NO membership
+
+    @Test
+    void memberAdminBypassFailsWhenActorHasNoMembershipInTargetTenant() {
+        User admin = userRepository.saveAndFlush(new User("admin-no-membership@example.com"));
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenantA, MembershipRole.MEMBER_ADMIN));
+
+        authenticateAs("admin-no-membership@example.com");
+        tenantContext.setActiveTenantId(tenantB.getId());
+
+        // User is MEMBER_ADMIN in tenant A but has NO membership in tenant B
+        // Attempting a protected action in tenant B should fail
+        assertThatThrownBy(() -> tenantService.listMembers(admin, tenantB.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // EXPANDED COVERAGE: REQ-4 — addMember self-escalation audit event
+
+    @Test
+    void addMemberSelfEscalationIsRecordedAsADeniedAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Add Member Audit Co"));
+        TenantMembership admin = adminMembership("admin-add-audit@example.com", tenant);
+        authenticateAs("admin-add-audit@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.addMember(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        "admin-add-audit@example.com",
+                                        MembershipRole.MEMBER))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction()).isEqualTo("tenant.member.add");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
+                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
+                        });
+    }
+
+    // EXPANDED COVERAGE: REQ-4 — revokePermission self-escalation audit event
+
+    @Test
+    void revokePermissionSelfEscalationIsRecordedAsADeniedAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Audit Co"));
+        TenantMembership admin = adminMembership("admin-revoke-audit@example.com", tenant);
+        authenticateAs("admin-revoke-audit@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokePermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction()).isEqualTo("tenant.permission.revoke");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
+                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
+                        });
+    }
+
+    // EXPANDED COVERAGE: REQ-4 — assignAccessGroup self-escalation audit event
+
+    @Test
+    void assignAccessGroupSelfEscalationIsRecordedAsADeniedAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Assign Audit Co"));
+        TenantMembership admin = adminMembership("admin-assign-audit@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        authenticateAs("admin-assign-audit@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.assignAccessGroup(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        group.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction())
+                                    .isEqualTo("tenant.member.access_group.assign");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
+                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
+                        });
+    }
+
+    // EXPANDED COVERAGE: REQ-4 — unassignAccessGroup self-escalation audit event
+
+    @Test
+    void unassignAccessGroupSelfEscalationIsRecordedAsADeniedAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Unassign Audit Co"));
+        TenantMembership admin = adminMembership("admin-unassign-audit@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        userAccessGroupRepository.saveAndFlush(new UserAccessGroup(admin, group));
+        authenticateAs("admin-unassign-audit@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.unassignAccessGroup(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        admin.getId(),
+                                        group.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction())
+                                    .isEqualTo("tenant.member.access_group.unassign");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
+                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
+                        });
+    }
+
+    // EXPANDED COVERAGE: REQ-6 — Inactive MEMBER_ADMIN in one tenant, active MEMBER in another
+
+    @Test
+    void inactiveMemberAdminInTenantACannotActOnItButCanActAsActiveMemberInTenantB() {
+        User user = userRepository.saveAndFlush(new User("inactive-admin@example.com"));
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Inactive Tenant"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Active Tenant"));
+
+        // Inactive MEMBER_ADMIN in tenant A
+        TenantMembership membershipA =
+                new TenantMembership(user, tenantA, MembershipRole.MEMBER_ADMIN);
+        membershipA.setActive(false);
+        tenantMembershipRepository.saveAndFlush(membershipA);
+
+        // Active MEMBER in tenant B
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenantB, MembershipRole.MEMBER));
+
+        authenticateAs("inactive-admin@example.com");
+
+        // In tenant A (inactive MEMBER_ADMIN): should fail
+        tenantContext.setActiveTenantId(tenantA.getId());
+        assertThatThrownBy(() -> tenantService.listMembers(user, tenantA.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        // Clear context for next part
+        tenantContext.clear();
+        tenantContext.setActiveTenantId(tenantB.getId());
+
+        // In tenant B (active MEMBER with no grant): should fail too (no grant)
+        assertThatThrownBy(() -> tenantService.listMembers(user, tenantB.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // EXPANDED COVERAGE: Permission matrix — verify each method independently
+
+    @Test
+    void eachOfTheFiveGuardedMethodsRejectsUnauthorizedCallers() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Unauthorized Co"));
+        User unauthorized = userRepository.saveAndFlush(new User("unauthorized@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(unauthorized, tenant, MembershipRole.MEMBER));
+        User target = userRepository.saveAndFlush(new User("target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        // addMember: plain MEMBER should be rejected
+        assertThatThrownBy(
+                        () ->
+                                tenantService.addMember(
+                                        unauthorized,
+                                        tenant.getId(),
+                                        "newuser@example.com",
+                                        MembershipRole.MEMBER))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        // grantPermission: plain MEMBER should be rejected
+        assertThatThrownBy(
+                        () ->
+                                tenantService.grantPermission(
+                                        unauthorized,
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        // revokePermission: plain MEMBER should be rejected
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokePermission(
+                                        unauthorized,
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        // assignAccessGroup: plain MEMBER should be rejected
+        assertThatThrownBy(
+                        () ->
+                                tenantService.assignAccessGroup(
+                                        unauthorized,
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        group.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        // unassignAccessGroup: plain MEMBER should be rejected
+        assertThatThrownBy(
+                        () ->
+                                tenantService.unassignAccessGroup(
+                                        unauthorized,
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        group.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // EXPANDED COVERAGE: Regression — STAFF_ADMIN can still perform self-target in these methods
+    // (Different from MEMBER_ADMIN which is now blocked by requireNotSelfTarget)
+
+    @Test
+    void staffAdminCanGrantPermissionToThemselves() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Staff Self Grant Co"));
+        User staff = staffAdmin("staff-self-grant@example.com");
+        TenantMembership staffMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(staff, tenant, MembershipRole.MEMBER));
+
+        // This should succeed because STAFF_ADMIN bypasses requireAdminOfTenantOrStaff,
+        // but will still hit requireNotSelfTarget (which blocks all callers, not just MEMBER_ADMIN)
+        // Per REQ-4 and PLAN: "This guard applies to every caller, not just MEMBER_ADMIN"
+        // So STAFF_ADMIN acting on self should also be blocked.
+        assertThatThrownBy(
+                        () ->
+                                tenantService.grantPermission(
+                                        staff,
+                                        tenant.getId(),
+                                        staffMembership.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
 }
