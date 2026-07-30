@@ -90,24 +90,25 @@ tests green, `qa-test-automation`/`appsec` reviewed with no blocking
 findings, committed. See its table row below.
 
 **`identity-profile-model-v2` retrofit is now fully done on both
-sides (2026-07-29).** Backend (`f9f2426`, `./mvnw verify` green) split
-personal data into `UserProfile`/`Address`/`Contact` tables, made
-`avatarUrl` the only directly self-editable field (a dedicated
-multipart `POST /api/users/me/profile/avatar`), and removed the old
+sides (2026-07-29), including both backend follow-ups (`c0a817d`).**
+Backend (`f9f2426`, `./mvnw verify` green) split personal data into
+`UserProfile`/`Address`/`Contact` tables, made `avatarUrl` the only
+directly self-editable field (a dedicated multipart `POST
+/api/users/me/profile/avatar`), and removed the old
 `STAFF_ADMIN`/`MEMBER_ADMIN` self-direct-edit bypass entirely — see
 that feature's table row above. Frontend (`user-profile-v2`,
 2026-07-29) retrofits `user-profile` in place to match — see its table
-row below for the full detail, including two backend follow-ups
-discovered and not yet filed as their own SPEC: (1) `PUT
-/api/users/{id}/profile` never applies `contactChanges` (an admin
-directly editing someone else's contacts is currently impossible), and
-(2) `ProfileEditRequestDto.proposedFields.address`/`.contacts` are
-always `null` in the list/submit responses despite being persisted,
-so the inbox's structured-address display (implemented, ready) never
-actually renders data. Neither blocks day-to-day use of the feature as
-shipped (avatar upload, own-profile edit-requests including contacts,
-approve/reject, view-only profile sections) but both are real gaps
-worth a small follow-up backend SPEC. 336/336 frontend tests green,
+row below for the full detail. The two backend follow-ups discovered
+during that frontend work — (1) `PUT /api/users/{id}/profile` never
+applied `contactChanges`, and (2) `ProfileEditRequestDto.proposedFields
+.address` was always `null` in the list/submit responses despite being
+persisted — are now both closed (`c0a817d`): direct-edit accepts
+`{fields, contactChanges}` and applies them via the same
+`UserProfileService#applyFields` choke point the approve path uses,
+and `proposedFieldsOf` populates `address` from the persisted request
+row in both endpoints (`.contacts` stays `null` by deliberate design —
+the proposed contact set is represented via the separate
+`proposedContactChanges` field instead). 336/336 frontend tests green,
 `format:check`/`build` clean.
 
 **`member-admin-tenant-bypass` is now fully done (backend, 2026-07-29,
