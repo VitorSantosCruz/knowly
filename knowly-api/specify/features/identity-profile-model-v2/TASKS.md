@@ -148,6 +148,49 @@
       include `proposedContactChanges`; write/extend a controller test
       confirming the full shape round-trips.
 
+## Follow-up (2026-07-30): `ProfileEditRequestDto` requester identity
+
+- [x] 32. Write a test: `GET /api/profile-edit-requests` (and the
+      `POST .../edit-requests` submit response) include
+      `requesterName`/`requesterEmail` populated from the requester's
+      `UserProfile.fullName`/`User.email` (Red); add the two additive
+      fields to `ProfileEditRequestDto` and populate them in both
+      `ProfileEditRequestController.toDto`/`UserProfileController.toDto`
+      (Green). Do not log the full DTO (nor `requesterEmail` alone) at
+      debug level anywhere in the touched code — HTTP response only, per
+      appsec's non-blocking note.
+- [x] 33. Write a test: `requesterName` is `null` (not defaulted) when
+      the requester's `UserProfile.fullName` was never set (Red/Green as
+      needed — likely already true by construction, confirm with a test
+      rather than assuming).
+
+## Follow-up (2026-07-30): "any tenant" `PROFILE_EDIT` check
+
+- [x] 34. Write a test: `GET /api/tenants/permissions/any-tenant?permission=PROFILE_EDIT`
+      returns `{"granted":true}` for a caller who holds `PROFILE_EDIT` in
+      at least one (not necessarily the active) tenant membership, and
+      `{"granted":false}` for a caller with memberships but none granting
+      it (Red); implement `PermissionService.hasPermissionInAnyTenant`
+      (or equivalent on `TenantService`) using
+      `TenantMembershipRepository.findByUserAndActiveTrue` — never the
+      active-tenant-scoped Hibernate filter — plus the new
+      `TenantController` endpoint (Green).
+- [x] 35. Write a test: a caller with zero tenant memberships gets
+      `{"granted":false}` (not an error) (Red/Green).
+- [x] 36. Write a test: `STAFF_ADMIN` gets `{"granted":true}` with zero
+      memberships and without any membership-repository lookup happening
+      (bypass, not isolation-widening, consistent with every other
+      `STAFF_ADMIN` bypass in this codebase) (Red/Green).
+- [x] 37. Write a test: no session (unauthenticated) gets 401 (existing
+      Spring Security behavior — confirm, don't assume) (Red/Green as
+      needed).
+- [x] 38. Add a code comment on the new endpoint noting that its
+      placement under `/api/tenants/**` is incidental — it must not be
+      assumed to inherit that prefix's legacy CSRF exemption, since it is
+      itself a `GET`/no-state-change endpoint that doesn't need one; a
+      future state-changing endpoint added under this prefix must not
+      copy this endpoint as precedent for skipping CSRF protection.
+
 ## Cleanup migration (later milestone — only after the above is verified running)
 
 - [ ] 27. Write `V19__drop_legacy_user_identity_columns.sql` dropping

@@ -574,3 +574,89 @@ Modified:
   (confirmed: `UserProfileService`/`ProfileEditRequestService` read/write `UserProfile`/`Address`/
   `Contact` exclusively). Tracked as its own follow-up milestone per PLAN's own sequencing, not a
   Tier 3 escalation.
+
+## Follow-up (2026-07-30): `ProfileEditRequestDto` requester identity
+
+**Gap, not new scope**: `knowly-app`'s `user-profile-v2/SPEC.md` REQ-14
+already requires the inbox to show "requester identity" per request, not
+just a numeric id -- `ProfileEditRequestDto.requesterUserId` alone
+doesn't satisfy that, so the frontend can only render "User #{id}". This
+is a compliance gap against an already-approved REQ, not a new
+requirement, so no new SPEC/PLAN cycle is needed -- amending this PLAN in
+place, same as the two prior follow-ups above.
+
+- **`ProfileEditRequestDto` gains `requesterName: String` and
+  `requesterEmail: String`**, populated from `request.getRequester()`'s
+  `UserProfile.fullName`/`User.email` in `ProfileEditRequestController
+  .toDto`, alongside the existing `requesterUserId` (kept, not replaced,
+  since the frontend already keys list items off it). No new endpoint --
+  same `GET /api/profile-edit-requests` response shape, additive fields
+  only.
+- **Not a new sensitive-data-exposure surface (Tier 2, not Tier 3)**:
+  every caller who can see a `ProfileEditRequestDto` at all already
+  passed `ProfileEditRequestService#hasDirectEditRight(caller,
+  requester)` -- i.e. they already hold an edit right *over that specific
+  requester's profile* and can already see (and directly overwrite, via
+  the approve path) far more sensitive fields of that same user (cpf,
+  rg, birth date, address) than a name/email. Adding name/email to a DTO
+  the caller is already authorized to receive, for a user they're already
+  authorized to edit, is not a new grant of visibility -- it's completing
+  a REQ-14 requirement the shipped DTO happened to miss. No new
+  `Permission`/`GlobalPermission` gate needed.
+- **`fullName` can be null** for a requester who never completed a
+  profile-edit request-flow name yet (per `identity-profile-model-v2`'s
+  own eager-`UserProfile`-creation-with-nulls design) -- `requesterName`
+  is nullable in the DTO; the frontend falls back to the existing
+  "User #{id}" string when null, it is not backfilled or defaulted
+  server-side.
+
+## Follow-up (2026-07-30): "any tenant" `PROFILE_EDIT` check
+
+**Gap, not new scope**: `user-profile-v2/SPEC.md` REQ-19 already says "If
+the caller holds no applicable edit right **anywhere**, then the inbox's
+entry point... shall not be shown" -- the shipped
+`nav-menu.component.ts` only checks the *active* tenant's `PROFILE_EDIT`
+(`PermissionsService.has('PROFILE_EDIT')`), with its own code comment
+already flagging this as a known, accepted Tier 2 gap. Closing it
+properly needs a new backend read, since the frontend has no way to
+evaluate permissions for a tenant it isn't currently "in."
+
+- **New endpoint: `GET /api/tenants/permissions/any-tenant?permission=PROFILE_EDIT`**
+  -- returns `{ "granted": boolean }`. Reuses `PermissionService
+  .hasPermission(TenantMembership, Permission)` against *every* tenant
+  membership of the caller (via `TenantMembershipRepository
+  .findByUser(caller)`, not scoped by the active-tenant Hibernate
+  filter -- same "look across every membership, not just the active
+  one" pattern already established by `ProfileEditRequestService`'s own
+  class-level doc comment), short-circuiting `true` on first match. Not
+  a general "permissions across all tenants" endpoint (which would be
+  a bigger surface and isn't what REQ-19 asks for) -- deliberately
+  narrow: one permission in, one boolean out, evaluated across every
+  membership.
+  - **Why a new endpoint over N calls to `GET /api/tenants/{id}/permissions`
+    per membership**: a user with several memberships would otherwise
+    cost the frontend one round trip per membership just to gate a single
+    nav link, on every page load. A single aggregate boolean is cheaper,
+    simpler to cache client-side, and matches the actual question REQ-19
+    asks ("does the caller hold this right *anywhere*"), not "what are
+    all of them."
+  - **Why not a `GlobalPermission`**: `PROFILE_EDIT` is a tenant-scoped
+    `Permission`, not a `GlobalPermission` -- this only widens the *scope
+    of tenants checked* for that same tenant-scoped permission, it does
+    not change it into a global one. Staff-admin bypass still applies
+    the same way it already does everywhere else (`STAFF_ADMIN` short-
+    circuits `true` without a membership lookup, consistent with "staff
+    bypass authorization, never isolation").
+  - **CSRF**: `GET`, no state change -- no `SecurityConfig` change
+    needed, not a pre-authentication endpoint either way.
+
+### API contract addition
+
+| Method | Path                                              | Request | Response (200)             | Errors |
+|--------|---------------------------------------------------|---------|-----------------------------|--------|
+| GET    | `/api/tenants/permissions/any-tenant?permission=X` | –       | `{ "granted": boolean }`     | 401 (no session) |
+
+`X` is any existing `Permission` enum value (not restricted to
+`PROFILE_EDIT` in the endpoint itself, since the same "does the caller
+hold this anywhere" question is generic -- the frontend only calls it
+with `PROFILE_EDIT` today).
