@@ -52,16 +52,14 @@ describe('ChatService', () => {
   it('openConversation fetches detail and first message page, seeding the cache', () => {
     service.openConversation(1);
 
-    httpMock
-      .expectOne('/api/chat/conversations/1')
-      .flush({
-        id: 1,
-        kind: 'PEER_DIRECT',
-        tenantId: null,
-        title: null,
-        participantUserIds: [1, 2],
-        participantNicknames: {},
-      });
+    httpMock.expectOne('/api/chat/conversations/1').flush({
+      id: 1,
+      kind: 'PEER_DIRECT',
+      tenantId: null,
+      title: null,
+      participantUserIds: [1, 2],
+      participantNicknames: {},
+    });
 
     const messagesReq = httpMock.expectOne(
       (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('size') === '30',
@@ -82,16 +80,14 @@ describe('ChatService', () => {
 
   function seedOpenConversation(id: number) {
     service.openConversation(id);
-    httpMock
-      .expectOne(`/api/chat/conversations/${id}`)
-      .flush({
-        id,
-        kind: 'PEER_DIRECT',
-        tenantId: null,
-        title: null,
-        participantUserIds: [1, 2],
-        participantNicknames: {},
-      });
+    httpMock.expectOne(`/api/chat/conversations/${id}`).flush({
+      id,
+      kind: 'PEER_DIRECT',
+      tenantId: null,
+      title: null,
+      participantUserIds: [1, 2],
+      participantNicknames: {},
+    });
     httpMock
       .expectOne(
         (r) => r.url === `/api/chat/conversations/${id}/messages` && r.params.get('size') === '30',

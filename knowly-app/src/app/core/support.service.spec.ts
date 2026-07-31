@@ -19,16 +19,14 @@ describe('SupportService', () => {
 
   it('fetchMyChannel populates myChannel()', () => {
     service.fetchMyChannel(1, 9);
-    httpMock
-      .expectOne('/api/tenants/1/support/members/9/channel')
-      .flush({
-        id: 1,
-        kind: 'SUPPORT',
-        tenantId: 1,
-        title: null,
-        participantUserIds: [9],
-        participantNicknames: { 9: 'Nick' },
-      });
+    httpMock.expectOne('/api/tenants/1/support/members/9/channel').flush({
+      id: 1,
+      kind: 'SUPPORT',
+      tenantId: 1,
+      title: null,
+      participantUserIds: [9],
+      participantNicknames: { 9: 'Nick' },
+    });
 
     expect(service.myChannel()?.participantNicknames[9]).toBe('Nick');
     expect(service.myChannelNotFound()).toBe(false);
@@ -75,18 +73,16 @@ describe('SupportService', () => {
 
   it('fetchInbox merges results across tenants without duplicate ticket ids', () => {
     service.fetchInbox(1);
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/unclaimed')
-      .flush([
-        {
-          id: 1,
-          supportChannelId: 1,
-          status: 'OPEN',
-          assignedStaffUserId: null,
-          openedAt: 'now',
-          closedAt: null,
-        },
-      ]);
+    httpMock.expectOne('/api/tenants/1/support/tickets/unclaimed').flush([
+      {
+        id: 1,
+        supportChannelId: 1,
+        status: 'OPEN',
+        assignedStaffUserId: null,
+        openedAt: 'now',
+        closedAt: null,
+      },
+    ]);
 
     service.fetchInbox(2);
     httpMock.expectOne('/api/tenants/2/support/tickets/unclaimed').flush([
@@ -118,46 +114,40 @@ describe('SupportService', () => {
 
   it('claim patches the ticket in place and removes it from inboxTickets()', () => {
     service.fetchInbox(1);
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/unclaimed')
-      .flush([
-        {
-          id: 1,
-          supportChannelId: 1,
-          status: 'OPEN',
-          assignedStaffUserId: null,
-          openedAt: 'now',
-          closedAt: null,
-        },
-      ]);
-
-    service.claim(1, 1).subscribe();
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/1/claim')
-      .flush({
+    httpMock.expectOne('/api/tenants/1/support/tickets/unclaimed').flush([
+      {
         id: 1,
         supportChannelId: 1,
-        status: 'ASSIGNED',
-        assignedStaffUserId: 42,
+        status: 'OPEN',
+        assignedStaffUserId: null,
         openedAt: 'now',
         closedAt: null,
-      });
+      },
+    ]);
+
+    service.claim(1, 1).subscribe();
+    httpMock.expectOne('/api/tenants/1/support/tickets/1/claim').flush({
+      id: 1,
+      supportChannelId: 1,
+      status: 'ASSIGNED',
+      assignedStaffUserId: 42,
+      openedAt: 'now',
+      closedAt: null,
+    });
 
     expect(service.inboxTickets().length).toBe(0);
   });
 
   it('transfer patches assignedStaffUserId in place', () => {
     service.claim(1, 1).subscribe();
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/1/claim')
-      .flush({
-        id: 1,
-        supportChannelId: 1,
-        status: 'ASSIGNED',
-        assignedStaffUserId: 42,
-        openedAt: 'now',
-        closedAt: null,
-      });
+    httpMock.expectOne('/api/tenants/1/support/tickets/1/claim').flush({
+      id: 1,
+      supportChannelId: 1,
+      status: 'ASSIGNED',
+      assignedStaffUserId: 42,
+      openedAt: 'now',
+      closedAt: null,
+    });
     service['_myOpenTicket'].set({
       id: 1,
       supportChannelId: 1,
@@ -168,16 +158,14 @@ describe('SupportService', () => {
     });
 
     service.transfer(1, 1, 99).subscribe();
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/1/transfer')
-      .flush({
-        id: 1,
-        supportChannelId: 1,
-        status: 'ASSIGNED',
-        assignedStaffUserId: 99,
-        openedAt: 'now',
-        closedAt: null,
-      });
+    httpMock.expectOne('/api/tenants/1/support/tickets/1/transfer').flush({
+      id: 1,
+      supportChannelId: 1,
+      status: 'ASSIGNED',
+      assignedStaffUserId: 99,
+      openedAt: 'now',
+      closedAt: null,
+    });
 
     expect(service.myOpenTicket()?.assignedStaffUserId).toBe(99);
   });
@@ -193,16 +181,14 @@ describe('SupportService', () => {
     });
 
     service.close(1, 1).subscribe();
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/1/close')
-      .flush({
-        id: 1,
-        supportChannelId: 1,
-        status: 'CLOSED',
-        assignedStaffUserId: 42,
-        openedAt: 'now',
-        closedAt: 'later',
-      });
+    httpMock.expectOne('/api/tenants/1/support/tickets/1/close').flush({
+      id: 1,
+      supportChannelId: 1,
+      status: 'CLOSED',
+      assignedStaffUserId: 42,
+      openedAt: 'now',
+      closedAt: 'later',
+    });
 
     expect(service.myOpenTicket()).toBeNull();
   });
@@ -261,15 +247,13 @@ describe('SupportService', () => {
     service.sendMessage(1, 9, 'hello', 'local-1').subscribe();
     expect(service.entryOf(1, 9).messages.at(-1)?.sendState).toBe('pending');
 
-    httpMock
-      .expectOne('/api/tenants/1/support/members/9/channel/messages')
-      .flush({
-        id: 30,
-        senderUserId: 1,
-        senderNickname: 'Staff',
-        content: 'hello',
-        createdAt: 'now',
-      });
+    httpMock.expectOne('/api/tenants/1/support/members/9/channel/messages').flush({
+      id: 30,
+      senderUserId: 1,
+      senderNickname: 'Staff',
+      content: 'hello',
+      createdAt: 'now',
+    });
 
     expect(service.entryOf(1, 9).messages.at(-1)?.sendState).toBeUndefined();
   });

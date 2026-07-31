@@ -145,6 +145,15 @@ export class SupportService {
     }
   }
 
+  /** REQ-17: set when `openChannel()`'s first-page fetch 403s (viewer lacks
+   * `SUPPORT_CHANNEL_VIEW`) — lets `member-support-browse.component.ts` render the existing
+   * no-access state instead of a partial view. */
+  private readonly _channelAccessDenied = signal<Set<string>>(new Set());
+
+  channelAccessDenied(tenantId: number, memberUserId: number): boolean {
+    return this._channelAccessDenied().has(channelKey(tenantId, memberUserId));
+  }
+
   openChannel(tenantId: number, memberUserId: number): void {
     const key = channelKey(tenantId, memberUserId);
     this.patchEntry(key, (entry) => ({ ...entry, loading: true, loadError: false }));
@@ -155,9 +164,20 @@ export class SupportService {
         { params: new HttpParams().set('size', PAGE_SIZE) },
       )
       .subscribe({
-        next: (page) => this.seedFirstPage(key, page),
-        error: () =>
-          this.patchEntry(key, (entry) => ({ ...entry, loading: false, loadError: true })),
+        next: (page) => {
+          this._channelAccessDenied.update((set) => {
+            const next = new Set(set);
+            next.delete(key);
+            return next;
+          });
+          this.seedFirstPage(key, page);
+        },
+        error: (error) => {
+          if (error?.status === 403) {
+            this._channelAccessDenied.update((set) => new Set(set).add(key));
+          }
+          this.patchEntry(key, (entry) => ({ ...entry, loading: false, loadError: true }));
+        },
       });
   }
 

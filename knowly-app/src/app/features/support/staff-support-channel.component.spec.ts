@@ -87,16 +87,14 @@ describe('StaffSupportChannelComponent', () => {
     fixture.detectChanges();
     fixture.nativeElement.querySelector('[data-testid="transfer-button"]').click();
 
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/1/transfer')
-      .flush({
-        id: 1,
-        supportChannelId: 1,
-        status: 'ASSIGNED',
-        assignedStaffUserId: 77,
-        openedAt: 'now',
-        closedAt: null,
-      });
+    httpMock.expectOne('/api/tenants/1/support/tickets/1/transfer').flush({
+      id: 1,
+      supportChannelId: 1,
+      status: 'ASSIGNED',
+      assignedStaffUserId: 77,
+      openedAt: 'now',
+      closedAt: null,
+    });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="message-composer"]')).toBeNull();
@@ -116,16 +114,14 @@ describe('StaffSupportChannelComponent', () => {
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="close-button"]').click();
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/1/close')
-      .flush({
-        id: 1,
-        supportChannelId: 1,
-        status: 'CLOSED',
-        assignedStaffUserId: 42,
-        openedAt: 'now',
-        closedAt: 'later',
-      });
+    httpMock.expectOne('/api/tenants/1/support/tickets/1/close').flush({
+      id: 1,
+      supportChannelId: 1,
+      status: 'CLOSED',
+      assignedStaffUserId: 42,
+      openedAt: 'now',
+      closedAt: 'later',
+    });
     fixture.detectChanges();
 
     expect(

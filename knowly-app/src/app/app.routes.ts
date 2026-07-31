@@ -16,6 +16,7 @@ import { ProfileEditRequestsInboxPageComponent } from './features/profile-edit-r
 import { ChatPageComponent } from './features/chat/chat-page.component';
 import { ConversationDetailComponent } from './features/chat/conversation-detail.component';
 import { NewConversationDialogComponent } from './features/chat/new-conversation-dialog.component';
+import { SupportPageComponent } from './features/support/support-page.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
@@ -69,6 +70,16 @@ export const routes: Routes = [
       { path: ':conversationId', component: ConversationDetailComponent },
     ],
   },
+  // No guard: REQ-10..18 make the Support screen's own three-way dispatch (staff inbox,
+  // member-browse, own channel) a permission check inside SupportPageComponent itself
+  // (mirroring staffGuard's fixed pattern), not a route guard — see PLAN.md's rationale.
+  // Deviation from PLAN.md's routing table: `:channelId` is read directly by
+  // SupportPageComponent (via `ActivatedRoute.paramMap`) rather than through a nested
+  // `<router-outlet>` to a separate child component, since the same component already
+  // owns the three-way dispatch and there is no distinct child view to route to — a plain
+  // second route to the same component is enough.
+  { path: 'support', component: SupportPageComponent },
+  { path: 'support/:channelId', component: SupportPageComponent },
   {
     path: '',
     pathMatch: 'full',

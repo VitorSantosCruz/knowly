@@ -43,18 +43,16 @@ describe('StaffSupportInboxComponent', () => {
         totalElements: 1,
         totalPages: 1,
       });
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/unclaimed')
-      .flush([
-        {
-          id: 5,
-          supportChannelId: 5,
-          status: 'OPEN',
-          assignedStaffUserId: null,
-          openedAt: 'now',
-          closedAt: null,
-        },
-      ]);
+    httpMock.expectOne('/api/tenants/1/support/tickets/unclaimed').flush([
+      {
+        id: 5,
+        supportChannelId: 5,
+        status: 'OPEN',
+        assignedStaffUserId: null,
+        openedAt: 'now',
+        closedAt: null,
+      },
+    ]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelectorAll('[data-testid="inbox-ticket"]').length).toBe(1);
@@ -71,31 +69,27 @@ describe('StaffSupportInboxComponent', () => {
         totalElements: 1,
         totalPages: 1,
       });
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/unclaimed')
-      .flush([
-        {
-          id: 5,
-          supportChannelId: 5,
-          status: 'OPEN',
-          assignedStaffUserId: null,
-          openedAt: 'now',
-          closedAt: null,
-        },
-      ]);
+    httpMock.expectOne('/api/tenants/1/support/tickets/unclaimed').flush([
+      {
+        id: 5,
+        supportChannelId: 5,
+        status: 'OPEN',
+        assignedStaffUserId: null,
+        openedAt: 'now',
+        closedAt: null,
+      },
+    ]);
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="claim-button"]').click();
-    httpMock
-      .expectOne('/api/tenants/1/support/tickets/5/claim')
-      .flush({
-        id: 5,
-        supportChannelId: 5,
-        status: 'ASSIGNED',
-        assignedStaffUserId: 1,
-        openedAt: 'now',
-        closedAt: null,
-      });
+    httpMock.expectOne('/api/tenants/1/support/tickets/5/claim').flush({
+      id: 5,
+      supportChannelId: 5,
+      status: 'ASSIGNED',
+      assignedStaffUserId: 1,
+      openedAt: 'now',
+      closedAt: null,
+    });
 
     expect(router.navigate).toHaveBeenCalledWith(['/support']);
   });
