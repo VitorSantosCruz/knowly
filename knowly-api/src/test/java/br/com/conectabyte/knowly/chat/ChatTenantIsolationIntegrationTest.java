@@ -49,6 +49,7 @@ class ChatTenantIsolationIntegrationTest {
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private StringRedisTemplate redisTemplate;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private ChatParticipantRepository chatParticipantRepository;
     @MockitoBean private JavaMailSender mailSender;
 
     @BeforeEach
@@ -208,5 +209,157 @@ class ChatTenantIsolationIntegrationTest {
         List<AuditEvent> events =
                 auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(admin.getId());
         assertThat(events).extracting(AuditEvent::getAction).contains("chat.group.oversight_view");
+    }
+
+    @Test
+    void repeatedStaffAdminLookInsNeverAddAParticipantRowAndSendStillFails() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Repeat Lookin Co"));
+        member("repeat-owner@example.com", tenant);
+        User peer = member("repeat-peer@example.com", tenant);
+        Cookie ownerSession = logIn("repeat-owner@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(ownerSession)
+                        .cookie(ownerCsrf)
+                        .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Repeat Group\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        User admin = userRepository.saveAndFlush(new User("repeat-admin@example.com"));
+        admin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(admin);
+        Cookie adminSession = logIn("repeat-admin@example.com");
+
+        for (int i = 0; i < 3; i++) {
+            var readResponse =
+                    mockMvc.get()
+                            .uri("/api/chat/conversations/" + conversationId)
+                            .cookie(adminSession)
+                            .exchange();
+            assertThat(readResponse).hasStatus(HttpStatus.OK);
+        }
+
+        List<ChatParticipant> participants =
+                chatParticipantRepository.findByConversationId(conversationId);
+        assertThat(participants).extracting(p -> p.getUser().getId()).doesNotContain(admin.getId());
+        assertThat(participants).hasSize(2);
+
+        Cookie adminCsrf = obtainCsrfCookie();
+        var sendAfterLookIns =
+                mockMvc.post()
+                        .uri("/api/chat/conversations/" + conversationId + "/messages")
+                        .cookie(adminSession)
+                        .cookie(adminCsrf)
+                        .header("X-XSRF-TOKEN", adminCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"still can't post\"}")
+                        .exchange();
+        assertThat(sendAfterLookIns).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void memberAdminOfTheAdministeredTenantCanLookIntoAMemberOnlyGroupWithoutBecomingAParticipant()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Member Admin Lookin Co"));
+        member("madmin-owner@example.com", tenant);
+        User peer = member("madmin-peer@example.com", tenant);
+        Cookie ownerSession = logIn("madmin-owner@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(ownerSession)
+                        .cookie(ownerCsrf)
+                        .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"MAdmin Group\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        User memberAdmin = userRepository.saveAndFlush(new User("madmin-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdmin, tenant, MembershipRole.MEMBER_ADMIN));
+        Cookie memberAdminSession = logIn("madmin-admin@example.com");
+
+        var readResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(memberAdminSession)
+                        .exchange();
+        assertThat(readResponse).hasStatus(HttpStatus.OK);
+        assertThat(readResponse.getResponse().getContentAsString())
+                .doesNotContain(String.valueOf(memberAdmin.getId()));
+
+        List<ChatParticipant> participants =
+                chatParticipantRepository.findByConversationId(conversationId);
+        assertThat(participants)
+                .extracting(p -> p.getUser().getId())
+                .doesNotContain(memberAdmin.getId());
+    }
+
+    @Test
+    void memberAdminIsRejectedFromAMemberOnlyGroupOfATenantTheyDoNotAdminister() throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("MAdmin Reject Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("MAdmin Reject Tenant B"));
+        member("madmin-reject-owner@example.com", tenantA);
+        User peer = member("madmin-reject-peer@example.com", tenantA);
+        Cookie ownerSession = logIn("madmin-reject-owner@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(ownerSession)
+                        .cookie(ownerCsrf)
+                        .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenantA.getId()
+                                        + ",\"title\":\"A Group\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        User memberAdminOfB =
+                userRepository.saveAndFlush(new User("madmin-reject-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdminOfB, tenantB, MembershipRole.MEMBER_ADMIN));
+        Cookie memberAdminSession = logIn("madmin-reject-admin@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(memberAdminSession)
+                        .exchange();
+
+        assertThat(response.getResponse().getStatus())
+                .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.NOT_FOUND.value());
     }
 }

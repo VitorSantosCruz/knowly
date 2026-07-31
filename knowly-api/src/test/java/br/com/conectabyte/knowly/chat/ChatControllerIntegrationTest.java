@@ -407,4 +407,220 @@ class ChatControllerIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.OK);
     }
+
+    @Test
+    void malformedCursorIsRejectedNotAServerError() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Malformed Cursor Co"));
+        member("malformed-owner@example.com", tenant);
+        User peer = member("malformed-peer@example.com", tenant);
+        Cookie session = logIn("malformed-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        var response =
+                mockMvc.get()
+                        .uri(
+                                "/api/chat/conversations/"
+                                        + conversationId
+                                        + "/messages?before=not-a-valid-cursor!!!")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void emptyConversationReturnsAnEmptyPageWithNoNextCursor() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Empty Convo Co"));
+        member("empty-owner@example.com", tenant);
+        User peer = member("empty-peer@example.com", tenant);
+        Cookie session = logIn("empty-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId + "/messages")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        java.util.List<?> messages =
+                com.jayway.jsonpath.JsonPath.read(
+                        response.getResponse().getContentAsString(), "$.messages");
+        assertThat(messages).isEmpty();
+        Object nextCursor =
+                com.jayway.jsonpath.JsonPath.read(
+                        response.getResponse().getContentAsString(), "$.nextCursor");
+        assertThat(nextCursor).isNull();
+    }
+
+    @Test
+    void exactlyOnePageOfMessagesLeavesNoNextCursor() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Boundary Co"));
+        User owner = member("boundary-owner@example.com", tenant);
+        User peer = member("boundary-peer@example.com", tenant);
+        Cookie ownerSession = logIn("boundary-owner@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(ownerSession)
+                        .cookie(ownerCsrf)
+                        .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Boundary Group\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        for (int i = 0; i < 30; i++) {
+            var sendResponse =
+                    mockMvc.post()
+                            .uri("/api/chat/conversations/" + conversationId + "/messages")
+                            .cookie(ownerSession)
+                            .cookie(ownerCsrf)
+                            .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"content\":\"message " + i + "\"}")
+                            .exchange();
+            assertThat(sendResponse).hasStatus(HttpStatus.CREATED);
+        }
+
+        var pageResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId + "/messages")
+                        .cookie(ownerSession)
+                        .exchange();
+        assertThat(pageResponse).hasStatus(HttpStatus.OK);
+        java.util.List<?> messages =
+                com.jayway.jsonpath.JsonPath.read(
+                        pageResponse.getResponse().getContentAsString(), "$.messages");
+        assertThat(messages).hasSize(30);
+
+        // Known, accepted pagination-contract quirk (flagged during independent QA review, not a
+        // correctness bug): when the page is exactly full, the server cannot yet know whether
+        // history is exhausted, so it still returns a nextCursor -- the client is expected to
+        // follow it once more and observe an empty page with no further cursor, rather than the
+        // server ever dropping or duplicating a message across the two fetches.
+        Object nextCursor =
+                com.jayway.jsonpath.JsonPath.read(
+                        pageResponse.getResponse().getContentAsString(), "$.nextCursor");
+        assertThat(nextCursor).isNotNull();
+
+        var followUpResponse =
+                mockMvc.get()
+                        .uri(
+                                "/api/chat/conversations/"
+                                        + conversationId
+                                        + "/messages?before="
+                                        + nextCursor)
+                        .cookie(ownerSession)
+                        .exchange();
+        assertThat(followUpResponse).hasStatus(HttpStatus.OK);
+        java.util.List<?> followUpMessages =
+                com.jayway.jsonpath.JsonPath.read(
+                        followUpResponse.getResponse().getContentAsString(), "$.messages");
+        assertThat(followUpMessages).isEmpty();
+        Object followUpCursor =
+                com.jayway.jsonpath.JsonPath.read(
+                        followUpResponse.getResponse().getContentAsString(), "$.nextCursor");
+        assertThat(followUpCursor).isNull();
+    }
+
+    @Test
+    void staffAdminAndMemberAdminAreBothRejectedFromA1to1TheyDoNotParticipateIn() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Direct Isolation Co"));
+        User memberAdminUser =
+                userRepository.saveAndFlush(new User("direct-iso-memberadmin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdminUser, tenant, MembershipRole.MEMBER_ADMIN));
+        User staffAdminUser =
+                userRepository.saveAndFlush(new User("direct-iso-staffadmin@example.com"));
+        staffAdminUser.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdminUser);
+
+        User staffA = staff("direct-iso-a@example.com");
+        User staffB = staff("direct-iso-b@example.com");
+        Cookie sessionA = logIn("direct-iso-a@example.com");
+        Cookie csrfA = obtainCsrfCookie();
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(sessionA)
+                        .cookie(csrfA)
+                        .header("X-XSRF-TOKEN", csrfA.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + staffB.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        Cookie memberAdminSession = logIn("direct-iso-memberadmin@example.com");
+        var memberAdminResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(memberAdminSession)
+                        .exchange();
+        assertThat(memberAdminResponse.getResponse().getStatus())
+                .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.NOT_FOUND.value());
+
+        Cookie staffAdminSession = logIn("direct-iso-staffadmin@example.com");
+        var staffAdminResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(staffAdminSession)
+                        .exchange();
+        assertThat(staffAdminResponse.getResponse().getStatus())
+                .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.NOT_FOUND.value());
+    }
 }

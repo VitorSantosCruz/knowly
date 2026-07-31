@@ -35,4 +35,15 @@ public class ChatExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ChatErrorResponseDto("SUPPORT_TICKET_CONFLICT"));
     }
+
+    /**
+     * Covers a malformed/tampered pagination cursor ({@link
+     * br.com.conectabyte.knowly.chat.ChatCursor#decode}) -- a client-supplied value that fails to
+     * decode is a bad request, never a server error.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ChatErrorResponseDto> handleMalformedCursor(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ChatErrorResponseDto("CHAT_INVALID_CURSOR"));
+    }
 }

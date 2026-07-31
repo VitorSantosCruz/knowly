@@ -314,4 +314,187 @@ class SupportChannelControllerIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.OK);
     }
+
+    @Test
+    void sendingToAClosedTicketIsRejected() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Closed Terminal Co"));
+        User owner = member("closed-terminal-member@example.com", tenant);
+        Cookie memberSession = logIn("closed-terminal-member@example.com");
+        Cookie memberCsrf = obtainCsrfCookie();
+        var openResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/support/tickets")
+                        .cookie(memberSession)
+                        .cookie(memberCsrf)
+                        .header("X-XSRF-TOKEN", memberCsrf.getValue())
+                        .exchange();
+        Long ticketId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        openResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+        Long channelId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        openResponse.getResponse().getContentAsString(),
+                                        "$.supportChannelId"))
+                        .longValue();
+
+        User assignee = staffWithSupportHandle("closed-terminal-assignee@example.com");
+        Cookie assigneeSession = logIn("closed-terminal-assignee@example.com");
+        Cookie assigneeCsrf = obtainCsrfCookie();
+        mockMvc.post()
+                .uri("/api/tenants/" + tenant.getId() + "/support/tickets/" + ticketId + "/claim")
+                .cookie(assigneeSession)
+                .cookie(assigneeCsrf)
+                .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                .exchange();
+
+        var closeResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/tickets/"
+                                        + ticketId
+                                        + "/close")
+                        .cookie(assigneeSession)
+                        .cookie(assigneeCsrf)
+                        .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                        .exchange();
+        assertThat(closeResponse).hasStatus(HttpStatus.OK);
+
+        Cookie memberCsrf2 = obtainCsrfCookie();
+        var memberSendResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/members/"
+                                        + owner.getId()
+                                        + "/channel/messages")
+                        .cookie(memberSession)
+                        .cookie(memberCsrf2)
+                        .header("X-XSRF-TOKEN", memberCsrf2.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"can I still write?\"}")
+                        .exchange();
+        assertThat(memberSendResponse.getResponse().getStatus())
+                .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.CONFLICT.value());
+
+        var assigneeSendResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/members/"
+                                        + owner.getId()
+                                        + "/channel/messages")
+                        .cookie(assigneeSession)
+                        .cookie(assigneeCsrf)
+                        .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"still assigned?\"}")
+                        .exchange();
+        assertThat(assigneeSendResponse.getResponse().getStatus())
+                .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.CONFLICT.value());
+
+        assertThat(channelId).isNotNull();
+    }
+
+    @Test
+    void reopeningAndOpeningANewTicketAfterCloseReusesTheSameChannel() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Same Channel Co"));
+        member("same-channel-member@example.com", tenant);
+        Cookie memberSession = logIn("same-channel-member@example.com");
+        Cookie memberCsrf = obtainCsrfCookie();
+
+        var firstOpen =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/support/tickets")
+                        .cookie(memberSession)
+                        .cookie(memberCsrf)
+                        .header("X-XSRF-TOKEN", memberCsrf.getValue())
+                        .exchange();
+        assertThat(firstOpen).hasStatus(HttpStatus.CREATED);
+        Long firstTicketId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        firstOpen.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+        Long firstChannelId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        firstOpen.getResponse().getContentAsString(),
+                                        "$.supportChannelId"))
+                        .longValue();
+
+        staffWithSupportHandle("same-channel-assignee@example.com");
+        Cookie assigneeSession = logIn("same-channel-assignee@example.com");
+        Cookie assigneeCsrf = obtainCsrfCookie();
+        mockMvc.post()
+                .uri(
+                        "/api/tenants/"
+                                + tenant.getId()
+                                + "/support/tickets/"
+                                + firstTicketId
+                                + "/claim")
+                .cookie(assigneeSession)
+                .cookie(assigneeCsrf)
+                .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                .exchange();
+        var closeResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/tickets/"
+                                        + firstTicketId
+                                        + "/close")
+                        .cookie(assigneeSession)
+                        .cookie(assigneeCsrf)
+                        .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                        .exchange();
+        assertThat(closeResponse).hasStatus(HttpStatus.OK);
+
+        // No reopen endpoint exists -- attempting to claim/close the now-CLOSED ticket again must
+        // be rejected as a conflict, never silently reopening it.
+        var reopenAttempt =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/tickets/"
+                                        + firstTicketId
+                                        + "/claim")
+                        .cookie(assigneeSession)
+                        .cookie(assigneeCsrf)
+                        .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                        .exchange();
+        assertThat(reopenAttempt).hasStatus(HttpStatus.CONFLICT);
+
+        Cookie memberCsrf2 = obtainCsrfCookie();
+        var secondOpen =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/support/tickets")
+                        .cookie(memberSession)
+                        .cookie(memberCsrf2)
+                        .header("X-XSRF-TOKEN", memberCsrf2.getValue())
+                        .exchange();
+        assertThat(secondOpen).hasStatus(HttpStatus.CREATED);
+        Long secondTicketId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        secondOpen.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+        Long secondChannelId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        secondOpen.getResponse().getContentAsString(),
+                                        "$.supportChannelId"))
+                        .longValue();
+
+        assertThat(secondTicketId).isNotEqualTo(firstTicketId);
+        assertThat(secondChannelId).isEqualTo(firstChannelId);
+    }
 }
