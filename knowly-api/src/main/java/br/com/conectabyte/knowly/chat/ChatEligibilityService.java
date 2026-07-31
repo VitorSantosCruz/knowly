@@ -4,6 +4,8 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.chat.dto.CandidateUserDto;
 import br.com.conectabyte.knowly.chat.exception.ChatIneligibleParticipantException;
+import br.com.conectabyte.knowly.identity.UserProfile;
+import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantMembership;
@@ -23,11 +25,15 @@ public class ChatEligibilityService {
 
     private final TenantMembershipRepository tenantMembershipRepository;
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
 
     public ChatEligibilityService(
-            TenantMembershipRepository tenantMembershipRepository, UserRepository userRepository) {
+            TenantMembershipRepository tenantMembershipRepository,
+            UserRepository userRepository,
+            UserProfileRepository userProfileRepository) {
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
     }
 
     /**
@@ -77,15 +83,23 @@ public class ChatEligibilityService {
         return shared.stream().filter(anchor -> anchor != null).findFirst().orElse(null);
     }
 
-    public List<CandidateUserDto> listCandidates(String scope, Long tenantId) {
+    public List<CandidateUserDto> listCandidates(User actor, String scope, Long tenantId) {
         List<User> users = userRepository.findAll();
+        Set<Long> actorAnchors = "direct".equals(scope) ? eligibleAnchorsFor(actor) : null;
 
         return users.stream()
+                .filter(user -> !user.getId().equals(actor.getId()))
                 .filter(
                         user -> {
                             switch (scope) {
                                 case "direct":
-                                    return true;
+                                    // REQ-3: only candidates who actually share an eligible
+                                    // anchor (tenant membership or staff-capability) with the
+                                    // caller -- never the full user directory (PII exposure /
+                                    // enumeration risk otherwise).
+                                    Set<Long> candidateAnchors = eligibleAnchorsFor(user);
+                                    return !java.util.Collections.disjoint(
+                                            actorAnchors, candidateAnchors);
                                 case "group":
                                     return isEligible(user, tenantId);
                                 case "group-staff-only":
@@ -98,8 +112,15 @@ public class ChatEligibilityService {
                 .toList();
     }
 
+    // Prefers the profile display name over the raw email, mirroring
+    // ChatConversationService#nicknameOfUserId -- the candidate picker shouldn't expose an email
+    // address when a non-PII display name is already available.
     String nicknameOf(User user) {
-        return user.getEmail();
+        return userProfileRepository
+                .findById(user.getId())
+                .map(UserProfile::getFullName)
+                .filter(name -> name != null && !name.isBlank())
+                .orElseGet(user::getEmail);
     }
 
     private boolean isStaffCapable(User user) {

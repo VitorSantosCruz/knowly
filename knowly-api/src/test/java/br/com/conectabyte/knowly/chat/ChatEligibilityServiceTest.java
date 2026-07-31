@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.chat.exception.ChatIneligibleParticipantException;
+import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
 import br.com.conectabyte.knowly.tenancy.Tenant;
@@ -25,12 +26,15 @@ class ChatEligibilityServiceTest {
 
     @Mock private TenantMembershipRepository tenantMembershipRepository;
     @Mock private UserRepository userRepository;
+    @Mock private UserProfileRepository userProfileRepository;
 
     private ChatEligibilityService service;
 
     @BeforeEach
     void setUp() {
-        service = new ChatEligibilityService(tenantMembershipRepository, userRepository);
+        service =
+                new ChatEligibilityService(
+                        tenantMembershipRepository, userRepository, userProfileRepository);
     }
 
     private User staffUser() {
@@ -143,13 +147,10 @@ class ChatEligibilityServiceTest {
         Tenant tenant = tenant(10L);
         when(userRepository.findAll()).thenReturn(List.of(staff, member));
         when(tenantMembershipRepository.findByUserAndTenant(
-                        org.mockito.ArgumentMatchers.eq(staff), argThatTenant(10L)))
-                .thenReturn(Optional.empty());
-        when(tenantMembershipRepository.findByUserAndTenant(
                         org.mockito.ArgumentMatchers.eq(member), argThatTenant(10L)))
                 .thenReturn(Optional.of(activeMembership(member, tenant)));
 
-        var candidates = service.listCandidates("group", 10L);
+        var candidates = service.listCandidates(staff, "group", 10L);
 
         assertThat(candidates).extracting("userId").containsExactly(2L);
     }
@@ -160,19 +161,38 @@ class ChatEligibilityServiceTest {
         User member = plainMember();
         when(userRepository.findAll()).thenReturn(List.of(staff, member));
 
-        var candidates = service.listCandidates("group-staff-only", null);
+        var candidates = service.listCandidates(member, "group-staff-only", null);
 
         assertThat(candidates).extracting("userId").containsExactly(1L);
     }
 
     @Test
-    void listCandidatesForDirectScopeReturnsEveryone() {
+    void listCandidatesForDirectScopeOnlyReturnsUsersSharingAnEligibleAnchor() {
         User staff = staffUser();
         User member = plainMember();
-        when(userRepository.findAll()).thenReturn(List.of(staff, member));
+        User unrelatedStaff = new User("other-staff@example.com");
+        unrelatedStaff.setId(3L);
+        unrelatedStaff.setGlobalRole(GlobalRole.STAFF);
+        when(userRepository.findAll()).thenReturn(List.of(staff, member, unrelatedStaff));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(member)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(unrelatedStaff))
+                .thenReturn(List.of());
 
-        var candidates = service.listCandidates("direct", null);
+        // staff and unrelatedStaff both share the null (staff-only) anchor; plainMember has no
+        // active membership and isn't staff-capable, so shares nothing with staff.
+        var candidates = service.listCandidates(staff, "direct", null);
 
-        assertThat(candidates).hasSize(2);
+        assertThat(candidates).extracting("userId").containsExactly(3L);
+    }
+
+    @Test
+    void listCandidatesForDirectScopeNeverIncludesTheActorThemselves() {
+        User staff = staffUser();
+        when(userRepository.findAll()).thenReturn(List.of(staff));
+
+        var candidates = service.listCandidates(staff, "direct", null);
+
+        assertThat(candidates).isEmpty();
     }
 }

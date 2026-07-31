@@ -90,7 +90,8 @@ public class ChatController {
     @GetMapping("/eligible-participants")
     public ResponseEntity<List<CandidateUserDto>> listEligibleParticipants(
             @RequestParam String scope, @RequestParam(required = false) Long tenantId) {
-        return ResponseEntity.ok(chatEligibilityService.listCandidates(scope, tenantId));
+        return ResponseEntity.ok(
+                chatEligibilityService.listCandidates(currentUser(), scope, tenantId));
     }
 
     private User currentUser() {
