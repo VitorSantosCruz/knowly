@@ -4,11 +4,14 @@ import { of } from 'rxjs';
 import en from '../../../public/i18n/en.json';
 import ptBR from '../../../public/i18n/pt-BR.json';
 
-const DICTIONARIES: Record<string, Translation> = { en, 'pt-BR': ptBR };
+const DICTIONARIES: ReadonlyMap<string, Translation> = new Map([
+  ['en', en],
+  ['pt-BR', ptBR],
+]);
 
 @Injectable()
 export class FakeTranslocoLoader implements TranslocoLoader {
   getTranslation(langPath: string) {
-    return of(DICTIONARIES[langPath] ?? {});
+    return of(DICTIONARIES.get(langPath) ?? {});
   }
 }

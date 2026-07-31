@@ -238,11 +238,7 @@ export class LoginPageComponent implements OnDestroy {
     const value = (event.target as HTMLInputElement).value;
     const digit = value.slice(-1);
 
-    this.digits.update((digits) => {
-      const next = [...digits];
-      next[index] = digit;
-      return next;
-    });
+    this.digits.update((digits) => digits.map((d, i) => (i === index ? digit : d)));
 
     if (digit && index < this.otpIndexes.length - 1) {
       (document.getElementById(`otp-digit-${index + 1}`) as HTMLInputElement | null)?.focus();
@@ -260,11 +256,7 @@ export class LoginPageComponent implements OnDestroy {
       if (box.value === '' && index > 0) {
         event.preventDefault();
         const prevIndex = index - 1;
-        this.digits.update((digits) => {
-          const next = [...digits];
-          next[prevIndex] = '';
-          return next;
-        });
+        this.digits.update((digits) => digits.map((d, i) => (i === prevIndex ? '' : d)));
         (document.getElementById(`otp-digit-${prevIndex}`) as HTMLInputElement | null)?.focus();
       }
       return;
@@ -287,13 +279,7 @@ export class LoginPageComponent implements OnDestroy {
     const text = event.clipboardData?.getData('text') ?? '';
     const digits = text.match(/\d/g)?.slice(0, 6) ?? [];
 
-    this.digits.update((current) => {
-      const next = [...current];
-      digits.forEach((digit, i) => {
-        next[i] = digit;
-      });
-      return next;
-    });
+    this.digits.update((current) => current.map((d, i) => digits.at(i) ?? d));
 
     const nextIndex = Math.min(digits.length, this.otpIndexes.length - 1);
     (document.getElementById(`otp-digit-${nextIndex}`) as HTMLInputElement | null)?.focus();

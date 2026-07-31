@@ -16,18 +16,27 @@ export interface ButtonClassOptions {
 const BASE =
   'inline-flex items-center justify-center gap-1.5 text-sm font-medium transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50';
 
-const SOLID: Record<ButtonVariant, string> = {
-  primary: 'bg-signal-600 text-white hover:bg-signal-500',
-  secondary:
-    'bg-ink-100 text-ink-900 hover:bg-ink-200 dark:bg-ink-800 dark:text-white dark:hover:bg-ink-700',
-  danger: 'bg-red-600 text-white hover:bg-red-500',
-};
+function solidClass(variant: ButtonVariant): string {
+  switch (variant) {
+    case 'primary':
+      return 'bg-signal-600 text-white hover:bg-signal-500';
+    case 'secondary':
+      return 'bg-ink-100 text-ink-900 hover:bg-ink-200 dark:bg-ink-800 dark:text-white dark:hover:bg-ink-700';
+    case 'danger':
+      return 'bg-red-600 text-white hover:bg-red-500';
+  }
+}
 
-const GHOST: Record<ButtonVariant, string> = {
-  primary: 'text-signal-600 hover:bg-signal-50 dark:text-signal-400 dark:hover:bg-signal-950/30',
-  secondary: 'text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-ink-800',
-  danger: 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30',
-};
+function ghostClass(variant: ButtonVariant): string {
+  switch (variant) {
+    case 'primary':
+      return 'text-signal-600 hover:bg-signal-50 dark:text-signal-400 dark:hover:bg-signal-950/30';
+    case 'secondary':
+      return 'text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-ink-800';
+    case 'danger':
+      return 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30';
+  }
+}
 
 function shapeClass(rounded: boolean): string {
   return rounded ? 'rounded-full' : 'rounded-lg';
@@ -45,7 +54,7 @@ export function buttonClass(
   options: ButtonClassOptions = {},
 ): string {
   const { ghost = false, rounded = false } = options;
-  const variantClass = ghost ? GHOST[variant] : SOLID[variant];
+  const variantClass = ghost ? ghostClass(variant) : solidClass(variant);
 
   return [BASE, shapeClass(rounded), paddingClass(ghost, rounded), variantClass].join(' ');
 }

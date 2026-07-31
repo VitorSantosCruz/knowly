@@ -98,9 +98,9 @@ export class MessageSplitChartComponent {
 
   protected toRows(data: MessagesTimeseriesResponse): { label: string; count: number }[] {
     const chartData = toDonutData(data);
-    return chartData.labels.map((label, index) => ({
-      label,
-      count: chartData.datasets[0].data[index],
-    }));
+    return chartData.labels.map((label, index) => {
+      const count = chartData.datasets[0]?.data.at(index) ?? 0;
+      return { label, count };
+    });
   }
 }

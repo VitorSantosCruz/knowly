@@ -8,11 +8,16 @@ import { ParticipantPickerComponent } from './participant-picker.component';
 
 type Mode = 'direct' | 'member-group' | 'staff-group';
 
-const SCOPE_BY_MODE: Record<Mode, EligibilityScope> = {
-  direct: 'direct',
-  'member-group': 'group',
-  'staff-group': 'group-staff-only',
-};
+function scopeForMode(mode: Mode): EligibilityScope {
+  switch (mode) {
+    case 'direct':
+      return 'direct';
+    case 'member-group':
+      return 'group';
+    case 'staff-group':
+      return 'group-staff-only';
+  }
+}
 
 /** REQ-2/REQ-3 entry point (1:1 vs group toggle), driving `ParticipantPickerComponent` off
  * `ChatService.fetchEligibleParticipants`. */
@@ -120,7 +125,7 @@ export class NewConversationDialogComponent {
         this.chatService.fetchEligibleParticipants('group', this.tenantIdValue);
       }
     } else {
-      this.chatService.fetchEligibleParticipants(SCOPE_BY_MODE[mode]);
+      this.chatService.fetchEligibleParticipants(scopeForMode(mode));
     }
   }
 

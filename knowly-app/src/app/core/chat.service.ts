@@ -175,7 +175,7 @@ export class ChatService {
 
   private upsertLocal(id: number, localId: string, content: string): void {
     this.patchEntry(id, (current) => {
-      const existingIndex = current.messages.findIndex((m) => m.localId === localId);
+      const exists = current.messages.some((m) => m.localId === localId);
       const pendingMessage: DisplayMessage = {
         id: -1,
         senderUserId: -1,
@@ -185,12 +185,15 @@ export class ChatService {
         sendState: 'pending',
         localId,
       };
-      if (existingIndex === -1) {
+      if (!exists) {
         return { ...current, messages: [...current.messages, pendingMessage] };
       }
-      const messages = [...current.messages];
-      messages[existingIndex] = { ...messages[existingIndex], sendState: 'pending' };
-      return { ...current, messages };
+      return {
+        ...current,
+        messages: current.messages.map((m) =>
+          m.localId === localId ? { ...m, sendState: 'pending' as const } : m,
+        ),
+      };
     });
   }
 

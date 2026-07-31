@@ -77,7 +77,7 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
                 {{ 'profileEditRequests.submittedAt' | transloco }}: {{ request.createdAt }}
               </p>
 
-              @if (conflictMessages()[request.id]; as fields) {
+              @if (conflictMessages().get(request.id); as fields) {
                 <p
                   [attr.data-testid]="'conflict-request-' + request.id"
                   class="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400"
@@ -114,7 +114,7 @@ export class ProfileEditRequestsInboxPageComponent implements OnInit {
 
   protected readonly requests = signal<ProfileEditRequest[]>([]);
   protected readonly error = signal(false);
-  protected readonly conflictMessages = signal<Record<number, string[]>>({});
+  protected readonly conflictMessages = signal<ReadonlyMap<number, string[]>>(new Map());
 
   ngOnInit(): void {
     this.load();
@@ -205,14 +205,14 @@ export class ProfileEditRequestsInboxPageComponent implements OnInit {
   }
 
   private setConflict(id: number, fields: string[]): void {
-    this.conflictMessages.update((current) => ({ ...current, [id]: fields }));
+    this.conflictMessages.update((current) => new Map(current).set(id, fields));
   }
 
   private clearConflict(id: number): void {
     this.conflictMessages.update((current) => {
-      const rest = { ...current };
-      delete rest[id];
-      return rest;
+      const next = new Map(current);
+      next.delete(id);
+      return next;
     });
   }
 }

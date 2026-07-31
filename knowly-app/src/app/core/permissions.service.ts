@@ -16,7 +16,7 @@ export class PermissionsService {
 
   // Keyed by Permission so multiple "any tenant" checks could coexist, though only
   // PROFILE_EDIT is fetched today (see nav-menu.component.ts).
-  private readonly _anyTenantGrants = signal<Partial<Record<Permission, boolean>>>({});
+  private readonly _anyTenantGrants = signal<ReadonlyMap<Permission, boolean>>(new Map());
 
   /**
    * Safe to call with no active tenant (e.g. a staff session that hasn't switched into one
@@ -44,11 +44,13 @@ export class PermissionsService {
       .get<{ granted: boolean }>(`/api/tenants/permissions/any-tenant?permission=${permission}`)
       .pipe(catchError(() => of({ granted: false })))
       .subscribe((response) =>
-        this._anyTenantGrants.update((current) => ({ ...current, [permission]: response.granted })),
+        this._anyTenantGrants.update((current) =>
+          new Map(current).set(permission, response.granted),
+        ),
       );
   }
 
   hasInAnyTenant(permission: Permission): boolean {
-    return this._anyTenantGrants()[permission] ?? false;
+    return this._anyTenantGrants().get(permission) ?? false;
   }
 }

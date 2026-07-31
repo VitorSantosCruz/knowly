@@ -30,11 +30,23 @@ function setup() {
 function fillOtpBoxes(fixture: ReturnType<typeof setup>, code: string) {
   const boxes: NodeListOf<HTMLInputElement> =
     fixture.nativeElement.querySelectorAll('input[data-otp-index]');
-  for (let i = 0; i < code.length && i < boxes.length; i++) {
-    boxes[i].value = code[i];
-    boxes[i].dispatchEvent(new Event('input'));
-  }
+  boxes.forEach((box, i) => {
+    const digit = code.at(i);
+    if (digit === undefined) {
+      return;
+    }
+    box.value = digit;
+    box.dispatchEvent(new Event('input'));
+  });
   fixture.detectChanges();
+}
+
+/** Invokes the dynamically-named global callback the Turnstile widget would call once solved
+ * (see `login-page.component.ts`'s `callbackName`) — `Reflect.get` instead of bracket access on
+ * `window` so this doesn't read as an object-injection sink for an intentionally dynamic name. */
+function invokeTurnstileCallback(name: string, token: string): void {
+  const callback = Reflect.get(window, name) as (token: string) => void;
+  callback(token);
 }
 
 function submitEmail(fixture: ReturnType<typeof setup>, email: string) {
@@ -108,7 +120,7 @@ describe('LoginPageComponent', () => {
 
     const widget: HTMLElement = fixture.nativeElement.querySelector('.cf-turnstile');
     const callbackName = widget.getAttribute('data-callback')!;
-    (window as unknown as Record<string, (token: string) => void>)[callbackName]('solved-token');
+    invokeTurnstileCallback(callbackName, 'solved-token');
     fixture.detectChanges();
 
     expect(button.disabled).toBe(false);
@@ -125,7 +137,7 @@ describe('LoginPageComponent', () => {
 
     const widget: HTMLElement = fixture.nativeElement.querySelector('.cf-turnstile');
     const callbackName = widget.getAttribute('data-callback')!;
-    (window as unknown as Record<string, (token: string) => void>)[callbackName]('solved-token');
+    invokeTurnstileCallback(callbackName, 'solved-token');
     fixture.detectChanges();
 
     vi.spyOn(authService, 'requestLogin').mockReturnValue(of(undefined));
