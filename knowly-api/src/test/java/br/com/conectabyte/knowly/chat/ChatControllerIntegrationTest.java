@@ -92,7 +92,7 @@ class ChatControllerIntegrationTest {
 
     @Test
     void createDirectConversationBetweenTwoStaffUsersSucceeds() {
-        User staffA = staff("staffa@example.com");
+        staff("staffa@example.com");
         User staffB = staff("staffb@example.com");
         Cookie session = logIn("staffa@example.com");
         Cookie csrf = obtainCsrfCookie();
@@ -204,7 +204,7 @@ class ChatControllerIntegrationTest {
     @Test
     void memberOnlyGroupAcceptsAStaffUserWithMembershipAndRejectsOneWithout() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Group Co"));
-        User owner = member("group-owner@example.com", tenant);
+        member("group-owner@example.com", tenant);
         User eligibleStaff = staff("group-eligible-staff@example.com");
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(eligibleStaff, tenant, MembershipRole.MEMBER));
@@ -304,7 +304,7 @@ class ChatControllerIntegrationTest {
     @Test
     void loadingMessageHistoryNeverReturnsMoreThanOnePageAtOnce() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Pagination Co"));
-        User owner = member("page-owner@example.com", tenant);
+        member("page-owner@example.com", tenant);
         User peer = member("page-peer@example.com", tenant);
         Cookie ownerSession = logIn("page-owner@example.com");
         Cookie ownerCsrf = obtainCsrfCookie();
@@ -492,7 +492,7 @@ class ChatControllerIntegrationTest {
     @Test
     void exactlyOnePageOfMessagesLeavesNoNextCursor() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Boundary Co"));
-        User owner = member("boundary-owner@example.com", tenant);
+        member("boundary-owner@example.com", tenant);
         User peer = member("boundary-peer@example.com", tenant);
         Cookie ownerSession = logIn("boundary-owner@example.com");
         Cookie ownerCsrf = obtainCsrfCookie();
@@ -583,7 +583,7 @@ class ChatControllerIntegrationTest {
         staffAdminUser.setGlobalRole(GlobalRole.STAFF_ADMIN);
         userRepository.saveAndFlush(staffAdminUser);
 
-        User staffA = staff("direct-iso-a@example.com");
+        staff("direct-iso-a@example.com");
         User staffB = staff("direct-iso-b@example.com");
         Cookie sessionA = logIn("direct-iso-a@example.com");
         Cookie csrfA = obtainCsrfCookie();

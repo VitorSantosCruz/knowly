@@ -215,7 +215,7 @@ class SupportChannelControllerIntegrationTest {
                                         openResponse.getResponse().getContentAsString(), "$.id"))
                         .longValue();
 
-        User assignee = staffWithSupportHandle("assignee@example.com");
+        staffWithSupportHandle("assignee@example.com");
         Cookie assigneeSession = logIn("assignee@example.com");
         Cookie assigneeCsrf = obtainCsrfCookie();
         var claimResponse =
@@ -340,7 +340,7 @@ class SupportChannelControllerIntegrationTest {
                                         "$.supportChannelId"))
                         .longValue();
 
-        User assignee = staffWithSupportHandle("closed-terminal-assignee@example.com");
+        staffWithSupportHandle("closed-terminal-assignee@example.com");
         Cookie assigneeSession = logIn("closed-terminal-assignee@example.com");
         Cookie assigneeCsrf = obtainCsrfCookie();
         mockMvc.post()
