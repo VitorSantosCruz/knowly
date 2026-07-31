@@ -58,6 +58,17 @@
       "articlesReadTotal": "Total articles read",
       "staffCount": "Staff members",
       "supportTickets": "Support tickets"
+    },
+    "trends": {
+      "tenantCountSubtitle": "Companies with an active workspace on the platform",
+      "newTenantsSubtitle": "Signups in the selected period",
+      "articlesReadSubtitle": "Total articles opened/viewed across all tenants",
+      "staffCountSubtitle": "ConectaByte team accounts with platform access",
+      "newTenantsChartLabel": "New tenants per day",
+      "newTenantsChartSubtitle": "Daily evolution of new signups in the selected period",
+      "articlesReadChartLabel": "Articles read per day",
+      "articlesReadChartSubtitle": "Daily evolution of article opens/views across all tenants",
+      "supportTicketsSubtitle": "Support tickets — not available yet"
     }
   },
   "welcome": {

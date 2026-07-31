@@ -58,6 +58,17 @@
       "articlesReadTotal": "Total de artigos lidos",
       "staffCount": "Membros da equipe interna",
       "supportTickets": "Chamados de suporte"
+    },
+    "trends": {
+      "tenantCountSubtitle": "Empresas com um workspace ativo na plataforma",
+      "newTenantsSubtitle": "Cadastros no período selecionado",
+      "articlesReadSubtitle": "Total de artigos abertos/citados em todos os tenants",
+      "staffCountSubtitle": "Contas da equipe ConectaByte com acesso à plataforma",
+      "newTenantsChartLabel": "Novos tenants por dia",
+      "newTenantsChartSubtitle": "Evolução diária de novos cadastros no período selecionado",
+      "articlesReadChartLabel": "Artigos lidos por dia",
+      "articlesReadChartSubtitle": "Evolução diária de aberturas/citações de artigos em todos os tenants",
+      "supportTicketsSubtitle": "Chamados de suporte — recurso ainda não disponível"
     }
   },
   "welcome": {
