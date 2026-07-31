@@ -525,16 +525,89 @@ SPEC before implementation, roughly in this order:**
       staff-with-staff or member-with-member, (b) member↔staff support
       channel (one fixed thread per member, see below), and (c) the
       pre-existing member↔knowledge-base article chat (already shipped,
-      unrelated to this item). Whether staff and members can be mixed
-      in the *same* peer-to-peer group (as opposed to a staff-only or
-      member-only group) is not yet decided — clarify when writing the
-      SPEC.
+      unrelated to this item). **Confirmed 2026-07-31, corrected same
+      day**: staff and members cannot be mixed in the same peer-to-peer
+      group *except* via the same exception already established for 1:1
+      (item 14's staff↔member 1:1 rule above) — a staff user who also
+      holds an active membership in that tenant can be in a member-only
+      group as a peer member of that tenant, same as they can DM that
+      tenant's members 1:1. What's still never allowed is a staff person
+      joining a member-only group of a tenant they're *not* a member of
+      (acting purely in their staff capacity), and a staff-only group
+      never admits a plain tenant member. So the rule is: group
+      membership eligibility mirrors the 1:1 eligibility rule exactly —
+      "staff-only" vs. "member-only" is about the *capacity* each
+      participant is acting in (staff-without-that-tenant's-membership,
+      vs. member/staff-with-that-tenant's-membership), not a hard
+      role-field check. This resolves the SPEC's "open question (blocking
+      full approval)" — the `internal-team-chat` SPECs' current
+      no-mixing-at-all assumption is **too strict** and needs amending to
+      reflect this exception before approval.
+    - **Confirmed 2026-07-31, groups are private + admin override**:
+      peer-to-peer groups (staff-only or member-only) are private —
+      participants only, nobody else can see or enter one by default.
+      The one exception is admin oversight: `STAFF_ADMIN` can see and
+      enter *any* group, staff-only or member-only, across every tenant
+      (mirrors `STAFF_ADMIN`'s existing unconditional-bypass posture
+      elsewhere in the system — see `PermissionAspect`'s bypass,
+      item 5/8/9 above). `MEMBER_ADMIN` can see and enter every
+      member-only group belonging to any tenant where that same person
+      holds the `MEMBER_ADMIN` role — i.e. their admin-driven visibility
+      is scoped per-tenant to tenants they administer, not global like
+      `STAFF_ADMIN`'s. This does not grant either admin visibility into
+      1:1 conversations (only groups) unless already a participant —
+      **confirmed 2026-07-31**: 1:1 conversations stay fully private
+      between their two participants regardless of admin role; the
+      admin-override visibility above is group-only. **Confirmed
+      2026-07-31, framing of the override matters**: when `STAFF_ADMIN`
+      (or an in-scope `MEMBER_ADMIN`) opens a group via this oversight
+      override, they must be presented/labeled as an external
+      guest/support-style presence, not as a regular member of that
+      group — the UI should read as "someone from support/admin is
+      looking in," not as "a new member joined." Concretely: the admin
+      does **not** become a member of the group through this override
+      (no join event, no addition to the group's member list) unless
+      they are separately, actually a member of that tenant (the
+      pre-existing 1:1/group-eligibility exception above) — oversight
+      access must never itself grant membership.
     - Staff↔member support is **not** a normal 1:1/group conversation —
       it's a single, fixed, per-member support channel: each tenant
       member has exactly one ongoing support thread, and whichever staff
       member is handling support replies through that same thread (not
       one thread per staff person). Needs its own entity/relationship
       design distinct from the peer-to-peer 1:1/group model above.
+    - **Confirmed 2026-07-31, peer-to-peer 1:1 is private (WhatsApp-style)**:
+      staff↔staff and member↔member 1:1 conversations are private between
+      the two participants, same mental model as a normal DM app. A
+      staff↔member 1:1 is **not allowed** unless that staff person also
+      holds an active membership in the same tenant as that member — i.e.
+      a staff user acting purely in their staff capacity (no membership in
+      the member's tenant) cannot open a private 1:1 with a tenant member
+      outside the fixed support channel; only a staff user who is *also* a
+      member of that same tenant can DM that member as a peer.
+    - **Confirmed 2026-07-31, support channel data model**: the support
+      channel is **one single persistent channel per member**, not one
+      channel per ticket. Opening a "new ticket" after a previous one
+      closed does **not** create a new channel — it creates a new ticket
+      *within* the same existing per-member channel, which keeps the full
+      history of every ticket (open or closed) that member has ever had.
+      Closing a ticket is still terminal exactly as already confirmed
+      below (closed tickets never reopen, a new support need starts a new
+      ticket) — this only changes the underlying entity model: ticket ≠
+      channel, ticket is a bounded episode inside the member's one
+      long-lived channel.
+    - **Confirmed 2026-07-31, purpose of the shared per-member history**:
+      whichever staff member picks up a *new* ticket for that member must
+      be able to see that member's prior tickets/history in the same
+      channel — explicitly so a recurring/already-known issue is visible
+      to whoever picks up the new ticket, not just to whoever handled it
+      originally. This is the reason the channel (not just the ticket) is
+      the unit of history. **Confirmed 2026-07-31**: this history must
+      load progressively (paginated/lazy-loaded, e.g. older messages
+      fetched on scroll-up or "load more"), not all at once — a channel
+      accumulating many tickets over a long relationship should never
+      force the backend/frontend to load the entire history in a single
+      request/render.
     - **Confirmed 2026-07-26, visibility rules for the support
       channel**: it's opened by one specific `MEMBER`/`MEMBER_ADMIN` and
       is effectively "that member vs. the staff team" until a staff
@@ -641,6 +714,22 @@ SPEC before implementation, roughly in this order:**
 
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
+
+**`internal-team-chat` (item 14) SPECs approved by the user 2026-07-31**,
+both subprojects — see `knowly-api/specify/features/internal-team-chat/
+SPEC.md` and `knowly-app/specify/features/internal-team-chat/SPEC.md` for
+the full requirement set (all rules confirmed across 2026-07-26/07-31
+baked in, no open questions remaining). **User has authorized proceeding
+through PLAN → TASKS → implementation without further check-ins** for
+this feature: any ambiguity that arises should be resolved by convening
+the relevant specialist subagents (`software-architect`, `appsec`,
+`data-architect-dba`, etc.) to reach agreement themselves, not by asking
+the user, unless something is genuinely outside every available agent's
+competence. Next: `software-architect` writes PLAN.md for both
+subprojects, then mandatory `appsec` review of the PLAN before TASKS.md
+(per `feedback_appsec_gate_skipped` — this touches new attack surface:
+group/1:1 access control, admin oversight override, support-channel
+permission gating).
 
 ## How to work in this repo
 

@@ -75,6 +75,19 @@ class ConversationControllerIntegrationTest {
         return result.getResponse().getCookie("SESSION");
     }
 
+    /**
+     * /api/tenants/{tenantId}/conversations/** is not CSRF-exempt (only /api/tenants/active is, see
+     * SecurityConfig) so every state-changing call in this test needs a real XSRF-TOKEN cookie +
+     * header, same convention as AuthControllerIntegrationTest#obtainCsrfCookie().
+     */
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
     private User memberWithPermissions(String email, Tenant tenant, Permission... permissions) {
         User user = userRepository.saveAndFlush(new User(email));
         TenantMembership membership =
@@ -92,11 +105,14 @@ class ConversationControllerIntegrationTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("NoPerm Tenant"));
         memberWithPermissions("noperm@example.com", tenant);
         Cookie session = logIn("noperm@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/conversations")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -154,6 +170,7 @@ class ConversationControllerIntegrationTest {
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(noPermUser, tenant, MembershipRole.MEMBER));
         Cookie session = logIn("noperm3@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
@@ -166,6 +183,8 @@ class ConversationControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"What is X?\"}")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -179,6 +198,7 @@ class ConversationControllerIntegrationTest {
         Conversation conversation =
                 conversationRepository.saveAndFlush(new Conversation(tenant, owner));
         Cookie session = logIn("chatter@example.com");
+        Cookie csrf = obtainCsrfCookie();
         when(vectorStore.similaritySearch(
                         any(org.springframework.ai.vectorstore.SearchRequest.class)))
                 .thenReturn(List.of());
@@ -201,6 +221,8 @@ class ConversationControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"What is X?\"}")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -217,11 +239,14 @@ class ConversationControllerIntegrationTest {
         User user =
                 memberWithPermissions("auditor@example.com", tenant, Permission.CONVERSATION_USE);
         Cookie session = logIn("auditor@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/conversations")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);

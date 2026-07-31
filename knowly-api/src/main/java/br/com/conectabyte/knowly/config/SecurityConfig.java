@@ -69,10 +69,26 @@ public class SecurityConfig {
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
+                                                // Pre-authentication only. Do not widen this back
+                                                // to "/api/tenants/**" -- that previously exempted
+                                                // every authenticated, state-changing endpoint
+                                                // nested under this prefix (TenantController's own
+                                                // member/permission mutations,
+                                                // ConversationController,
+                                                // and any future controller such as
+                                                // SupportChannelController) from CSRF protection.
+                                                // "/api/tenants/active" is the one endpoint in this
+                                                // flow that runs immediately after login, in the
+                                                // same request sequence as the exempted
+                                                // /api/auth/** endpoints, to select the active
+                                                // tenant before a full session is established --
+                                                // see
+                                                // DECISIONS.md (2026-07-31) for the incident this
+                                                // fixes.
                                                 "/api/auth/login-request",
                                                 "/api/auth/login-code/verify",
                                                 "/api/auth/login-password/verify",
-                                                "/api/tenants/**",
+                                                "/api/tenants/active",
                                                 "/api/notifications/**",
                                                 "/api/users/me/onboarding-complete",
                                                 "/api/users/**",

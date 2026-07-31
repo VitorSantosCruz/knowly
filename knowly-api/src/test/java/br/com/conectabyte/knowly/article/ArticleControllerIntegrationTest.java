@@ -67,6 +67,19 @@ class ArticleControllerIntegrationTest {
         return result.getResponse().getCookie("SESSION");
     }
 
+    /**
+     * /api/tenants/{tenantId}/articles/** is not CSRF-exempt (only /api/tenants/active is, see
+     * SecurityConfig) so every state-changing call in this test needs a real XSRF-TOKEN cookie +
+     * header, same convention as AuthControllerIntegrationTest#obtainCsrfCookie().
+     */
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
     private TenantMembership memberWithPermissions(
             String email, Tenant tenant, Permission... permissions) {
         User user = userRepository.saveAndFlush(new User(email));
@@ -93,13 +106,15 @@ class ArticleControllerIntegrationTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Upload Tenant"));
         memberWithPermissions("creator@example.com", tenant, Permission.ARTICLE_CREATE);
         Cookie session = logIn("creator@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.perform(
                         multipart("/api/tenants/" + tenant.getId() + "/articles")
                                 .file(pdfFile())
                                 .param("title", "My article")
-                                .cookie(session));
+                                .cookie(session, csrf)
+                                .header("X-XSRF-TOKEN", csrf.getValue()));
 
         assertThat(response).hasStatus(HttpStatus.ACCEPTED);
         assertThat(response.getResponse().getContentAsString())
@@ -111,6 +126,7 @@ class ArticleControllerIntegrationTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Reject Tenant"));
         memberWithPermissions("creator2@example.com", tenant, Permission.ARTICLE_CREATE);
         Cookie session = logIn("creator2@example.com");
+        Cookie csrf = obtainCsrfCookie();
         MockMultipartFile badFile =
                 new MockMultipartFile(
                         "file", "malware.exe", "application/x-msdownload", "bytes".getBytes());
@@ -120,7 +136,8 @@ class ArticleControllerIntegrationTest {
                         multipart("/api/tenants/" + tenant.getId() + "/articles")
                                 .file(badFile)
                                 .param("title", "Bad file")
-                                .cookie(session));
+                                .cookie(session, csrf)
+                                .header("X-XSRF-TOKEN", csrf.getValue()));
 
         assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(response.getResponse().getContentAsString()).contains("UNSUPPORTED_FILE_TYPE");
@@ -131,13 +148,15 @@ class ArticleControllerIntegrationTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("NoPerm Tenant"));
         memberWithPermissions("noperm@example.com", tenant);
         Cookie session = logIn("noperm@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.perform(
                         multipart("/api/tenants/" + tenant.getId() + "/articles")
                                 .file(pdfFile())
                                 .param("title", "Should fail")
-                                .cookie(session));
+                                .cookie(session, csrf)
+                                .header("X-XSRF-TOKEN", csrf.getValue()));
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
@@ -173,6 +192,7 @@ class ArticleControllerIntegrationTest {
                 articleRepository.saveAndFlush(
                         new Article(tenant, "Original title", "key", "f.pdf", "application/pdf"));
         Cookie session = logIn("editor@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.put()
@@ -180,6 +200,8 @@ class ArticleControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Fixed title\",\"text\":\"corrected text\"}")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -194,11 +216,14 @@ class ArticleControllerIntegrationTest {
                 articleRepository.saveAndFlush(
                         new Article(tenant, "To delete", "key", "f.pdf", "application/pdf"));
         Cookie session = logIn("deleter@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.delete()
                         .uri("/api/tenants/" + tenant.getId() + "/articles/" + article.getId())
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);

@@ -70,6 +70,15 @@ class ArticleUploadSizeLimitIntegrationTest {
                         .content("{\"email\":\"sizecheck@example.com\",\"code\":\"" + code + "\"}")
                         .exchange();
         Cookie session = loginResult.getResponse().getCookie("SESSION");
+        // /api/tenants/{tenantId}/articles/** is not CSRF-exempt (only /api/tenants/active is,
+        // see SecurityConfig) so this state-changing upload needs a real XSRF-TOKEN cookie +
+        // header.
+        Cookie csrf =
+                mockMvc.get()
+                        .uri("/actuator/health")
+                        .exchange()
+                        .getResponse()
+                        .getCookie("XSRF-TOKEN");
 
         MockMultipartFile file =
                 new MockMultipartFile(
@@ -83,7 +92,8 @@ class ArticleUploadSizeLimitIntegrationTest {
                         multipart("/api/tenants/" + tenant.getId() + "/articles")
                                 .file(file)
                                 .param("title", "Too big")
-                                .cookie(session));
+                                .cookie(session, csrf)
+                                .header("X-XSRF-TOKEN", csrf.getValue()));
 
         assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(response.getResponse().getContentAsString()).contains("FILE_TOO_LARGE");

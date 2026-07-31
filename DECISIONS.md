@@ -1115,6 +1115,121 @@ better served by a reusable annotation (e.g. the same cross-field rule
 needed identically in many unrelated places), that tradeoff should be
 weighed explicitly at that point, not defaulted into silently.
 
+## `internal-team-chat`: message history pagination uses a plain message-id cursor, not a `(created_at, id)` compound or page/size offset pagination (2026-07-31)
+
+**Decision: chat message history (`ChatMessage`/support-channel
+messages) is paginated with an opaque cursor encoding the message `id`
+alone** — `base64(messageId)`, compared with `<`/`>` against `id` for
+`before`/`after` requests respectively — **not** `tenant-pagination-
+search`'s `PageResponseDto` page/size envelope, and not the backend
+architect's own first-draft compound `(created_at, id)` cursor. **Why:**
+`tenant-pagination-search` established page/size offset pagination for
+this codebase's first paginated list, but that shape assumes a
+materially stable list between page fetches; chat history is an
+append-only feed read backward from an arbitrary scroll position while
+new messages can arrive at the newest end mid-session (see the polling
+decision below) — an offset-based "page 2" is not a stable concept here
+(a new message shifts what offset N means). A compound `(created_at,
+id)` cursor was considered next (and briefly the backend PLAN's initial
+design, written independently of the frontend PLAN) but rejected on
+reconciliation: `chat_messages.id` is a `BIGSERIAL`, strictly
+monotonically increasing in insertion order per conversation, so it is
+already a total order with no same-instant collision to break — adding
+`created_at` to the cursor was defensive over-specification for a schema
+that doesn't need it, and a plain id-cursor is simpler to implement,
+test, and reason about on both sides of the API. **Applies to new
+decisions:** any future append-only/feed-shaped list (activity feeds,
+notification streams) should default to this same id-only cursor shape
+rather than reusing `PageResponseDto`'s offset shape (which stays
+correct for genuinely stable lists — tenant listings, user listings —
+only); reach for a compound cursor only when the ordering column is
+*not* already a strictly-increasing, collision-free key by itself (e.g.
+ordering by a mutable or non-unique column would need a tie-breaker —
+`id` alone never does).
+
+## `internal-team-chat`: real-time message delivery is 5-second client polling of the existing paginated GET, not WebSocket/SSE — server push flagged as a future direction, not built now (2026-07-31)
+
+**Decision: for v1, new messages from other users are delivered by the
+client polling `GET .../messages?after=<lastSeenId>` every 5 seconds
+while a conversation/support-channel view is open, paused when the tab
+is hidden (Page Visibility API) — no server-push mechanism is
+implemented.** This was independently arrived at by both the backend
+and frontend PLANs (backend deferred real-time entirely to "whatever GET
+the client already polls"; frontend concretely specified the 5s
+interval) and confirmed as non-conflicting on reconciliation — they
+describe the same mechanism from opposite ends. **Why polling over
+WebSocket/SSE:** this is this codebase's first "receive updates
+originating from other users while a view is open" requirement. The
+only existing "live" precedent, `ConversationService.sendMessage`'s SSE
+stream (`MessageStreamingService`'s `SseEmitter`), answers a single
+in-flight request's own AI-completion response — it is not a registry
+of long-lived per-user connections and doesn't solve "deliver a message
+written by user A to an already-open session of user B." Building that
+(a persistent `SseEmitter` registry keyed by user id, or WebSocket/STOMP)
+is new infrastructure with real connection-lifecycle, memory, and
+horizontal-scaling implications (multiple app instances behind a load
+balancer need pub/sub fan-out — e.g. via the already-provisioned
+RabbitMQ — to deliver to a connection held by a *different* instance),
+which is a genuine Tier 3 new-dependency/new-infra decision, not
+something either PLAN should decide unilaterally; the SPEC itself places
+real-time transport out of scope. Polling was chosen as the lower-cost
+default at this app's current scale (text chat, no sub-second-latency
+requirement); the backend's messages endpoint was extended with `after`-
+cursor support specifically to serve this. **Future direction (flagged,
+not built):** if/when real-time push is wanted, prefer SSE-per-user
+(not WebSocket) backed by RabbitMQ fan-out for multi-instance delivery,
+reusing the already-provisioned broker and the existing SSE precedent
+rather than adding a new protocol — build this only once an actual
+latency complaint exists, not preemptively. **Applies to new decisions:**
+any future "push updates to an open client session" need should default
+to client polling first at this app's scale, and should evaluate this
+entry's SSE-per-user-over-RabbitMQ direction (not a fresh WebSocket
+design) as its starting point when polling genuinely stops being
+sufficient — treat "we now have a second feature that needs this" as the
+trigger to build it once, generalized, rather than adding a second
+bespoke polling loop or a second incompatible push mechanism.
+
+## `internal-team-chat` AppSec follow-up: narrow `/api/tenants/**`'s CSRF exemption to the exact pre-authentication path that needs it (2026-07-31)
+
+**Decision: `SecurityConfig`'s CSRF exemption is narrowed from the
+wildcard `"/api/tenants/**"` back down to the single exact path
+`"/api/tenants/active"`.** The wildcard was introduced in
+`feat(tenancy): add tenant and membership management endpoints`
+("CSRF is ignored for `/api/tenants/**`, same reasoning already applied
+to the auth endpoints") by pattern-matching against the earlier, correct
+exemption of `/api/auth/**`/`/api/tenants/active` without checking
+whether the new endpoints it covered were actually pre-authentication —
+they weren't. `/api/tenants/active` is exempt because it runs
+immediately after login, in the same request sequence as the exempted
+`/api/auth/**` endpoints, to select the active tenant before a full
+session is established. Every other endpoint nested under
+`/api/tenants/**` is a normal authenticated, state-changing endpoint
+(`TenantController`'s own member/permission/access-group mutations,
+`ConversationController`, `ArticleController`) and was incorrectly
+skipping CSRF protection as a side effect of sharing that URL prefix.
+**Why this matters:** an authenticated user's browser could be tricked
+into submitting a cross-site request to any of these endpoints (add a
+member, grant a permission, delete an article, etc.) with no CSRF token
+required, because the exemption matcher had no way to distinguish "this
+is the pre-auth tenant-selection step" from "this happens to live under
+/api/tenants". Fixed by listing the exact pre-auth path instead of a
+prefix, and adding real `XSRF-TOKEN` cookie + `X-XSRF-TOKEN` header
+plumbing to the integration tests that had been implicitly relying on
+the broad exemption (`TenantManagementIntegrationTest`,
+`StaffRbacIntegrationTest`, `MembershipAcceptanceIntegrationTest`,
+`ConversationControllerIntegrationTest`, `ArticleControllerIntegrationTest`,
+`ArticleUploadSizeLimitIntegrationTest`) rather than loosening
+production behavior to match what the tests happened to assume.
+**Applies to new decisions:** a CSRF exemption must always be a list of
+exact pre-authentication paths, never a prefix/wildcard over a
+controller namespace — a namespace groups routes by *resource*
+(`/api/tenants/{tenantId}/...`), not by *authentication requirement*, so
+a wildcard there will always eventually cover an authenticated,
+state-changing endpoint nested under it. Any future controller placed
+under `/api/tenants/**` (e.g. a support-channel controller) must not
+assume it inherits CSRF exemption from this prefix — it doesn't, and
+shouldn't.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

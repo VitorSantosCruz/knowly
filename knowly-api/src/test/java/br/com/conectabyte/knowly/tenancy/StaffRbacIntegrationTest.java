@@ -105,10 +105,13 @@ class StaffRbacIntegrationTest {
         staffAdmin("admin@example.com");
         Cookie session = logIn("admin@example.com");
 
+        Cookie csrf = obtainCsrfCookie();
         var response =
                 mockMvc.post()
                         .uri("/api/tenants")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Acme\",\"adminEmail\":\"tenant-admin@acme.com\"}")
                         .exchange();
@@ -138,11 +141,14 @@ class StaffRbacIntegrationTest {
         directGlobalPermissionGrantRepository.saveAndFlush(
                 new DirectGlobalPermissionGrant(user, GlobalPermission.TENANT_CREATE));
         Cookie session = logIn("directgrant@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var createResponse =
                 mockMvc.post()
                         .uri("/api/tenants")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Acme\",\"adminEmail\":\"tenant-admin@acme.com\"}")
                         .exchange();
@@ -240,11 +246,14 @@ class StaffRbacIntegrationTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Add Member Co"));
         limitedStaff("nogrant-addmember@example.com");
         Cookie noGrantSession = logIn("nogrant-addmember@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/members")
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"newmember@example.com\",\"role\":\"MEMBER\"}")
                         .exchange();
@@ -253,11 +262,14 @@ class StaffRbacIntegrationTest {
         User grantedStaff = limitedStaff("grant-addmember@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-addmember@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/members")
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"newmember2@example.com\",\"role\":\"MEMBER\"}")
                         .exchange();
@@ -274,22 +286,28 @@ class StaffRbacIntegrationTest {
 
         limitedStaff("nogrant-removemember@example.com");
         Cookie noGrantSession = logIn("nogrant-removemember@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.delete()
                         .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-removemember@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-removemember@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.delete()
                         .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }
@@ -331,11 +349,14 @@ class StaffRbacIntegrationTest {
 
         limitedStaff("nogrant-creategroup@example.com");
         Cookie noGrantSession = logIn("nogrant-creategroup@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/access-groups")
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Editors\"}")
                         .exchange();
@@ -344,11 +365,14 @@ class StaffRbacIntegrationTest {
         User grantedStaff = limitedStaff("grant-creategroup@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-creategroup@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/access-groups")
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Editors\"}")
                         .exchange();
@@ -393,6 +417,7 @@ class StaffRbacIntegrationTest {
 
         limitedStaff("nogrant-grantperm@example.com");
         Cookie noGrantSession = logIn("nogrant-grantperm@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.post()
@@ -403,6 +428,8 @@ class StaffRbacIntegrationTest {
                                         + membership.getId()
                                         + "/permissions")
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
                         .exchange();
@@ -411,6 +438,7 @@ class StaffRbacIntegrationTest {
         User grantedStaff = limitedStaff("grant-grantperm@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-grantperm@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.post()
@@ -421,6 +449,8 @@ class StaffRbacIntegrationTest {
                                         + membership.getId()
                                         + "/permissions")
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
                         .exchange();
@@ -437,6 +467,7 @@ class StaffRbacIntegrationTest {
 
         limitedStaff("nogrant-revokeperm@example.com");
         Cookie noGrantSession = logIn("nogrant-revokeperm@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.delete()
@@ -447,12 +478,15 @@ class StaffRbacIntegrationTest {
                                         + membership.getId()
                                         + "/permissions/TENANT_MEMBER_MANAGE")
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-revokeperm@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-revokeperm@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.delete()
@@ -463,6 +497,8 @@ class StaffRbacIntegrationTest {
                                         + membership.getId()
                                         + "/permissions/TENANT_MEMBER_MANAGE")
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }
@@ -479,6 +515,7 @@ class StaffRbacIntegrationTest {
 
         limitedStaff("nogrant-assigngroup@example.com");
         Cookie noGrantSession = logIn("nogrant-assigngroup@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.post()
@@ -490,12 +527,15 @@ class StaffRbacIntegrationTest {
                                         + "/access-groups/"
                                         + accessGroup.getId())
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-assigngroup@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-assigngroup@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.post()
@@ -507,6 +547,8 @@ class StaffRbacIntegrationTest {
                                         + "/access-groups/"
                                         + accessGroup.getId())
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }
@@ -523,6 +565,7 @@ class StaffRbacIntegrationTest {
 
         limitedStaff("nogrant-unassigngroup@example.com");
         Cookie noGrantSession = logIn("nogrant-unassigngroup@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
 
         var deniedResponse =
                 mockMvc.delete()
@@ -534,12 +577,15 @@ class StaffRbacIntegrationTest {
                                         + "/access-groups/"
                                         + accessGroup.getId())
                         .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-unassigngroup@example.com");
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-unassigngroup@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
 
         var allowedResponse =
                 mockMvc.delete()
@@ -551,6 +597,8 @@ class StaffRbacIntegrationTest {
                                         + "/access-groups/"
                                         + accessGroup.getId())
                         .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }

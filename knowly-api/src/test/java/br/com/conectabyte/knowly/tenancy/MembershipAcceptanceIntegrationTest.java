@@ -62,6 +62,19 @@ class MembershipAcceptanceIntegrationTest {
         return result.getResponse().getCookie("SESSION");
     }
 
+    /**
+     * /api/tenants/{tenantId}/members/** is not CSRF-exempt (only /api/tenants/active is, see
+     * SecurityConfig) so state-changing calls to it need a real XSRF-TOKEN cookie + header, same
+     * convention as AuthControllerIntegrationTest#obtainCsrfCookie().
+     */
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
     private Cookie switchActiveTenant(Cookie session, Long tenantId) {
         var response =
                 mockMvc.post()
@@ -176,6 +189,7 @@ class MembershipAcceptanceIntegrationTest {
         userRepository.saveAndFlush(nowStaff);
 
         Cookie session = logIn("deactivateadmin@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.delete()
@@ -185,6 +199,8 @@ class MembershipAcceptanceIntegrationTest {
                                         + "/members/"
                                         + staleMembership.getId())
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -203,11 +219,14 @@ class MembershipAcceptanceIntegrationTest {
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
         Cookie session = logIn("auditadmin@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/members")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"freshinvitee@example.com\",\"role\":\"MEMBER\"}")
                         .exchange();

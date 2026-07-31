@@ -51,6 +51,19 @@ class TenantManagementIntegrationTest {
         return result.getResponse().getCookie("SESSION");
     }
 
+    /**
+     * /api/tenants/** is not CSRF-exempt (only /api/tenants/active is, see SecurityConfig) so every
+     * state-changing call in this test needs a real XSRF-TOKEN cookie + header, same convention as
+     * AuthControllerIntegrationTest#obtainCsrfCookie().
+     */
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
     @Test
     void onlyStaffCanCreateATenant() {
         User staff = userRepository.saveAndFlush(new User("staff@example.com"));
@@ -58,11 +71,14 @@ class TenantManagementIntegrationTest {
         userRepository.saveAndFlush(staff);
 
         Cookie session = logIn("staff@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
                         .uri("/api/tenants")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Acme\",\"adminEmail\":\"admin@acme.com\"}")
                         .exchange();
@@ -83,11 +99,14 @@ class TenantManagementIntegrationTest {
                 new TenantMembership(user, tenant, MembershipRole.MEMBER));
 
         Cookie session = logIn("regular@example.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
                         .uri("/api/tenants")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Nope\",\"adminEmail\":\"nope@example.com\"}")
                         .exchange();
@@ -103,11 +122,14 @@ class TenantManagementIntegrationTest {
                 new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
 
         Cookie session = logIn("admin@own.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var addResponse =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/members")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"newbie@own.com\",\"role\":\"MEMBER\"}")
                         .exchange();
@@ -121,6 +143,8 @@ class TenantManagementIntegrationTest {
                 mockMvc.delete()
                         .uri("/api/tenants/" + tenant.getId() + "/members/" + membershipId)
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(removeResponse).hasStatus(HttpStatus.OK);
@@ -137,11 +161,14 @@ class TenantManagementIntegrationTest {
                 new TenantMembership(admin, tenantA, MembershipRole.MEMBER_ADMIN));
 
         Cookie session = logIn("admin@tenantA.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenantB.getId() + "/members")
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"outsider@tenantB.com\",\"role\":\"MEMBER\"}")
                         .exchange();
@@ -161,6 +188,7 @@ class TenantManagementIntegrationTest {
                         new TenantMembership(member, tenant, MembershipRole.MEMBER));
 
         Cookie adminSession = logIn("admin2@own.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var grantResponse =
                 mockMvc.post()
@@ -171,6 +199,8 @@ class TenantManagementIntegrationTest {
                                         + memberMembership.getId()
                                         + "/permissions")
                         .cookie(adminSession)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
                         .exchange();
@@ -190,6 +220,7 @@ class TenantManagementIntegrationTest {
                         new TenantMembership(otherMember, tenant, MembershipRole.MEMBER));
 
         Cookie memberSession = logIn("plainmember@own.com");
+        Cookie csrf = obtainCsrfCookie();
 
         var grantResponse =
                 mockMvc.post()
@@ -200,6 +231,8 @@ class TenantManagementIntegrationTest {
                                         + otherMembership.getId()
                                         + "/permissions")
                         .cookie(memberSession)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
                         .exchange();
@@ -210,6 +243,8 @@ class TenantManagementIntegrationTest {
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/access-groups")
                         .cookie(memberSession)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Should Not Exist\"}")
                         .exchange();
@@ -275,6 +310,7 @@ class TenantManagementIntegrationTest {
                         new TenantMembership(member, tenant, MembershipRole.MEMBER));
 
         Cookie session = logIn("admin5@own.com");
+        Cookie csrf = obtainCsrfCookie();
         mockMvc.post()
                 .uri(
                         "/api/tenants/"
@@ -283,6 +319,8 @@ class TenantManagementIntegrationTest {
                                 + memberMembership.getId()
                                 + "/permissions")
                 .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
                 .exchange();
@@ -316,9 +354,12 @@ class TenantManagementIntegrationTest {
                         new TenantMembership(member, tenant, MembershipRole.MEMBER));
 
         Cookie session = logIn("admin6@own.com");
+        Cookie csrf = obtainCsrfCookie();
         mockMvc.post()
                 .uri("/api/tenants/" + tenant.getId() + "/access-groups")
                 .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Editors\"}")
                 .exchange();
@@ -346,6 +387,8 @@ class TenantManagementIntegrationTest {
                                 + "/access-groups/"
                                 + accessGroupId)
                 .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
                 .exchange();
 
         var unassignResponse =
@@ -358,6 +401,8 @@ class TenantManagementIntegrationTest {
                                         + "/access-groups/"
                                         + accessGroupId)
                         .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
 
         assertThat(unassignResponse).hasStatus(HttpStatus.OK);
