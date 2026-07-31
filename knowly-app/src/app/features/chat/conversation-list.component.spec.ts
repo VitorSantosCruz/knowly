@@ -32,17 +32,15 @@ describe('ConversationListComponent', () => {
   it('calls fetchConversations() on init and renders the result — no permission-denied state', () => {
     fixture.detectChanges();
 
-    httpMock
-      .expectOne('/api/chat/conversations')
-      .flush([
-        {
-          id: 1,
-          kind: 'PEER_DIRECT',
-          tenantId: null,
-          title: 'Team chat',
-          participantUserIds: [1, 2],
-        },
-      ]);
+    httpMock.expectOne('/api/chat/conversations').flush([
+      {
+        id: 1,
+        kind: 'PEER_DIRECT',
+        tenantId: null,
+        title: 'Team chat',
+        participantUserIds: [1, 2],
+      },
+    ]);
     httpMock
       .expectOne('/api/users/me/profile')
       .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });

@@ -38,16 +38,14 @@ describe('ConversationDetailComponent', () => {
   });
 
   function flushOpen(participantIds: number[]) {
-    httpMock
-      .expectOne('/api/chat/conversations/1')
-      .flush({
-        id: 1,
-        kind: 'PEER_GROUP',
-        tenantId: null,
-        title: 'Group',
-        participantUserIds: participantIds,
-        participantNicknames: {},
-      });
+    httpMock.expectOne('/api/chat/conversations/1').flush({
+      id: 1,
+      kind: 'PEER_GROUP',
+      tenantId: null,
+      title: 'Group',
+      participantUserIds: participantIds,
+      participantNicknames: {},
+    });
     httpMock
       .expectOne((r) => r.url === '/api/chat/conversations/1/messages')
       .flush({
