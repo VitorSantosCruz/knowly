@@ -1,0 +1,410 @@
+package br.com.conectabyte.knowly.chat;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+
+import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.auth.LoginCodeService;
+import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.GlobalRole;
+import br.com.conectabyte.knowly.tenancy.MembershipRole;
+import br.com.conectabyte.knowly.tenancy.Tenant;
+import br.com.conectabyte.knowly.tenancy.TenantMembership;
+import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
+import br.com.conectabyte.knowly.tenancy.TenantRepository;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.servlet.http.Cookie;
+import java.util.Properties;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ChatControllerIntegrationTest {
+
+    @Autowired private MockMvcTester mockMvc;
+    @Autowired private UserRepository userRepository;
+    @Autowired private TenantRepository tenantRepository;
+    @Autowired private TenantMembershipRepository tenantMembershipRepository;
+    @Autowired private LoginCodeService loginCodeService;
+    @Autowired private StringRedisTemplate redisTemplate;
+    @MockitoBean private JavaMailSender mailSender;
+
+    @BeforeEach
+    void resetLoginVelocityCounters() {
+        Set<String> keys = redisTemplate.keys("auth:login-velocity:*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
+    private Cookie logIn(String email) {
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+        String code = loginCodeService.generate(email);
+        var result =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}")
+                        .exchange();
+
+        assertThat(result).hasStatus(HttpStatus.OK);
+        return result.getResponse().getCookie("SESSION");
+    }
+
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
+    private User member(String email, Tenant tenant) {
+        User user = userRepository.saveAndFlush(new User(email));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+        return user;
+    }
+
+    private User staff(String email) {
+        User user = userRepository.saveAndFlush(new User(email));
+        user.setGlobalRole(GlobalRole.STAFF);
+        return userRepository.saveAndFlush(user);
+    }
+
+    @Test
+    void createDirectConversationBetweenTwoStaffUsersSucceeds() {
+        User staffA = staff("staffa@example.com");
+        User staffB = staff("staffb@example.com");
+        Cookie session = logIn("staffa@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + staffB.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CREATED);
+    }
+
+    @Test
+    void staffWithNoMembershipCannotDirectMessageAMemberOfThatTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Direct Reject Co"));
+        User memberUser = member("directreject-member@example.com", tenant);
+        staff("directreject-staff@example.com");
+        Cookie session = logIn("directreject-staff@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + memberUser.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void staffWithMembershipCanDirectMessageAMemberOfThatTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Direct Accept Co"));
+        User memberUser = member("directaccept-member@example.com", tenant);
+        User staffUser = staff("directaccept-staff@example.com");
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(staffUser, tenant, MembershipRole.MEMBER));
+        Cookie session = logIn("directaccept-staff@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + memberUser.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CREATED);
+    }
+
+    @Test
+    void aNonParticipantCannotOpenAnotherUsersDirectConversation() throws Exception {
+        staff("iso-a@example.com");
+        User staffB = staff("iso-b@example.com");
+        staff("iso-c@example.com");
+        Cookie sessionA = logIn("iso-a@example.com");
+        Cookie csrfA = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(sessionA)
+                        .cookie(csrfA)
+                        .header("X-XSRF-TOKEN", csrfA.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + staffB.getId()
+                                        + "]}")
+                        .exchange();
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        Cookie sessionC = logIn("iso-c@example.com");
+        var getResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(sessionC)
+                        .exchange();
+
+        assertThat(getResponse.getResponse().getStatus())
+                .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.NOT_FOUND.value());
+    }
+
+    @Test
+    void memberOnlyGroupAcceptsAStaffUserWithMembershipAndRejectsOneWithout() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Group Co"));
+        User owner = member("group-owner@example.com", tenant);
+        User eligibleStaff = staff("group-eligible-staff@example.com");
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(eligibleStaff, tenant, MembershipRole.MEMBER));
+        User ineligibleStaff = staff("group-ineligible-staff@example.com");
+        Cookie session = logIn("group-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var acceptedResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Group\",\"participantUserIds\":["
+                                        + eligibleStaff.getId()
+                                        + "]}")
+                        .exchange();
+        assertThat(acceptedResponse).hasStatus(HttpStatus.CREATED);
+
+        var rejectedResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Group2\",\"participantUserIds\":["
+                                        + ineligibleStaff.getId()
+                                        + "]}")
+                        .exchange();
+        assertThat(rejectedResponse).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void staffAdminCanLookIntoAGroupTheyAreNotAParticipantOfWithoutBecomingOne() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Oversight Co"));
+        member("oversight-owner@example.com", tenant);
+        User peer = member("oversight-peer@example.com", tenant);
+        Cookie ownerSession = logIn("oversight-owner@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(ownerSession)
+                        .cookie(ownerCsrf)
+                        .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Group\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        User admin = userRepository.saveAndFlush(new User("oversight-admin@example.com"));
+        admin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(admin);
+        Cookie adminSession = logIn("oversight-admin@example.com");
+
+        var adminReadResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(adminSession)
+                        .exchange();
+        assertThat(adminReadResponse).hasStatus(HttpStatus.OK);
+        assertThat(adminReadResponse.getResponse().getContentAsString())
+                .doesNotContain(String.valueOf(admin.getId()));
+
+        Cookie adminCsrf = obtainCsrfCookie();
+        var adminSendResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations/" + conversationId + "/messages")
+                        .cookie(adminSession)
+                        .cookie(adminCsrf)
+                        .header("X-XSRF-TOKEN", adminCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"hi\"}")
+                        .exchange();
+        assertThat(adminSendResponse).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void loadingMessageHistoryNeverReturnsMoreThanOnePageAtOnce() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Pagination Co"));
+        User owner = member("page-owner@example.com", tenant);
+        User peer = member("page-peer@example.com", tenant);
+        Cookie ownerSession = logIn("page-owner@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(ownerSession)
+                        .cookie(ownerCsrf)
+                        .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Page Group\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        for (int i = 0; i < 35; i++) {
+            var sendResponse =
+                    mockMvc.post()
+                            .uri("/api/chat/conversations/" + conversationId + "/messages")
+                            .cookie(ownerSession)
+                            .cookie(ownerCsrf)
+                            .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"content\":\"message " + i + "\"}")
+                            .exchange();
+            assertThat(sendResponse).hasStatus(HttpStatus.CREATED);
+        }
+
+        var pageResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId + "/messages")
+                        .cookie(ownerSession)
+                        .exchange();
+        assertThat(pageResponse).hasStatus(HttpStatus.OK);
+        java.util.List<?> messages =
+                com.jayway.jsonpath.JsonPath.read(
+                        pageResponse.getResponse().getContentAsString(), "$.messages");
+        assertThat(messages).hasSize(30);
+        String nextCursor =
+                com.jayway.jsonpath.JsonPath.read(
+                        pageResponse.getResponse().getContentAsString(), "$.nextCursor");
+        assertThat(nextCursor).isNotNull();
+
+        var secondPageResponse =
+                mockMvc.get()
+                        .uri(
+                                "/api/chat/conversations/"
+                                        + conversationId
+                                        + "/messages?before="
+                                        + nextCursor)
+                        .cookie(ownerSession)
+                        .exchange();
+        assertThat(secondPageResponse).hasStatus(HttpStatus.OK);
+        java.util.List<?> secondPageMessages =
+                com.jayway.jsonpath.JsonPath.read(
+                        secondPageResponse.getResponse().getContentAsString(), "$.messages");
+        assertThat(secondPageMessages).hasSize(5);
+    }
+
+    @Test
+    void oversizedPageSizeIsClampedNotRejected() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Clamp Co"));
+        member("clamp-owner@example.com", tenant);
+        Cookie session = logIn("clamp-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        User peer = member("clamp-peer@example.com", tenant);
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + peer.getId()
+                                        + "]}")
+                        .exchange();
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId + "/messages?size=1000")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+    }
+}

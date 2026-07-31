@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.chat;
 import br.com.conectabyte.knowly.auth.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -16,6 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * Durable "is this user currently a participant of this conversation" record. Deliberately never
@@ -27,6 +29,7 @@ import org.springframework.data.annotation.CreatedDate;
         name = "chat_participants",
         uniqueConstraints = @UniqueConstraint(columnNames = {"conversation_id", "user_id"}))
 @Audited
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor

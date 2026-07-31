@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.chat;
 import br.com.conectabyte.knowly.auth.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -14,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * Deliberately not {@code @Audited} -- matches {@code conversation.Message}'s existing precedent of
@@ -21,6 +23,7 @@ import org.springframework.data.annotation.CreatedDate;
  */
 @Entity
 @Table(name = "chat_messages")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
