@@ -5,6 +5,7 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.AnyTenantPermissionDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
@@ -84,6 +85,25 @@ public class TenantController {
                 tenantService.ownEffectivePermissions(user, tenantId, tenantContext.isStaffAdmin());
 
         return ResponseEntity.ok(new OwnPermissionsDto(permissions));
+    }
+
+    /**
+     * REQ-19 ({@code user-profile-v2}): does the caller hold {@code permission} in any of their
+     * tenant memberships (not just the active one), always scoped to the calling session's own user
+     * (never another user). Placement under {@code /api/tenants/**} is incidental -- this is a
+     * {@code GET}/no-state-change endpoint and must not be assumed to inherit this prefix's legacy
+     * CSRF exemption; a future state-changing endpoint added under this prefix must not copy this
+     * one as precedent for skipping CSRF protection.
+     */
+    @GetMapping("/permissions/any-tenant")
+    public ResponseEntity<AnyTenantPermissionDto> hasPermissionInAnyTenant(
+            @RequestParam Permission permission) {
+        User user = currentUser();
+        boolean granted =
+                tenantContext.isStaffAdmin()
+                        || permissionService.hasPermissionInAnyTenant(user, permission);
+
+        return ResponseEntity.ok(new AnyTenantPermissionDto(granted));
     }
 
     @GetMapping

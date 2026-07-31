@@ -175,6 +175,94 @@ class TenantSessionIntegrationTest {
     }
 
     @Test
+    void anyTenantPermissionCheckReturnsTrueWhenAnyMembershipGrantsIt() throws Exception {
+        User user = userRepository.saveAndFlush(new User("anytenant-granted@example.com"));
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Any Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Any Tenant B"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenantA, MembershipRole.MEMBER));
+        TenantMembership membershipB =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(user, tenantB, MembershipRole.MEMBER));
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membershipB, Permission.PROFILE_EDIT));
+
+        Cookie session = logIn("anytenant-granted@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"granted\":true");
+    }
+
+    @Test
+    void anyTenantPermissionCheckReturnsFalseWhenNoMembershipGrantsIt() throws Exception {
+        User user = userRepository.saveAndFlush(new User("anytenant-ungranted@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Any Tenant C"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("anytenant-ungranted@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"granted\":false");
+    }
+
+    @Test
+    void anyTenantPermissionCheckReturnsFalseForACallerWithNoMemberships() throws Exception {
+        userRepository.saveAndFlush(new User("anytenant-nomembership@example.com"));
+
+        Cookie session = logIn("anytenant-nomembership@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"granted\":false");
+    }
+
+    @Test
+    void anyTenantPermissionCheckReturnsTrueForStaffAdminWithNoMemberships() throws Exception {
+        User staff = userRepository.saveAndFlush(new User("anytenant-staffadmin@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+
+        Cookie session = logIn("anytenant-staffadmin@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"granted\":true");
+    }
+
+    @Test
+    void anyTenantPermissionCheckRequiresAuthentication() {
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void switchingToANonMemberTenantIsRejectedAndAudited() throws Exception {
         User user = userRepository.saveAndFlush(new User("outsider@example.com"));
         Tenant ownTenant = tenantRepository.saveAndFlush(new Tenant("Own Tenant"));
