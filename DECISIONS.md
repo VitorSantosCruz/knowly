@@ -116,7 +116,55 @@ CSRF enforcement like any other authenticated POST. Only add to this
 list if the endpoint is provably reachable pre-authentication; if in
 doubt, this is a Tier 3 (security tradeoff) — ask first.
 
-### Maven Surefire runs with full per-class isolation
+### Test isolation comes from `DataIsolationExtension`, not from JVM-per-class forking (supersedes the old Surefire-fork-based approach)
+
+**Superseded 2026-07-31.** This entry originally mandated
+`reuseForks=false`, `spring.test.context.cache.maxSize=1`, `forkCount=2`
+in `knowly-api/pom.xml` as "load-bearing" and "must not be relaxed
+without re-running the same kind of A/B comparison" (see the original
+rationale kept below for history). That config forced a brand-new JVM
+(and therefore a brand-new Spring context and brand-new Testcontainers —
+Postgres/Redis/RabbitMQ are plain non-static `@Bean @ServiceConnection`s
+in `TestcontainersConfiguration`) per test class, which incidentally gave
+isolation as a side effect, but made `./mvnw verify` take ~20-25 minutes.
+
+Disabling that config (to cut verify time — it dropped to ~7min) brought
+back exactly the failure mode this entry originally warned about: 97
+tests failing deterministically (reproduced across 2 full-suite runs,
+byte-for-byte the same failures both times) from Redis-backed
+login-throttle/lockout state and Postgres rows leaking between test
+classes that got assigned the same reused Spring context/containers.
+
+**Fix applied:** `knowly-api/src/test/java/br/com/conectabyte/knowly/DataIsolationExtension.java`,
+a JUnit 5 `BeforeEachCallback` auto-detected via
+`src/test/resources/junit-platform.properties` +
+`META-INF/services/org.junit.jupiter.api.extension.Extension` (so it
+applies to every `@SpringBootTest` class without editing any of them).
+Before each test method it `TRUNCATE ... RESTART IDENTITY CASCADE`s every
+`public`-schema table except `flyway_schema_history`/`revinfo` (table
+list read dynamically from `information_schema.tables`, so it never
+drifts from the migrations), re-seeds the bootstrap staff user row at its
+post-`V14` migration state (`global_role = STAFF_ADMIN`, not V13's
+original `STAFF` — a naive reseed at the pre-V14 value reintroduces
+exactly one failure, `BootstrapStaffUserMigrationIntegrationTest`), and
+`FLUSHALL`s Redis via the `RedisConnectionFactory` bean. Verified green
+across 2 consecutive full-suite runs (444/444, 0 failures, ~7:30min each)
+with the Surefire fork/cache config fully removed from `pom.xml` (not
+just commented out).
+
+**Applies to new decisions:** the correctness guarantee for test
+isolation now lives in `DataIsolationExtension`, not in Surefire
+fork/cache settings — don't reintroduce `reuseForks=false`/
+`cache.maxSize`/`forkCount` tuning as a fix for state-leak-shaped test
+failures; instead check whether `DataIsolationExtension` needs to clean
+up a new piece of shared state (a new Redis key prefix, a new table that
+needs seeding, a new external container). If a new kind of shared state
+doesn't fit the truncate-and-reseed model (e.g. a genuinely stateful
+external service the extension doesn't reset), that's the signal to
+extend the extension, not to fall back to JVM-per-class forking.
+
+<details>
+<summary>Original entry (2026-07-25), kept for history</summary>
 
 `reuseForks=false`, `spring.test.context.cache.maxSize=1`, `forkCount=2`.
 **Why:** live A/B tested — disabling per-class isolation (i.e. letting
@@ -140,12 +188,8 @@ Postgres+RabbitMQ+Redis+LGTM+MinIO container stacks run at once).
 `forkCount=4` was also tried and rejected: no further speedup (box
 saturated) and it intermittently (1 of 2 runs) hit a genuine concurrency
 bug — see below — that `forkCount=2` never triggered in any run.
-**Applies to new decisions:** if raising `forkCount` further is tempting
-later, don't just bump the number — repeat this same multi-run A/B
-(≥2 full-suite passes, not one lucky run) and watch specifically for (a)
-the Redis/DB collisions this entry originally described, and (b) new
-resource-contention failures like the JTE one below, which only appear
-under real concurrency and won't show up in a forkCount=1 sanity check.
+
+</details>
 
 ### `${VAR:?message}` is NOT a real Spring "required property" syntax
 
