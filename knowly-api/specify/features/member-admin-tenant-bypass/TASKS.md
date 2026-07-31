@@ -92,4 +92,19 @@
       already implemented; `TenantService`'s `tenantId` being
       path-variable-sourced is not a REQ-2/REQ-3 violation) in case a
       future SPEC amendment is warranted.
+
+## Follow-up (closed 2026-07-30)
+
+- [x] 21. `TenantService.removeMember` was deliberately left out of REQ-4's
+      guard at task-time (out of this feature's original TASKS.md scope,
+      flagged by appsec as a known follow-up). Closed by mirroring the
+      exact same pattern as tasks 10-11: `TenantServiceTest` Red test for
+      a `MEMBER_ADMIN` removing their own membership → expect
+      `PermissionDeniedException`; Green by calling
+      `requireNotSelfTarget(actor, membership.getUser().getId())` in
+      `removeMember` right after the existing
+      `tenantMembershipRepository.findById(membershipId)` fetch, before
+      `membership.setActive(false)`. Same `DENIED` `tenant.member.remove`
+      audit event coverage as the other five methods (task 16's pattern).
+      Full-suite `./mvnw verify` green.
 </content>

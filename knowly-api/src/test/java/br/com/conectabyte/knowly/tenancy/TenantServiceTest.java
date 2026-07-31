@@ -320,6 +320,57 @@ class TenantServiceTest {
     }
 
     @Test
+    void removeMemberRejectsAMemberAdminRemovingThemselves() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Remove Co"));
+        TenantMembership admin = adminMembership("self-remove@example.com", tenant);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.removeMember(
+                                        admin.getUser(), tenant.getId(), admin.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void removeMemberSelfEscalationIsRecordedAsADeniedAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Member Audit Co"));
+        TenantMembership admin = adminMembership("admin-remove-audit@example.com", tenant);
+        authenticateAs("admin-remove-audit@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.removeMember(
+                                        admin.getUser(), tenant.getId(), admin.getId()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction()).isEqualTo("tenant.member.remove");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
+                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
+                        });
+    }
+
+    @Test
+    void removeMemberSucceedsWhenTargetingADifferentUser() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Others Co"));
+        TenantMembership admin = adminMembership("remove-others-admin@example.com", tenant);
+        User otherUser = userRepository.saveAndFlush(new User("remove-other@example.com"));
+        TenantMembership otherMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(otherUser, tenant, MembershipRole.MEMBER));
+
+        tenantService.removeMember(admin.getUser(), tenant.getId(), otherMembership.getId());
+
+        assertThat(tenantMembershipRepository.findById(otherMembership.getId()))
+                .hasValueSatisfying(m -> assertThat(m.isActive()).isFalse());
+    }
+
+    @Test
     void assignAccessGroupRejectsAMemberAdminAssigningThemselves() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Assign Co"));
         TenantMembership admin = adminMembership("self-assign@example.com", tenant);

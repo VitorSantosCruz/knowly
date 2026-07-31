@@ -241,6 +241,7 @@ public class TenantService {
                 tenantMembershipRepository
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSelfTarget(actor, membership.getUser().getId());
         membership.setActive(false);
         tenantMembershipRepository.save(membership);
     }
@@ -429,10 +430,11 @@ public class TenantService {
 
     /**
      * REQ-4 (member-admin-tenant-bypass): no user — regardless of role — may alter their own role
-     * or their own permission/access-group grants, even through the {@code MEMBER_ADMIN} bypass in
-     * {@link #requireAdminOfTenantOrStaff}. Called after the target user/membership is resolved and
-     * before any mutation in {@code addMember}/{@code grantPermission}/{@code revokePermission}/
-     * {@code assignAccessGroup}/{@code unassignAccessGroup}.
+     * or their own permission/access-group grants — nor remove their own membership — even through
+     * the {@code MEMBER_ADMIN} bypass in {@link #requireAdminOfTenantOrStaff}. Called after the
+     * target user/membership is resolved and before any mutation in {@code addMember}/{@code
+     * removeMember}/{@code grantPermission}/{@code revokePermission}/{@code assignAccessGroup}/
+     * {@code unassignAccessGroup}.
      */
     private void requireNotSelfTarget(User actor, Long targetUserId) {
         if (targetUserId != null && targetUserId.equals(actor.getId())) {
