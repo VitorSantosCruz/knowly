@@ -9,5 +9,6 @@ public enum Permission {
     CONVERSATION_USE,
     DASHBOARD_VIEW,
     PROFILE_VIEW,
-    PROFILE_EDIT
+    PROFILE_EDIT,
+    SUPPORT_CHANNEL_VIEW
 }

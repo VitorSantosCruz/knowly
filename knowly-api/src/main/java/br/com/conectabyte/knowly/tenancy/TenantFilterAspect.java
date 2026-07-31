@@ -5,6 +5,7 @@ import jakarta.persistence.PersistenceContext;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.hibernate.Session;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -41,8 +42,13 @@ public class TenantFilterAspect {
     public Object enableTenantFilter(ProceedingJoinPoint joinPoint) throws Throwable {
         var activeTenantId = tenantContext.getActiveTenantId();
         Session session = entityManager.unwrap(Session.class);
+        boolean bypassForOversight =
+                ((MethodSignature) joinPoint.getSignature())
+                                .getMethod()
+                                .getAnnotation(BypassTenantFilterForOversight.class)
+                        != null;
 
-        if (tenantContext.isStaff() && activeTenantId.isEmpty()) {
+        if (bypassForOversight || (tenantContext.isStaff() && activeTenantId.isEmpty())) {
             session.disableFilter(TenantFilter.NAME);
         } else {
             session.enableFilter(TenantFilter.NAME)
