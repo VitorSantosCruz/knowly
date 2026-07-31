@@ -37,6 +37,11 @@ export class ChatService {
   private readonly _eligibleParticipants = signal<CandidateUser[]>([]);
   readonly eligibleParticipants = this._eligibleParticipants.asReadonly();
 
+  /** REQ-9: set when `openConversation()`'s detail fetch 403/404s (not a participant, not
+   * eligible for look-in) — lets the detail component render the existing no-access state. */
+  private readonly _detailErrors = signal<Set<number>>(new Set());
+  readonly detailErrors = this._detailErrors.asReadonly();
+
   fetchConversations(): void {
     this.http
       .get<ConversationSummary[]>('/api/chat/conversations')
@@ -50,9 +55,17 @@ export class ChatService {
   }
 
   openConversation(id: number): void {
-    this.http
-      .get<ConversationDetail>(`/api/chat/conversations/${id}`)
-      .subscribe((detail) => this._details.update((map) => new Map(map).set(id, detail)));
+    this.http.get<ConversationDetail>(`/api/chat/conversations/${id}`).subscribe({
+      next: (detail) => {
+        this._details.update((map) => new Map(map).set(id, detail));
+        this._detailErrors.update((set) => {
+          const next = new Set(set);
+          next.delete(id);
+          return next;
+        });
+      },
+      error: () => this._detailErrors.update((set) => new Set(set).add(id)),
+    });
 
     this.patchEntry(id, (entry) => ({ ...entry, loading: true, loadError: false }));
     this.http
