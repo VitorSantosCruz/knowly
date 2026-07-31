@@ -27,6 +27,15 @@ security), including this subproject's own section.
    code (Green), then `./mvnw test`.
 5. Before considering a task done, run `./mvnw spotless:apply` (formats)
    and `./mvnw verify` (formatting + tests) — that's what CI checks.
+   **Also resolve every compiler/IDE warning (unused variables/imports,
+   deprecation, etc.) in files you touched before committing — do not
+   leave them for a later cleanup pass.** Standing rule, confirmed by the
+   user (2026-07-31) after unused-variable warnings accumulated in
+   `ChatControllerIntegrationTest.java` and
+   `SupportChannelControllerIntegrationTest.java` across several
+   completed tasks: warnings are cheap to fix at the moment they're
+   introduced and expensive to track down later once the surrounding
+   test has moved on.
 6. **Commit it.** A task isn't done at green tests — it's done once it's
    committed (Conventional Commits, see the root `constitution.md`'s
    "Commits and branches"). This is a standing, pre-authorized instruction
