@@ -715,18 +715,43 @@ SPEC before implementation, roughly in this order:**
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
 
-**`internal-team-chat` (item 14) SPECs approved by the user 2026-07-31**,
-both subprojects — see `knowly-api/specify/features/internal-team-chat/
-SPEC.md` and `knowly-app/specify/features/internal-team-chat/SPEC.md` for
-the full requirement set (all rules confirmed across 2026-07-26/07-31
-baked in, no open questions remaining). **User has authorized proceeding
-through PLAN → TASKS → implementation without further check-ins** for
-this feature: any ambiguity that arises should be resolved by convening
-the relevant specialist subagents (`software-architect`, `appsec`,
-`data-architect-dba`, etc.) to reach agreement themselves, not by asking
-the user, unless something is genuinely outside every available agent's
-competence. Next: `software-architect` writes PLAN.md for both
-subprojects, then mandatory `appsec` review of the PLAN before TASKS.md
+**`internal-team-chat` (item 14) backend is now fully implemented
+(2026-07-31)** — all 97 `knowly-api/specify/features/internal-team-chat/
+TASKS.md` items done, committed. New `br.com.conectabyte.knowly.chat`
+package: `ChatConversation`/`ChatParticipant`/`ChatMessage`/`SupportTicket`
+entities (migration `V20__create_chat_tables.sql`, `_aud` counterparts for
+everything but `chat_messages`, matching `messages`' existing
+not-Envers-audited precedent); `ChatEligibilityService` (REQ-3/4/5's
+shared per-tenant capacity rule, unit-tested including the
+same-staff-user-eligible-for-T-ineligible-for-U acceptance criterion);
+`@BypassTenantFilterForOversight`, a narrow addition to
+`TenantFilterAspect`'s existing `@Around` advice (not a second/manual
+`Session.disableFilter` call, per the AppSec-corrected PLAN) backing
+REQ-5a/5b's `STAFF_ADMIN`/active-`MEMBER_ADMIN` group look-in, which
+never writes a `chat_participants` row and never grants send rights
+(verified by dedicated tests); `ChatConversationService`/
+`SupportTicketService` covering create/list/read/send and the full
+ticket lifecycle (open/claim/transfer/close, REQ-9–18); id-only cursor
+pagination (`ChatCursor`, default 30/max 100 clamp) shared by peer
+conversations and support channels; new `SUPPORT_CHANNEL_VIEW`
+(`Permission`)/`STAFF_SUPPORT_HANDLE` (`GlobalPermission`) wired through
+the existing `@RequiresPermission`/`@RequiresGlobalPermission` aspects;
+`ChatController` (`/api/chat/**`) and `SupportChannelController`
+(`/api/tenants/{tenantId}/support/**`, correctly **not** CSRF-exempt,
+tests obtain real CSRF tokens per the already-narrowed `SecurityConfig`).
+`./mvnw spotless:check`/`verify` both green; full unit + Testcontainers
+integration coverage (eligibility, admin oversight scoping incl.
+MEMBER_ADMIN-wrong-tenant/staff-only-group rejection, ticket lifecycle
+edge cases, tenant isolation, pagination, audit trail for
+`chat.group.oversight_view`/`support.ticket.*`). One judgment call made
+without stopping to ask: the SPEC/PLAN refer to a "profile nickname"
+that doesn't exist as a field anywhere in the codebase (`UserProfile`
+has no `nickname` column) — nickname resolution falls back to
+`UserProfile.fullName`, then the user's email, rather than inventing a
+new column; revisit if a real nickname concept lands later. Real-time
+delivery is deferred to polling per the already-recorded `DECISIONS.md`
+entry — not built here. **Next: the frontend half
+(`knowly-app/specify/features/internal-team-chat/`) is not started.**
 (per `feedback_appsec_gate_skipped` — this touches new attack surface:
 group/1:1 access control, admin oversight override, support-channel
 permission gating).
