@@ -59,9 +59,9 @@ const CATEGORY_LABEL_CLASS =
   template: `
     @if (authService.isLoggedIn()) {
       <nav data-testid="nav-menu" class="flex h-full flex-col">
-        <div class="mb-6 flex items-center px-1">
+        <a routerLink="/welcome" class="mb-6 flex items-center px-1">
           <app-brand-wordmark class="text-white" />
-        </div>
+        </a>
 
         <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
           @for (group of overviewGroups(); track group.categoryKey) {

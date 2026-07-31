@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { LucideBookOpen, LucideQuote, LucideShieldCheck, LucideLock } from '@lucide/angular';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ALL_GLOBAL_PERMISSIONS } from '../../core/global-permission';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
@@ -10,7 +11,7 @@ import { TourService } from '../../core/tour.service';
 
 @Component({
   selector: 'app-welcome-page',
-  imports: [TranslocoPipe, RouterLink],
+  imports: [TranslocoPipe, RouterLink, LucideBookOpen, LucideQuote, LucideShieldCheck, LucideLock],
   template: `
     <div data-testid="welcome-page" class="page-shell">
       <div
@@ -100,6 +101,79 @@ import { TourService } from '../../core/tour.service';
           }
         </div>
       }
+
+      <div
+        class="enter-fluid mt-6 rounded-2xl border border-ink-200/70 bg-white p-8 shadow-lg shadow-ink-900/5 sm:p-10 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+      >
+        <h2 class="font-display text-xl font-semibold tracking-tight text-ink-900 dark:text-white">
+          {{ 'welcome.about.title' | transloco }}
+        </h2>
+        <p class="mt-3 max-w-3xl text-ink-600 dark:text-ink-400">
+          {{ 'welcome.about.intro' | transloco }}
+        </p>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <div class="flex gap-3 rounded-xl bg-ink-50 p-4 dark:bg-ink-800/50">
+            <svg
+              lucideBookOpen
+              class="mt-0.5 size-5 shrink-0 text-signal-600 dark:text-signal-400"
+              aria-hidden="true"
+            ></svg>
+            <div>
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white">
+                {{ 'welcome.about.features.articles.title' | transloco }}
+              </h3>
+              <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
+                {{ 'welcome.about.features.articles.description' | transloco }}
+              </p>
+            </div>
+          </div>
+          <div class="flex gap-3 rounded-xl bg-ink-50 p-4 dark:bg-ink-800/50">
+            <svg
+              lucideQuote
+              class="mt-0.5 size-5 shrink-0 text-signal-600 dark:text-signal-400"
+              aria-hidden="true"
+            ></svg>
+            <div>
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white">
+                {{ 'welcome.about.features.citedAnswers.title' | transloco }}
+              </h3>
+              <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
+                {{ 'welcome.about.features.citedAnswers.description' | transloco }}
+              </p>
+            </div>
+          </div>
+          <div class="flex gap-3 rounded-xl bg-ink-50 p-4 dark:bg-ink-800/50">
+            <svg
+              lucideShieldCheck
+              class="mt-0.5 size-5 shrink-0 text-signal-600 dark:text-signal-400"
+              aria-hidden="true"
+            ></svg>
+            <div>
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white">
+                {{ 'welcome.about.features.permissions.title' | transloco }}
+              </h3>
+              <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
+                {{ 'welcome.about.features.permissions.description' | transloco }}
+              </p>
+            </div>
+          </div>
+          <div class="flex gap-3 rounded-xl bg-ink-50 p-4 dark:bg-ink-800/50">
+            <svg
+              lucideLock
+              class="mt-0.5 size-5 shrink-0 text-signal-600 dark:text-signal-400"
+              aria-hidden="true"
+            ></svg>
+            <div>
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white">
+                {{ 'welcome.about.features.isolation.title' | transloco }}
+              </h3>
+              <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
+                {{ 'welcome.about.features.isolation.description' | transloco }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       @if (showGlobalDashboard()) {
         <div class="mt-6 grid gap-4 sm:grid-cols-3">
