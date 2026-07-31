@@ -566,14 +566,18 @@ Modified:
   edit-request+contacts, controller/DTO wiring) rather than one commit per line-item, given the
   volume of interdependent schema/entity/service/DTO changes a single sub-task like "rewrite the
   permission decision tree" necessarily touches together.
-- **`V19__drop_legacy_user_identity_columns.sql` (TASKS.md 27) is deliberately not implemented in
-  this pass** -- PLAN.md already scopes it as "only after this feature's code path is verified
-  running," i.e. a genuine production-deployment gate this implementation session has no way to
-  satisfy. `User.java` keeps its old `fullName`/`address`/`rg`/`cpf`/`phone`/blind-index fields
-  and the `users`/`users_aud` columns remain, unused by any code path after this retrofit
+- **`V19__drop_legacy_user_identity_columns.sql` (TASKS.md 27) was deliberately not implemented in
+  the original pass** -- PLAN.md scoped it as "only after this feature's code path is verified
+  running," i.e. a genuine production-deployment gate that implementation session had no way to
+  satisfy. `User.java` kept its old `fullName`/`address`/`rg`/`cpf`/`phone`/blind-index fields
+  and the `users`/`users_aud` columns remained, unused by any code path after this retrofit
   (confirmed: `UserProfileService`/`ProfileEditRequestService` read/write `UserProfile`/`Address`/
   `Contact` exclusively). Tracked as its own follow-up milestone per PLAN's own sequencing, not a
-  Tier 3 escalation.
+  Tier 3 escalation. **Closed 2026-07-31**: PO confirmed the gate satisfied; `V19` now ships,
+  dropping those columns from `users`/`users_aud` and the corresponding `User.java` fields.
+  `IdentityUniquenessIntegrationTest`/`V17MigrationTest` had legacy-column-specific test methods
+  removed (their `User`-level cpf/rg-blind-index/phone/address coverage is superseded by V18's
+  `user_profiles`-level unique indexes); a new `V19MigrationTest` asserts the drop.
 
 ## Follow-up (2026-07-30): `ProfileEditRequestDto` requester identity
 

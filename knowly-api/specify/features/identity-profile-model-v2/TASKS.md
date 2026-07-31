@@ -193,7 +193,7 @@
 
 ## Cleanup migration (later milestone — only after the above is verified running)
 
-- [ ] 27. Write `V19__drop_legacy_user_identity_columns.sql` dropping
+- [x] 27. Write `V19__drop_legacy_user_identity_columns.sql` dropping
       `users`/`users_aud`'s `full_name`/`address`/`rg`/`cpf`/`phone`/
       `rg_blind_index`/`cpf_blind_index`; remove the corresponding
       fields/`@Convert` annotations from `User.java`; run the full suite

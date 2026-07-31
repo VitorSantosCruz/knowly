@@ -33,20 +33,11 @@ class V17MigrationTest {
         return count != null && count > 0;
     }
 
-    @Test
-    void usersTableHasEveryNewIdentityColumn() {
-        List<String> columns =
-                List.of(
-                        "full_name",
-                        "address",
-                        "rg",
-                        "cpf",
-                        "phone",
-                        "rg_blind_index",
-                        "cpf_blind_index");
-
-        assertThat(columns).allMatch(column -> columnExists("users", column));
-    }
+    // usersTableHasEveryNewIdentityColumn was removed here: V19
+    // (identity-profile-model-v2/TASKS.md 27) drops full_name/address/rg/cpf/phone/
+    // rg_blind_index/cpf_blind_index from users once user_profiles/addresses/contacts (V18) took
+    // over as the only code path for this data -- see V19MigrationTest for the current-state
+    // coverage of that drop.
 
     @Test
     void tenantsTableHasEveryNewCompanyRecordColumn() {
