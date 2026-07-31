@@ -23,11 +23,15 @@ public class ProfileEditRequestController {
 
     private final ProfileEditRequestService profileEditRequestService;
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
 
     public ProfileEditRequestController(
-            ProfileEditRequestService profileEditRequestService, UserRepository userRepository) {
+            ProfileEditRequestService profileEditRequestService,
+            UserRepository userRepository,
+            UserProfileRepository userProfileRepository) {
         this.profileEditRequestService = profileEditRequestService;
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
     }
 
     @GetMapping
@@ -68,9 +72,18 @@ public class ProfileEditRequestController {
                                                 change.getPrimary()))
                         .toList();
 
+        User requester = request.getRequester();
+        String requesterName =
+                userProfileRepository
+                        .findById(requester.getId())
+                        .map(UserProfile::getFullName)
+                        .orElse(null);
+
         return new ProfileEditRequestDto(
                 request.getId(),
-                request.getRequester().getId(),
+                requester.getId(),
+                requesterName,
+                requester.getEmail(),
                 profileEditRequestService.proposedFieldsOf(request),
                 contactChanges,
                 request.getStatus(),

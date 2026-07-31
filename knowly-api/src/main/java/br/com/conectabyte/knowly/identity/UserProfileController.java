@@ -31,14 +31,17 @@ public class UserProfileController {
     private final UserProfileService userProfileService;
     private final ProfileEditRequestService profileEditRequestService;
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
 
     public UserProfileController(
             UserProfileService userProfileService,
             ProfileEditRequestService profileEditRequestService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            UserProfileRepository userProfileRepository) {
         this.userProfileService = userProfileService;
         this.profileEditRequestService = profileEditRequestService;
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
     }
 
     @GetMapping("/me/profile")
@@ -88,9 +91,18 @@ public class UserProfileController {
                                                 change.getPrimary()))
                         .toList();
 
+        User requester = request.getRequester();
+        String requesterName =
+                userProfileRepository
+                        .findById(requester.getId())
+                        .map(UserProfile::getFullName)
+                        .orElse(null);
+
         return new ProfileEditRequestDto(
                 request.getId(),
-                request.getRequester().getId(),
+                requester.getId(),
+                requesterName,
+                requester.getEmail(),
                 profileEditRequestService.proposedFieldsOf(request),
                 contactChanges,
                 request.getStatus(),

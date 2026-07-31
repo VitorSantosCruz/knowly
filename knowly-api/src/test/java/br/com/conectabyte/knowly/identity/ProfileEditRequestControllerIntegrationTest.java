@@ -43,6 +43,7 @@ class ProfileEditRequestControllerIntegrationTest {
     @Autowired private TenantRepository tenantRepository;
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
     @Autowired private ProfileEditRequestRepository profileEditRequestRepository;
+    @Autowired private UserProfileRepository userProfileRepository;
     @Autowired private LoginCodeService loginCodeService;
     @MockitoBean private JavaMailSender mailSender;
 
@@ -221,6 +222,72 @@ class ProfileEditRequestControllerIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void listingIncludesTheRequesterNameAndEmail() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Requester Identity Co"));
+        User requester =
+                userRepository.saveAndFlush(new User("requester-identity-requester@example.com"));
+        User admin = userRepository.saveAndFlush(new User("requester-identity-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(requester, tenant, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        UserProfile profile =
+                userProfileRepository
+                        .findById(requester.getId())
+                        .orElseGet(() -> new UserProfile(requester));
+        profile.setFullName("Requester Full Name");
+        userProfileRepository.saveAndFlush(profile);
+
+        Cookie requesterSession = logIn("requester-identity-requester@example.com");
+        mockMvc.post()
+                .uri("/api/users/me/profile/edit-requests")
+                .cookie(requesterSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        "{\"fields\":{\"fullName\":\"New Name\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                .exchange();
+
+        Cookie adminSession = logIn("requester-identity-admin@example.com");
+        var response =
+                mockMvc.get().uri("/api/profile-edit-requests").cookie(adminSession).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"requesterName\":\"Requester Full Name\"");
+        assertThat(body)
+                .contains("\"requesterEmail\":\"requester-identity-requester@example.com\"");
+    }
+
+    @Test
+    void listingHasNullRequesterNameWhenTheRequesterHasNoFullNameYet() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("No Name Co"));
+        User requester = userRepository.saveAndFlush(new User("no-name-requester@example.com"));
+        User admin = userRepository.saveAndFlush(new User("no-name-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(requester, tenant, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+
+        Cookie requesterSession = logIn("no-name-requester@example.com");
+        mockMvc.post()
+                .uri("/api/users/me/profile/edit-requests")
+                .cookie(requesterSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        "{\"fields\":{\"fullName\":\"New Name\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                .exchange();
+
+        Cookie adminSession = logIn("no-name-admin@example.com");
+        var response =
+                mockMvc.get().uri("/api/profile-edit-requests").cookie(adminSession).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"requesterName\":null");
+        assertThat(body).contains("\"requesterEmail\":\"no-name-requester@example.com\"");
     }
 
     @Test

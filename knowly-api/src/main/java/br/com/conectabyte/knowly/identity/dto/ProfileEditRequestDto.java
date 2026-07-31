@@ -7,6 +7,8 @@ import java.util.List;
 public record ProfileEditRequestDto(
         Long id,
         Long requesterUserId,
+        String requesterName,
+        String requesterEmail,
         ProfileFieldsDto proposedFields,
         List<ContactChangeDto> proposedContactChanges,
         ProfileEditRequestStatus status,
