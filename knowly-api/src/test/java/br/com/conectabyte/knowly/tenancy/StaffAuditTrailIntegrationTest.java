@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.tenancy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
@@ -152,7 +153,7 @@ class StaffAuditTrailIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[*].action")
-                .asList()
+                .asInstanceOf(LIST)
                 .contains("profile.view");
     }
 
@@ -220,7 +221,7 @@ class StaffAuditTrailIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response).bodyJson().extractingPath("$").asList().isEmpty();
+        assertThat(response).bodyJson().extractingPath("$").asInstanceOf(LIST).isEmpty();
     }
 
     // --- REQ-4: cross-tenant rows all come back in one call, no active tenant selected ---
@@ -247,7 +248,7 @@ class StaffAuditTrailIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[*].action")
-                .asList()
+                .asInstanceOf(LIST)
                 .contains("tenant.a.action", "tenant.b.action", "global.action");
     }
 

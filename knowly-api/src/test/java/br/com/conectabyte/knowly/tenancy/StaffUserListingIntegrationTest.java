@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.tenancy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
@@ -95,7 +96,7 @@ class StaffUserListingIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[*].email")
-                .asList()
+                .asInstanceOf(LIST)
                 .contains(actor.getEmail(), otherStaff.getEmail(), otherAdmin.getEmail());
     }
 
@@ -115,7 +116,7 @@ class StaffUserListingIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[*].email")
-                .asList()
+                .asInstanceOf(LIST)
                 .containsExactly(match.getEmail());
     }
 
@@ -134,17 +135,17 @@ class StaffUserListingIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[?(@.email=='" + otherAdmin.getEmail() + "')].id")
-                .asList()
+                .asInstanceOf(LIST)
                 .containsExactly(otherAdmin.getId().intValue());
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[?(@.email=='" + otherAdmin.getEmail() + "')].globalRole")
-                .asList()
+                .asInstanceOf(LIST)
                 .containsExactly("STAFF_ADMIN");
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[?(@.email=='" + actor.getEmail() + "')].globalRole")
-                .asList()
+                .asInstanceOf(LIST)
                 .containsExactly("STAFF_ADMIN");
     }
 
@@ -162,7 +163,7 @@ class StaffUserListingIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[*].email")
-                .asList()
+                .asInstanceOf(LIST)
                 .contains(otherStaff.getEmail());
     }
 
@@ -181,7 +182,7 @@ class StaffUserListingIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response).bodyJson().extractingPath("$").asList().isEmpty();
+        assertThat(response).bodyJson().extractingPath("$").asInstanceOf(LIST).isEmpty();
     }
 
     // --- REQ-5: STAFF caller with zero grants is rejected ---
@@ -213,7 +214,7 @@ class StaffUserListingIntegrationTest {
         assertThat(response)
                 .bodyJson()
                 .extractingPath("$[*].email")
-                .asList()
+                .asInstanceOf(LIST)
                 .contains(otherStaff.getEmail(), otherAdmin.getEmail());
     }
 

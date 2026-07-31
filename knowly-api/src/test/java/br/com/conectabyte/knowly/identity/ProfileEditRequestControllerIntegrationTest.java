@@ -198,8 +198,7 @@ class ProfileEditRequestControllerIntegrationTest {
     void approvingWithoutTheApplicableRightIsForbidden() {
         User requester =
                 userRepository.saveAndFlush(new User("forbidden-controller-requester@example.com"));
-        User impostor =
-                userRepository.saveAndFlush(new User("forbidden-controller-impostor@example.com"));
+        userRepository.saveAndFlush(new User("forbidden-controller-impostor@example.com"));
         Cookie requesterSession = logIn("forbidden-controller-requester@example.com");
         mockMvc.post()
                 .uri("/api/users/me/profile/edit-requests")
@@ -292,8 +291,7 @@ class ProfileEditRequestControllerIntegrationTest {
 
     @Test
     void approvingAnUnknownRequestIsNotFound() {
-        User staffAdmin =
-                userRepository.saveAndFlush(new User("unknown-controller-caller@example.com"));
+        userRepository.saveAndFlush(new User("unknown-controller-caller@example.com"));
         Cookie session = logIn("unknown-controller-caller@example.com");
 
         var response =

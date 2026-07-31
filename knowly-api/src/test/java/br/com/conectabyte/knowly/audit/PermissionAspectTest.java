@@ -206,7 +206,7 @@ class PermissionAspectTest {
 
     @Test
     void plainMemberWithoutExplicitGrantStillFails() {
-        TenantMembership membership = newMembership("plain-member@example.com");
+        newMembership("plain-member@example.com");
 
         // Plain MEMBER with no grant should fail
         assertThatThrownBy(protectedService::doProtectedThing)
