@@ -15,14 +15,26 @@ type CredentialTab = 'code' | 'password';
   selector: 'app-login-page',
   imports: [TranslocoPipe, BrandWordmarkComponent],
   template: `
-    <div class="flex min-h-dvh items-center justify-center bg-ink-50 p-4 dark:bg-ink-950 sm:p-6">
+    <div
+      class="relative flex min-h-dvh items-center justify-center overflow-hidden bg-ink-50 p-4 dark:bg-ink-950 sm:p-6"
+    >
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-signal-300/40 blur-3xl dark:bg-signal-800/30"
+      ></div>
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-ink-400/30 blur-3xl dark:bg-signal-900/40"
+      ></div>
       @if (step() === 'email') {
         <form [class]="cardClass" class="enter-fluid" (submit)="onSubmitEmail($event)">
+          <div
+            aria-hidden="true"
+            class="mb-6 h-1.5 w-16 rounded-full bg-gradient-to-r from-signal-500 to-ink-500"
+          ></div>
           <div class="mb-8 text-center">
-            <app-brand-wordmark class="mb-1 text-ink-500 dark:text-ink-300" />
-            <h1 class="text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
-              {{ 'login.title' | transloco }}
-            </h1>
+            <app-brand-wordmark class="mb-2 text-ink-900 dark:text-white" />
+            <h1 class="sr-only">{{ 'login.title' | transloco }}</h1>
             <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
               {{ 'login.subtitle' | transloco }}
             </p>
@@ -55,6 +67,17 @@ type CredentialTab = 'code' | 'password';
         </form>
       } @else if (step() === 'credential') {
         <div data-testid="credential-step" [class]="cardClass" class="enter-fluid">
+          <div
+            aria-hidden="true"
+            class="mb-6 h-1.5 w-16 rounded-full bg-gradient-to-r from-signal-500 to-ink-500"
+          ></div>
+          <button
+            type="button"
+            (click)="onBackToEmail()"
+            class="mb-4 text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
+          >
+            &larr; {{ 'login.notMyAccount' | transloco: { email: email() } }}
+          </button>
           <div role="tablist" class="mb-8 flex gap-1 rounded-xl bg-ink-100 p-1 dark:bg-ink-800">
             <button
               type="button"
@@ -199,7 +222,7 @@ export class LoginPageComponent implements OnDestroy {
   protected readonly password = signal('');
 
   protected readonly cardClass =
-    'w-full max-w-sm rounded-2xl border border-ink-200/70 bg-white p-8 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none';
+    'relative z-10 w-full max-w-xl rounded-2xl border border-ink-200/70 bg-white p-12 shadow-xl shadow-signal-900/10 ring-1 ring-signal-100 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-2xl dark:shadow-signal-900/40 dark:ring-ink-800/50';
   protected readonly labelClass = 'mb-2 block text-sm font-medium text-ink-700 dark:text-ink-300';
   protected readonly errorClass =
     'mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400';
@@ -246,6 +269,10 @@ export class LoginPageComponent implements OnDestroy {
   }
 
   onDigitKeydown(event: KeyboardEvent, index: number): void {
+    if (event.ctrlKey || event.metaKey) {
+      return;
+    }
+
     if (event.key.length === 1 && !/^\d$/.test(event.key)) {
       event.preventDefault();
       return;
@@ -317,6 +344,13 @@ export class LoginPageComponent implements OnDestroy {
         this.errorCode.set(err.error?.code);
       },
     });
+  }
+
+  onBackToEmail(): void {
+    this.step.set('email');
+    this.errorCode.set(undefined);
+    this.digits.set(Array(6).fill(''));
+    this.password.set('');
   }
 
   onSubmitEmail(event: Event): void {

@@ -5,6 +5,7 @@
     "emailLabel": "Email",
     "emailPlaceholder": "you@example.com",
     "continue": "Continue",
+    "notMyAccount": "Not {{email}}?",
     "codeTab": "Code",
     "passwordTab": "Password",
     "codeGroupLabel": "One-time code",
@@ -80,6 +81,28 @@
       "globalDashboard": {
         "title": "View global dashboard",
         "description": "See cross-tenant metrics for the whole platform."
+      }
+    },
+    "about": {
+      "title": "What knowly is",
+      "intro": "knowly is your company's internal knowledge base with an AI layer on top — instead of digging through folders or asking a coworker who might be on vacation, your team asks questions in plain language and gets an answer grounded in the articles you've already written.",
+      "features": {
+        "articles": {
+          "title": "Your article library",
+          "description": "Text, images, and PDFs your team uploads become articles that are searchable by meaning, not just keyword."
+        },
+        "citedAnswers": {
+          "title": "Cited answers",
+          "description": "The assistant answers natural-language questions while always pointing back to the article it got the information from — never a generic answer with no source."
+        },
+        "permissions": {
+          "title": "Access under control",
+          "description": "Who can view, upload, edit, or delete articles — and who can see each conversation — is governed by real permissions, not trust."
+        },
+        "isolation": {
+          "title": "Your data, isolated",
+          "description": "Every company is a tenant with fully isolated data — one team's knowledge never leaks into another's answers."
+        }
       }
     }
   },

@@ -5,6 +5,7 @@
     "emailLabel": "E-mail",
     "emailPlaceholder": "voce@exemplo.com",
     "continue": "Continuar",
+    "notMyAccount": "Não é {{email}}?",
     "codeTab": "Código",
     "passwordTab": "Senha",
     "codeGroupLabel": "Código de uso único",
@@ -80,6 +81,28 @@
       "globalDashboard": {
         "title": "Ver painel global",
         "description": "Veja métricas entre tenants de toda a plataforma."
+      }
+    },
+    "about": {
+      "title": "O que é o knowly",
+      "intro": "knowly é a base de conhecimento interna da sua empresa com uma camada de IA por cima — em vez de caçar informação em pastas ou perguntar para um colega que talvez esteja de férias, sua equipe pergunta em português mesmo e recebe uma resposta baseada nos artigos que vocês mesmos escreveram.",
+      "features": {
+        "articles": {
+          "title": "Sua base de artigos",
+          "description": "Textos, imagens e PDFs enviados pela sua equipe se tornam artigos pesquisáveis por significado, não só por palavra-chave."
+        },
+        "citedAnswers": {
+          "title": "Respostas com citação",
+          "description": "O assistente responde perguntas em linguagem natural sempre apontando para o artigo de onde tirou a informação — nunca uma resposta genérica sem fonte."
+        },
+        "permissions": {
+          "title": "Acesso sob controle",
+          "description": "Quem pode ver, enviar, editar ou apagar artigos — e quem pode ver cada conversa — é definido por permissões reais, não por confiança."
+        },
+        "isolation": {
+          "title": "Seus dados isolados",
+          "description": "Cada empresa é um tenant com dados completamente isolados — o conhecimento de uma equipe nunca aparece nas respostas de outra."
+        }
       }
     }
   },
