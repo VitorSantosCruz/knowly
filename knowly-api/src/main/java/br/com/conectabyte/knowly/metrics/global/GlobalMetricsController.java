@@ -1,7 +1,9 @@
 package br.com.conectabyte.knowly.metrics.global;
 
+import br.com.conectabyte.knowly.metrics.MetricsPeriod;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -22,5 +24,10 @@ public class GlobalMetricsController {
     @GetMapping("/global")
     public GlobalMetricsDto globalMetrics() {
         return globalMetricsService.globalMetrics();
+    }
+
+    @GetMapping("/global/trends")
+    public GlobalTrendsDto globalTrends(@RequestParam(required = false) String period) {
+        return globalMetricsService.globalTrends(MetricsPeriod.from(period));
     }
 }

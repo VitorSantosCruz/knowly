@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.audit.AuditEvent;
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
@@ -23,6 +25,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +58,7 @@ class GlobalMetricsControllerIntegrationTest {
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private AuditEventRepository auditEventRepository;
     @MockitoBean private JavaMailSender mailSender;
 
     private Cookie logIn(String email) {
@@ -190,5 +194,130 @@ class GlobalMetricsControllerIntegrationTest {
                         .asLong();
 
         assertThat(updated).isEqualTo(baseline + 1);
+    }
+
+    // --- specify/features/global-staff-dashboard-trends/SPEC.md REQ-1/7/8/9/10/11 ---
+
+    @Test
+    void staffAdminGetsGlobalTrendsForEveryPeriodAndDefault() {
+        staffAdmin("global-trends-controller-admin@example.com");
+        Cookie session = logIn("global-trends-controller-admin@example.com");
+
+        for (String period : new String[] {"7d", "30d", "90d", "all", null}) {
+            var request = mockMvc.get().uri("/api/staff/metrics/global/trends").cookie(session);
+            var response = (period == null ? request : request.param("period", period)).exchange();
+
+            assertThat(response).hasStatus(HttpStatus.OK);
+            assertThat(response).bodyJson().extractingPath("$.newTenantsPerDay").isNotNull();
+            assertThat(response).bodyJson().extractingPath("$.articlesReadPerDay").isNotNull();
+            assertThat(response).bodyJson().extractingPath("$.totalTenants.current").isNotNull();
+            assertThat(response).bodyJson().extractingPath("$.newTenants.current").isNotNull();
+            assertThat(response)
+                    .bodyJson()
+                    .extractingPath("$.totalArticlesRead.current")
+                    .isNotNull();
+            assertThat(response).bodyJson().extractingPath("$.staffCount.current").isNotNull();
+        }
+    }
+
+    @Test
+    void staffWithGrantGetsGlobalTrendsAndWithoutGrantIsRejected() {
+        User granted = staff("global-trends-controller-granted@example.com");
+        directGlobalPermissionGrantRepository.saveAndFlush(
+                new DirectGlobalPermissionGrant(granted, GlobalPermission.DASHBOARD_VIEW_GLOBAL));
+        Cookie grantedSession = logIn("global-trends-controller-granted@example.com");
+
+        var grantedResponse =
+                mockMvc.get()
+                        .uri("/api/staff/metrics/global/trends")
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(grantedResponse).hasStatus(HttpStatus.OK);
+
+        staff("global-trends-controller-no-grant@example.com");
+        Cookie noGrantSession = logIn("global-trends-controller-no-grant@example.com");
+
+        var noGrantResponse =
+                mockMvc.get()
+                        .uri("/api/staff/metrics/global/trends")
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(noGrantResponse).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void tenantMemberWithNoGlobalRoleIsRejectedForGlobalTrends() {
+        User user =
+                userRepository.saveAndFlush(
+                        new User("global-trends-controller-member@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Global Trends Member Co"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER_ADMIN));
+        Cookie session = logIn("global-trends-controller-member@example.com");
+
+        var response =
+                mockMvc.get().uri("/api/staff/metrics/global/trends").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void invalidPeriodGetsBadRequestForGlobalTrends() {
+        staffAdmin("global-trends-controller-invalid-period@example.com");
+        Cookie session = logIn("global-trends-controller-invalid-period@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/staff/metrics/global/trends")
+                        .param("period", "not-a-real-period")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void globalTrendsReflectsAllTenantsNotJustOne() throws Exception {
+        staffAdmin("global-trends-controller-cross-tenant@example.com");
+        Cookie session = logIn("global-trends-controller-cross-tenant@example.com");
+
+        var before =
+                mockMvc.get().uri("/api/staff/metrics/global/trends").cookie(session).exchange();
+        assertThat(before).hasStatus(HttpStatus.OK);
+        long baseline =
+                new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(before.getResponse().getContentAsString())
+                        .get("totalTenants")
+                        .get("current")
+                        .asLong();
+
+        tenantRepository.saveAndFlush(new Tenant("Global Trends Cross Tenant A"));
+        tenantRepository.saveAndFlush(new Tenant("Global Trends Cross Tenant B"));
+
+        var response =
+                mockMvc.get().uri("/api/staff/metrics/global/trends").cookie(session).exchange();
+        assertThat(response).hasStatus(HttpStatus.OK);
+        long updated =
+                new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(response.getResponse().getContentAsString())
+                        .get("totalTenants")
+                        .get("current")
+                        .asLong();
+
+        assertThat(updated).isEqualTo(baseline + 2);
+    }
+
+    @Test
+    void globalTrendsProducesAnAuditEvent() {
+        User actor = staffAdmin("global-trends-controller-audit@example.com");
+        Cookie session = logIn("global-trends-controller-audit@example.com");
+
+        var response =
+                mockMvc.get().uri("/api/staff/metrics/global/trends").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(actor.getId());
+        assertThat(events).extracting(AuditEvent::getAction).contains("metrics.global.trends.view");
     }
 }
