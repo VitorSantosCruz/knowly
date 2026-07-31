@@ -31,7 +31,7 @@ describe('tenantSelectionGuard', () => {
     const resultPromise = firstValueFrom(runGuard());
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
 
     expect(await resultPromise).toBe(true);
   });
@@ -40,7 +40,7 @@ describe('tenantSelectionGuard', () => {
     const resultPromise = firstValueFrom(runGuard());
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false }]);
+      .flush([{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: false }]);
 
     expect(await resultPromise).toBe(true);
   });
@@ -48,7 +48,7 @@ describe('tenantSelectionGuard', () => {
   it('redirects to /select-tenant when multiple memberships exist and none is active', async () => {
     const resultPromise = firstValueFrom(runGuard());
     httpMock.expectOne('/api/tenants/memberships').flush([
-      { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
+      { tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other', role: 'MEMBER', active: false },
     ]);
 

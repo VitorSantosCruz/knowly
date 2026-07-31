@@ -46,7 +46,7 @@ describe('ArticlesPageComponent', () => {
   ) {
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
     httpMock.expectOne('/api/tenants/permissions').flush({ permissions });
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/7/articles').flush(articles);
@@ -67,7 +67,7 @@ describe('ArticlesPageComponent', () => {
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
     httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
     fixture.detectChanges();
     httpMock

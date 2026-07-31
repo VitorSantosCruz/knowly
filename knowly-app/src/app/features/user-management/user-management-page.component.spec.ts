@@ -46,7 +46,7 @@ describe('UserManagementPageComponent', () => {
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-members-page')).toBeTruthy();
@@ -56,7 +56,7 @@ describe('UserManagementPageComponent', () => {
     // itself in its own ngOnInit, independent of the wrapper's own fetch() above.
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
     httpMock.expectOne('/api/tenants/7/members').flush([]);
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
   });

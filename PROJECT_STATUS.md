@@ -393,12 +393,13 @@ SPEC before implementation, roughly in this order:**
    Postgres rejected it — fixed with a new `AuditEventWriter`
    (`REQUIRES_NEW` propagation) that `AuditLogAspect` now uses for every
    audit write, so no future `@AuditLog` usage on a read-only method can
-   hit the same failure. **Known follow-up, not yet done**: `PROJECT_STATUS.md`'s frontend feature table isn't updated yet —
-   `MembershipRole` serializes by enum name, so `knowly-app/` will start
-   seeing `"MEMBER_ADMIN"` instead of `"ADMIN"` in API responses; this is
-   a breaking contract change for the frontend that needs its own
-   follow-up task whenever frontend work resumes (flagged, not
-   addressed here — this SPEC was backend-only by design). Confirmed
+   hit the same failure. **Frontend follow-up (2026-07-30): done.**
+   `knowly-app/` now consumes `"MEMBER_ADMIN"` (not `"ADMIN"`) for the
+   tenant-membership role everywhere it's typed/compared —
+   `active-tenant.service.ts`, `member.service.ts`,
+   `nav-menu.component.ts`, `members-page.component.ts`, and every spec
+   fixture using that literal; `npm run format:check`, full `npm test`
+   (344/344), and `npm run build` all green. Confirmed
    2026-07-26 with the user: the model becomes exactly `STAFF_ADMIN` /
    `STAFF` / `MEMBER_ADMIN` / `MEMBER` (renaming today's per-tenant
    `MembershipRole.ADMIN` → `MEMBER_ADMIN`, and `MEMBER` stays `MEMBER`

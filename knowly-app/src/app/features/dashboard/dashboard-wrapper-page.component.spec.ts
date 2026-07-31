@@ -65,7 +65,7 @@ describe('DashboardWrapperPageComponent', () => {
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-dashboard-page')).toBeTruthy();

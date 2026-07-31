@@ -35,7 +35,7 @@ describe('MembersPageComponent', () => {
   function flushActiveTenant() {
     httpMock
       .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'ADMIN', active: true }]);
+      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
   }
 
   it('renders the member list once the active tenant and members resolve', () => {

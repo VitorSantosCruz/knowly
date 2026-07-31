@@ -7,7 +7,7 @@ export interface Member {
   membershipId: number;
   userId: number;
   email: string;
-  role: 'ADMIN' | 'MEMBER';
+  role: 'MEMBER_ADMIN' | 'MEMBER';
 }
 
 export interface AccessGroup {
@@ -29,7 +29,7 @@ export class MemberService {
     return this.http.get<Member[]>(`/api/tenants/${tenantId}/members`);
   }
 
-  add(tenantId: number, email: string, role: 'ADMIN' | 'MEMBER'): Observable<void> {
+  add(tenantId: number, email: string, role: 'MEMBER_ADMIN' | 'MEMBER'): Observable<void> {
     return this.http.post<void>(`/api/tenants/${tenantId}/members`, { email, role });
   }
 

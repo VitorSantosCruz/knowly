@@ -51,7 +51,7 @@ describe('ActiveTenantService', () => {
     const req = httpMock.expectOne('/api/tenants/memberships');
     req.flush([
       { tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false },
-      { tenantId: 2, tenantName: 'Tenant B', role: 'ADMIN', active: true },
+      { tenantId: 2, tenantName: 'Tenant B', role: 'MEMBER_ADMIN', active: true },
     ]);
 
     expect(service.activeTenantId()).toBe(2);

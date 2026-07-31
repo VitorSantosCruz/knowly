@@ -46,7 +46,7 @@ describe('NavMenuComponent', () => {
     memberships?: {
       tenantId: number;
       tenantName: string;
-      role: 'ADMIN' | 'MEMBER';
+      role: 'MEMBER_ADMIN' | 'MEMBER';
       active: boolean;
     }[];
     globalPermissions?: string[];
@@ -260,7 +260,7 @@ describe('NavMenuComponent', () => {
   it('shows the edit-request inbox link for a tenant ADMIN membership', () => {
     fixture.detectChanges();
     flush({
-      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: true }],
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
       tenantPermissions: [],
     });
     fixture.detectChanges();

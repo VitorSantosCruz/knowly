@@ -42,7 +42,7 @@ describe('SelectTenantPageComponent', () => {
     fixture.detectChanges();
     flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([
-      { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
+      { tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
     ]);
     fixture.detectChanges();
@@ -56,7 +56,7 @@ describe('SelectTenantPageComponent', () => {
     fixture.detectChanges();
     flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([
-      { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
+      { tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
     ]);
     fixture.detectChanges();
@@ -138,7 +138,7 @@ describe('SelectTenantPageComponent', () => {
     fixture.detectChanges();
     flushGlobalPermissions([]);
     httpMock.expectOne('/api/tenants/memberships').flush([
-      { tenantId: 1, tenantName: 'Acme', role: 'ADMIN', active: false },
+      { tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: false },
       { tenantId: 2, tenantName: 'Other Co', role: 'MEMBER', active: false },
     ]);
     fixture.detectChanges();

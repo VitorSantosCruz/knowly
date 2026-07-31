@@ -202,7 +202,7 @@ export class NavMenuComponent implements OnInit {
     () =>
       this.permissionsService.hasInAnyTenant('PROFILE_EDIT') ||
       this.globalPermissionsService.has('PROFILE_EDIT') ||
-      this.memberships().some((membership) => membership.role === 'ADMIN') ||
+      this.memberships().some((membership) => membership.role === 'MEMBER_ADMIN') ||
       this.viewerIsStaffAdmin(),
   );
 

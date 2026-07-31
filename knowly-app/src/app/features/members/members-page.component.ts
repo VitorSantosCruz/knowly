@@ -96,7 +96,7 @@ export class MembersPageComponent implements OnInit {
   protected readonly selectedMembershipId = signal<number | null>(null);
 
   protected readonly viewerIsMemberAdminOfThisTenant = computed(
-    () => this.activeTenantService.activeTenantRole() === 'ADMIN',
+    () => this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN',
   );
 
   private hasLoaded = false;

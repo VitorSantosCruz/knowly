@@ -39,7 +39,7 @@ describe('WelcomePageComponent', () => {
     memberships?: {
       tenantId: number;
       tenantName: string;
-      role: 'ADMIN' | 'MEMBER';
+      role: 'MEMBER_ADMIN' | 'MEMBER';
       active: boolean;
     }[];
     onboardingCompleted?: boolean;

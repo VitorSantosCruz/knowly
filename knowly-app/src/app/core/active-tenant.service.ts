@@ -5,7 +5,7 @@ import { Observable, tap } from 'rxjs';
 export interface TenantMembership {
   tenantId: number;
   tenantName: string;
-  role: 'ADMIN' | 'MEMBER';
+  role: 'MEMBER_ADMIN' | 'MEMBER';
   active: boolean;
 }
 
@@ -32,7 +32,7 @@ export class ActiveTenantService {
   private readonly _activeTenantName = signal<string | null>(null);
   readonly activeTenantName = this._activeTenantName.asReadonly();
 
-  private readonly _activeTenantRole = signal<'ADMIN' | 'MEMBER' | null>(null);
+  private readonly _activeTenantRole = signal<'MEMBER_ADMIN' | 'MEMBER' | null>(null);
   /** The viewer's own role within the active tenant — null for a staff session with no
    * real TenantMembership row, same "preserve on no active membership found" rule as
    * activeTenantId/activeTenantName below. */
