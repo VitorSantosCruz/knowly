@@ -146,7 +146,14 @@ CI workflows live at the repo root (GitHub Actions requires this) and
 use path filters so backend changes only trigger backend jobs and vice
 versa. Both push a Docker image to GHCR on push to `main`
 (`ghcr.io/<owner>/knowly-backend`, `ghcr.io/<owner>/knowly-frontend`).
-CodeQL (SAST) and Dependabot (SCA) cover both subprojects.
+Dependabot (SCA) covers both subprojects. CodeQL (SAST) currently
+covers only `knowly-api` (java-kotlin); `knowly-app` relies instead on
+ESLint (`eslint-plugin-security` plus a custom rule blocking
+`bypassSecurityTrust*`/`innerHTML` sinks) — adding CodeQL js/typescript
+coverage was evaluated and deliberately deferred (2026-07-31, joint
+appsec/devops-sre review) pending a concrete need (SSR, third-party HTML
+rendering, or similar). Revisit this decision if that changes; do not
+silently add it later without a fresh joint decision.
 
 ## Observability and audit (non-negotiable)
 

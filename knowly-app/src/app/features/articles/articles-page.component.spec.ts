@@ -41,7 +41,7 @@ describe('ArticlesPageComponent', () => {
   });
 
   function flushSetup(
-    articles: Array<{ id: number; title: string; status: string }>,
+    articles: { id: number; title: string; status: string }[],
     permissions: Permission[] = ALL_ARTICLE_PERMISSIONS,
   ) {
     httpMock

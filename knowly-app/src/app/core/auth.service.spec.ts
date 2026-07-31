@@ -145,7 +145,11 @@ describe('AuthService', () => {
     });
 
     it('stays false when verifyCode fails', () => {
-      service.verifyCode('user@example.com', '000000').subscribe({ error: () => {} });
+      service.verifyCode('user@example.com', '000000').subscribe({
+        error: () => {
+          /* noop */
+        },
+      });
       httpMock
         .expectOne('/api/auth/login-code/verify')
         .flush({ code: 'INVALID_CREDENTIALS' }, { status: 401, statusText: 'Unauthorized' });
@@ -199,7 +203,11 @@ describe('AuthService', () => {
       service.verifyCode('user@example.com', '123456').subscribe();
       httpMock.expectOne('/api/auth/login-code/verify').flush({});
 
-      service.logout().subscribe({ error: () => {} });
+      service.logout().subscribe({
+        error: () => {
+          /* noop */
+        },
+      });
       httpMock
         .expectOne('/api/auth/logout')
         .flush({}, { status: 500, statusText: 'Internal Server Error' });

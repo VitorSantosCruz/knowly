@@ -67,7 +67,10 @@ type StaffDirectoryError = 'network' | 'permission-denied' | null;
                 <td>
                   <span
                     [attr.data-testid]="'select-staff-user-' + staffUser.id"
+                    role="button"
+                    tabindex="0"
                     (click)="selectedUserId.set(staffUser.id)"
+                    (keydown.enter)="selectedUserId.set(staffUser.id)"
                     class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
                   >
                     {{ staffUser.email }}

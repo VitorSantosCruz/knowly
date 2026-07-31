@@ -5,8 +5,12 @@ export function mockMatchMedia(prefersDark = false): void {
     value: (query: string) => ({
       matches: query === '(prefers-color-scheme: dark)' && prefersDark,
       media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addEventListener: () => {
+        /* noop */
+      },
+      removeEventListener: () => {
+        /* noop */
+      },
     }),
   });
 }

@@ -2,7 +2,9 @@ import { installBfcacheReload } from './bfcache-reload';
 
 describe('installBfcacheReload', () => {
   afterEach(() => {
-    window.removeEventListener('pageshow', () => {});
+    window.removeEventListener('pageshow', () => {
+      /* noop */
+    });
   });
 
   it('reloads the page when restored from the back/forward cache', () => {

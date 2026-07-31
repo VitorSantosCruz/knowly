@@ -62,7 +62,9 @@ describe('ExportButtonComponent', () => {
       createObjectURL: createObjectURLSpy,
       revokeObjectURL: revokeObjectURLSpy,
     });
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+      /* noop */
+    });
 
     const button: HTMLElement = fixture.nativeElement.querySelector(
       '[data-testid="export-button"]',

@@ -21,7 +21,11 @@ describe('authInterceptor', () => {
       ) as never;
 
     TestBed.runInInjectionContext(() => {
-      authInterceptor(request, next).subscribe({ error: () => {} });
+      authInterceptor(request, next).subscribe({
+        error: () => {
+          /* noop */
+        },
+      });
     });
 
     expect(router.navigateByUrl).toHaveBeenCalledWith('/login');
@@ -37,7 +41,11 @@ describe('authInterceptor', () => {
       ) as never;
 
     TestBed.runInInjectionContext(() => {
-      authInterceptor(request, next).subscribe({ error: () => {} });
+      authInterceptor(request, next).subscribe({
+        error: () => {
+          /* noop */
+        },
+      });
     });
 
     expect(router.navigateByUrl).not.toHaveBeenCalled();

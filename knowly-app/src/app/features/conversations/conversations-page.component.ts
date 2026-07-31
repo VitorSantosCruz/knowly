@@ -37,7 +37,7 @@ let nextLocalMessageId = -1;
             class="flex w-full flex-col gap-1 border-0"
           >
             @for (conversation of conversations(); track conversation.id) {
-              <li role="option">
+              <li role="option" [attr.aria-selected]="conversation.id === activeConversationId()">
                 <button
                   type="button"
                   [attr.data-testid]="'select-conversation-' + conversation.id"

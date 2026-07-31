@@ -210,7 +210,8 @@ export class ProfileEditRequestsInboxPageComponent implements OnInit {
 
   private clearConflict(id: number): void {
     this.conflictMessages.update((current) => {
-      const { [id]: _removed, ...rest } = current;
+      const rest = { ...current };
+      delete rest[id];
       return rest;
     });
   }

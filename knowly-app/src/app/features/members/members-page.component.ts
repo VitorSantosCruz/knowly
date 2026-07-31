@@ -50,7 +50,10 @@ type MembersError = 'network' | 'permission-denied' | null;
                 <td>
                   <span
                     [attr.data-testid]="'select-member-' + member.membershipId"
+                    role="button"
+                    tabindex="0"
                     (click)="selectedMembershipId.set(member.membershipId)"
+                    (keydown.enter)="selectedMembershipId.set(member.membershipId)"
                     class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
                   >
                     {{ member.email }}

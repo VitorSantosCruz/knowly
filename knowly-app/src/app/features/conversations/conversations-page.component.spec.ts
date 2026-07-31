@@ -36,7 +36,7 @@ describe('ConversationsPageComponent', () => {
     httpMock.verify();
   });
 
-  function flushActiveTenantAndList(conversations: Array<{ id: number; title: string | null }>) {
+  function flushActiveTenantAndList(conversations: { id: number; title: string | null }[]) {
     httpMock
       .expectOne('/api/tenants/memberships')
       .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);

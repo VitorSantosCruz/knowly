@@ -13,7 +13,7 @@ import { Component, input } from '@angular/core';
   template: `
     <svg
       [attr.viewBox]="'0 0 118 28'"
-      [class]="'h-6 w-auto align-middle ' + className()"
+      [class]="'h-6 w-auto align-middle ' + extraClass()"
       role="img"
       aria-label="knowly."
     >
@@ -34,5 +34,9 @@ import { Component, input } from '@angular/core';
 })
 export class BrandWordmarkComponent {
   /** Extra classes applied to the root <svg> — use to set text color per call site. */
-  readonly className = input<string>('', { alias: 'class' });
+  readonly class = input<string>('');
+
+  protected extraClass(): string {
+    return this.class();
+  }
 }

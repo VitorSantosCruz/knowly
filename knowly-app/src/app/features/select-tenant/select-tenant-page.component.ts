@@ -61,7 +61,7 @@ const PAGE_SIZE = 20;
       @if (options().length > 0) {
         <ul role="listbox" class="flex w-full flex-col gap-2 border-0">
           @for (option of options(); track option.tenantId) {
-            <li role="option">
+            <li role="option" aria-selected="false">
               <button
                 type="button"
                 [attr.data-testid]="'select-tenant-' + option.tenantId"
