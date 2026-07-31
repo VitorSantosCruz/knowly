@@ -56,7 +56,24 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state: `staff-bootstrap-user`, `staff-rbac-split`,
+**Current state (2026-07-31): `internal-team-chat` (backlog item 14, the
+last item in the confirmed 2026-07-25 priority order) is now fully done
+on both sides — see its row below in this list and its feature-table
+entries. This closes out the entire confirmed backlog (items 1-15 all
+done).** There is no queued next feature. Per this section's own
+protocol: propose 2-4 concrete candidate directions to the user and ask
+them to pick, drawing from `VISION.md`'s "What's deliberately not decided
+yet" section or anything not-yet-built implied by the product vision —
+do not silently invent one. One candidate worth surfacing precisely
+because it's low-effort/high-value: `internal-team-chat`'s own PLAN
+flagged real-time delivery (currently 5s client polling, see
+`DECISIONS.md`) as a documented future direction, not a gap — only worth
+picking up if/when an actual latency complaint justifies it, not
+proactively.
+
+**Older history below, preserved for context:**
+
+`staff-bootstrap-user`, `staff-rbac-split`,
 `staff-user-provisioning`, `navigation-menu`, `welcome-screen`, and the
 `dashboard-analytics` backend are all done. Item 5 (user management
 screens) is now done on both sides**: the backend half
@@ -502,8 +519,58 @@ SPEC before implementation, roughly in this order:**
    and confirm the data-protection approach with the user first. Backend:
    new entity/entities, migration(s), permission gating, DB-level
    uniqueness constraints. Frontend: profile view/edit screens.
-14. **Internal team chat — big, new product surface, deferred until
-    after the identity model above.** 1:1 conversations and group
+14. ~~Internal team chat~~ — **done, both sides (2026-07-31)**. See
+    `knowly-api/specify/features/internal-team-chat/` and
+    `knowly-app/specify/features/internal-team-chat/`
+    (SPEC/PLAN/TASKS). Backend: 97/97 tasks, new `chat` package
+    (`ChatConversation`/`ChatParticipant`/`ChatMessage`/`SupportTicket`,
+    `V20` migration + Envers audit tables except message content),
+    `ChatEligibilityService` (capacity-based, per-tenant, re-derived
+    server-side), `TenantFilterAspect` extended with
+    `@BypassTenantFilterForOversight` for the `STAFF_ADMIN`/
+    `MEMBER_ADMIN` look-in (never creates a `chat_participants` row,
+    never grants send rights, distinct audited action
+    `chat.group.oversight_view`), `SUPPORT_CHANNEL_VIEW`/
+    `STAFF_SUPPORT_HANDLE` permissions, id-only cursor pagination. 499
+    backend tests green, `spotless:check` clean, `./mvnw verify` BUILD
+    SUCCESS. Frontend: 119/119 tasks, `chat.service.ts`/
+    `support.service.ts` (signals), shared `message-thread.component.ts`
+    (paginated + 5s visibility-gated polling), `/chat` and `/support`
+    routes (no `tenantSelectionGuard`, in-component permission dispatch
+    per the "one screen, N contexts" pattern), `viewerRelation:
+    PARTICIPANT | LOOKING_IN` framing for the oversight look-in. 405
+    frontend tests green, `format:check`/build clean. **Real bugs found
+    and fixed during the mandatory review passes** (not just theoretical
+    review notes): (1) AppSec's pre-merge pass found `GET
+    /api/chat/eligible-participants?scope=direct` was leaking every
+    registered user's raw email unfiltered by eligibility — fixed to
+    reuse `ChatEligibilityService`'s own shared-anchor rule and prefer
+    `fullName` over email (`c71b73f`); (2) QA's independent pass found a
+    malformed pagination cursor threw an uncaught 500 instead of a 400 —
+    fixed in `ChatExceptionHandler`; (3) implementation-time bugs: missing
+    `@EntityListeners(AuditingEntityListener.class)` on
+    `ChatParticipant`/`ChatMessage`, and `ChatConversationRepository`'s
+    inherited `findById` silently bypassing the tenant `@Filter` on
+    primary-key lookups (fixed via a `findByIdRespectingFilter` JPQL
+    method used everywhere tenant-scoping matters). **Known gap,
+    reviewed and accepted, not blocking**: closed-ticket immutability
+    (REQ-16) is application-level only (`SupportTicketService`), no DB
+    constraint — flagged by AppSec at PLAN stage as a defensible
+    tradeoff, not required for merge. **Judgment call flagged for future
+    attention**: the SPEC/PLAN reference a "profile nickname" field that
+    doesn't actually exist anywhere in the codebase (`UserProfile` has no
+    `nickname` column) — both sides fall back to `UserProfile.fullName`,
+    then email, when resolving display names. If/when a real nickname
+    field is added (this item's own original scope note expected one),
+    revisit every `nicknameOf`-style resolver in the `chat` package.
+    **Also deferred, per PLAN/DECISIONS.md's 2026-07-31 entries, not a
+    gap**: real-time delivery is client polling only (no
+    WebSocket/SSE/push) — the future direction (SSE-per-user over
+    RabbitMQ) is documented in `DECISIONS.md` for whenever an actual
+    latency complaint justifies building it. Also deferred: full-text
+    search across message history (explicitly out of scope per SPEC).
+    Original scope note, preserved below for the rules it captured
+    (all implemented per the above): 1:1 conversations and group
     conversations between team members (distinct from the existing
     chat-with-the-knowledge-base feature) — uses the profile nickname
     from item 13 to identify people in the UI. Needs its own SPEC(s) in
