@@ -12,6 +12,8 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
   const request = {
     id: 7,
     requesterUserId: 3,
+    requesterName: 'Jane Doe',
+    requesterEmail: 'jane@example.com',
     proposedFields: {
       fullName: 'Jane Doe',
       rg: '11.111.111-1',
@@ -90,6 +92,47 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     ).textContent;
     expect(contactChangesText).toContain('ADD');
     expect(contactChangesText).toContain('jane@example.com');
+  });
+
+  it('renders the requester name when present', async () => {
+    await createFixture();
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/profile-edit-requests').flush([request]);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-7"]',
+    ).textContent;
+    expect(text).toContain('Jane Doe');
+  });
+
+  it('falls back to the requester email when requesterName is null', async () => {
+    await createFixture();
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/profile-edit-requests').flush([{ ...request, requesterName: null }]);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-7"]',
+    ).textContent;
+    expect(text).toContain('jane@example.com');
+  });
+
+  it('falls back to "User #{id}" when both requesterName and requesterEmail are null', async () => {
+    await createFixture();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/profile-edit-requests')
+      .flush([{ ...request, requesterName: null, requesterEmail: null }]);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-7"]',
+    ).textContent;
+    expect(text).toContain('3');
   });
 
   it('renders the distinct empty state when there are zero requests', async () => {

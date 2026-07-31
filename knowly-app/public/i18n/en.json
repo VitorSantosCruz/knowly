@@ -222,6 +222,7 @@
     "navLabel": "Profile edit requests",
     "title": "Profile edit requests",
     "requester": "User #{{userId}}",
+    "requesterNamed": "{{name}}",
     "submittedAt": "Submitted at",
     "approve": "Approve",
     "reject": "Reject",

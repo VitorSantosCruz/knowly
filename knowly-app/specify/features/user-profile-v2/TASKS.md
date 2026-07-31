@@ -131,3 +131,40 @@
       shown as `User #{id}` only" and "inbox nav gating only reflects
       active tenant" rough edges are still accurate and re-flag them if
       so (this retrofit does not resolve either).
+
+## Follow-up (2026-07-30): requester identity + "any tenant" nav gate
+
+- [x] 27. Update `profile.service.spec.ts`'s flushed
+      `ProfileEditRequest` fixtures to include `requesterName`/
+      `requesterEmail` (Red — new fields fail type check); add both to
+      `core/profile.service.ts`'s `ProfileEditRequest` interface
+      (Green).
+- [x] 28. Add cases to
+      `profile-edit-requests-inbox-page.component.spec.ts`: renders
+      `requesterName` when present; falls back to `requesterEmail` when
+      `requesterName` is null; falls back to the existing
+      `"User #{id}"` string when both are null (Red); implement
+      `requesterDisplayName()` + template `@if`/`@else` chain and the
+      new `profileEditRequests.requesterNamed` i18n key in `en`/`pt-BR`
+      (Green).
+- [x] 29. Add cases to `permissions.service.spec.ts`: `hasInAnyTenant()`
+      defaults to `false`; `fetchInAnyTenant(permission)` calls `GET
+      /api/tenants/permissions/any-tenant?permission=X` and
+      `hasInAnyTenant()` reflects the flushed `granted` value; a 401/
+      error is treated as `false` rather than an unhandled error (Red);
+      implement both methods on `PermissionsService` (Green).
+- [x] 30. Update `nav-menu.component.spec.ts`'s `flush()` helper to
+      always expect/flush the new any-tenant request; add/update cases
+      so `canSeeProfileEditRequests` reflects a grant from
+      `hasInAnyTenant('PROFILE_EDIT')` regardless of the active tenant's
+      own permission set, including the 0-membership staff case (Red);
+      wire `nav-menu.component.ts`'s `canSeeProfileEditRequests` to
+      `hasInAnyTenant('PROFILE_EDIT')` instead of the previous
+      active-tenant-only `has('PROFILE_EDIT')` check, and call
+      `fetchInAnyTenant('PROFILE_EDIT')` once at session-start alongside
+      `permissions.fetch()`/`globalPermissionsService.fetch()` (Green).
+- [x] 31. Run `npm run format:check && npm test && npm run build` and
+      confirm everything is green.
+- [x] 32. Update `PROJECT_STATUS.md` marking both rough edges closed;
+      update this PLAN.md's follow-up section noting frontend
+      consumption is done.

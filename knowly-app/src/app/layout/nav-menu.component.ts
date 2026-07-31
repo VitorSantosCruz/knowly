@@ -195,12 +195,12 @@ export class NavMenuComponent implements OnInit {
     ALL_GLOBAL_PERMISSIONS.every((permission) => this.globalPermissionsService.has(permission)),
   );
 
-  // Tier 2 judgment call (PLAN.md): only reflects the currently active tenant's PROFILE_EDIT
-  // grant, not every tenant the caller might hold that permission in — accepted, consistent
-  // with the "hidden, not shown-then-blocked" nav rule erring toward hiding.
+  // REQ-19 ("anywhere", not just the active tenant): backed by PermissionsService's
+  // any-tenant endpoint, evaluated across every membership server-side — replaces the
+  // previously-accepted active-tenant-only gap this comment used to document.
   protected readonly canSeeProfileEditRequests = computed(
     () =>
-      this.permissionsService.has('PROFILE_EDIT') ||
+      this.permissionsService.hasInAnyTenant('PROFILE_EDIT') ||
       this.globalPermissionsService.has('PROFILE_EDIT') ||
       this.memberships().some((membership) => membership.role === 'ADMIN') ||
       this.viewerIsStaffAdmin(),
@@ -317,6 +317,9 @@ export class NavMenuComponent implements OnInit {
       // permissions endpoint itself already 403s harmlessly (caught in PermissionsService)
       // when there's genuinely no active tenant, so gating the call added no real safety.
       this.permissionsService.fetch();
+      // Fetched at session-start alongside the two calls above (not lazily on first nav
+      // render) so the inbox link doesn't flash in/out once its own response lands.
+      this.permissionsService.fetchInAnyTenant('PROFILE_EDIT');
 
       this.activeTenantService.list().subscribe((memberships) => {
         this.memberships.set(memberships);

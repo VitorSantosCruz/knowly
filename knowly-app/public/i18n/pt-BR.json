@@ -222,6 +222,7 @@
     "navLabel": "Solicitações de alteração de perfil",
     "title": "Solicitações de alteração de perfil",
     "requester": "Usuário #{{userId}}",
+    "requesterNamed": "{{name}}",
     "submittedAt": "Enviado em",
     "approve": "Aprovar",
     "reject": "Rejeitar",

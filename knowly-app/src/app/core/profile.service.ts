@@ -60,6 +60,8 @@ export type ProfileEditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CA
 export interface ProfileEditRequest {
   id: number;
   requesterUserId: number;
+  requesterName: string | null;
+  requesterEmail: string;
   proposedFields: ProfileFields;
   proposedContactChanges: ContactChange[];
   status: ProfileEditRequestStatus;

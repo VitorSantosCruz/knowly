@@ -29,9 +29,13 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
               class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-4 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
             >
               <p class="text-sm font-medium text-ink-900 dark:text-white">
-                {{
-                  'profileEditRequests.requester' | transloco: { userId: request.requesterUserId }
-                }}
+                @if (requesterDisplayName(request); as name) {
+                  {{ 'profileEditRequests.requesterNamed' | transloco: { name } }}
+                } @else {
+                  {{
+                    'profileEditRequests.requester' | transloco: { userId: request.requesterUserId }
+                  }}
+                }
               </p>
               <p class="text-sm text-ink-600 dark:text-ink-400">
                 {{ request.proposedFields.fullName }} · {{ request.proposedFields.rg }} ·
@@ -114,6 +118,13 @@ export class ProfileEditRequestsInboxPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  // Backend fallback chain (PLAN.md follow-up 2026-07-30): requesterName is null for a
+  // requester who never filled in a full name yet; falls back to email, then finally to
+  // the existing "User #{id}" string when both are null.
+  protected requesterDisplayName(request: ProfileEditRequest): string | null {
+    return request.requesterName ?? request.requesterEmail ?? null;
   }
 
   private load(): void {

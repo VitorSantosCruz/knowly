@@ -348,3 +348,83 @@ None new.
   asynchronously after the initial render (from the host panel's own `getOwnProfile()` call),
   causing a second, unflushed `GET /api/users/{id}/profile` in tests and in the real app a
   redundant duplicate fetch. Tier 2 (bugfix caught during implementation, not a scope change).
+
+## Follow-up (2026-07-30): requester identity + "any tenant" nav gate
+
+Both items below are compliance gaps against this SPEC's own already-approved
+REQ-14/REQ-19, reconfirmed and documented in `PROJECT_STATUS.md`'s
+`user-profile-v2` row — not new scope, so amended here rather than a new
+SPEC/PLAN cycle, same precedent as the two prior follow-ups above. Backend
+side of both is `identity-profile-model-v2/PLAN.md`'s matching "Follow-up
+(2026-07-30)" sections — see there for the API contract this side consumes.
+
+- **`ProfileEditRequest` interface (`core/profile.service.ts`) gains
+  `requesterName: string | null` / `requesterEmail: string | null`**,
+  mapped straight through from the now-extended `ProfileEditRequestDto`
+  — additive fields, no other shape change, no new HTTP call (still the
+  same `listEditRequests()` → `GET /api/profile-edit-requests`).
+- **`ProfileEditRequestsInboxPageComponent` renders `requesterName` when
+  present, falls back to `requesterEmail`, then to the existing
+  `'profileEditRequests.requester'` (`User #{id}`) string only if both are
+  null** — matches the backend's documented nullable-`fullName` case
+  (a requester whose `UserProfile` was eagerly created but never named)
+  without introducing a new empty/error state. New i18n key
+  `profileEditRequests.requesterNamed` (`en`/`pt-BR`) takes `{name}`;
+  existing `profileEditRequests.requester` (`{userId}`) is kept as the
+  fallback, not replaced.
+- **`nav-menu.component.ts`'s `canSeeProfileEditRequests` calls a new
+  `PermissionsService.hasInAnyTenant(permission: Permission):
+  Signal<boolean>`** (same private-signal-+-`fetch()` shape as the rest of
+  `PermissionsService` — not a new pattern), backed by
+  `GET /api/tenants/permissions/any-tenant?permission=PROFILE_EDIT`. This
+  replaces the removed Tier-2-accepted-gap comment and its
+  active-tenant-only `this.permissionsService.has('PROFILE_EDIT')` check
+  in the OR chain — `globalPermissionsService.has('PROFILE_EDIT')` and the
+  `ADMIN`-membership/`viewerIsStaffAdmin()` checks are unaffected (already
+  correct, not active-tenant-scoped).
+  - **Fetched once alongside the existing `permissions.fetch()`/
+    `globalPermissionsService.fetch()` calls at session-start** (same
+    trigger point as those two, e.g. `AuthService`'s post-login/
+    post-session-restore hook) rather than lazily on first nav render, so
+    the nav doesn't flash the link in/out.
+  - **Staff-session edge case**: a staff session with no real
+    `TenantMembership` row (even after switching into a tenant) — the new
+    endpoint's `findByUser(caller)` naturally returns zero memberships for
+    such a session, so `hasInAnyTenant` correctly returns `false` unless
+    `STAFF_ADMIN`/`STAFF`-with-`GlobalPermission` already grants it via
+    the existing global-permission branch of the OR chain. No frontend
+    special-casing needed — this falls out of the backend's own
+    membership-based evaluation.
+  - **Not gated behind `ActiveTenantService`'s active-tenant signal at
+    all** — that's the whole point of this fix (REQ-19 says "anywhere,"
+    not "in the active tenant"), so this check must not be short-circuited
+    by "no active tenant" the way tenant-scoped routes are.
+
+### API contract consumed (added, see backend PLAN.md for the authoritative shape)
+
+| Method | Path                                              | Response (200)          |
+|--------|---------------------------------------------------|--------------------------|
+| GET    | `/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT` | `{ "granted": boolean }` |
+
+### Implemented (2026-07-30) — deviation from this follow-up's stated signature
+
+Both items shipped as described above, with one deliberate shape deviation:
+`PermissionsService.hasInAnyTenant(permission: Permission)` returns a plain
+`boolean`, not `Signal<boolean>` as originally sketched — matching the
+existing `has(permission): boolean` method's shape exactly (read directly
+inside `nav-menu.component.ts`'s `canSeeProfileEditRequests` computed,
+which still tracks the underlying private signal correctly since the
+computed's dependency tracking follows signal *reads*, not the wrapper
+method's own return type). A `fetchInAnyTenant(permission: Permission):
+void` companion method (same `fetch()`-then-read-`has()` pattern the rest
+of `PermissionsService` already uses) populates a private
+`_anyTenantGrants: Signal<Partial<Record<Permission, boolean>>>`, called
+once at session-start in `nav-menu.component.ts`'s `ngOnInit`, alongside
+`permissions.fetch()`/`globalPermissionsService.fetch()`, per this PLAN's
+"fetched once... so the nav doesn't flash the link in/out" note. Tier 2
+(method-shape consistency call, not a behavior change) — both `nav-menu
+.component.spec.ts` and `permissions.service.spec.ts` cover the new
+methods; `profile-edit-requests-inbox-page.component.spec.ts` covers the
+`requesterName`/`requesterEmail` render + fallback chain (both-null,
+name-only, email-fallback cases). `user-profile-v2` has no further
+outstanding rough edges after this follow-up.

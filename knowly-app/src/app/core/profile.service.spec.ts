@@ -98,6 +98,8 @@ describe('ProfileService', () => {
     req.flush({
       id: 1,
       requesterUserId: 1,
+      requesterName: 'Jane Doe',
+      requesterEmail: 'jane@example.com',
       proposedFields: fields,
       proposedContactChanges: contactChanges,
       status: 'PENDING',

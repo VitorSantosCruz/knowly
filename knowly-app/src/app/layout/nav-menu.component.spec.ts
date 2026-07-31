@@ -51,6 +51,7 @@ describe('NavMenuComponent', () => {
     }[];
     globalPermissions?: string[];
     tenantPermissions?: string[] | 'forbidden';
+    anyTenantProfileEdit?: boolean;
   }): void {
     flushSessionCheck(true);
     httpMock
@@ -66,6 +67,10 @@ describe('NavMenuComponent', () => {
     } else {
       tenantPermissionsReq.flush({ permissions: options.tenantPermissions });
     }
+
+    httpMock
+      .expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT')
+      .flush({ granted: options.anyTenantProfileEdit ?? false });
 
     httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
   }
@@ -218,12 +223,23 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-my-profile"]')).toBeTruthy();
   });
 
-  it('shows the edit-request inbox link for a tenant PROFILE_EDIT holder', () => {
+  it('shows the edit-request inbox link for a PROFILE_EDIT holder in any tenant (not necessarily the active one)', () => {
     fixture.detectChanges();
     flush({
       memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
-      tenantPermissions: ['PROFILE_EDIT'],
+      tenantPermissions: ['ARTICLE_VIEW'],
+      anyTenantProfileEdit: true,
     });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows the edit-request inbox link for a 0-membership staff session granted PROFILE_EDIT in some tenant', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], anyTenantProfileEdit: true });
     fixture.detectChanges();
 
     expect(

@@ -136,10 +136,30 @@ targeted tests green (`TenantSessionIntegrationTest`,
 `ProfileEditRequestControllerIntegrationTest`); combined full-suite
 `./mvnw verify` (covering this work together with the concurrent
 `staff-rbac-split` work) is green: 448 tests, 0 failures, `spotless:check`
-clean. Frontend consumption of both new fields/endpoint (rendering the
-requester name/email, wiring nav-menu's `PROFILE_EDIT` gate to the new
-any-tenant endpoint) is not yet implemented — tracked as a
-`user-profile-v2` frontend follow-up.
+clean.
+
+**Frontend consumption of both is now also done (2026-07-30), closing
+`user-profile-v2`'s last two documented rough edges.**
+`ProfileEditRequest` (`core/profile.service.ts`) gains `requesterName:
+string | null`/`requesterEmail: string`, mapped straight through from the
+now-extended `ProfileEditRequestDto`; `ProfileEditRequestsInboxPageComponent`
+renders `requesterName` when present, falls back to `requesterEmail`,
+then finally to the existing `"User #{id}"` string only when both are
+null (new `requesterDisplayName()` helper, new
+`profileEditRequests.requesterNamed` i18n key in `en`/`pt-BR`). New
+`PermissionsService.fetchInAnyTenant(permission)`/`.hasInAnyTenant(permission)`
+(same private-signal-+-`fetch()` shape the rest of the service already
+uses, `_anyTenantGrants` keyed by `Permission`) backed by `GET
+/api/tenants/permissions/any-tenant?permission=X`, 401/error caught and
+treated as "not granted" (same posture as the existing `fetch()`).
+`nav-menu.component.ts`'s `canSeeProfileEditRequests` now calls
+`hasInAnyTenant('PROFILE_EDIT')` instead of the previous active-tenant-only
+`permissionsService.has('PROFILE_EDIT')`, removing the Tier-2-accepted-gap
+comment that used to document this limitation; fetched once at
+session-start alongside `permissions.fetch()`/`globalPermissionsService
+.fetch()` so the link doesn't flash in/out. Both `identity-profile-model-v2`
+and `user-profile-v2` are now fully closed on both sides, no outstanding
+rough edges. 353/353 frontend tests green, `format:check`/`build` clean.
 
 **`member-admin-tenant-bypass` is now fully done (backend, 2026-07-29,
 appsec-approved-with-notes at PLAN stage).** Closes the long-standing

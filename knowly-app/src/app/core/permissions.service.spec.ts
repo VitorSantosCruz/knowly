@@ -46,4 +46,28 @@ describe('PermissionsService', () => {
     expect(service.permissions()).toEqual([]);
     expect(service.has('ARTICLE_VIEW')).toBe(false);
   });
+
+  it('starts with hasInAnyTenant() false for any permission before fetchInAnyTenant()', () => {
+    expect(service.hasInAnyTenant('PROFILE_EDIT')).toBe(false);
+  });
+
+  it('fetchInAnyTenant() calls the any-tenant endpoint and hasInAnyTenant() reflects the grant', () => {
+    service.fetchInAnyTenant('PROFILE_EDIT');
+
+    const req = httpMock.expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT');
+    expect(req.request.method).toBe('GET');
+    req.flush({ granted: true });
+
+    expect(service.hasInAnyTenant('PROFILE_EDIT')).toBe(true);
+  });
+
+  it('fetchInAnyTenant() treats a 401/error as ungranted rather than an unhandled error', () => {
+    service.fetchInAnyTenant('PROFILE_EDIT');
+
+    httpMock
+      .expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT')
+      .flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(service.hasInAnyTenant('PROFILE_EDIT')).toBe(false);
+  });
 });
