@@ -45,16 +45,14 @@ describe('MemberSupportChannelComponent', () => {
 
   it('renders the thread instead of only the start action once a channel exists', () => {
     fixture.detectChanges();
-    httpMock
-      .expectOne('/api/tenants/1/support/members/9/channel')
-      .flush({
-        id: 1,
-        kind: 'SUPPORT',
-        tenantId: 1,
-        title: null,
-        participantUserIds: [9],
-        participantNicknames: { 9: 'Nick' },
-      });
+    httpMock.expectOne('/api/tenants/1/support/members/9/channel').flush({
+      id: 1,
+      kind: 'SUPPORT',
+      tenantId: 1,
+      title: null,
+      participantUserIds: [9],
+      participantNicknames: { 9: 'Nick' },
+    });
     httpMock
       .expectOne((r) => r.url === '/api/tenants/1/support/members/9/channel/messages')
       .flush({ messages: [], nextCursor: null });

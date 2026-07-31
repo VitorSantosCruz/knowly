@@ -45,6 +45,11 @@ export class SupportService {
   private readonly _inboxTickets = signal<TicketSummary[]>([]);
   readonly inboxTickets = this._inboxTickets.asReadonly();
 
+  /** The ticket a staff user is currently viewing/acting on (REQ-13..16) — set by
+   * claim()/transfer()/close(), since there is no GET returning "the ticket for member X". */
+  private readonly _activeTicket = signal<TicketSummary | null>(null);
+  readonly activeTicket = this._activeTicket.asReadonly();
+
   private readonly _channelMessageCache = signal<Map<string, MessageCacheEntry>>(new Map());
   readonly channelMessageCache = this._channelMessageCache.asReadonly();
 
@@ -105,6 +110,7 @@ export class SupportService {
         tap((ticket) => {
           this._inboxTickets.update((list) => list.filter((t) => t.id !== ticketId));
           this.patchTicket(ticket);
+          this._activeTicket.set(ticket);
         }),
       );
   }
@@ -114,13 +120,23 @@ export class SupportService {
       .post<TicketSummary>(`/api/tenants/${tenantId}/support/tickets/${ticketId}/transfer`, {
         toStaffUserId,
       })
-      .pipe(tap((ticket) => this.patchTicket(ticket)));
+      .pipe(
+        tap((ticket) => {
+          this.patchTicket(ticket);
+          this._activeTicket.set(ticket);
+        }),
+      );
   }
 
   close(tenantId: number, ticketId: number): Observable<TicketSummary> {
     return this.http
       .post<TicketSummary>(`/api/tenants/${tenantId}/support/tickets/${ticketId}/close`, {})
-      .pipe(tap((ticket) => this.patchTicket(ticket)));
+      .pipe(
+        tap((ticket) => {
+          this.patchTicket(ticket);
+          this._activeTicket.set(ticket);
+        }),
+      );
   }
 
   private patchTicket(ticket: TicketSummary): void {
