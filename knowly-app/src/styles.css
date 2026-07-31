@@ -4,38 +4,46 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Brand: knowly — "Ink & Signal".
- * ink = the deep, trustworthy navy carrying nearly all surfaces/text;
- * signal = the single warm accent reserved for the moment something
- * becomes clear (primary actions, focus, highlights) — never used as a
- * base color, so it stays meaningful instead of decorative.
+ * Brand: knowly — "Violet & Signal".
+ * ink = kept as the token name for continuity across ~45 components, but
+ * repurposed from navy to a purple-and-white neutral scale: the 50-400
+ * steps are the "white" side (near-white violet tints, for light-mode
+ * surfaces/text-on-dark), the 500-950 steps are the "purple" side (from a
+ * mid violet down to a near-black deep purple, for dark-mode surfaces and
+ * light-mode headings/text). Light mode leans on the lighter half of this
+ * scale, dark mode on the darker half — one purple-and-white identity,
+ * two brightness ranges, not two different palettes.
+ * signal = the single vivid violet accent reserved for the moment
+ * something becomes clear (primary actions, focus, highlights) — more
+ * saturated than any ink-* step so it never gets lost against the
+ * neutral purple surfaces, and never used as a base color.
  */
 @theme {
   --font-display: 'Fraunces', ui-serif, Georgia, serif;
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink-50: #f4f6fb;
-  --color-ink-100: #e6eaf5;
-  --color-ink-200: #c9d2e8;
-  --color-ink-300: #a2b0d4;
-  --color-ink-400: #7686b8;
-  --color-ink-500: #55649b;
-  --color-ink-600: #414c7f;
-  --color-ink-700: #343c66;
-  --color-ink-800: #232951;
-  --color-ink-900: #161a38;
-  --color-ink-950: #0d1024;
+  --color-ink-50: #f8f6fc;
+  --color-ink-100: #efe9f8;
+  --color-ink-200: #dcd0f0;
+  --color-ink-300: #c0a9e3;
+  --color-ink-400: #9d78cf;
+  --color-ink-500: #7c4fb8;
+  --color-ink-600: #613a94;
+  --color-ink-700: #4d2e75;
+  --color-ink-800: #38225a;
+  --color-ink-900: #251640;
+  --color-ink-950: #150c28;
 
-  --color-signal-50: #fdf6e9;
-  --color-signal-100: #faebc8;
-  --color-signal-200: #f4d78e;
-  --color-signal-300: #edbf5c;
-  --color-signal-400: #e2a53a;
-  --color-signal-500: #c98a2c;
-  --color-signal-600: #a86e21;
-  --color-signal-700: #85551d;
-  --color-signal-800: #63401a;
-  --color-signal-900: #402816;
+  --color-signal-50: #fbf4ff;
+  --color-signal-100: #f3e2ff;
+  --color-signal-200: #e6c2ff;
+  --color-signal-300: #d194ff;
+  --color-signal-400: #b666fa;
+  --color-signal-500: #9d3df0;
+  --color-signal-600: #8321d6;
+  --color-signal-700: #6a19ac;
+  --color-signal-800: #511585;
+  --color-signal-900: #390f5f;
 
   --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 150ms;

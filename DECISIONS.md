@@ -1230,6 +1230,43 @@ under `/api/tenants/**` (e.g. a support-channel controller) must not
 assume it inherits CSRF exemption from this prefix — it doesn't, and
 shouldn't.
 
+### Frontend brand palette changes from "Ink and Signal" (navy+gold) to violet+white (2026-07-31)
+
+The app owner explicitly decided to replace `knowly-app/`'s entire brand
+color palette — previously a navy-blue `ink-*` scale for surfaces/text
+plus a gold/amber `signal-*` accent scale, documented as "Ink and
+Signal" in the PrimeNG-adoption entry above. This is a Tier 3 decision
+(reverses a previously documented brand identity, applies globally, not
+scoped to one screen) — recorded here as already made by the owner
+after being asked to confirm scope (a full palette swap vs. just making
+the login card more visually striking within the existing colors), not
+decided unilaterally by an AI assistant. **Why:** the owner wants
+violet/purple + white as the app's identity, with a lighter-violet
+variant for light mode and a darker-violet variant for dark mode. **What
+changed:** in `knowly-app/src/styles.css`, the `ink-*`/`signal-*`
+Tailwind token *names* were kept (47 files reference them; renaming
+would touch all of them for no functional gain) but their hex values
+were repurposed from navy/amber to a violet scale — `ink-*` is now the
+neutral violet surface/text scale, `signal-*` is now a more saturated
+violet/purple accent scale reserved for primary actions/focus, matching
+the original "accent, not decoration" role described in the file's
+header comment (now updated to describe "Violet and Signal" instead of
+"Ink and Signal"). All light/dark text-on-background pairings were
+checked by hand for WCAG AA contrast (≥4.5:1) before landing. The login
+screen (`login-page.component.ts`) was also given a more visually
+distinct treatment as part of the same change — a gradient accent bar,
+decorative blurred color blobs behind the card, and a richer
+shadow/ring — while staying a single centered card (no split-panel) and
+Tailwind-only, per this subproject's no-component-library convention.
+**Applies to new decisions:** any new component or screen should assume
+`ink-*` and `signal-*` now render as violet, not navy/gold — don't
+hardcode navy/gold hex values assuming they match these tokens. A
+pre-existing, unrelated bug was noticed during this work:
+`knowly-app/src/app/shared/button-classes.ts` references
+`dark:hover:bg-signal-950`, but the `signal-*` scale only goes up to
+`900` — that class silently does nothing in dark mode and should be
+fixed separately, not folded into this palette change.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
