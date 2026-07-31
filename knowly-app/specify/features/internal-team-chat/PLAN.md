@@ -372,3 +372,46 @@ GET, now with backend-added `after` support) are all final per the
 originally drafted here have been written to the root `DECISIONS.md`
 (see `internal-team-chat` entries there) rather than kept as drafts in
 this file.
+
+## Emergent decisions (implementation)
+
+All 119 TASKS.md items are implemented, tested, and committed
+(2026-07-31). Decisions made while executing tasks 100-113 that weren't
+already spelled out above:
+
+- **`SupportTicketDto` carries neither `tenantId` nor `memberUserId`** —
+  confirmed against `knowly-api`'s actual DTO (only
+  `id, supportChannelId, status, assignedStaffUserId, openedAt,
+  closedAt`), not a PLAN.md oversight caught earlier. `SupportPageComponent`
+  bridges this by calling `ChatService.openConversation(supportChannelId)`
+  and reading `{tenantId, participantUserIds[0]}` off the resulting
+  `ConversationDetail` — valid because a support channel's only formal
+  `ChatParticipant` is the member (staff act on it without ever being
+  added as participants; see `SupportTicketService.getOrCreateChannel`).
+  This reuses the existing peer-chat detail endpoint as the bridge rather
+  than adding a new backend field/endpoint, which was out of scope for
+  this (frontend-only) task range.
+- **`/support/:channelId` is a second flat route to `SupportPageComponent`
+  itself** (reading `:channelId` via `ActivatedRoute.paramMap`), not a
+  nested `<router-outlet>` to a separate child component as this PLAN's
+  routing table names suggested — there was no distinct child view to
+  route to once the three-way dispatch and the ticket-id resolution both
+  live in `SupportPageComponent`, so a second sibling route was simpler
+  and has identical behavior.
+- **`StaffSupportInboxComponent.claim()` (already committed) navigates to
+  plain `/support`, not `/support/:channelId`** — it relies on
+  `SupportService.activeTicket()` (a signal, already set by `claim()`
+  itself) rather than a route param. `SupportPageComponent`'s channel-id
+  resolution therefore prefers an explicit `:channelId` route param
+  (future deep-linking) and falls back to
+  `SupportService.activeTicket()?.supportChannelId` when absent, so both
+  paths resolve to the same `{tenantId, memberUserId}` bridge above.
+- **REQ-17's member-browse has no dedicated "pick a member" list
+  component** — TASKS.md's task 99-102 scope only covers
+  `MemberSupportBrowseComponent` rendering a chosen member's channel
+  read-only, not a picker UI, and no such component appears in the
+  "Components and routes" list above. `SupportPageComponent` therefore
+  offers a plain numeric member-id input (`browse-member-id-input`)
+  ahead of `MemberSupportBrowseComponent`, consistent with the SPEC's
+  acceptance criterion ("can open and read another member's support
+  history") without inventing a new component out of scope.

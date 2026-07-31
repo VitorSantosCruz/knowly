@@ -750,11 +750,34 @@ has no `nickname` column) — nickname resolution falls back to
 `UserProfile.fullName`, then the user's email, rather than inventing a
 new column; revisit if a real nickname concept lands later. Real-time
 delivery is deferred to polling per the already-recorded `DECISIONS.md`
-entry — not built here. **Next: the frontend half
-(`knowly-app/specify/features/internal-team-chat/`) is not started.**
+entry — not built here.
 (per `feedback_appsec_gate_skipped` — this touches new attack surface:
 group/1:1 access control, admin oversight override, support-channel
 permission gating).
+
+**`internal-team-chat` (item 14) frontend is now fully implemented
+(2026-07-31)** — all 119 `knowly-app/specify/features/internal-team-chat/
+TASKS.md` items done, committed. `chat.service.ts`/`support.service.ts`
+(signals, mirroring `PermissionsService`/`ActiveTenantService`'s shape),
+shared `message-thread.component.ts`/`message-composer.component.ts`
+(progressive load-more/retry, REQ-19/20/21), peer chat (`/chat`,
+`/chat/:conversationId`, no guard — conversation list/detail, "looking
+in" oversight banner/badge for `STAFF_ADMIN`/`MEMBER_ADMIN` look-ins,
+participant picker + new-conversation dialog covering all three
+eligibility modes), and support channel (`/support`,
+`/support/:channelId`, no guard — `SupportPageComponent`'s three-way
+permission dispatch: `STAFF_SUPPORT_HANDLE` → staff inbox + claimed
+channel, `SUPPORT_CHANNEL_VIEW` → member-browse alongside own channel,
+else → own channel only). i18n keys added for both locales (parity
+verified). One backend-contract gap worked around at the frontend layer:
+`SupportTicketDto` carries neither `tenantId` nor `memberUserId`, so
+`SupportPageComponent` resolves a claimed ticket's `supportChannelId`
+via the existing `ChatService.openConversation()` peer-chat endpoint
+instead (valid because the member is a support channel's only formal
+`ChatParticipant`) — see PLAN.md's "Emergent decisions" for this and two
+smaller routing/component judgment calls made without stopping to ask.
+Verified: `npm run format:check`, `npm test` (405 passing, 74 files),
+`npm run build` all green.
 
 ## How to work in this repo
 

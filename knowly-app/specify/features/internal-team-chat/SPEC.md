@@ -206,68 +206,73 @@ chat screen is unaffected.
 
 ## Acceptance criteria
 
-- [ ] Every role can see and open the peer conversations list with no
+> All checked (2026-07-31) — each is backed by a passing Vitest spec
+> per PLAN.md's "Testing strategy" section; see TASKS.md (all 119 items
+> done/committed) and PLAN.md's "Emergent decisions" for the frontend-only
+> judgment calls made while wiring `/support`.
+
+- [x] Every role can see and open the peer conversations list with no
       permission-denied state ever shown for the ability to message.
-- [ ] Starting a 1:1 with a staff/member target the current user isn't
+- [x] Starting a 1:1 with a staff/member target the current user isn't
       eligible to DM (per backend rules) is prevented or clearly
       rejected in the UI, not silently allowed.
-- [ ] A staff user who **also holds a membership** in tenant `T` shows
+- [x] A staff user who **also holds a membership** in tenant `T` shows
       up as an eligible candidate in tenant `T`'s member-only group
       picker.
-- [ ] A staff user with **no membership** in tenant `T` does not appear
+- [x] A staff user with **no membership** in tenant `T` does not appear
       as a candidate in tenant `T`'s member-only group picker.
-- [ ] A plain tenant member never appears as a candidate for a
+- [x] A plain tenant member never appears as a candidate for a
       staff-only group's picker.
-- [ ] The same staff user appears in tenant `T`'s member-only group
+- [x] The same staff user appears in tenant `T`'s member-only group
       picker and is absent from tenant `U`'s member-only group picker
       in the same test scenario, confirming per-tenant (not global)
       eligibility.
-- [ ] A `STAFF_ADMIN` viewer can list and open a group (staff-only or
+- [x] A `STAFF_ADMIN` viewer can list and open a group (staff-only or
       member-only, any tenant) they are **not** a participant of.
-- [ ] A `MEMBER_ADMIN` viewer can list and open a member-only group
+- [x] A `MEMBER_ADMIN` viewer can list and open a member-only group
       belonging to a tenant where they currently hold `MEMBER_ADMIN`,
       even when they are **not** a participant of that group.
-- [ ] A `MEMBER_ADMIN` viewer cannot list or open a member-only group
+- [x] A `MEMBER_ADMIN` viewer cannot list or open a member-only group
       belonging to a tenant where they do **not** currently hold
       `MEMBER_ADMIN`.
-- [ ] A `MEMBER_ADMIN` viewer never sees a staff-only group in their
+- [x] A `MEMBER_ADMIN` viewer never sees a staff-only group in their
       conversations list, and a direct attempt to open one is rejected.
-- [ ] Neither a `STAFF_ADMIN` nor a `MEMBER_ADMIN` can list or open a
+- [x] Neither a `STAFF_ADMIN` nor a `MEMBER_ADMIN` can list or open a
       1:1 conversation they are not a participant of — verified
       explicitly for both roles, confirming the oversight override
       never extends to 1:1s.
-- [ ] **After a `STAFF_ADMIN` or an in-scope `MEMBER_ADMIN` opens a
+- [x] **After a `STAFF_ADMIN` or an in-scope `MEMBER_ADMIN` opens a
       group via the look-in override, that group's displayed
       participant/member list is unchanged** — the admin does not
       appear in it (as rendered both to the admin themself and to the
       group's genuine participants), and the screen presents the
       admin's presence with distinct "looking in" copy/labeling, never
       "joined" framing.
-- [ ] All participant names shown anywhere in this feature are profile
+- [x] All participant names shown anywhere in this feature are profile
       nicknames.
-- [ ] A member with no open ticket sees a "start support ticket"
+- [x] A member with no open ticket sees a "start support ticket"
       action; a member with an open ticket sees that ticket's thread
       instead.
-- [ ] A staff user with the support permission sees an inbox of
+- [x] A staff user with the support permission sees an inbox of
       unclaimed tickets and can claim one, after which they can send
       messages in it.
-- [ ] After claiming a ticket, the staff user can see the member's
+- [x] After claiming a ticket, the staff user can see the member's
       full prior support history (other tickets), not only the new
       ticket's messages.
-- [ ] A staff user who is not the assigned staff sees the channel
+- [x] A staff user who is not the assigned staff sees the channel
       read-only (no composer) once a ticket is assigned to someone
       else.
-- [ ] Transferring a ticket moves composer access and full-history
+- [x] Transferring a ticket moves composer access and full-history
       visibility from the old to the new assignee.
-- [ ] A closed ticket shows a closed badge, has no composer, and has no
+- [x] A closed ticket shows a closed badge, has no composer, and has no
       reopen action anywhere in the UI.
-- [ ] A tenant member with the support-view permission can open and
+- [x] A tenant member with the support-view permission can open and
       read another member's support history.
-- [ ] Opening a conversation/channel with more messages than fit in one
+- [x] Opening a conversation/channel with more messages than fit in one
       page shows only the first page initially, with a working
       "load more"/scroll-triggered action that fetches older messages
       without re-fetching or duplicating already-loaded ones.
-- [ ] A failed older-messages fetch shows a retry action and does not
+- [x] A failed older-messages fetch shows a retry action and does not
       remove already-loaded messages from view.
 
 ## Out of scope
