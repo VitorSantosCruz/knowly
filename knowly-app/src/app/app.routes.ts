@@ -13,6 +13,9 @@ import { rootRedirectGuard } from './core/root-redirect.guard';
 import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
 import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
 import { ProfileEditRequestsInboxPageComponent } from './features/profile-edit-requests/profile-edit-requests-inbox-page.component';
+import { ChatPageComponent } from './features/chat/chat-page.component';
+import { ConversationDetailComponent } from './features/chat/conversation-detail.component';
+import { NewConversationDialogComponent } from './features/chat/new-conversation-dialog.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
@@ -54,6 +57,17 @@ export const routes: Routes = [
     path: 'articles',
     component: ArticlesPageComponent,
     canActivate: [tenantSelectionGuard],
+  },
+  // No guard: REQ-1 makes peer messaging available to "any staff or tenant member... regardless
+  // of role", and STAFF_ADMIN oversight (REQ-7) spans every tenant, which only works for a
+  // staff session with no single active tenant selected.
+  {
+    path: 'chat',
+    component: ChatPageComponent,
+    children: [
+      { path: 'new', component: NewConversationDialogComponent },
+      { path: ':conversationId', component: ConversationDetailComponent },
+    ],
   },
   {
     path: '',
