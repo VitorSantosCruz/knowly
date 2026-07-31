@@ -26,8 +26,17 @@ security), including this subproject's own section.
 4. Implement task by task following TDAD: test first (Red), then minimal
    code (Green), then `npm test`.
 5. Before considering a task done, run `npm run format` and
-   `npm run format:check && npm test && npm run build` — that's what CI
-   checks.
+   `npm run format:check && npm test && npm run build && npm run lint`
+   — that's what CI checks. **`npm run lint` is mandatory, not
+   optional** — it was added after ESLint (with security lint rules)
+   landed in CI (`f4c2b36`) and is easy to silently skip since it's not
+   part of the older `format:check && test && build` habit. A real
+   feature (`internal-team-chat`, 2026-07-31) shipped and passed every
+   other check while carrying 5 real lint errors (unused imports, an
+   empty test callback, constructor injection instead of `inject()`)
+   that nobody ran `npm run lint` to catch until asked explicitly —
+   don't repeat that: run all four commands, every time, before calling
+   a task or feature done.
 6. **Commit it.** A task isn't done at green tests — it's done once it's
    committed (Conventional Commits, see the root `constitution.md`'s
    "Commits and branches"). This is a standing, pre-authorized instruction

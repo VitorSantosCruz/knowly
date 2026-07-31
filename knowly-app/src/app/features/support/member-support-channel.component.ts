@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, input, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { SupportService } from '../../core/support.service';
 import { MessageThreadComponent } from '../../shared/chat/message-thread.component';
@@ -71,7 +71,7 @@ export class MemberSupportChannelComponent implements OnInit {
 
   protected readonly openTicketError = signal(false);
 
-  constructor(protected readonly supportService: SupportService) {}
+  protected readonly supportService = inject(SupportService);
 
   protected readonly entry = computed(() =>
     this.supportService.entryOf(this.tenantId(), this.memberUserId()),

@@ -181,7 +181,11 @@ describe('ChatService', () => {
   it('marks a message failed on send error, without removing it, and retry clears the flag', () => {
     seedOpenConversation(1);
 
-    service.sendMessage(1, 'hello', 'local-1').subscribe({ error: () => {} });
+    service.sendMessage(1, 'hello', 'local-1').subscribe({
+      error: () => {
+        // expected: the service surfaces the error via message sendState, not a rethrow assertion here.
+      },
+    });
     httpMock
       .expectOne('/api/chat/conversations/1/messages')
       .flush('boom', { status: 500, statusText: 'err' });
