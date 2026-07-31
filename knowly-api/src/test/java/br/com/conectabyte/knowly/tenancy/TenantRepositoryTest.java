@@ -3,9 +3,13 @@ package br.com.conectabyte.knowly.tenancy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.metrics.DailyCountProjection;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -61,5 +65,67 @@ class TenantRepositoryTest {
         long count = tenantRepository.countByCreatedAtGreaterThanEqual(farFuture);
 
         assertThat(count).isZero();
+    }
+
+    // --- specify/features/global-staff-dashboard-trends/SPEC.md REQ-2a/4/11: cross-tenant,
+    // day-bucketed and windowed counts for the trends endpoint ---
+
+    @Test
+    void countTenantsByDaySinceReturnsRowsSortedChronologicallyAcrossAllTenants() {
+        Instant cutoff = Instant.now().minus(3, ChronoUnit.DAYS);
+        Tenant dayOne = tenantRepository.saveAndFlush(new Tenant("Day One Co"));
+        backdateTenant(dayOne, cutoff.plus(1, ChronoUnit.HOURS));
+        Tenant dayTwo = tenantRepository.saveAndFlush(new Tenant("Day Two Co"));
+        backdateTenant(dayTwo, cutoff.plus(1, ChronoUnit.DAYS));
+        Tenant beforeCutoff = tenantRepository.saveAndFlush(new Tenant("Before Cutoff Trend Co"));
+        backdateTenant(beforeCutoff, cutoff.minus(1, ChronoUnit.DAYS));
+
+        List<DailyCountProjection> rows = tenantRepository.countTenantsByDaySince(cutoff);
+
+        assertThat(rows)
+                .extracting(DailyCountProjection::getDay)
+                .contains(
+                        LocalDate.ofInstant(cutoff.plus(1, ChronoUnit.HOURS), ZoneOffset.UTC),
+                        LocalDate.ofInstant(cutoff.plus(1, ChronoUnit.DAYS), ZoneOffset.UTC));
+        assertThat(rows)
+                .extracting(DailyCountProjection::getDay)
+                .doesNotContain(LocalDate.ofInstant(beforeCutoff.getCreatedAt(), ZoneOffset.UTC));
+        assertThat(rows).isSortedAccordingTo(java.util.Comparator.comparing(r -> r.getDay()));
+    }
+
+    @Test
+    void countTenantsByDayReturnsAllRowsWithNoLowerBound() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("All Time Trend Co"));
+
+        List<DailyCountProjection> rows = tenantRepository.countTenantsByDay();
+
+        assertThat(rows).isNotEmpty();
+        assertThat(rows)
+                .extracting(DailyCountProjection::getDay)
+                .contains(LocalDate.ofInstant(tenant.getCreatedAt(), ZoneOffset.UTC));
+    }
+
+    @Test
+    void countByCreatedAtWindowRespectsHalfOpenBounds() {
+        Instant windowStart = Instant.now().minus(10, ChronoUnit.DAYS);
+        Instant windowEnd = Instant.now().minus(5, ChronoUnit.DAYS);
+
+        Tenant insideWindow = tenantRepository.saveAndFlush(new Tenant("Inside Window Co"));
+        backdateTenant(insideWindow, windowStart.plus(1, ChronoUnit.HOURS));
+
+        Tenant atLowerBound = tenantRepository.saveAndFlush(new Tenant("At Lower Bound Co"));
+        backdateTenant(atLowerBound, windowStart);
+
+        Tenant atUpperBound = tenantRepository.saveAndFlush(new Tenant("At Upper Bound Co"));
+        backdateTenant(atUpperBound, windowEnd);
+
+        Tenant outsideWindow = tenantRepository.saveAndFlush(new Tenant("Outside Window Co"));
+        backdateTenant(outsideWindow, windowEnd.plus(1, ChronoUnit.HOURS));
+
+        long count =
+                tenantRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        windowStart, windowEnd);
+
+        assertThat(count).isEqualTo(2);
     }
 }

@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import org.hibernate.envers.AuditReaderFactory;
@@ -26,6 +29,15 @@ class UserRepositoryTest {
     @Autowired private EntityManager entityManager;
 
     @Autowired private PlatformTransactionManager transactionManager;
+
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    private void backdateUser(User user, Instant createdAt) {
+        jdbcTemplate.update(
+                "update users set created_at = ? where id = ?",
+                Timestamp.from(createdAt),
+                user.getId());
+    }
 
     @Test
     void findsUserByEmailIgnoringCase() {
@@ -143,5 +155,48 @@ class UserRepositoryTest {
         long count = userRepository.countByGlobalRoleIn(List.of());
 
         assertThat(count).isZero();
+    }
+
+    // --- specify/features/global-staff-dashboard-trends/SPEC.md REQ-4/11: windowed staff-count
+    // comparison for the global trends endpoint ---
+
+    @Test
+    void countByGlobalRoleInAndCreatedAtWindowRespectsHalfOpenBoundsAndRoleFilter() {
+        Instant windowStart = Instant.now().minus(10, ChronoUnit.DAYS);
+        Instant windowEnd = Instant.now().minus(5, ChronoUnit.DAYS);
+
+        User staffInsideWindow =
+                userRepository.saveAndFlush(new User("staff-window-in@example.com"));
+        staffInsideWindow.setGlobalRole(GlobalRole.STAFF);
+        userRepository.saveAndFlush(staffInsideWindow);
+        backdateUser(staffInsideWindow, windowStart.plus(1, ChronoUnit.HOURS));
+
+        User staffAdminAtLowerBound =
+                userRepository.saveAndFlush(new User("staff-admin-window-lower@example.com"));
+        staffAdminAtLowerBound.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdminAtLowerBound);
+        backdateUser(staffAdminAtLowerBound, windowStart);
+
+        User staffAtUpperBound =
+                userRepository.saveAndFlush(new User("staff-window-upper@example.com"));
+        staffAtUpperBound.setGlobalRole(GlobalRole.STAFF);
+        userRepository.saveAndFlush(staffAtUpperBound);
+        backdateUser(staffAtUpperBound, windowEnd);
+
+        User staffOutsideWindow =
+                userRepository.saveAndFlush(new User("staff-window-out@example.com"));
+        staffOutsideWindow.setGlobalRole(GlobalRole.STAFF);
+        userRepository.saveAndFlush(staffOutsideWindow);
+        backdateUser(staffOutsideWindow, windowEnd.plus(1, ChronoUnit.HOURS));
+
+        User plainInsideWindow =
+                userRepository.saveAndFlush(new User("plain-window-in@example.com"));
+        backdateUser(plainInsideWindow, windowStart.plus(1, ChronoUnit.HOURS));
+
+        long count =
+                userRepository.countByGlobalRoleInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN), windowStart, windowEnd);
+
+        assertThat(count).isEqualTo(2);
     }
 }

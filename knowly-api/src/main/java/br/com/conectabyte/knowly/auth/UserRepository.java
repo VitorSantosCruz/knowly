@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.auth;
 
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             List<GlobalRole> globalRoles, String email);
 
     long countByGlobalRoleIn(List<GlobalRole> globalRoles);
+
+    long countByGlobalRoleInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            List<GlobalRole> globalRoles, Instant from, Instant to);
 }
