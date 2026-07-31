@@ -5,6 +5,28 @@ import { provideTransloco } from '@jsverse/transloco';
 import { GlobalDashboardPageComponent } from './global-dashboard-page.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 
+const METRICS_URL = '/api/staff/metrics/global';
+const TRENDS_URL = '/api/staff/metrics/global/trends';
+
+const SAMPLE_METRICS = {
+  tenantCount: 12,
+  newTenantsThisMonth: 3,
+  articlesReadTotal: 999,
+  staffCount: 7,
+};
+
+function sampleTrends(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    newTenantsPerDay: [{ date: '2026-07-01', count: 3 }],
+    articlesReadPerDay: [{ date: '2026-07-01', count: 10 }],
+    totalTenants: { current: 12, previous: 10, percentChange: 20 },
+    newTenants: { current: 3, previous: 2, percentChange: 50 },
+    totalArticlesRead: { current: 999, previous: 900, percentChange: 11 },
+    staffCount: { current: 7, previous: 6, percentChange: 16.7 },
+    ...overrides,
+  };
+}
+
 describe('GlobalDashboardPageComponent', () => {
   let fixture: ComponentFixture<GlobalDashboardPageComponent>;
   let httpMock: HttpTestingController;
@@ -30,15 +52,12 @@ describe('GlobalDashboardPageComponent', () => {
     httpMock.verify();
   });
 
-  it('renders 4 populated tiles plus 1 disabled tile after a successful fetch', () => {
+  it('renders 4 populated stat cards plus 1 disabled tile after a successful fetch', () => {
     fixture.detectChanges();
 
-    httpMock.expectOne('/api/staff/metrics/global').flush({
-      tenantCount: 12,
-      newTenantsThisMonth: 3,
-      articlesReadTotal: 999,
-      staffCount: 7,
-    });
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === TRENDS_URL).flush(sampleTrends());
     fixture.detectChanges();
 
     expect(
@@ -56,7 +75,7 @@ describe('GlobalDashboardPageComponent', () => {
     expect(
       fixture.nativeElement
         .querySelector('[data-testid="support-tickets-tile"]')
-        .querySelector('[data-testid="metric-tile-coming-soon"]'),
+        .querySelector('[data-testid="stat-card-coming-soon"]'),
     ).toBeTruthy();
   });
 
@@ -64,7 +83,7 @@ describe('GlobalDashboardPageComponent', () => {
     fixture.detectChanges();
 
     httpMock
-      .expectOne('/api/staff/metrics/global')
+      .expectOne((r) => r.url === METRICS_URL)
       .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
 
@@ -78,10 +97,119 @@ describe('GlobalDashboardPageComponent', () => {
     fixture.detectChanges();
 
     httpMock
-      .expectOne('/api/staff/metrics/global')
+      .expectOne((r) => r.url === METRICS_URL)
       .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="error-state"]')).toBeTruthy();
+  });
+
+  it('REQ-7: never attempts /trends when /global itself fails', () => {
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne((r) => r.url === METRICS_URL)
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    httpMock.expectNone(TRENDS_URL);
+  });
+
+  it('REQ-8: metrics succeeds, trends fails -> cards show current values with no badge, charts show error state', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock
+      .expectOne((r) => r.url === TRENDS_URL)
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="tenant-count-tile"]').textContent).toContain('12');
+    expect(el.querySelectorAll('[data-testid="stat-card-badge"]').length).toBe(0);
+    expect(el.querySelectorAll('[data-testid="error-state"]').length).toBeGreaterThanOrEqual(2);
+    expect(el.querySelector('[data-testid="global-dashboard-page"]')).toBeTruthy();
+  });
+
+  it('REQ-9: period=all shows no badges even when the backend sends a non-null percentChange', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === TRENDS_URL).flush(sampleTrends());
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="period-option-all"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne((r) => r.url === TRENDS_URL && r.params.get('period') === 'all')
+      .flush(sampleTrends());
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="stat-card-badge"]').length).toBe(
+      0,
+    );
+  });
+
+  it('REQ-10: a metric with percentChange null renders that card with no badge, others with theirs', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock
+      .expectOne((r) => r.url === TRENDS_URL)
+      .flush(sampleTrends({ newTenants: { current: 3, previous: 0, percentChange: null } }));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    expect(
+      el
+        .querySelector('[data-testid="new-tenants-tile"]')
+        .querySelector('[data-testid="stat-card-badge"]'),
+    ).toBeFalsy();
+    expect(
+      el
+        .querySelector('[data-testid="tenant-count-tile"]')
+        .querySelector('[data-testid="stat-card-badge"]'),
+    ).toBeTruthy();
+  });
+
+  it('changing the period triggers exactly one new /trends request and none to /global', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock
+      .expectOne((r) => r.url === TRENDS_URL && r.params.get('period') === '30d')
+      .flush(sampleTrends());
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="period-option-7d"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne((r) => r.url === TRENDS_URL && r.params.get('period') === '7d')
+      .flush(sampleTrends());
+    httpMock.expectNone(METRICS_URL);
+  });
+
+  it('renders the two trend charts and the coming-soon tile as a disabled stat card', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === TRENDS_URL).flush(sampleTrends());
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    expect(el.querySelector('app-new-tenants-trend-chart')).toBeTruthy();
+    expect(el.querySelector('app-articles-read-trend-chart')).toBeTruthy();
+    expect(
+      el
+        .querySelector('[data-testid="support-tickets-tile"]')
+        .querySelector('[data-testid="stat-card-coming-soon"]'),
+    ).toBeTruthy();
   });
 });
