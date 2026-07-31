@@ -15,6 +15,8 @@ import br.com.conectabyte.knowly.conversation.MessageArticleCitation;
 import br.com.conectabyte.knowly.conversation.MessageArticleCitationRepository;
 import br.com.conectabyte.knowly.conversation.MessageRepository;
 import br.com.conectabyte.knowly.conversation.MessageRole;
+import br.com.conectabyte.knowly.metrics.DailyCountDto;
+import br.com.conectabyte.knowly.metrics.MetricsPeriod;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrant;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrantRepository;
 import br.com.conectabyte.knowly.tenancy.GlobalPermission;
@@ -231,6 +233,156 @@ class GlobalMetricsServiceTest {
 
         assertThatThrownBy(globalMetricsService::globalMetrics)
                 .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // --- specify/features/global-staff-dashboard-trends/SPEC.md REQ-2/3/4/5/6 ---
+
+    private void backdateCitation(MessageArticleCitation citation, Instant createdAt) {
+        jdbcTemplate.update(
+                "update message_article_citations set created_at = ? where id = ?",
+                Timestamp.from(createdAt),
+                citation.getId());
+    }
+
+    private MessageArticleCitation citationAt(Instant createdAt) {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Trends Citation Co"));
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(
+                                tenant,
+                                "Trends Article",
+                                "key-" + System.nanoTime(),
+                                "file.pdf",
+                                "application/pdf"));
+        User owner =
+                userRepository.saveAndFlush(
+                        new User("trends-citation-owner-" + System.nanoTime() + "@example.com"));
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner));
+        Message message =
+                messageRepository.saveAndFlush(
+                        new Message(conversation, MessageRole.ASSISTANT, "hi"));
+        MessageArticleCitation citation =
+                messageArticleCitationRepository.saveAndFlush(
+                        new MessageArticleCitation(message, article));
+        backdateCitation(citation, createdAt);
+        return citation;
+    }
+
+    private void setUpStaffAdminActor(String email) {
+        staffAdmin(email);
+        authenticateAs(email);
+        tenantContext.setStaffAdmin(true);
+    }
+
+    @Test
+    void globalTrendsZeroFillsBothSeriesForSevenDays() {
+        setUpStaffAdminActor("trends-zero-fill@example.com");
+
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Trends Zero Fill Co"));
+        backdateTenant(tenant, FIXED_NOW.minus(2, ChronoUnit.DAYS));
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.SEVEN_DAYS);
+
+        assertThat(result.newTenantsPerDay()).hasSize(7);
+        assertThat(result.newTenantsPerDay())
+                .extracting(DailyCountDto::count)
+                .contains(0L); // at least one zero-filled day with no new tenant
+        assertThat(result.articlesReadPerDay()).hasSize(7);
+        assertThat(result.articlesReadPerDay()).allMatch(day -> day.count() == 0L);
+    }
+
+    @Test
+    void globalTrendsForAllReturnsOnlyDaysWithRowsSortedChronologically() {
+        setUpStaffAdminActor("trends-all-days@example.com");
+
+        Tenant older = tenantRepository.saveAndFlush(new Tenant("Trends All Older Co"));
+        backdateTenant(older, FIXED_NOW.minus(40, ChronoUnit.DAYS));
+        Tenant newer = tenantRepository.saveAndFlush(new Tenant("Trends All Newer Co"));
+        backdateTenant(newer, FIXED_NOW.minus(10, ChronoUnit.DAYS));
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.ALL);
+
+        assertThat(result.newTenantsPerDay()).allMatch(day -> day.count() > 0);
+        assertThat(result.newTenantsPerDay())
+                .isSortedAccordingTo(java.util.Comparator.comparing(DailyCountDto::date));
+    }
+
+    @Test
+    void globalTrendsComputesPercentChangeAcrossCases() {
+        setUpStaffAdminActor("trends-percent-change@example.com");
+
+        Instant currentStart = FIXED_NOW.minus(30, ChronoUnit.DAYS);
+        Instant previousStart = currentStart.minus(30, ChronoUnit.DAYS);
+
+        // current > previous: 2 tenants in current window, 1 in previous window.
+        Tenant currentA = tenantRepository.saveAndFlush(new Tenant("Trends Current A Co"));
+        backdateTenant(currentA, currentStart.plus(1, ChronoUnit.HOURS));
+        Tenant currentB = tenantRepository.saveAndFlush(new Tenant("Trends Current B Co"));
+        backdateTenant(currentB, currentStart.plus(2, ChronoUnit.HOURS));
+        Tenant previousA = tenantRepository.saveAndFlush(new Tenant("Trends Previous A Co"));
+        backdateTenant(previousA, previousStart.plus(1, ChronoUnit.HOURS));
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.THIRTY_DAYS);
+
+        assertThat(result.totalTenants().current()).isGreaterThanOrEqualTo(2);
+        assertThat(result.totalTenants().previous()).isNotNull();
+        assertThat(result.totalTenants().percentChange()).isNotNull();
+    }
+
+    @Test
+    void globalTrendsReturnsNullPreviousAndPercentChangeForAllPeriod() {
+        setUpStaffAdminActor("trends-all-null-comparison@example.com");
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.ALL);
+
+        assertThat(result.totalTenants().previous()).isNull();
+        assertThat(result.totalTenants().percentChange()).isNull();
+        assertThat(result.newTenants().previous()).isNull();
+        assertThat(result.newTenants().percentChange()).isNull();
+        assertThat(result.totalArticlesRead().previous()).isNull();
+        assertThat(result.totalArticlesRead().percentChange()).isNull();
+        assertThat(result.staffCount().previous()).isNull();
+        assertThat(result.staffCount().percentChange()).isNull();
+    }
+
+    @Test
+    void globalTrendsReturnsNullPercentChangeWhenPreviousWindowIsZeroAndCurrentIsPositive() {
+        setUpStaffAdminActor("trends-zero-previous@example.com");
+
+        Instant currentStart = FIXED_NOW.minus(7, ChronoUnit.DAYS);
+        citationAt(currentStart.plus(1, ChronoUnit.HOURS));
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.SEVEN_DAYS);
+
+        assertThat(result.totalArticlesRead().current()).isGreaterThan(0);
+        assertThat(result.totalArticlesRead().previous()).isZero();
+        assertThat(result.totalArticlesRead().percentChange()).isNull();
+    }
+
+    @Test
+    void previousWindowStartComputesNonOverlappingBoundsForBoundedPeriods() {
+        Instant currentStart = FIXED_NOW.minus(30, ChronoUnit.DAYS);
+
+        Instant sevenDaysPrevious =
+                globalMetricsService.previousWindowStart(
+                        MetricsPeriod.SEVEN_DAYS,
+                        currentStart,
+                        Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
+        Instant thirtyDaysPrevious =
+                globalMetricsService.previousWindowStart(
+                        MetricsPeriod.THIRTY_DAYS,
+                        currentStart,
+                        Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
+        Instant ninetyDaysPrevious =
+                globalMetricsService.previousWindowStart(
+                        MetricsPeriod.NINETY_DAYS,
+                        currentStart,
+                        Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
+
+        assertThat(sevenDaysPrevious).isEqualTo(currentStart.minus(7, ChronoUnit.DAYS));
+        assertThat(thirtyDaysPrevious).isEqualTo(currentStart.minus(30, ChronoUnit.DAYS));
+        assertThat(ninetyDaysPrevious).isEqualTo(currentStart.minus(90, ChronoUnit.DAYS));
     }
 
     @TestConfiguration
