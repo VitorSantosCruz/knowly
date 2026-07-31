@@ -14,11 +14,14 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -40,7 +43,24 @@ class StaffRbacIntegrationTest {
     @Autowired private GlobalAccessGroupPermissionRepository globalAccessGroupPermissionRepository;
     @Autowired private UserGlobalAccessGroupRepository userGlobalAccessGroupRepository;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private TenantRepository tenantRepository;
+    @Autowired private TenantMembershipRepository tenantMembershipRepository;
+    @Autowired private AccessGroupRepository accessGroupRepository;
+    @Autowired private StringRedisTemplate redisTemplate;
     @MockitoBean private JavaMailSender mailSender;
+
+    // This class logs in many users across many @Test methods, all from MockMvc's shared
+    // loopback "IP". CaptchaService's login velocity counters are keyed by IP and persist in the
+    // shared Testcontainers Redis for the whole class run, so without resetting them per test,
+    // enough tests in this class trip the real CAPTCHA_REQUIRED velocity guard (a false failure
+    // unrelated to what's under test here).
+    @BeforeEach
+    void resetLoginVelocityCounters() {
+        Set<String> keys = redisTemplate.keys("auth:login-velocity:*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
 
     private Cookie logIn(String email) {
         when(mailSender.createMimeMessage())
@@ -202,5 +222,366 @@ class StaffRbacIntegrationTest {
         assertThat(events).isNotEmpty();
         assertThat(events.get(0).getAction()).isEqualTo("staff.permission.grant");
         assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+    }
+
+    private void grantGlobalPermission(User user, GlobalPermission permission) {
+        directGlobalPermissionGrantRepository.saveAndFlush(
+                new DirectGlobalPermissionGrant(user, permission));
+    }
+
+    // The 9 remaining call sites gated by requireAdminOfTenantOrStaff, individually confirmed here
+    // (staff-rbac-split TASKS.md task 6 gap): each already goes through requireStaff/
+    // requireAdminOfTenantOrStaff exercised above via createTenant/listAllTenants, but
+    // per-call-site
+    // parameterization by a distinct GlobalPermission constant means each needs its own coverage.
+
+    @Test
+    void addMemberIsGatedByTenantMemberManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Add Member Co"));
+        limitedStaff("nogrant-addmember@example.com");
+        Cookie noGrantSession = logIn("nogrant-addmember@example.com");
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(noGrantSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"newmember@example.com\",\"role\":\"MEMBER\"}")
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-addmember@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-addmember@example.com");
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(grantedSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"newmember2@example.com\",\"role\":\"MEMBER\"}")
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void removeMemberIsGatedByTenantMemberManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Member Co"));
+        User member = userRepository.saveAndFlush(new User("removable@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        limitedStaff("nogrant-removemember@example.com");
+        Cookie noGrantSession = logIn("nogrant-removemember@example.com");
+
+        var deniedResponse =
+                mockMvc.delete()
+                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-removemember@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-removemember@example.com");
+
+        var allowedResponse =
+                mockMvc.delete()
+                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void listMembersIsGatedByTenantMemberManageAny() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Members Co"));
+        User member = userRepository.saveAndFlush(new User("listable@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        limitedStaff("nogrant-listmembers@example.com");
+        Cookie noGrantSession = logIn("nogrant-listmembers@example.com");
+
+        var deniedResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-listmembers@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-listmembers@example.com");
+
+        var allowedResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+        assertThat(allowedResponse.getResponse().getContentAsString())
+                .contains("listable@example.com");
+    }
+
+    @Test
+    void createAccessGroupIsGatedByTenantAccessGroupManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Create Group Co"));
+
+        limitedStaff("nogrant-creategroup@example.com");
+        Cookie noGrantSession = logIn("nogrant-creategroup@example.com");
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                        .cookie(noGrantSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Editors\"}")
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-creategroup@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-creategroup@example.com");
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                        .cookie(grantedSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Editors\"}")
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void listAccessGroupsIsGatedByTenantAccessGroupManageAny() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Groups Co"));
+        accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Reviewers"));
+
+        limitedStaff("nogrant-listgroups@example.com");
+        Cookie noGrantSession = logIn("nogrant-listgroups@example.com");
+
+        var deniedResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-listgroups@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-listgroups@example.com");
+
+        var allowedResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/access-groups")
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+        assertThat(allowedResponse.getResponse().getContentAsString()).contains("Reviewers");
+    }
+
+    @Test
+    void grantPermissionIsGatedByTenantPermissionGrantManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Grant Perm Co"));
+        User member = userRepository.saveAndFlush(new User("grantee@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        limitedStaff("nogrant-grantperm@example.com");
+        Cookie noGrantSession = logIn("nogrant-grantperm@example.com");
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/permissions")
+                        .cookie(noGrantSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-grantperm@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-grantperm@example.com");
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/permissions")
+                        .cookie(grantedSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void revokePermissionIsGatedByTenantPermissionGrantManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Perm Co"));
+        User member = userRepository.saveAndFlush(new User("revokee@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        limitedStaff("nogrant-revokeperm@example.com");
+        Cookie noGrantSession = logIn("nogrant-revokeperm@example.com");
+
+        var deniedResponse =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/permissions/TENANT_MEMBER_MANAGE")
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-revokeperm@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-revokeperm@example.com");
+
+        var allowedResponse =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/permissions/TENANT_MEMBER_MANAGE")
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void assignAccessGroupIsGatedByTenantPermissionGrantManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Assign Group Co"));
+        User member = userRepository.saveAndFlush(new User("assignee@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        AccessGroup accessGroup =
+                accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Assignable Group"));
+
+        limitedStaff("nogrant-assigngroup@example.com");
+        Cookie noGrantSession = logIn("nogrant-assigngroup@example.com");
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId())
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-assigngroup@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-assigngroup@example.com");
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId())
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void unassignAccessGroupIsGatedByTenantPermissionGrantManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Unassign Group Co"));
+        User member = userRepository.saveAndFlush(new User("unassignee@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        AccessGroup accessGroup =
+                accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Unassignable Group"));
+
+        limitedStaff("nogrant-unassigngroup@example.com");
+        Cookie noGrantSession = logIn("nogrant-unassigngroup@example.com");
+
+        var deniedResponse =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId())
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-unassigngroup@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-unassigngroup@example.com");
+
+        var allowedResponse =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId())
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void getMemberDetailIsGatedByTenantPermissionGrantManageAny() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Member Detail Co"));
+        User member = userRepository.saveAndFlush(new User("detailed@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        limitedStaff("nogrant-memberdetail@example.com");
+        Cookie noGrantSession = logIn("nogrant-memberdetail@example.com");
+
+        var deniedResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-memberdetail@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-memberdetail@example.com");
+
+        var allowedResponse =
+                mockMvc.get()
+                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .cookie(grantedSession)
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }
 }

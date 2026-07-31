@@ -33,18 +33,15 @@
       updated per PLAN.md (STAFF_ADMIN unconditional, STAFF gated by the
       matching `GlobalPermission`), applied consistently to every call
       site listed in PLAN.md. Covered by `StaffRbacIntegrationTest`
-      against `createTenant`/`listAllTenants` specifically (including
-      cross-permission independence: a `TENANT_CREATE`-only grant is
-      rejected from `listAllTenants`, which needs `TENANT_ACT_AS_ANY`).
-      **Not individually re-tested** for the other 9 call sites
+      against `createTenant`/`listAllTenants` (including cross-permission
+      independence: a `TENANT_CREATE`-only grant is rejected from
+      `listAllTenants`, which needs `TENANT_ACT_AS_ANY`), **and now also
+      individually against the other 10 call sites**
       (`addMember`/`removeMember`/`listMembers`/`createAccessGroup`/
       `listAccessGroups`/`grantPermission`/`revokePermission`/
-      `assignAccessGroup`/`unassignAccessGroup`/`getMemberDetail`) since
-      they all route through the same two shared, now-tested helper
-      methods, parameterized only by which `GlobalPermission` enum
-      constant is passed in — flagging this as a real (small, mechanical)
-      coverage gap rather than silently claiming full per-method tests
-      that don't exist.
+      `assignAccessGroup`/`unassignAccessGroup`/`getMemberDetail`) — each
+      with a denied-without-grant / allowed-with-the-matching-direct-grant
+      pair, closing the coverage gap previously flagged here.
 - [x] 7. Audit: `@AuditLog` on every new grant/revoke/group-management
       path. Test: expected `AuditEvent` recorded per action.
 - [x] 8. `StaffController` + DTOs (`/api/staff/**`, PLAN.md's API

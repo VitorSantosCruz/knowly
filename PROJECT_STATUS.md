@@ -176,16 +176,15 @@ The user confirmed this order for the next several features (2026-07-25):
    `GlobalAccessGroupPermission`/`DirectGlobalPermissionGrant`/
    `UserGlobalAccessGroup`, new `/api/staff/**` endpoints). The
    `staff-bootstrap-user` migration's row is mapped to `STAFF_ADMIN` by
-   `V14`'s data migration, per that decision. **Known small gap**: the
-   two shared gating helpers in `TenantService`
-   (`requireStaff`/`requireAdminOfTenantOrStaff`) are integration-tested
-   against 2 of their ~11 call sites (`createTenant`/`listAllTenants`);
-   the other 9 (`addMember`, `removeMember`, `listMembers`,
-   `createAccessGroup`, `listAccessGroups`, `grantPermission`,
-   `revokePermission`, `assignAccessGroup`, `unassignAccessGroup`,
-   `getMemberDetail`) route through the same tested helpers parameterized
-   by a different `GlobalPermission` enum constant, but aren't
-   individually re-tested — see `staff-rbac-split/TASKS.md` task 6.
+   `V14`'s data migration, per that decision. The two shared gating
+   helpers in `TenantService` (`requireStaff`/
+   `requireAdminOfTenantOrStaff`) are now integration-tested against all
+   11 call sites individually (`createTenant`/`listAllTenants` plus
+   `addMember`, `removeMember`, `listMembers`, `createAccessGroup`,
+   `listAccessGroups`, `grantPermission`, `revokePermission`,
+   `assignAccessGroup`, `unassignAccessGroup`, `getMemberDetail`) in
+   `StaffRbacIntegrationTest` — the previously known small test-coverage
+   gap (`staff-rbac-split/TASKS.md` task 6) is closed.
 3. ~~Login/provisioning flow completion~~ — done, see
    `knowly-api/specify/features/staff-user-provisioning/`. New
    `GlobalPermission.STAFF_USER_CREATE` (independent from
@@ -632,7 +631,7 @@ the feature's own SPEC.
 | `api-documentation` | ✅ Done | OpenAPI/Swagger exposure. |
 | `tags-crud` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format. Don't build it unless explicitly asked to turn it into a real feature. |
 | `staff-bootstrap-user` | ✅ Done | One migration-created staff `User` (email via required `KNOWLY_BOOTSTRAP_STAFF_EMAIL` env var, no password) so a fresh deployment has a first login via the existing login-code flow. No new mechanism, no freeze/expiry — see SPEC's "Out of scope" for why. |
-| `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. Small known test-coverage gap — see "Next up" above. |
+| `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. All 11 `requireStaff`/`requireAdminOfTenantOrStaff` call sites now have dedicated `StaffRbacIntegrationTest` coverage (previous known gap closed). |
 | `staff-user-provisioning` | ✅ Done | `POST /api/staff/users` lets `STAFF_ADMIN` (or a granted `STAFF`) create a new `STAFF` user, gated by its own `GlobalPermission.STAFF_USER_CREATE`; emails a one-time password via the existing mechanism. Tenant member provisioning needed no change. |
 | `dashboard-analytics` | ✅ Done (backend) | Extends `metrics` with date-bucketed time-series (`/conversations/timeseries`, `/messages/timeseries`, `/articles/timeseries`, UTC calendar-day, zero-count days included), a tenant membership active/inactive snapshot (`/members`), `period` filtering (`7d`/`30d`/`90d`/`all`, default `all`) on every metrics endpoint via a new `MetricsPeriod` enum + `InvalidPeriodException`/`MetricsExceptionHandler`, and a hand-built CSV export (`/export`, no new dependency). All still `DASHBOARD_VIEW`-gated, tenant-isolated via `TenantFilter`. Frontend consuming these is a separate SPEC (`knowly-app/specify/features/dashboard-analytics/`). See `DECISIONS.md` for the UTC-bucketing rationale. |
 | `staff-user-listing` | ✅ Done | `GET /api/staff/users` (optional `?email=` case-insensitive substring filter) lists every `STAFF`/`STAFF_ADMIN` user, gated by new `GlobalPermission.STAFF_USER_VIEW` (independent of `STAFF_USER_CREATE`/management ceiling checks). `StaffController.listStaffUsers`/`StaffService.listStaffUsers`/`StaffUserSummaryDto` implemented and tested (`StaffUserListingIntegrationTest`). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
