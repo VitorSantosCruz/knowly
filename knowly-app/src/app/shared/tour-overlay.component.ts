@@ -17,11 +17,11 @@ import { TourService } from '../core/tour.service';
         #overlay
       >
         <div
-          class="enter-fluid absolute w-80 rounded-2xl border border-ink-200/70 bg-white p-6 shadow-xl dark:border-ink-800/70 dark:bg-ink-900"
+          class="enter-fluid absolute w-80 rounded-2xl border border-ink-200/70 bg-white p-6 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
           [style.top.px]="position().top"
           [style.left.px]="position().left"
         >
-          <h2 class="mb-2 text-lg font-semibold text-ink-900 dark:text-white">
+          <h2 class="font-display mb-2 text-lg font-semibold text-ink-900 dark:text-white">
             {{ step().titleKey | transloco }}
           </h2>
           <p class="mb-6 text-sm text-ink-600 dark:text-ink-300">
@@ -41,7 +41,7 @@ import { TourService } from '../core/tour.service';
                 <button
                   type="button"
                   data-testid="tour-back"
-                  class="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-ink-800"
+                  class="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-700 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-100 active:translate-y-0 active:scale-[0.98] dark:text-ink-200 dark:hover:bg-ink-800"
                   (click)="tourService.back()"
                 >
                   {{ 'tour.back' | transloco }}
@@ -50,7 +50,7 @@ import { TourService } from '../core/tour.service';
               <button
                 type="button"
                 data-testid="tour-next"
-                class="rounded-lg bg-ink-800 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
+                class="rounded-lg bg-ink-800 px-3 py-1.5 text-sm font-medium text-white shadow-sm shadow-ink-900/20 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-signal-600 hover:shadow-md active:translate-y-0 active:scale-[0.98] active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
                 (click)="tourService.next()"
               >
                 {{ isLastStep() ? ('tour.finish' | transloco) : ('tour.next' | transloco) }}

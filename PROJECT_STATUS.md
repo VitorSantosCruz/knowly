@@ -153,10 +153,15 @@ plan — `@lucide/angular` instead of the deprecated `lucide-angular`,
 and a `CHART_CTOR` injection token for deterministic Chart.js mocking
 across bundled specs). `primeng-migration`'s row below is superseded;
 its old follow-ups (Tailwind `cssLayer` integration, `tour-overlay` not
-migrated) are moot now that PrimeNG is gone, except `tour-overlay`
-itself was never touched by either pass and still needs its own look
-whenever the onboarding tour positioning is revisited. 221/221 frontend
+migrated) are moot now that PrimeNG is gone. 221/221 frontend
 tests, `format:check`, and `build` all green after the removal.
+**Follow-up (2026-07-30)** — `tour-overlay.component.ts` (the only
+screen left on the old look) now carries the "Ink & Signal" treatment:
+canonical card shadow (`shadow-lg shadow-ink-900/5 dark:shadow-none`),
+`font-display` on the step title, and the same primary-CTA hover
+lift/press feedback (`hover:-translate-y-0.5 hover:shadow-md
+active:translate-y-0 active:scale-[0.98]`) used on the welcome page's
+CTA button — pure visual/class change, no logic/testid/i18n touched.
 
 The user confirmed this order for the next several features (2026-07-25):
 
