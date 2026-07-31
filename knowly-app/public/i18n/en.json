@@ -228,5 +228,80 @@
     "reject": "Reject",
     "empty": "No pending requests.",
     "conflict": "This update conflicts with existing data on: {{fields}}."
+  },
+  "chat": {
+    "composer": {
+      "inputLabel": "Message",
+      "send": "Send"
+    },
+    "thread": {
+      "loadMore": "Load older messages",
+      "loading": "Loading…",
+      "loadError": "Failed to load older messages.",
+      "retry": "Retry",
+      "messages": "Messages",
+      "messageFrom": "Message from {{sender}}",
+      "pending": "Sending…",
+      "failed": "Failed to send.",
+      "retrySend": "Retry send"
+    },
+    "list": {
+      "title": "Conversations",
+      "empty": "No conversations yet.",
+      "newConversation": "New conversation",
+      "participants": "{{count}} participants",
+      "lookingInBadge": "Looking in as support/admin",
+      "lookingInAriaLabel": "You are viewing this group as support/admin oversight, not as a member"
+    },
+    "header": {
+      "lookingInBanner": "You're viewing this as support/admin oversight — you are not a member of this group.",
+      "lookingInAriaLabel": "Viewing as support/admin oversight, not as a member"
+    },
+    "newConversation": {
+      "title": "New conversation",
+      "modeDirect": "1:1",
+      "modeMemberGroup": "Member group",
+      "modeStaffGroup": "Staff group",
+      "tenantLabel": "Tenant",
+      "participantsLabel": "Participants",
+      "create": "Create",
+      "cancel": "Cancel",
+      "error": "Could not create this conversation. The selected participant may not be eligible."
+    },
+    "picker": {
+      "candidateAriaLabel": "Select {{nickname}}"
+    },
+    "error": {
+      "notFound": "This conversation isn't available to you."
+    }
+  },
+  "support": {
+    "member": {
+      "title": "Support",
+      "startTicket": "Start support ticket",
+      "openTicketError": "You already have an open ticket.",
+      "emptyState": "No support channel yet."
+    },
+    "inbox": {
+      "title": "Unclaimed tickets",
+      "claim": "Claim",
+      "empty": "No unclaimed tickets."
+    },
+    "channel": {
+      "transfer": "Transfer",
+      "close": "Close ticket",
+      "readOnly": "This ticket is assigned to another staff member; you can view it read-only.",
+      "transferLabel": "Transfer ticket",
+      "closeLabel": "Close ticket"
+    },
+    "status": {
+      "open": "Open",
+      "assigned": "Assigned",
+      "closed": "Closed"
+    },
+    "browse": {
+      "title": "Browse member support history",
+      "noAccess": "You don't have access to this."
+    }
   }
 }

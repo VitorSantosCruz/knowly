@@ -228,5 +228,80 @@
     "reject": "Rejeitar",
     "empty": "Nenhuma solicitação pendente.",
     "conflict": "Esta atualização conflita com dados já existentes em: {{fields}}."
+  },
+  "chat": {
+    "composer": {
+      "inputLabel": "Mensagem",
+      "send": "Enviar"
+    },
+    "thread": {
+      "loadMore": "Carregar mensagens antigas",
+      "loading": "Carregando…",
+      "loadError": "Falha ao carregar mensagens antigas.",
+      "retry": "Tentar novamente",
+      "messages": "Mensagens",
+      "messageFrom": "Mensagem de {{sender}}",
+      "pending": "Enviando…",
+      "failed": "Falha ao enviar.",
+      "retrySend": "Tentar reenviar"
+    },
+    "list": {
+      "title": "Conversas",
+      "empty": "Nenhuma conversa ainda.",
+      "newConversation": "Nova conversa",
+      "participants": "{{count}} participantes",
+      "lookingInBadge": "Visualizando como suporte/admin",
+      "lookingInAriaLabel": "Você está visualizando este grupo como supervisão de suporte/admin, não como membro"
+    },
+    "header": {
+      "lookingInBanner": "Você está visualizando isso como supervisão de suporte/admin — você não é membro deste grupo.",
+      "lookingInAriaLabel": "Visualizando como supervisão de suporte/admin, não como membro"
+    },
+    "newConversation": {
+      "title": "Nova conversa",
+      "modeDirect": "1:1",
+      "modeMemberGroup": "Grupo de membros",
+      "modeStaffGroup": "Grupo de staff",
+      "tenantLabel": "Tenant",
+      "participantsLabel": "Participantes",
+      "create": "Criar",
+      "cancel": "Cancelar",
+      "error": "Não foi possível criar esta conversa. O participante selecionado pode não ser elegível."
+    },
+    "picker": {
+      "candidateAriaLabel": "Selecionar {{nickname}}"
+    },
+    "error": {
+      "notFound": "Esta conversa não está disponível para você."
+    }
+  },
+  "support": {
+    "member": {
+      "title": "Suporte",
+      "startTicket": "Abrir chamado de suporte",
+      "openTicketError": "Você já possui um chamado em aberto.",
+      "emptyState": "Nenhum canal de suporte ainda."
+    },
+    "inbox": {
+      "title": "Chamados não atribuídos",
+      "claim": "Assumir",
+      "empty": "Nenhum chamado não atribuído."
+    },
+    "channel": {
+      "transfer": "Transferir",
+      "close": "Encerrar chamado",
+      "readOnly": "Este chamado está atribuído a outro membro do suporte; você pode apenas visualizar.",
+      "transferLabel": "Transferir chamado",
+      "closeLabel": "Encerrar chamado"
+    },
+    "status": {
+      "open": "Aberto",
+      "assigned": "Atribuído",
+      "closed": "Encerrado"
+    },
+    "browse": {
+      "title": "Ver histórico de suporte de membros",
+      "noAccess": "Você não tem acesso a isso."
+    }
   }
 }
