@@ -2,6 +2,8 @@ package br.com.conectabyte.knowly.tenancy;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.dto.DeleteConfirmationRequestDto;
+import br.com.conectabyte.knowly.deletion.dto.DeletionConfirmationTokenDto;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateGlobalAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateStaffUserRequestDto;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -101,10 +104,25 @@ public class StaffController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/users/{userId}/permissions/{permission}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generatePermissionRevocationDeletionConfirmationToken(
+                    @PathVariable Long userId,
+                    @PathVariable GlobalPermission permission,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        staffService.generatePermissionRevocationDeletionConfirmationToken(
+                                userId, permission, acceptLanguage)));
+    }
+
     @DeleteMapping("/users/{userId}/permissions/{permission}")
     public ResponseEntity<Void> revokePermission(
-            @PathVariable Long userId, @PathVariable GlobalPermission permission) {
-        staffService.revokePermission(userId, permission);
+            @PathVariable Long userId,
+            @PathVariable GlobalPermission permission,
+            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+        staffService.revokePermission(userId, permission, request.word());
         return ResponseEntity.ok().build();
     }
 
@@ -135,10 +153,25 @@ public class StaffController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/users/{userId}/access-groups/{accessGroupId}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generateAccessGroupUnassignmentDeletionConfirmationToken(
+                    @PathVariable Long userId,
+                    @PathVariable Long accessGroupId,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        staffService.generateAccessGroupUnassignmentDeletionConfirmationToken(
+                                userId, accessGroupId, acceptLanguage)));
+    }
+
     @DeleteMapping("/users/{userId}/access-groups/{accessGroupId}")
     public ResponseEntity<Void> unassignAccessGroup(
-            @PathVariable Long userId, @PathVariable Long accessGroupId) {
-        staffService.unassignAccessGroup(userId, accessGroupId);
+            @PathVariable Long userId,
+            @PathVariable Long accessGroupId,
+            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+        staffService.unassignAccessGroup(userId, accessGroupId, request.word());
         return ResponseEntity.ok().build();
     }
 

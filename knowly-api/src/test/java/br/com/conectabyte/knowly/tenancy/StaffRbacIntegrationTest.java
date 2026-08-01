@@ -9,6 +9,7 @@ import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
@@ -47,6 +48,7 @@ class StaffRbacIntegrationTest {
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
     @Autowired private AccessGroupRepository accessGroupRepository;
     @Autowired private StringRedisTemplate redisTemplate;
+    @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
     @MockitoBean private JavaMailSender mailSender;
 
     // This class logs in many users across many @Test methods, all from MockMvc's shared
@@ -301,6 +303,9 @@ class StaffRbacIntegrationTest {
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-removemember@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-member", membership.getId().toString(), grantedStaff, null);
 
         var allowedResponse =
                 mockMvc.delete()
@@ -308,6 +313,8 @@ class StaffRbacIntegrationTest {
                         .cookie(grantedSession)
                         .cookie(grantedCsrf)
                         .header("X-XSRF-TOKEN", grantedCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }
@@ -487,6 +494,12 @@ class StaffRbacIntegrationTest {
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-revokeperm@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-permission",
+                        membership.getId() + ":" + Permission.TENANT_MEMBER_MANAGE,
+                        grantedStaff,
+                        null);
 
         var allowedResponse =
                 mockMvc.delete()
@@ -499,6 +512,8 @@ class StaffRbacIntegrationTest {
                         .cookie(grantedSession)
                         .cookie(grantedCsrf)
                         .header("X-XSRF-TOKEN", grantedCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }
@@ -586,6 +601,12 @@ class StaffRbacIntegrationTest {
         grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
         Cookie grantedSession = logIn("grant-unassigngroup@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-access-group",
+                        membership.getId() + ":" + accessGroup.getId(),
+                        grantedStaff,
+                        null);
 
         var allowedResponse =
                 mockMvc.delete()
@@ -599,6 +620,8 @@ class StaffRbacIntegrationTest {
                         .cookie(grantedSession)
                         .cookie(grantedCsrf)
                         .header("X-XSRF-TOKEN", grantedCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }

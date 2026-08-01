@@ -7,6 +7,8 @@ import br.com.conectabyte.knowly.auth.MailService;
 import br.com.conectabyte.knowly.auth.OneTimePasswordService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
+import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
@@ -41,6 +43,10 @@ public class StaffService {
     private final MailService mailService;
     private final AuditEventRepository auditEventRepository;
     private final UserProfileRepository userProfileRepository;
+    private final DeletionConfirmationTokenService deletionConfirmationTokenService;
+
+    private static final String PERMISSION_RESOURCE_TYPE = "staff-permission";
+    private static final String ACCESS_GROUP_RESOURCE_TYPE = "staff-access-group";
 
     public StaffService(
             UserRepository userRepository,
@@ -52,7 +58,8 @@ public class StaffService {
             OneTimePasswordService oneTimePasswordService,
             MailService mailService,
             AuditEventRepository auditEventRepository,
-            UserProfileRepository userProfileRepository) {
+            UserProfileRepository userProfileRepository,
+            DeletionConfirmationTokenService deletionConfirmationTokenService) {
         this.userRepository = userRepository;
         this.directGlobalPermissionGrantRepository = directGlobalPermissionGrantRepository;
         this.globalAccessGroupRepository = globalAccessGroupRepository;
@@ -63,6 +70,7 @@ public class StaffService {
         this.userProfileRepository = userProfileRepository;
         this.mailService = mailService;
         this.auditEventRepository = auditEventRepository;
+        this.deletionConfirmationTokenService = deletionConfirmationTokenService;
     }
 
     @Transactional
@@ -126,12 +134,31 @@ public class StaffService {
                                         new DirectGlobalPermissionGrant(user, permission)));
     }
 
+    /** REQ-26: generation endpoint reuses the exact same guard as {@link #revokePermission}. */
+    @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    public String generatePermissionRevocationDeletionConfirmationToken(
+            Long userId, GlobalPermission permission, String acceptLanguageHeaderValue) {
+        User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
+
+        return deletionConfirmationTokenService.generate(
+                PERMISSION_RESOURCE_TYPE,
+                userId + ":" + permission,
+                currentActor(),
+                acceptLanguageHeaderValue);
+    }
+
     @Transactional
     @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
     @AuditLog(action = "staff.permission.revoke", resourceType = "DirectGlobalPermissionGrant")
-    public void revokePermission(Long userId, GlobalPermission permission) {
+    public void revokePermission(Long userId, GlobalPermission permission, String word) {
         User user = requireUser(userId);
         enforceStaffCeiling(user.getGlobalRole());
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                PERMISSION_RESOURCE_TYPE, userId + ":" + permission, currentActor(), word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
 
         directGlobalPermissionGrantRepository
                 .findByUserAndPermission(user, permission)
@@ -205,12 +232,32 @@ public class StaffService {
                                         new UserGlobalAccessGroup(user, accessGroup)));
     }
 
+    /** REQ-29: generation endpoint reuses the exact same guard as {@link #unassignAccessGroup}. */
+    @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    public String generateAccessGroupUnassignmentDeletionConfirmationToken(
+            Long userId, Long accessGroupId, String acceptLanguageHeaderValue) {
+        User user = requireUser(userId);
+        enforceStaffCeiling(user.getGlobalRole());
+
+        return deletionConfirmationTokenService.generate(
+                ACCESS_GROUP_RESOURCE_TYPE,
+                userId + ":" + accessGroupId,
+                currentActor(),
+                acceptLanguageHeaderValue);
+    }
+
     @Transactional
     @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
     @AuditLog(action = "staff.member.access_group.unassign", resourceType = "UserGlobalAccessGroup")
-    public void unassignAccessGroup(Long userId, Long accessGroupId) {
+    public void unassignAccessGroup(Long userId, Long accessGroupId, String word) {
         User user = requireUser(userId);
         enforceStaffCeiling(user.getGlobalRole());
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                ACCESS_GROUP_RESOURCE_TYPE, userId + ":" + accessGroupId, currentActor(), word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
+
         GlobalAccessGroup accessGroup = requireAccessGroup(accessGroupId);
 
         userGlobalAccessGroupRepository
@@ -244,17 +291,21 @@ public class StaffService {
     }
 
     private void enforceStaffCeiling(GlobalRole targetGlobalRole) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User actor =
-                userRepository
-                        .findByEmailIgnoreCase(email)
-                        .orElseThrow(PermissionDeniedException::new);
+        User actor = currentActor();
 
         if (actor.getGlobalRole() == GlobalRole.STAFF
                 && (targetGlobalRole == GlobalRole.STAFF
                         || targetGlobalRole == GlobalRole.STAFF_ADMIN)) {
             throw new PermissionDeniedException();
         }
+    }
+
+    private User currentActor() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(PermissionDeniedException::new);
     }
 
     private User requireUser(Long userId) {

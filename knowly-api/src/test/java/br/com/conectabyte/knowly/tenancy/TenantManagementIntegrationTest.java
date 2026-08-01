@@ -7,6 +7,7 @@ import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
@@ -34,6 +35,7 @@ class TenantManagementIntegrationTest {
     @Autowired private TenantRepository tenantRepository;
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
     @Autowired private LoginCodeService loginCodeService;
+    @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
     @MockitoBean private JavaMailSender mailSender;
 
     private Cookie logIn(String email) {
@@ -138,6 +140,9 @@ class TenantManagementIntegrationTest {
         User newbie = userRepository.findByEmailIgnoreCase("newbie@own.com").orElseThrow();
         Long membershipId =
                 tenantMembershipRepository.findByUserAndActiveTrue(newbie).get(0).getId();
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-member", membershipId.toString(), admin, null);
 
         var removeResponse =
                 mockMvc.delete()
@@ -145,6 +150,8 @@ class TenantManagementIntegrationTest {
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
 
         assertThat(removeResponse).hasStatus(HttpStatus.OK);
@@ -391,6 +398,13 @@ class TenantManagementIntegrationTest {
                 .header("X-XSRF-TOKEN", csrf.getValue())
                 .exchange();
 
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-access-group",
+                        memberMembership.getId() + ":" + accessGroupId,
+                        admin,
+                        null);
+
         var unassignResponse =
                 mockMvc.delete()
                         .uri(
@@ -403,6 +417,8 @@ class TenantManagementIntegrationTest {
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
 
         assertThat(unassignResponse).hasStatus(HttpStatus.OK);

@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.Cookie;
@@ -45,6 +46,7 @@ class MembershipAcceptanceIntegrationTest {
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
     @MockitoBean private JavaMailSender mailSender;
 
     private Cookie logIn(String email) {
@@ -190,6 +192,9 @@ class MembershipAcceptanceIntegrationTest {
 
         Cookie session = logIn("deactivateadmin@example.com");
         Cookie csrf = obtainCsrfCookie();
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-member", staleMembership.getId().toString(), admin, null);
 
         var response =
                 mockMvc.delete()
@@ -201,6 +206,8 @@ class MembershipAcceptanceIntegrationTest {
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
