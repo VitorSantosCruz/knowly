@@ -69,7 +69,16 @@
       "newTenantsChartSubtitle": "Daily evolution of new signups in the selected period",
       "articlesReadChartLabel": "Articles read per day",
       "articlesReadChartSubtitle": "Daily evolution of article opens/views across all tenants",
-      "supportTicketsSubtitle": "Support tickets — not available yet"
+      "supportTicketsSubtitle": "Support tickets — not available yet",
+      "articlesSubtitle": "Articles opened/viewed in the selected period",
+      "conversationsSubtitle": "Conversations started in the selected period",
+      "userMessagesSubtitle": "Messages sent by members in the selected period",
+      "assistantMessagesSubtitle": "Messages sent by the assistant in the selected period",
+      "activeMembersSubtitle": "Members active in the selected period",
+      "messageSplitChartLabel": "Message split",
+      "messageSplitChartSubtitle": "User vs. assistant messages in the selected period",
+      "conversationsActivityChartLabel": "Conversations per day",
+      "conversationsActivityChartSubtitle": "Daily evolution of conversations in the selected period"
     }
   },
   "welcome": {

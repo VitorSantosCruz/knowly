@@ -69,7 +69,16 @@
       "newTenantsChartSubtitle": "Evolução diária de novos cadastros no período selecionado",
       "articlesReadChartLabel": "Artigos lidos por dia",
       "articlesReadChartSubtitle": "Evolução diária de aberturas/citações de artigos em todos os tenants",
-      "supportTicketsSubtitle": "Chamados de suporte — recurso ainda não disponível"
+      "supportTicketsSubtitle": "Chamados de suporte — recurso ainda não disponível",
+      "articlesSubtitle": "Artigos abertos/visualizados no período selecionado",
+      "conversationsSubtitle": "Conversas iniciadas no período selecionado",
+      "userMessagesSubtitle": "Mensagens enviadas por membros no período selecionado",
+      "assistantMessagesSubtitle": "Mensagens enviadas pelo assistente no período selecionado",
+      "activeMembersSubtitle": "Membros ativos no período selecionado",
+      "messageSplitChartLabel": "Divisão de mensagens",
+      "messageSplitChartSubtitle": "Mensagens de usuário vs. assistente no período selecionado",
+      "conversationsActivityChartLabel": "Conversas por dia",
+      "conversationsActivityChartSubtitle": "Evolução diária de conversas no período selecionado"
     }
   },
   "welcome": {

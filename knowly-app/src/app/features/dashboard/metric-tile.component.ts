@@ -69,6 +69,9 @@ const SPARKLINE_OPTIONS = {
         <p data-testid="metric-tile-value" class="mt-1 text-3xl font-bold text-white">
           {{ value() }}
         </p>
+        @if (subtitle()) {
+          <p class="mt-2 text-xs text-ink-400">{{ subtitle() }}</p>
+        }
       } @else if (fetcher?.loading()) {
         <p data-testid="loading-state" class="mt-1 text-sm text-ink-400">…</p>
       } @else if (fetcher?.error() === 'permission-denied') {
@@ -109,6 +112,9 @@ const SPARKLINE_OPTIONS = {
             }
           </tbody>
         </table>
+        @if (subtitle()) {
+          <p class="mt-2 text-xs text-ink-400">{{ subtitle() }}</p>
+        }
       }
     </div>
   `,
@@ -119,6 +125,7 @@ export class MetricTileComponent {
   readonly period = input<Period | undefined>(undefined);
   readonly url = input<string | undefined>(undefined);
   readonly label = input.required<string>();
+  readonly subtitle = input<string | undefined>(undefined);
   readonly testId = input<string>('metric-tile');
   readonly valueSelector = input<((data: unknown) => number) | undefined>(undefined);
   readonly sparklineSelector = input<((data: unknown) => SparklineDay[]) | undefined>(undefined);

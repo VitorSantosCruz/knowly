@@ -48,76 +48,86 @@ interface MembersResponse {
     LucideUsers,
   ],
   template: `
-    <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
-      <div class="flex items-center justify-between gap-4 sm:col-span-2">
+    <div data-testid="dashboard-page" class="page-shell space-y-4">
+      <div class="flex items-center justify-between gap-4">
         <app-period-filter [(period)]="period" />
         <app-export-button [period]="period()" />
       </div>
 
-      <app-metric-tile
-        testId="article-count-tile"
-        [period]="period()"
-        url="/api/tenants/metrics/articles/timeseries"
-        label="{{ 'dashboard.tiles.articles' | transloco }}"
-        [valueSelector]="dailyCountValueSelector"
-        [sparklineSelector]="dailyCountSparklineSelector"
-      >
-        <svg lucideBookOpenCheck icon aria-hidden="true"></svg>
-      </app-metric-tile>
-      <app-metric-tile
-        testId="conversations-tile"
-        [period]="period()"
-        url="/api/tenants/metrics/conversations/timeseries"
-        label="{{ 'dashboard.tiles.conversations' | transloco }}"
-        [valueSelector]="dailyCountValueSelector"
-        [sparklineSelector]="dailyCountSparklineSelector"
-      >
-        <svg lucideMessagesSquare icon aria-hidden="true"></svg>
-      </app-metric-tile>
-      <app-metric-tile
-        testId="user-messages-tile"
-        [period]="period()"
-        url="/api/tenants/metrics/messages/timeseries"
-        label="{{ 'dashboard.tiles.userMessages' | transloco }}"
-        [valueSelector]="userMessagesValueSelector"
-        [sparklineSelector]="userMessagesSparklineSelector"
-      >
-        <svg lucideUser icon aria-hidden="true"></svg>
-      </app-metric-tile>
-      <app-metric-tile
-        testId="assistant-messages-tile"
-        [period]="period()"
-        url="/api/tenants/metrics/messages/timeseries"
-        label="{{ 'dashboard.tiles.assistantMessages' | transloco }}"
-        [valueSelector]="assistantMessagesValueSelector"
-        [sparklineSelector]="assistantMessagesSparklineSelector"
-      >
-        <svg lucideBotMessageSquare icon aria-hidden="true"></svg>
-      </app-metric-tile>
-      <app-metric-tile
-        testId="active-members-tile"
-        [period]="period()"
-        url="/api/tenants/metrics/members"
-        label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
-        [valueSelector]="activeMembersValueSelector"
-        [sparklineSelector]="activeMembersSparklineSelector"
-        class="sm:col-span-2"
-      >
-        <svg lucideUsers icon aria-hidden="true"></svg>
-      </app-metric-tile>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <app-metric-tile
+          testId="article-count-tile"
+          [period]="period()"
+          url="/api/tenants/metrics/articles/timeseries"
+          label="{{ 'dashboard.tiles.articles' | transloco }}"
+          subtitle="{{ 'dashboard.trends.articlesSubtitle' | transloco }}"
+          [valueSelector]="dailyCountValueSelector"
+          [sparklineSelector]="dailyCountSparklineSelector"
+        >
+          <svg lucideBookOpenCheck icon aria-hidden="true"></svg>
+        </app-metric-tile>
+        <app-metric-tile
+          testId="conversations-tile"
+          [period]="period()"
+          url="/api/tenants/metrics/conversations/timeseries"
+          label="{{ 'dashboard.tiles.conversations' | transloco }}"
+          subtitle="{{ 'dashboard.trends.conversationsSubtitle' | transloco }}"
+          [valueSelector]="dailyCountValueSelector"
+          [sparklineSelector]="dailyCountSparklineSelector"
+        >
+          <svg lucideMessagesSquare icon aria-hidden="true"></svg>
+        </app-metric-tile>
+        <app-metric-tile
+          testId="user-messages-tile"
+          [period]="period()"
+          url="/api/tenants/metrics/messages/timeseries"
+          label="{{ 'dashboard.tiles.userMessages' | transloco }}"
+          subtitle="{{ 'dashboard.trends.userMessagesSubtitle' | transloco }}"
+          [valueSelector]="userMessagesValueSelector"
+          [sparklineSelector]="userMessagesSparklineSelector"
+        >
+          <svg lucideUser icon aria-hidden="true"></svg>
+        </app-metric-tile>
+        <app-metric-tile
+          testId="assistant-messages-tile"
+          [period]="period()"
+          url="/api/tenants/metrics/messages/timeseries"
+          label="{{ 'dashboard.tiles.assistantMessages' | transloco }}"
+          subtitle="{{ 'dashboard.trends.assistantMessagesSubtitle' | transloco }}"
+          [valueSelector]="assistantMessagesValueSelector"
+          [sparklineSelector]="assistantMessagesSparklineSelector"
+        >
+          <svg lucideBotMessageSquare icon aria-hidden="true"></svg>
+        </app-metric-tile>
+        <app-metric-tile
+          testId="active-members-tile"
+          [period]="period()"
+          url="/api/tenants/metrics/members"
+          label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
+          subtitle="{{ 'dashboard.trends.activeMembersSubtitle' | transloco }}"
+          [valueSelector]="activeMembersValueSelector"
+          [sparklineSelector]="activeMembersSparklineSelector"
+        >
+          <svg lucideUsers icon aria-hidden="true"></svg>
+        </app-metric-tile>
+      </div>
 
-      <app-message-split-chart [period]="period()" class="sm:col-span-2" />
-      <app-conversations-activity-chart [period]="period()" class="sm:col-span-2" />
+      <div class="grid gap-4 lg:grid-cols-2">
+        <app-message-split-chart [period]="period()" />
+        <app-conversations-activity-chart [period]="period()" />
+      </div>
 
-      <app-top-articles-table class="sm:col-span-2" />
-      <app-members-breakdown-card class="sm:col-span-2" />
-      <a
-        data-testid="articles-link"
-        routerLink="/articles"
-        class="text-sm font-medium text-ink-700 transition-colors duration-fast ease-fluid hover:text-signal-600 dark:text-ink-300 dark:hover:text-signal-400 sm:col-span-2"
-      >
-        {{ 'dashboard.articlesLink' | transloco }}
-      </a>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <app-top-articles-table class="sm:col-span-2" />
+        <app-members-breakdown-card class="sm:col-span-2" />
+        <a
+          data-testid="articles-link"
+          routerLink="/articles"
+          class="text-sm font-medium text-ink-700 transition-colors duration-fast ease-fluid hover:text-signal-600 dark:text-ink-300 dark:hover:text-signal-400 sm:col-span-2"
+        >
+          {{ 'dashboard.articlesLink' | transloco }}
+        </a>
+      </div>
     </div>
   `,
 })

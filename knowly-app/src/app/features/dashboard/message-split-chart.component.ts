@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, effect, inject, input } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { MetricFetcher, createMetricFetcher } from '../../core/metric-fetcher';
 import { ChartCanvasComponent } from '../../shared/chart-canvas.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -43,12 +44,19 @@ const DONUT_OPTIONS = {
 
 @Component({
   selector: 'app-message-split-chart',
-  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
+  imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent, TranslocoPipe],
   template: `
     <div
       data-testid="message-split-chart"
       class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
+      <p class="text-sm font-semibold text-white">
+        {{ 'dashboard.trends.messageSplitChartLabel' | transloco }}
+      </p>
+      <p class="mb-3 text-xs text-ink-400">
+        {{ 'dashboard.trends.messageSplitChartSubtitle' | transloco }}
+      </p>
+
       @if (fetcher.loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (fetcher.error() === 'permission-denied') {
