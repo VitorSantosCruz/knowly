@@ -6,6 +6,7 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
+import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
@@ -115,6 +116,27 @@ public class TenantService {
                 .findByUserAndTenant(user, tenant)
                 .filter(TenantMembership::isActive)
                 .orElseThrow(TenantAccessDeniedException::new);
+    }
+
+    /**
+     * The caller's session-derived active tenant (bug fix: {@code GET /api/tenants/active} was
+     * previously missing, so a staff user acting as a tenant -- which sets the session attribute
+     * without any real {@code TenantMembership} row, per DECISIONS.md -- had no way to learn which
+     * tenant is active after e.g. a page reload). {@code role} is only populated when a real
+     * membership row exists for (user, tenant); staff acting as a tenant get {@code null}.
+     */
+    @Transactional(readOnly = true)
+    public ActiveTenantDto getActiveTenant(User user, Long tenantId) {
+        Tenant tenant =
+                tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
+        MembershipRole role =
+                tenantMembershipRepository
+                        .findByUserAndTenant(user, tenant)
+                        .filter(TenantMembership::isActive)
+                        .map(TenantMembership::getRole)
+                        .orElse(null);
+
+        return ActiveTenantDto.from(tenant, role);
     }
 
     private static final int MAX_PAGE_SIZE = 100;

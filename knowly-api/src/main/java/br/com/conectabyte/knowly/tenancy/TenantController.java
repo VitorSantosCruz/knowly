@@ -4,6 +4,7 @@ import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
+import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.AnyTenantPermissionDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
@@ -74,6 +75,23 @@ public class TenantController {
                         .toList();
 
         return ResponseEntity.ok(memberships);
+    }
+
+    /**
+     * The caller's own session-derived active tenant (read directly from {@link
+     * TenantContext#getActiveTenantId()}, so it works for both staff acting as a tenant -- no real
+     * {@code TenantMembership} row -- and a regular member with one). {@code 204} when there is no
+     * active tenant.
+     */
+    @GetMapping("/active")
+    public ResponseEntity<ActiveTenantDto> getActiveTenant() {
+        Long tenantId = tenantContext.getActiveTenantId().orElse(null);
+
+        if (tenantId == null) {
+            return ResponseEntity.noContent().build();
+        }
+
+        return ResponseEntity.ok(tenantService.getActiveTenant(currentUser(), tenantId));
     }
 
     @GetMapping("/permissions")

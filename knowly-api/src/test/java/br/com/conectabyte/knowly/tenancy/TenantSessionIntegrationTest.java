@@ -539,6 +539,65 @@ class TenantSessionIntegrationTest {
     }
 
     @Test
+    void staffActingAsATenantSeesItAsActiveWithNoRole() throws Exception {
+        User staff = userRepository.saveAndFlush(new User("active-staff@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Active Staff Tenant"));
+
+        Cookie session = logIn("active-staff@example.com");
+        mockMvc.post()
+                .uri("/api/tenants/active")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":" + tenant.getId() + "}")
+                .exchange();
+
+        var response = mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"tenantId\":" + tenant.getId());
+        assertThat(body).contains("\"tenantName\":\"Active Staff Tenant\"");
+        assertThat(body).doesNotContain("\"role\"");
+    }
+
+    @Test
+    void memberWithAnActiveMembershipSeesItsRoleInActiveTenant() throws Exception {
+        User user = userRepository.saveAndFlush(new User("active-member@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Active Member Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("active-member@example.com");
+        mockMvc.post()
+                .uri("/api/tenants/active")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":" + tenant.getId() + "}")
+                .exchange();
+
+        var response = mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"tenantId\":" + tenant.getId());
+        assertThat(body).contains("\"tenantName\":\"Active Member Tenant\"");
+        assertThat(body).contains("\"role\":\"MEMBER\"");
+    }
+
+    @Test
+    void noActiveTenantReturnsNoContent() throws Exception {
+        userRepository.saveAndFlush(new User("no-active-tenant@example.com"));
+
+        Cookie session = logIn("no-active-tenant@example.com");
+
+        var response = mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
     void nonStaffCannotListAllTenants() {
         User user = userRepository.saveAndFlush(new User("regular@example.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Regular Tenant"));
