@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 export type ArticleStatus = 'PROCESSING' | 'READY' | 'FAILED';
 
@@ -48,7 +48,18 @@ export class ArticleService {
     });
   }
 
-  remove(tenantId: number, articleId: number): Observable<void> {
-    return this.http.delete<void>(`/api/tenants/${tenantId}/articles/${articleId}`);
+  remove(tenantId: number, articleId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/tenants/${tenantId}/articles/${articleId}`, {
+      body: { word },
+    });
+  }
+
+  generateDeletionToken(tenantId: number, articleId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/tenants/${tenantId}/articles/${articleId}/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
   }
 }

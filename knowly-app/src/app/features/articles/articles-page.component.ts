@@ -154,7 +154,9 @@ const POLL_INTERVAL_MS = 4000;
           <app-confirm-dialog
             [open]="true"
             [message]="'articles.confirmDelete' | transloco: { title: articleToDelete.title }"
-            (confirm)="confirmDelete()"
+            [fetchToken]="deletionTokenFetcher(articleToDelete.id)"
+            [retryToken]="deleteRetryToken()"
+            (confirm)="confirmDelete($event)"
             (dismissed)="cancelDelete()"
           />
         }
@@ -227,6 +229,7 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
   protected readonly error = signal<ArticlesError>(null);
   protected readonly selectedFileName = signal<string | null>(null);
   protected readonly pendingDelete = signal<ArticleSummary | null>(null);
+  protected readonly deleteRetryToken = signal(0);
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly canUpload = computed(
     () => this.uploadTitle().trim().length > 0 && this.selectedFile() !== null,
@@ -422,33 +425,49 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
     this.pendingDelete.set(article);
   }
 
-  protected confirmDelete(): void {
+  protected deletionTokenFetcher(
+    articleId: number,
+  ): () => ReturnType<ArticleService['generateDeletionToken']> {
+    return () => {
+      const tenantId = this.activeTenantService.activeTenantId();
+      return this.articleService.generateDeletionToken(tenantId ?? -1, articleId);
+    };
+  }
+
+  protected confirmDelete(word: string): void {
     const tenantId = this.activeTenantService.activeTenantId();
     const article = this.pendingDelete();
-
-    this.pendingDelete.set(null);
 
     if (tenantId === null || article === null) {
       return;
     }
 
-    this.performDelete(tenantId, article.id);
+    this.performDelete(tenantId, article.id, word);
   }
 
   protected cancelDelete(): void {
     this.pendingDelete.set(null);
+    this.deleteRetryToken.set(0);
   }
 
-  private performDelete(tenantId: number, articleId: number): void {
+  private performDelete(tenantId: number, articleId: number, word: string): void {
     this.articleService
-      .remove(tenantId, articleId)
+      .remove(tenantId, articleId, word)
       .pipe(
         catchError((err) => {
-          this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          if (err.status === 400) {
+            this.deleteRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingDelete.set(null);
+            this.deleteRetryToken.set(0);
+            this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          }
           return EMPTY;
         }),
       )
       .subscribe(() => {
+        this.pendingDelete.set(null);
+        this.deleteRetryToken.set(0);
         this.articles.update((articles) => articles.filter((article) => article.id !== articleId));
 
         if (this.selectedDetail()?.id === articleId) {

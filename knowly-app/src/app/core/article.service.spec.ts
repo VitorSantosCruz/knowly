@@ -72,11 +72,23 @@ describe('ArticleService', () => {
     });
   });
 
-  it('remove() deletes the article', () => {
-    service.remove(1, 2).subscribe();
+  it('remove() deletes the article with the confirmation word', () => {
+    service.remove(1, 2, 'correct-horse').subscribe();
 
     const req = httpMock.expectOne('/api/tenants/1/articles/2');
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
     req.flush({});
+  });
+
+  it('generateDeletionToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateDeletionToken(1, 2).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne('/api/tenants/1/articles/2/deletion-confirmation-token');
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
   });
 });

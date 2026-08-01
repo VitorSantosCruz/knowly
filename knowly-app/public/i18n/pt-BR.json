@@ -158,7 +158,10 @@
     "effectivePermissions": "Permissões efetivas",
     "assign": "Atribuir",
     "unassign": "Remover atribuição",
-    "createGroup": "Criar grupo"
+    "createGroup": "Criar grupo",
+    "confirmRemove": "Remover {{email}}? Isso não pode ser desfeito.",
+    "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Isso não pode ser desfeito.",
+    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito."
   },
   "staffDirectory": {
     "searchPlaceholder": "Buscar por e-mail…",
@@ -169,6 +172,8 @@
     "assign": "Atribuir",
     "unassign": "Remover atribuição",
     "createGroup": "Criar grupo",
+    "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Isso não pode ser desfeito.",
+    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito.",
     "auditTrail": {
       "title": "Trilha de auditoria",
       "occurredAt": "Ocorrido em",
@@ -352,6 +357,14 @@
   },
   "common": {
     "confirm": "Confirmar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "confirmDialog": {
+      "loading": "Gerando palavra de confirmação…",
+      "fetchError": "Não foi possível gerar uma palavra de confirmação.",
+      "retry": "Tentar novamente",
+      "invalidWord": "Essa palavra estava incorreta ou expirou. Uma nova foi gerada.",
+      "inputLabel": "Palavra de confirmação",
+      "inputPlaceholder": "Digite a palavra acima para confirmar"
+    }
   }
 }

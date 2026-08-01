@@ -158,7 +158,10 @@
     "effectivePermissions": "Effective permissions",
     "assign": "Assign",
     "unassign": "Unassign",
-    "createGroup": "Create group"
+    "createGroup": "Create group",
+    "confirmRemove": "Remove {{email}}? This cannot be undone.",
+    "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? This cannot be undone.",
+    "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? This cannot be undone."
   },
   "staffDirectory": {
     "searchPlaceholder": "Search by email…",
@@ -169,6 +172,8 @@
     "assign": "Assign",
     "unassign": "Unassign",
     "createGroup": "Create group",
+    "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? This cannot be undone.",
+    "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? This cannot be undone.",
     "auditTrail": {
       "title": "Audit trail",
       "occurredAt": "Occurred at",
@@ -352,6 +357,14 @@
   },
   "common": {
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "confirmDialog": {
+      "loading": "Generating confirmation word…",
+      "fetchError": "Couldn't generate a confirmation word.",
+      "retry": "Retry",
+      "invalidWord": "That word was incorrect or expired. A new one has been generated.",
+      "inputLabel": "Confirmation word",
+      "inputPlaceholder": "Type the word above to confirm"
+    }
   }
 }

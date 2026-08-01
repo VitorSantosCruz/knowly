@@ -324,7 +324,7 @@ describe('ArticlesPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Corrected text');
   });
 
-  it('deleting an article requires confirmation, naming the article', () => {
+  it('deleting an article requires confirmation, naming the article, and requires the fetched word to be retyped', () => {
     fixture.detectChanges();
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
 
@@ -336,13 +336,66 @@ describe('ArticlesPageComponent', () => {
     expect(dialogEl).toBeTruthy();
     expect(dialogEl.textContent).toContain('Handbook');
 
-    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+    httpMock
+      .expectOne('/api/tenants/7/articles/1/deletion-confirmation-token')
+      .flush({ word: 'correct-horse' });
     fixture.detectChanges();
 
-    httpMock.expectOne('/api/tenants/7/articles/1').flush({});
+    const confirmButton: HTMLButtonElement = dialogEl.querySelector(
+      '[data-testid="confirm-dialog-confirm"]',
+    );
+    expect(confirmButton.disabled).toBe(true);
+
+    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
+    input.value = 'correct-horse';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    confirmButton.click();
+    fixture.detectChanges();
+
+    const deleteReq = httpMock.expectOne('/api/tenants/7/articles/1');
+    expect(deleteReq.request.body).toEqual({ word: 'correct-horse' });
+    deleteReq.flush({});
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Handbook');
+  });
+
+  it('re-fetches a fresh word and keeps the article in place when the delete call rejects the word (REQ-8)', () => {
+    fixture.detectChanges();
+    flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
+
+    fixture.nativeElement.querySelector('[data-testid="delete-article-1"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/7/articles/1/deletion-confirmation-token')
+      .flush({ word: 'correct-horse' });
+    fixture.detectChanges();
+
+    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
+    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
+    input.value = 'correct-horse';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/7/articles/1')
+      .flush({ code: 'INVALID_TOKEN' }, { status: 400, statusText: 'Bad Request' });
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/7/articles/1/deletion-confirmation-token')
+      .flush({ word: 'fresh-word' });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Handbook');
+    expect(dialogEl.querySelector('[data-testid="confirm-dialog-word"]').textContent).toContain(
+      'fresh-word',
+    );
   });
 
   it('cancelling the deletion confirmation leaves the article unchanged', () => {
@@ -350,6 +403,11 @@ describe('ArticlesPageComponent', () => {
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
 
     fixture.nativeElement.querySelector('[data-testid="delete-article-1"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/7/articles/1/deletion-confirmation-token')
+      .flush({ word: 'correct-horse' });
     fixture.detectChanges();
 
     fixture.nativeElement
@@ -367,6 +425,11 @@ describe('ArticlesPageComponent', () => {
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
 
     fixture.nativeElement.querySelector('[data-testid="delete-article-1"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/7/articles/1/deletion-confirmation-token')
+      .flush({ word: 'correct-horse' });
     fixture.detectChanges();
 
     fixture.nativeElement
