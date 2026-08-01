@@ -3,6 +3,8 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
+import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
@@ -36,6 +38,11 @@ public class TenantService {
     private final GlobalPermissionService globalPermissionService;
     private final NotificationRepository notificationRepository;
     private final UserProfileRepository userProfileRepository;
+    private final DeletionConfirmationTokenService deletionConfirmationTokenService;
+
+    private static final String MEMBER_RESOURCE_TYPE = "tenant-member";
+    private static final String PERMISSION_RESOURCE_TYPE = "tenant-permission";
+    private static final String ACCESS_GROUP_RESOURCE_TYPE = "tenant-access-group";
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -48,7 +55,8 @@ public class TenantService {
             PermissionService permissionService,
             GlobalPermissionService globalPermissionService,
             NotificationRepository notificationRepository,
-            UserProfileRepository userProfileRepository) {
+            UserProfileRepository userProfileRepository,
+            DeletionConfirmationTokenService deletionConfirmationTokenService) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
@@ -60,6 +68,7 @@ public class TenantService {
         this.globalPermissionService = globalPermissionService;
         this.notificationRepository = notificationRepository;
         this.userProfileRepository = userProfileRepository;
+        this.deletionConfirmationTokenService = deletionConfirmationTokenService;
     }
 
     /**
@@ -178,8 +187,10 @@ public class TenantService {
      * The caller's own effective permissions in their active tenant — lets the frontend hide
      * actions it can't perform instead of showing them and letting a 403 explain why. {@code
      * STAFF_ADMIN} gets every permission, consistent with {@code PermissionAspect} bypassing the
-     * check for them; a permission-gated {@code STAFF} user goes through the normal
-     * membership-based check like anyone else.
+     * check for them; {@code MEMBER_ADMIN} of the active tenant likewise gets every permission,
+     * consistent with {@code PermissionAspect} bypassing the check for them in their own tenant
+     * (see {@code member-admin-tenant-bypass}). A permission-gated {@code STAFF}/{@code MEMBER}
+     * user goes through the normal membership-based check like anyone else.
      */
     @Transactional(readOnly = true)
     public List<Permission> ownEffectivePermissions(User user, Long tenantId, boolean staffAdmin) {
@@ -188,6 +199,10 @@ public class TenantService {
         }
 
         TenantMembership membership = requireActiveMembership(user, tenantId);
+
+        if (membership.getRole() == MembershipRole.MEMBER_ADMIN) {
+            return List.of(Permission.values());
+        }
 
         return List.copyOf(permissionService.effectivePermissions(membership));
     }
@@ -253,11 +268,26 @@ public class TenantService {
         return saved;
     }
 
-    /** REQ-9/19: always a soft removal, never a hard delete. */
+    /** REQ-17: generation endpoint reuses the exact same guard as {@link #removeMember}. */
+    @Transactional(readOnly = true)
+    public String generateMemberRemovalDeletionConfirmationToken(
+            User actor, Long tenantId, Long membershipId, String acceptLanguageHeaderValue) {
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+
+        return deletionConfirmationTokenService.generate(
+                MEMBER_RESOURCE_TYPE, membershipId.toString(), actor, acceptLanguageHeaderValue);
+    }
+
+    /** REQ-9/16/19: always a soft removal, never a hard delete; requires a valid REQ-16 token. */
     @Transactional
     @AuditLog(action = "tenant.member.remove", resourceType = "TenantMembership")
-    public void removeMember(User actor, Long tenantId, Long membershipId) {
+    public void removeMember(User actor, Long tenantId, Long membershipId, String word) {
         requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                MEMBER_RESOURCE_TYPE, membershipId.toString(), actor, word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -289,13 +319,39 @@ public class TenantService {
                                         new DirectPermissionGrant(membership, permission)));
     }
 
-    /** REQ-14/16: revoke a direct permission grant, admin (own tenant) or staff only. */
+    /** REQ-20: generation endpoint reuses the exact same guard as {@link #revokePermission}. */
+    @Transactional(readOnly = true)
+    public String generatePermissionRevocationDeletionConfirmationToken(
+            User actor,
+            Long tenantId,
+            Long membershipId,
+            Permission permission,
+            String acceptLanguageHeaderValue) {
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+
+        return deletionConfirmationTokenService.generate(
+                PERMISSION_RESOURCE_TYPE,
+                permissionResourceId(membershipId, permission),
+                actor,
+                acceptLanguageHeaderValue);
+    }
+
+    /** REQ-14/16/19: revoke a direct permission grant, admin (own tenant) or staff only. */
     @Transactional
     @AuditLog(action = "tenant.permission.revoke", resourceType = "DirectPermissionGrant")
     public void revokePermission(
-            User actor, Long tenantId, Long membershipId, Permission permission) {
+            User actor, Long tenantId, Long membershipId, Permission permission, String word) {
         requireAdminOfTenantOrStaff(
                 actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                PERMISSION_RESOURCE_TYPE,
+                permissionResourceId(membershipId, permission),
+                actor,
+                word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -305,6 +361,14 @@ public class TenantService {
         directPermissionGrantRepository
                 .findByTenantMembershipAndPermission(membership, permission)
                 .ifPresent(directPermissionGrantRepository::delete);
+    }
+
+    private String permissionResourceId(Long membershipId, Permission permission) {
+        return membershipId + ":" + permission;
+    }
+
+    private String accessGroupResourceId(Long membershipId, Long accessGroupId) {
+        return membershipId + ":" + accessGroupId;
     }
 
     /** REQ-13: tenant-scoped, admin-defined access group. */
@@ -427,13 +491,41 @@ public class TenantService {
                 effective);
     }
 
-    /** REQ-14/16: unassign a membership from an access group, admin (own tenant) or staff only. */
+    /** REQ-23: generation endpoint reuses the exact same guard as {@link #unassignAccessGroup}. */
+    @Transactional(readOnly = true)
+    public String generateAccessGroupUnassignmentDeletionConfirmationToken(
+            User actor,
+            Long tenantId,
+            Long membershipId,
+            Long accessGroupId,
+            String acceptLanguageHeaderValue) {
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+
+        return deletionConfirmationTokenService.generate(
+                ACCESS_GROUP_RESOURCE_TYPE,
+                accessGroupResourceId(membershipId, accessGroupId),
+                actor,
+                acceptLanguageHeaderValue);
+    }
+
+    /**
+     * REQ-14/16/22: unassign a membership from an access group, admin (own tenant) or staff only.
+     */
     @Transactional
     @AuditLog(action = "tenant.member.access_group.unassign", resourceType = "UserAccessGroup")
     public void unassignAccessGroup(
-            User actor, Long tenantId, Long membershipId, Long accessGroupId) {
+            User actor, Long tenantId, Long membershipId, Long accessGroupId, String word) {
         requireAdminOfTenantOrStaff(
                 actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                ACCESS_GROUP_RESOURCE_TYPE,
+                accessGroupResourceId(membershipId, accessGroupId),
+                actor,
+                word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
 
         TenantMembership membership =
                 tenantMembershipRepository

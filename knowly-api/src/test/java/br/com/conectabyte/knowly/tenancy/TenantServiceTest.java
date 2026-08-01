@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
@@ -41,6 +42,22 @@ class TenantServiceTest {
     @Autowired private AccessGroupRepository accessGroupRepository;
     @Autowired private UserAccessGroupRepository userAccessGroupRepository;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
+
+    private String memberRemovalWord(User actor, Long membershipId) {
+        return deletionConfirmationTokenService.generate(
+                "tenant-member", membershipId.toString(), actor, null);
+    }
+
+    private String permissionRevocationWord(User actor, Long membershipId, Permission permission) {
+        return deletionConfirmationTokenService.generate(
+                "tenant-permission", membershipId + ":" + permission, actor, null);
+    }
+
+    private String accessGroupUnassignmentWord(User actor, Long membershipId, Long accessGroupId) {
+        return deletionConfirmationTokenService.generate(
+                "tenant-access-group", membershipId + ":" + accessGroupId, actor, null);
+    }
 
     @AfterEach
     void cleanUp() {
@@ -308,6 +325,9 @@ class TenantServiceTest {
     void revokePermissionRejectsAMemberAdminRevokingTheirOwnPermission() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Revoke Co"));
         TenantMembership admin = adminMembership("self-revoke@example.com", tenant);
+        String word =
+                permissionRevocationWord(
+                        admin.getUser(), admin.getId(), Permission.TENANT_MEMBER_MANAGE);
 
         assertThatThrownBy(
                         () ->
@@ -315,7 +335,8 @@ class TenantServiceTest {
                                         admin.getUser(),
                                         tenant.getId(),
                                         admin.getId(),
-                                        Permission.TENANT_MEMBER_MANAGE))
+                                        Permission.TENANT_MEMBER_MANAGE,
+                                        word))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -323,11 +344,12 @@ class TenantServiceTest {
     void removeMemberRejectsAMemberAdminRemovingThemselves() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Remove Co"));
         TenantMembership admin = adminMembership("self-remove@example.com", tenant);
+        String word = memberRemovalWord(admin.getUser(), admin.getId());
 
         assertThatThrownBy(
                         () ->
                                 tenantService.removeMember(
-                                        admin.getUser(), tenant.getId(), admin.getId()))
+                                        admin.getUser(), tenant.getId(), admin.getId(), word))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -336,11 +358,12 @@ class TenantServiceTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Member Audit Co"));
         TenantMembership admin = adminMembership("admin-remove-audit@example.com", tenant);
         authenticateAs("admin-remove-audit@example.com");
+        String word = memberRemovalWord(admin.getUser(), admin.getId());
 
         assertThatThrownBy(
                         () ->
                                 tenantService.removeMember(
-                                        admin.getUser(), tenant.getId(), admin.getId()))
+                                        admin.getUser(), tenant.getId(), admin.getId(), word))
                 .isInstanceOf(PermissionDeniedException.class);
 
         var events =
@@ -364,7 +387,8 @@ class TenantServiceTest {
                 tenantMembershipRepository.saveAndFlush(
                         new TenantMembership(otherUser, tenant, MembershipRole.MEMBER));
 
-        tenantService.removeMember(admin.getUser(), tenant.getId(), otherMembership.getId());
+        String word = memberRemovalWord(admin.getUser(), otherMembership.getId());
+        tenantService.removeMember(admin.getUser(), tenant.getId(), otherMembership.getId(), word);
 
         assertThat(tenantMembershipRepository.findById(otherMembership.getId()))
                 .hasValueSatisfying(m -> assertThat(m.isActive()).isFalse());
@@ -392,6 +416,7 @@ class TenantServiceTest {
         TenantMembership admin = adminMembership("self-unassign@example.com", tenant);
         AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
         userAccessGroupRepository.saveAndFlush(new UserAccessGroup(admin, group));
+        String word = accessGroupUnassignmentWord(admin.getUser(), admin.getId(), group.getId());
 
         assertThatThrownBy(
                         () ->
@@ -399,7 +424,8 @@ class TenantServiceTest {
                                         admin.getUser(),
                                         tenant.getId(),
                                         admin.getId(),
-                                        group.getId()))
+                                        group.getId(),
+                                        word))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -426,15 +452,26 @@ class TenantServiceTest {
                 tenant.getId(),
                 otherMembership.getId(),
                 Permission.TENANT_MEMBER_MANAGE);
+        String revokeWord =
+                permissionRevocationWord(
+                        admin.getUser(), otherMembership.getId(), Permission.TENANT_MEMBER_MANAGE);
         tenantService.revokePermission(
                 admin.getUser(),
                 tenant.getId(),
                 otherMembership.getId(),
-                Permission.TENANT_MEMBER_MANAGE);
+                Permission.TENANT_MEMBER_MANAGE,
+                revokeWord);
         tenantService.assignAccessGroup(
                 admin.getUser(), tenant.getId(), otherMembership.getId(), group.getId());
+        String unassignWord =
+                accessGroupUnassignmentWord(
+                        admin.getUser(), otherMembership.getId(), group.getId());
         tenantService.unassignAccessGroup(
-                admin.getUser(), tenant.getId(), otherMembership.getId(), group.getId());
+                admin.getUser(),
+                tenant.getId(),
+                otherMembership.getId(),
+                group.getId(),
+                unassignWord);
     }
 
     @Test
@@ -519,6 +556,9 @@ class TenantServiceTest {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Audit Co"));
         TenantMembership admin = adminMembership("admin-revoke-audit@example.com", tenant);
         authenticateAs("admin-revoke-audit@example.com");
+        String word =
+                permissionRevocationWord(
+                        admin.getUser(), admin.getId(), Permission.TENANT_MEMBER_MANAGE);
 
         assertThatThrownBy(
                         () ->
@@ -526,7 +566,8 @@ class TenantServiceTest {
                                         admin.getUser(),
                                         tenant.getId(),
                                         admin.getId(),
-                                        Permission.TENANT_MEMBER_MANAGE))
+                                        Permission.TENANT_MEMBER_MANAGE,
+                                        word))
                 .isInstanceOf(PermissionDeniedException.class);
 
         var events =
@@ -581,6 +622,7 @@ class TenantServiceTest {
         AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
         userAccessGroupRepository.saveAndFlush(new UserAccessGroup(admin, group));
         authenticateAs("admin-unassign-audit@example.com");
+        String word = accessGroupUnassignmentWord(admin.getUser(), admin.getId(), group.getId());
 
         assertThatThrownBy(
                         () ->
@@ -588,7 +630,8 @@ class TenantServiceTest {
                                         admin.getUser(),
                                         tenant.getId(),
                                         admin.getId(),
-                                        group.getId()))
+                                        group.getId(),
+                                        word))
                 .isInstanceOf(PermissionDeniedException.class);
 
         var events =
@@ -679,7 +722,8 @@ class TenantServiceTest {
                                         unauthorized,
                                         tenant.getId(),
                                         targetMembership.getId(),
-                                        Permission.TENANT_MEMBER_MANAGE))
+                                        Permission.TENANT_MEMBER_MANAGE,
+                                        "irrelevant-word"))
                 .isInstanceOf(PermissionDeniedException.class);
 
         // assignAccessGroup: plain MEMBER should be rejected
@@ -699,7 +743,8 @@ class TenantServiceTest {
                                         unauthorized,
                                         tenant.getId(),
                                         targetMembership.getId(),
-                                        group.getId()))
+                                        group.getId(),
+                                        "irrelevant-word"))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 

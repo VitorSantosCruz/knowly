@@ -3,6 +3,8 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.dto.DeleteConfirmationRequestDto;
+import br.com.conectabyte.knowly.deletion.dto.DeletionConfirmationTokenDto;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
@@ -34,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -233,10 +236,25 @@ public class TenantController {
                 tenantService.getMemberDetail(currentUser(), tenantId, membershipId));
     }
 
+    @PostMapping("/{tenantId}/members/{membershipId}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generateMemberRemovalDeletionConfirmationToken(
+                    @PathVariable Long tenantId,
+                    @PathVariable Long membershipId,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generateMemberRemovalDeletionConfirmationToken(
+                                currentUser(), tenantId, membershipId, acceptLanguage)));
+    }
+
     @DeleteMapping("/{tenantId}/members/{membershipId}")
     public ResponseEntity<Void> removeMember(
-            @PathVariable Long tenantId, @PathVariable Long membershipId) {
-        tenantService.removeMember(currentUser(), tenantId, membershipId);
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+        tenantService.removeMember(currentUser(), tenantId, membershipId, request.word());
 
         return ResponseEntity.ok().build();
     }
@@ -251,12 +269,33 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping(
+            "/{tenantId}/members/{membershipId}/permissions/{permission}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generatePermissionRevocationDeletionConfirmationToken(
+                    @PathVariable Long tenantId,
+                    @PathVariable Long membershipId,
+                    @PathVariable Permission permission,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generatePermissionRevocationDeletionConfirmationToken(
+                                currentUser(),
+                                tenantId,
+                                membershipId,
+                                permission,
+                                acceptLanguage)));
+    }
+
     @DeleteMapping("/{tenantId}/members/{membershipId}/permissions/{permission}")
     public ResponseEntity<Void> revokePermission(
             @PathVariable Long tenantId,
             @PathVariable Long membershipId,
-            @PathVariable Permission permission) {
-        tenantService.revokePermission(currentUser(), tenantId, membershipId, permission);
+            @PathVariable Permission permission,
+            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+        tenantService.revokePermission(
+                currentUser(), tenantId, membershipId, permission, request.word());
 
         return ResponseEntity.ok().build();
     }
@@ -295,12 +334,33 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping(
+            "/{tenantId}/members/{membershipId}/access-groups/{accessGroupId}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generateAccessGroupUnassignmentDeletionConfirmationToken(
+                    @PathVariable Long tenantId,
+                    @PathVariable Long membershipId,
+                    @PathVariable Long accessGroupId,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generateAccessGroupUnassignmentDeletionConfirmationToken(
+                                currentUser(),
+                                tenantId,
+                                membershipId,
+                                accessGroupId,
+                                acceptLanguage)));
+    }
+
     @DeleteMapping("/{tenantId}/members/{membershipId}/access-groups/{accessGroupId}")
     public ResponseEntity<Void> unassignAccessGroup(
             @PathVariable Long tenantId,
             @PathVariable Long membershipId,
-            @PathVariable Long accessGroupId) {
-        tenantService.unassignAccessGroup(currentUser(), tenantId, membershipId, accessGroupId);
+            @PathVariable Long accessGroupId,
+            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+        tenantService.unassignAccessGroup(
+                currentUser(), tenantId, membershipId, accessGroupId, request.word());
 
         return ResponseEntity.ok().build();
     }
