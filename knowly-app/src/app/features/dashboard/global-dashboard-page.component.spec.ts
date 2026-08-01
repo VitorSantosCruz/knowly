@@ -235,9 +235,7 @@ describe('GlobalDashboardPageComponent', () => {
         `${testId} should render a sparkline`,
       ).toBeTruthy();
     }
-    expect(
-      el.querySelector('[data-testid="support-tickets-tile"] app-chart-canvas'),
-    ).toBeFalsy();
+    expect(el.querySelector('[data-testid="support-tickets-tile"] app-chart-canvas')).toBeFalsy();
   });
 
   it('REQ-4/6: before the first successful trends fetch, no card renders a sparkline', () => {
