@@ -3,11 +3,15 @@ package br.com.conectabyte.knowly.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.metrics.DailyCountProjection;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.hibernate.envers.AuditReaderFactory;
@@ -198,5 +202,52 @@ class UserRepositoryTest {
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN), windowStart, windowEnd);
 
         assertThat(count).isEqualTo(2);
+    }
+
+    // --- specify/features/global-staff-dashboard-sparklines/SPEC.md REQ-1/2: cumulative,
+    // day-bucketed running total of internal staff headcount ---
+
+    @Test
+    void countCumulativeStaffByDayOnlyCountsStaffAndStaffAdminRoles() {
+        long baselineTotal =
+                userRepository.countCumulativeStaffByDay().stream()
+                        .reduce((first, last) -> last)
+                        .map(DailyCountProjection::getCount)
+                        .orElse(0L);
+
+        Instant dayOne = Instant.now().truncatedTo(ChronoUnit.DAYS).plus(12, ChronoUnit.HOURS);
+
+        User staff = userRepository.saveAndFlush(new User("cumulative-staff@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF);
+        userRepository.saveAndFlush(staff);
+        backdateUser(staff, dayOne);
+
+        User staffAdmin =
+                userRepository.saveAndFlush(new User("cumulative-staff-admin@example.com"));
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        backdateUser(staffAdmin, dayOne.plus(1, ChronoUnit.HOURS));
+
+        User plain = userRepository.saveAndFlush(new User("cumulative-plain@example.com"));
+        backdateUser(plain, dayOne.plus(2, ChronoUnit.HOURS));
+
+        List<DailyCountProjection> rows = userRepository.countCumulativeStaffByDay();
+
+        assertThat(rows).isSortedAccordingTo(Comparator.comparing(DailyCountProjection::getDay));
+
+        var dayOneRow =
+                rows.stream()
+                        .filter(r -> r.getDay().equals(LocalDate.ofInstant(dayOne, ZoneOffset.UTC)))
+                        .findFirst()
+                        .orElseThrow();
+
+        // Two STAFF/STAFF_ADMIN rows bump the total; the plain (no GlobalRole) row is excluded.
+        assertThat(dayOneRow.getCount()).isEqualTo(baselineTotal + 2);
+
+        long previous = Long.MIN_VALUE;
+        for (DailyCountProjection row : rows) {
+            assertThat(row.getCount()).isGreaterThanOrEqualTo(previous);
+            previous = row.getCount();
+        }
     }
 }
