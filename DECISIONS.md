@@ -1537,6 +1537,201 @@ choice. If a third day-bucketed shape shows up later that fits neither
 merge helper, that's the trigger to reconsider whether these two helpers
 should be unified behind a shared strategy, not before.
 
+### First modal/confirmation-dialog pattern uses native `<dialog>`, not a hand-rolled overlay
+
+`article-management` (frontend) needed a confirmation prompt before a
+destructive action (REQ-11–13, deleting an article) — a check of the
+whole `knowly-app/` codebase found no existing modal/overlay component
+to reuse: `new-conversation-dialog.component.ts` is a route-level page
+despite the name, not an overlay (no backdrop, no focus trap, no
+`Escape` handling), and `members-page.component.ts`'s existing delete
+action has no confirmation step at all. So this is genuinely the first
+confirm/modal pattern in this codebase. **Decision:** build
+`shared/confirm-dialog.component.ts` on the native HTML `<dialog>`
+element (`showModal()`/`close()`), not a hand-rolled `position: fixed`
+overlay + manual keydown listener + manual focus trap. **Why:** the
+SPEC's own NFR requires the prompt be "keyboard-operable and
+focus-trapped/dismissible with `Escape`" — `<dialog>` provides all
+three natively (focus trap, `Escape`→`cancel` event, `::backdrop`) with
+zero new dependency, whereas a hand-rolled overlay would have to
+reimplement all three correctly (a common source of accessibility bugs)
+or reach for a library, which would be a Tier 3 new-dependency decision
+this feature doesn't need to make. This keeps the project's existing
+"no component library, pure Tailwind + hand-rolled Angular components"
+posture (see "Frontend drops PrimeNG..." below) intact — `<dialog>` is
+a platform primitive, not a library.
+**Applies to new decisions:** the next screen that needs a confirmation
+prompt or any modal (a settings dialog, an "are you sure" for another
+destructive action) reuses `shared/confirm-dialog.component.ts` — or,
+if the shape doesn't fit (e.g. needs arbitrary content, not just a
+message + confirm/cancel), extends the same native-`<dialog>`
+foundation rather than introducing a second, different modal mechanism.
+Reaching for a CDK overlay or a headless-UI/modal library instead of
+`<dialog>` is a Tier 3 new-dependency decision — ask first, don't
+assume the native element is insufficient without a concrete reason
+(e.g. needing nested/stacked dialogs, which `<dialog>` doesn't handle
+gracefully) written down.
+
+## `deletion-confirmation-token`: `Accept-Language` locale resolution is a narrow, purpose-built parser, not Spring's `LocaleResolver`/`AcceptHeaderLocaleResolver`
+
+`knowly-api` had no prior `Accept-Language`/`Locale` handling anywhere
+in `src/main/java` (confirmed by inspection before writing this SPEC's
+REQ-31). Rather than wiring up Spring's general-purpose
+`LocaleResolver` machinery — which would happily resolve variants this
+SPEC never wanted to support (e.g. `pt-PT`, or throw on a malformed
+header) — this feature adds a small dedicated
+`DeletionConfirmationLocaleResolver` that only ever answers the exact
+binary question REQ-31 asks: does the header's highest-priority tag
+match `pt`/`pt-BR`, or does everything else (including missing/
+unparseable) fall back to EN. It parses defensively via
+`Locale.LanguageRange.parse(...)`, is not registered as a Spring
+`LocaleResolver` bean, and has no effect outside this one feature.
+**Why:** general i18n negotiation and this SPEC's two-outcome locale
+selection are different problems with different failure modes: a
+general resolver optimizes for "pick the best match across many
+supported locales," this feature needs "pick exactly one of two known
+lists, defaulting safely on anything else." Reusing the general
+machinery here would mean carrying its broader failure surface (locale
+values this app doesn't actually support, resolver misconfiguration) to
+solve a narrower problem, for the sake of "already existing" rather
+than "actually fitting." **Applies to new decisions:** the next feature
+that needs to read `Accept-Language` should reuse
+`DeletionConfirmationLocaleResolver`'s parsing approach (defensive
+`Locale.LanguageRange.parse`, explicit primary-tag check, explicit
+default) if its locale set stays this narrow (EN/pt-BR, matching
+`knowly-app`'s only two shipped UI locales per this SPEC's "Out of
+scope"); only reach for Spring's full `LocaleResolver` machinery if a
+future feature needs genuine multi-locale negotiation across more than
+these two, and treat adding a third locale itself as a separate,
+product-level (Tier 3) decision, not something to infer from this
+resolver's shape.
+
+## `deletion-confirmation-token`: a wrong-word validation attempt consumes the token, same as a correct one (Tier 3, user-confirmed 2026-08-01)
+
+An appsec review of this feature's PLAN flagged that the original design
+— consume the Redis token only on a correct match, leave it live on a
+mismatch "so a mistyped attempt doesn't burn the real token" — left the
+5-minute TTL window brute-forceable: a caller who already holds delete
+permission on the resource (the token never grants authorization by
+itself, only proves deliberate intent) could retry different two-word
+guesses against the same live token for the full TTL, with only ~262k
+combinations (512×511) per resource+user pair. That doesn't cross an
+authorization boundary, but it defeats the specific guarantee this
+mechanism exists to provide. No precedent existed for this exact
+tradeoff in this codebase (`LoginCodeService`'s same non-burning-on-
+mismatch behavior gates *authentication itself*, a materially different
+threat model, so it wasn't treated as controlling precedent here) — this
+was escalated to the user rather than decided unilaterally, per this
+file's Tier 3 rule for genuine security tradeoffs. **Decision (user
+choice): invalidate the token on the first attempt regardless of
+match/mismatch.** A typo now costs the caller a fresh token request
+(same UX as an already-expired token, reusing the existing refetch flow
+— no new frontend code path), rather than nothing. **Applies to new
+decisions:** any future single-use security-confirmation token in this
+codebase (not just deletion) should default to consume-on-first-attempt
+unless there's a specific reason (like `LoginCodeService`'s
+authentication context) to tolerate mismatches — ask before choosing the
+more lenient behavior rather than assuming it's fine by analogy to this
+feature's original design.
+
+## `deletion-confirmation-token` (frontend): `ConfirmDialogComponent` takes a function-typed `fetchToken` input rather than an output/event round-trip
+
+Six different delete flows each need `ConfirmDialogComponent` to fetch a
+confirmation word scoped to a different resource identity (an article
+id; a `membershipId`; a `(membershipId, permission)` pair; a
+`(membershipId, accessGroupId)` pair; and the staff-side equivalents of
+the last two) the moment the dialog opens, without the caller having to
+pre-fetch it before opening. No existing component in this codebase
+takes a function-typed Angular `input()`. Two shapes were considered:
+(a) the dialog emits an output when it opens (e.g. `tokenRequested`),
+the parent listens, calls its own service method, and passes the result
+back in via a `word` input; or (b) the parent passes a
+`fetchToken: () => Observable<string>` closure once, and the dialog
+calls it itself. **Decision:** (b). **Why:** (a) needs the parent to
+also track "did I already respond to this open event" and reset that
+per resource-instance-change, duplicated 6 times; (b) closes over the
+resource identity once, at the call site, and lets the dialog own its
+entire fetch/loading/error lifecycle internally as component-local
+signals (consistent with "state lives in services as signals" — this
+state isn't shared, so it stays local, same as `pendingDelete` already
+does in `articles-page.component.ts`). A function-typed input is not a
+new pattern/dependency, just an Angular `input()` typed as a callback —
+Angular has always allowed this, this codebase just hadn't needed it
+yet. **Applies to new decisions:** the next component that needs to
+fetch something scoped to per-instance identity supplied by its parent,
+where the parent has no reason to react to "the fetch happened" itself,
+should default to a function-typed input over an output/input
+round-trip — reserve the output/round-trip shape for cases where the
+parent genuinely needs to intervene between "component wants data" and
+"here's the data" (e.g. needs to show its own loading state, or combine
+several async sources).
+
+## `deletion-confirmation-token` (frontend): `Accept-Language` is set by a new interceptor sourced from `TranslocoService`, not left to the browser's default header
+
+The backend resolves the deletion-confirmation word's language purely
+from the raw `Accept-Language` request header (see the backend
+feature's own PLAN.md). This app's actual displayed language, however,
+is `TranslocoService`'s `activeLang`, driven by `language.service.ts`
+and persisted in `localStorage` (`knowly.lang`) independently of the
+browser/OS locale — a real, already-shipped case where a user's chosen
+in-app language and their browser's default locale can differ. Letting
+the browser send its own default `Accept-Language` (as every other
+`/api/...` call implicitly does today, since nothing on the frontend has
+ever needed to read that header before) would silently give such a user
+a security word from the wrong language's wordlist. **Decision:** a new
+`localeInterceptor` (`HttpInterceptorFn`, same shape as the existing
+`authInterceptor`), registered in `app.config.ts`'s
+`withInterceptors([...])`, reads `TranslocoService.getActiveLang()` and
+sets `Accept-Language` explicitly on every outgoing request. **Why:**
+this is the only point in the app that can see "what language is
+actually being shown to this user right now" — doing this per-call-site
+in each of the six new service methods would work but would have to be
+repeated six times and would drift the moment a seventh caller forgets
+it; an interceptor makes it structurally impossible to forget. **Applies
+to new decisions:** any future backend endpoint that varies its response
+by locale should keep relying on this same interceptor (already applied
+to every `/api/...` call) rather than adding its own per-call header —
+and if `knowly-app` ever ships a third UI language, updating
+`localeInterceptor`'s mapping (currently a pass-through, since
+`availableLangs` codes already match what the backend's locale resolver
+expects) is a normal Tier 1 follow-on, not a new architectural decision,
+since the interceptor itself doesn't hardcode the two-locale assumption
+— the backend's own locale-resolver narrowness does (see the
+"`Accept-Language` locale resolution is a narrow, purpose-built parser"
+entry above).
+
+## `member-admin-tenant-bypass` (frontend follow-up): gate nav items on `activeTenantRole() === 'MEMBER_ADMIN'` OR'd with the existing permission check, not by changing `GET /api/tenants/permissions`'s contract
+
+The backend bypass (`PermissionAspect.checkPermission` unconditionally
+passing for a `MEMBER_ADMIN` in their active tenant, shipped
+2026-07-29) meant a `MEMBER_ADMIN` could already hit every tenant-scoped
+endpoint (dashboard, articles, conversations, member management)
+regardless of their `AccessGroup`/direct permission grants — but
+`GET /api/tenants/permissions` still only returns explicitly-granted
+permissions, so `nav-menu.component.ts`'s `PermissionsService.has(...)`
+checks left such a `MEMBER_ADMIN` seeing almost no nav options. Two
+ways to close this: (a) make the permissions endpoint itself return the
+full permission set for a `MEMBER_ADMIN` caller, or (b) OR each nav
+item's existing `.has(...)` check with `activeTenantRole() ===
+'MEMBER_ADMIN'`, exactly the pattern `canSeeProfileEditRequests()` (in
+the same component) already used for this same role. **Decision:**
+option (b). **Why:** option (a) changes an existing, already-consumed
+endpoint's contract/semantics (from "permissions explicitly granted" to
+"permissions explicitly granted, or effectively-all-if-you're-a-role"),
+which is a backend change with blast radius beyond this bug — any other
+caller of that endpoint (present or future) would silently inherit a
+different contract. Option (b) is purely additive on the one component
+that actually needs the display-gating decision, costs nothing new
+(the signal it reads, `ActiveTenantService.activeTenantRole()`, was
+already being populated and read for the identical purpose one
+computed away), and is the cheapest fix that doesn't touch backend
+code at all. **Applies to new decisions:** when a backend permission
+bypass exists for a specific role and a frontend display-gating check
+needs to reflect it, prefer OR'ing the role check into the existing
+gate at the point of use over widening a shared endpoint's contract —
+reserve endpoint-contract changes for cases where multiple call sites
+would otherwise need the same duplicated role-check logic.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
