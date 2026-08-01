@@ -155,7 +155,7 @@ const POLL_INTERVAL_MS = 4000;
             [open]="true"
             [message]="'articles.confirmDelete' | transloco: { title: articleToDelete.title }"
             (confirm)="confirmDelete()"
-            (cancel)="cancelDelete()"
+            (dismissed)="cancelDelete()"
           />
         }
 
@@ -292,12 +292,15 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
     if (a.length !== b.length) {
       return false;
     }
-    return a.every(
-      (article, index) =>
-        article.id === b[index].id &&
-        article.title === b[index].title &&
-        article.status === b[index].status,
-    );
+    return a.every((article, index) => {
+      const other = b.at(index);
+      return (
+        other !== undefined &&
+        article.id === other.id &&
+        article.title === other.title &&
+        article.status === other.status
+      );
+    });
   }
 
   private schedulePollIfNeeded(tenantId: number, articles: ArticleSummary[]): void {

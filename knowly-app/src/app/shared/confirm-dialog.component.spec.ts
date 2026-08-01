@@ -58,27 +58,27 @@ describe('ConfirmDialogComponent', () => {
     expect(confirmed).toHaveBeenCalledOnce();
   });
 
-  it('emits (cancel) when the cancel button is clicked', () => {
+  it('emits (dismissed) when the cancel button is clicked', () => {
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
 
-    const cancelled = vi.fn();
-    fixture.componentInstance.cancel.subscribe(cancelled);
+    const dismissed = vi.fn();
+    fixture.componentInstance.dismissed.subscribe(dismissed);
 
     fixture.nativeElement.querySelector('[data-testid="confirm-dialog-cancel"]').click();
 
-    expect(cancelled).toHaveBeenCalledOnce();
+    expect(dismissed).toHaveBeenCalledOnce();
   });
 
-  it('emits (cancel) on the native dialog cancel event (Escape)', () => {
+  it('emits (dismissed) on the native dialog cancel event (Escape)', () => {
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
 
-    const cancelled = vi.fn();
-    fixture.componentInstance.cancel.subscribe(cancelled);
+    const dismissed = vi.fn();
+    fixture.componentInstance.dismissed.subscribe(dismissed);
 
     dialog().dispatchEvent(new Event('cancel'));
 
-    expect(cancelled).toHaveBeenCalledOnce();
+    expect(dismissed).toHaveBeenCalledOnce();
   });
 });

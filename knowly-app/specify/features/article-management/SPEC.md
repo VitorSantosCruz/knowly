@@ -23,6 +23,18 @@ the screen where a tenant user actually builds the knowledge base the
 - As a user without one of these permissions, I want the corresponding
   action to simply not be available to me, rather than failing
   confusingly after I try it.
+- As any user watching the list refresh automatically, I want the screen
+  to stay visually stable instead of flickering/re-rendering while I'm
+  reading or scrolling it.
+- As a user with the delete permission, I want to be asked to confirm
+  before an article is actually removed, so I don't lose it to a
+  misclick.
+- As a user filling in the upload form, I want the Upload button to
+  visibly tell me it isn't ready yet until I've picked a file and given
+  it a title.
+- As a user with no article selected, I want the upload panel and list
+  to use the full screen width, and only make room for the article
+  content panel once I've actually selected something to read.
 
 ## Requirements (EARS/GEARS)
 
@@ -53,13 +65,43 @@ the screen where a tenant user actually builds the knowledge base the
 - **REQ-9 [Optional Feature]** Where the caller lacks a given permission
   (create/edit/delete), the system shall hide the corresponding action
   instead of showing it disabled or letting it fail.
+- **REQ-10 [State-Driven]** While the list refreshes automatically
+  (REQ-3's polling), the system shall update only the article rows whose
+  data actually changed, without clearing/re-rendering the full list,
+  without showing a full-page/blocking loading indicator, and without
+  moving the user's current scroll position — a background refresh must
+  not be visually distinguishable from "nothing happened" unless
+  something did.
+- **REQ-11 [Event-Driven]** When a user with the delete permission
+  triggers "Delete" on an article, the system shall show a confirmation
+  prompt naming the article before removing anything.
+- **REQ-12 [Event-Driven]** When the user confirms the deletion prompt,
+  the system shall remove the article from the list (per REQ-7).
+- **REQ-13 [Unwanted Behavior]** If the user dismisses or cancels the
+  deletion confirmation prompt, then the system shall leave the article
+  unchanged in the list and perform no deletion.
+- **REQ-14 [State-Driven]** While the upload form is missing a title, a
+  selected file, or both, the system shall render the Upload button in a
+  visibly disabled state and shall not submit an upload if it is
+  clicked.
+- **REQ-15 [Event-Driven]** When both a title and a file have been
+  provided in the upload form, the system shall enable the Upload
+  button.
+- **REQ-16 [State-Driven]** While no article is selected, the system
+  shall render the upload panel and article list at the full width of
+  the content area.
+- **REQ-17 [Event-Driven]** When a user selects an article, the system
+  shall shrink the upload panel and article list to a narrower column
+  and show the selected article's content panel alongside it.
 
 ## Non-functional requirements
 
 - Design: follows the established design-system standard, consistent
   with `dashboard`/`members`/`conversations`.
 - Accessibility: upload form and article list/detail are keyboard
-  operable.
+  operable. The deletion confirmation prompt is keyboard-operable and
+  focus-trapped/dismissible with `Escape`, consistent with any other
+  confirmation dialog already established in this codebase.
 
 ## Acceptance criteria
 
@@ -81,6 +123,24 @@ the screen where a tenant user actually builds the knowledge base the
       before `PermissionsService` refreshes).
 - [x] Create/edit/delete actions are hidden (not just disabled) for a
       user who lacks the corresponding permission.
+- [x] A background poll (REQ-3) that finds no data changes does not
+      blank/re-render the list, does not show a full-page loading
+      indicator, and does not move the scroll position.
+- [x] A background poll that finds a status change updates only the
+      affected row(s), without a full-list flicker.
+- [x] Clicking "Delete" opens a confirmation prompt naming the article;
+      the article is only removed after the user confirms.
+- [x] Cancelling/dismissing the deletion confirmation leaves the article
+      list unchanged.
+- [x] The Upload button is visibly disabled while no title, no file, or
+      neither has been provided, and does not submit if clicked in that
+      state.
+- [x] The Upload button becomes enabled once both a title and a file are
+      present.
+- [x] With no article selected, the upload panel + list occupy the full
+      width of the content area.
+- [x] Selecting an article shrinks the upload panel + list to a narrower
+      column and reveals the article content panel alongside it.
 
 ## Out of scope
 
@@ -90,3 +150,8 @@ the screen where a tenant user actually builds the knowledge base the
 - Bulk upload/delete.
 - Rich-text editing of an article's text (plain textarea for this first
   version).
+- Undo/restore after a confirmed deletion (REQ-11–13 only add a
+  confirmation step before deletion, not a recovery mechanism after it).
+- Configurable/animated column-width transition timing for the
+  full-width ↔ narrow-column layout switch (REQ-16/17 only specify the
+  two end states, not transition/animation behavior).
