@@ -23,6 +23,8 @@ function sampleTrends(overrides: Partial<Record<string, unknown>> = {}) {
     newTenants: { current: 3, previous: 2, percentChange: 50 },
     totalArticlesRead: { current: 999, previous: 900, percentChange: 11 },
     staffCount: { current: 7, previous: 6, percentChange: 16.7 },
+    totalTenantsPerDay: [{ date: '2026-07-01', count: 12 }],
+    staffCountPerDay: [{ date: '2026-07-01', count: 7 }],
     ...overrides,
   };
 }
@@ -211,5 +213,76 @@ describe('GlobalDashboardPageComponent', () => {
         .querySelector('[data-testid="support-tickets-tile"]')
         .querySelector('[data-testid="stat-card-coming-soon"]'),
     ).toBeTruthy();
+  });
+
+  it('REQ-1: after a successful trends fetch, all four cards render a sparkline chart', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === TRENDS_URL).flush(sampleTrends());
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    for (const testId of [
+      'tenant-count-tile',
+      'new-tenants-tile',
+      'articles-read-tile',
+      'staff-count-tile',
+    ]) {
+      expect(
+        el.querySelector(`[data-testid="${testId}"] app-chart-canvas`),
+        `${testId} should render a sparkline`,
+      ).toBeTruthy();
+    }
+    expect(
+      el.querySelector('[data-testid="support-tickets-tile"] app-chart-canvas'),
+    ).toBeFalsy();
+  });
+
+  it('REQ-4/6: before the first successful trends fetch, no card renders a sparkline', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    for (const testId of [
+      'tenant-count-tile',
+      'new-tenants-tile',
+      'articles-read-tile',
+      'staff-count-tile',
+    ]) {
+      expect(el.querySelector(`[data-testid="${testId}"] app-chart-canvas`)).toBeFalsy();
+    }
+
+    httpMock.expectOne((r) => r.url === TRENDS_URL);
+  });
+
+  it('REQ-5: a trends fetch failing after a prior success leaves sparklines rendered', () => {
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === METRICS_URL).flush(SAMPLE_METRICS);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === TRENDS_URL).flush(sampleTrends());
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="period-option-7d"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne((r) => r.url === TRENDS_URL && r.params.get('period') === '7d')
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    for (const testId of [
+      'tenant-count-tile',
+      'new-tenants-tile',
+      'articles-read-tile',
+      'staff-count-tile',
+    ]) {
+      expect(el.querySelector(`[data-testid="${testId}"] app-chart-canvas`)).toBeTruthy();
+    }
   });
 });

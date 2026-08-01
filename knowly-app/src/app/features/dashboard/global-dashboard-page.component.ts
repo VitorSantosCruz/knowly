@@ -37,6 +37,8 @@ export interface GlobalTrendsDto {
   newTenants: PeriodComparisonDto;
   totalArticlesRead: PeriodComparisonDto;
   staffCount: PeriodComparisonDto;
+  totalTenantsPerDay: DailyCountRow[];
+  staffCountPerDay: DailyCountRow[];
 }
 
 type GlobalDashboardError = 'network' | 'permission-denied' | null;
@@ -109,6 +111,7 @@ export function percentChangeFor(
             subtitle="{{ 'dashboard.trends.tenantCountSubtitle' | transloco }}"
             [value]="metrics()?.tenantCount"
             [percentChange]="tenantCountPercentChange()"
+            [sparklineData]="trends()?.totalTenantsPerDay"
           >
             <svg lucideBuilding2 icon aria-hidden="true"></svg>
           </app-gradient-stat-card>
@@ -118,6 +121,7 @@ export function percentChangeFor(
             subtitle="{{ 'dashboard.trends.newTenantsSubtitle' | transloco }}"
             [value]="metrics()?.newTenantsThisMonth"
             [percentChange]="newTenantsPercentChange()"
+            [sparklineData]="trends()?.newTenantsPerDay"
           >
             <svg lucideUserPlus icon aria-hidden="true"></svg>
           </app-gradient-stat-card>
@@ -127,6 +131,7 @@ export function percentChangeFor(
             subtitle="{{ 'dashboard.trends.articlesReadSubtitle' | transloco }}"
             [value]="metrics()?.articlesReadTotal"
             [percentChange]="articlesReadPercentChange()"
+            [sparklineData]="trends()?.articlesReadPerDay"
           >
             <svg lucideBookOpenCheck icon aria-hidden="true"></svg>
           </app-gradient-stat-card>
@@ -136,6 +141,7 @@ export function percentChangeFor(
             subtitle="{{ 'dashboard.trends.staffCountSubtitle' | transloco }}"
             [value]="metrics()?.staffCount"
             [percentChange]="staffCountPercentChange()"
+            [sparklineData]="trends()?.staffCountPerDay"
           >
             <svg lucideShieldCheck icon aria-hidden="true"></svg>
           </app-gradient-stat-card>
