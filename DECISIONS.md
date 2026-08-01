@@ -1396,6 +1396,147 @@ earlier tenant-filter bug) and id 4 (this race) are stuck in
 the queue and ACKed, so they need to be re-uploaded or manually
 re-published, same as noted in the entry above.
 
+## `active-members-trend`: daily `@Scheduled` job over write-time upsert for the new active-member snapshot table (Tier 2, 2026-08-01)
+
+The `active-members-trend` SPEC (backend) deliberately deferred the
+"how" of maintaining a new go-forward-only `(tenant, UTC day) → active
+member count` snapshot table to the PLAN, offering two candidate
+mechanisms: a scheduled job, or an upsert triggered on every
+`TenantMembership.active` write. This is the first time this codebase
+introduces a scheduled job at all (`grep -rn "@Scheduled"
+knowly-api/src/main/java` returned nothing before this decision), so the
+choice is recorded here as precedent for the next "needs periodic
+background computation" feature.
+
+**Chosen: a daily `@Scheduled` job** (`ActiveMemberSnapshotScheduler`,
+`cron = "0 5 0 * * *"`, UTC), not a write-time upsert. Two things ruled
+out the write-time approach, even though it was the more "obvious"
+option in a codebase with no scheduling precedent yet:
+
+1. The SPEC's own NFR says the mechanism "must not add a per-request
+   cost to any existing tenant-membership mutation path" — a write-time
+   upsert runs synchronously inside `addMember`/`removeMember`'s request
+   path, directly the thing that NFR was written to avoid.
+2. More fundamentally, a write-time upsert only produces a row on a day
+   where a membership actually changed state. On any day with zero
+   membership churn for a tenant (the common case for a stable tenant),
+   no row would be written — silently breaking the SPEC's REQ-2
+   ("record exactly one snapshot row per tenant for that day"
+   unconditionally, every day, not conditionally on activity). A
+   scheduled job produces a correct row for every tenant every day,
+   independent of whether anything changed, which is what "snapshot"
+   actually means here.
+
+**Idempotency (REQ-3, at-most-one-row-per-tenant-per-day) is handled by
+a Postgres `INSERT ... ON CONFLICT (tenant_id, snapshot_date) DO
+UPDATE` upsert**, not a `SELECT`-then-branch or an application-level
+lock — a retried/duplicate job run for the same day is naturally
+idempotent at the database level, no extra coordination needed.
+
+**Accepted gap**: if the app is down at the scheduled run time, that
+day's snapshot is permanently skipped (no catch-up-on-startup, no
+backfill). This isn't a fresh product tradeoff needing sign-off — it's
+the same "no backfill for missing history" position the SPEC's product
+owner already confirmed for the feature's entire pre-rollout history,
+just scoped down to a single missed day instead of the whole gap before
+rollout.
+
+**No new dependency**: `@Scheduled`/`@EnableScheduling` ship in
+`spring-context`, already transitively present via
+`spring-boot-starter` — only `@EnableScheduling` needed adding to
+`KnowlyApplication`. Introducing the *first* scheduled job in this
+codebase is still a real architectural decision (a new execution
+context with no HTTP request/tenant context, its own failure mode if
+the app is down at trigger time, and cron-schedule reasoning that
+doesn't exist anywhere else here yet) — just not a Tier 3 one, since no
+new artifact was added to `pom.xml`.
+
+**Applies to new decisions:** the next feature needing "compute/record
+something periodically, independent of any single request" should
+default to a `@Scheduled` job in the owning package (not a write-time
+hook scattered across mutation call sites) whenever the periodic
+computation must happen unconditionally (i.e. its correctness doesn't
+depend on "something changed recently") — and should use a
+database-level `ON CONFLICT` upsert for idempotency over
+application-level dedup logic wherever the target table has a natural
+uniqueness key to upsert against, the same way this one does on
+`(tenant_id, snapshot_date)`.
+
+## `global-staff-dashboard-sparklines`: cumulative, carry-forward day-bucketed series is a new query/merge shape, computed as a single window-function query over full history rather than a period-bounded query
+
+Every day-bucketed series in this codebase before this feature
+(`ArticleRepository`/`ConversationRepository`/`MessageArticleCitationRepository`/
+`TenantRepository.countTenantsByDay(Since)`) counts rows *created within*
+the bucket, zero-filling any day with no inserts to `0`. This feature's
+two new series (`totalTenantsPerDay`/`staffCountPerDay`, per
+`global-staff-dashboard-sparklines/SPEC.md` REQ-1/2/3/4/5) are
+cumulative running totals ("how many `Tenant`/staff-`User` rows existed
+as of the end of day N"), which is a different shape: a quiet day must
+**carry forward** the last known total, never reset to `0`, and the
+value for any displayed day depends on **all** history up to that day,
+not just rows inside the caller's requested display window.
+
+**Decision: one native `@Query` per metric, computed over full history
+regardless of `period`, using a window-function running sum over
+day-bucketed counts** —
+
+```sql
+WITH daily AS (
+  SELECT date_trunc('day', created_at AT TIME ZONE 'UTC')::date AS day, count(*) AS cnt
+  FROM tenants GROUP BY day
+)
+SELECT day, sum(cnt) OVER (ORDER BY day) AS count
+FROM daily ORDER BY day
+```
+
+— rather than (a) the existing two-query-variant pattern (`*Since(Instant)`
+for bounded periods + bare `*()` for `period=all`), which would silently
+compute the *wrong* running total for a bounded period (day 1 of a `7d`
+window would show "new rows in the last 7 days" instead of the true
+all-time running total as of that day), or (b) issuing one
+`count(*) WHERE created_at <= :day` query per displayed calendar day,
+which doesn't scale to `period=all` (unbounded day count) and turns a
+90-day window into up to 90 round trips. The window-function query
+aggregates once over `count(*) GROUP BY day` rows (cost bounded by
+"distinct days with activity," same shape/cost as this codebase's
+existing `period=all` queries), matching the SPEC's own NFR
+("a single grouped aggregate query per metric ... no per-row loading").
+
+A new app-layer merge helper (`mergeCarryForwardDays`, distinct from the
+existing `mergeZeroCountDays`) then slices/carries this full-history
+result into the caller's requested display range: for a bounded period,
+the first displayed day seeds its carry value from the last cumulative
+total recorded *before* the range starts (not `0`) — e.g. a tenant
+created 6 months ago must still read `1` on day 1 of a `7d` window; for
+`period=all`, the display range is `[earliest row's day, today]` (not
+`MetricsPeriod.dateRange`, which has no concept of "start from the
+data's own earliest day"), and an empty result set for `period=all`
+correctly means "no rows ever" (REQ-5).
+
+**Why the existing `DailyCountProjection` interface is reused as-is
+(`getDay()`/`getCount()`) even though the value now means "cumulative
+total" not "count created that day":** introducing a second, identically
+shaped projection interface purely to rename `getCount()` would be a
+distinction without a difference — every consumer of a day-bucketed
+native `@Query` in this codebase already treats the projection as
+schema-agnostic (`day`, some numeric value); the semantic difference is
+carried by the SQL/column alias and the surrounding method name
+(`countCumulativeTenantsByDay` vs. `countTenantsByDay`), not by the
+projection type. A future third meaning for a day-bucketed numeric value
+would still fit this same interface.
+
+**Applies to new decisions:** before adding a new day-bucketed metric,
+check whether it's "rows created per bucket" (use the existing
+`*Since`/bare two-query-variant pattern + `mergeZeroCountDays`) or a
+cumulative/running-total shape (use this single-query-over-full-history
+pattern + `mergeCarryForwardDays`) — the two are not interchangeable,
+and computing a cumulative metric with a period-bounded query is a
+correctness bug (silently understates the true running total for any
+window that doesn't start at "the beginning of time"), not just a style
+choice. If a third day-bucketed shape shows up later that fits neither
+merge helper, that's the trigger to reconsider whether these two helpers
+should be unified behind a shared strategy, not before.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
