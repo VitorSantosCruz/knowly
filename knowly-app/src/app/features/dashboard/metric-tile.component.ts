@@ -24,10 +24,20 @@ export function toSparklineData(days: SparklineDay[]): SparklineChartData {
   };
 }
 
+/**
+ * Line/point colors tuned for legibility against the dark gradient card
+ * background (`from-ink-900 to-ink-950`) the tile now shares with
+ * `gradient-stat-card.component.ts` — the Chart.js defaults were picked
+ * for the old plain white/`ink-900` card and read as near-invisible on
+ * the darker gradient.
+ */
 const SPARKLINE_OPTIONS = {
   plugins: { legend: { display: false } },
   scales: { x: { display: false }, y: { display: false } },
-  elements: { point: { radius: 0 } },
+  elements: {
+    point: { radius: 0 },
+    line: { borderColor: '#c0a9e3', backgroundColor: 'rgba(192, 169, 227, 0.2)' },
+  },
   maintainAspectRatio: false,
 };
 
@@ -37,19 +47,16 @@ const SPARKLINE_OPTIONS = {
   template: `
     <div
       [attr.data-testid]="testId()"
-      class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+      class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
       @if (disabled()) {
-        <p class="text-sm text-ink-500 dark:text-ink-400">{{ label() }}</p>
-        <p
-          data-testid="metric-tile-coming-soon"
-          class="text-lg font-semibold text-ink-400 dark:text-ink-600"
-        >
+        <p class="text-sm text-ink-300">{{ label() }}</p>
+        <p data-testid="metric-tile-coming-soon" class="text-lg font-semibold text-ink-400">
           {{ 'dashboard.comingSoon' | transloco }}
         </p>
       } @else if (value() !== undefined) {
-        <p class="text-sm text-ink-500 dark:text-ink-400">{{ label() }}</p>
-        <p data-testid="metric-tile-value" class="text-3xl font-bold text-ink-900 dark:text-white">
+        <p class="text-sm text-ink-300">{{ label() }}</p>
+        <p data-testid="metric-tile-value" class="text-3xl font-bold text-white">
           {{ value() }}
         </p>
       } @else if (fetcher?.loading()) {
@@ -59,8 +66,8 @@ const SPARKLINE_OPTIONS = {
       } @else if (fetcher?.error() === 'network') {
         <app-error-state [traceId]="fetcher?.traceId()" />
       } @else if (fetcher?.data(); as data) {
-        <p class="text-sm text-ink-500 dark:text-ink-400">{{ label() }}</p>
-        <p data-testid="metric-tile-value" class="text-3xl font-bold text-ink-900 dark:text-white">
+        <p class="text-sm text-ink-300">{{ label() }}</p>
+        <p data-testid="metric-tile-value" class="text-3xl font-bold text-white">
           {{ valueSelector()!(data) }}
         </p>
         <div class="mt-2 h-12">

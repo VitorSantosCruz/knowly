@@ -1,10 +1,11 @@
 import { Component, input } from '@angular/core';
 
 /**
- * Presentational gradient-styled stat card replacing the plain
- * `metric-tile.component.ts` presentation on `GlobalDashboardPageComponent`
- * only (`metric-tile.component.ts` itself is unchanged, see
- * specify/features/global-staff-dashboard-trends/SPEC.md's "Out of scope").
+ * Presentational gradient-styled stat card, originally built for
+ * `GlobalDashboardPageComponent` only (see
+ * specify/features/global-staff-dashboard-trends/SPEC.md's "Out of scope",
+ * amended 2026-07-31: `metric-tile.component.ts` now shares this same
+ * gradient chrome on the tenant dashboard too — see DECISIONS.md).
  * Purely presentational: label/subtitle/value/percentChange are all
  * inputs, no fetch, no `MetricFetcher`. The icon is supplied by each call
  * site via `<ng-content select="[icon]">` so this component never needs to

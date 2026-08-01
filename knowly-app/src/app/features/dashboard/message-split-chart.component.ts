@@ -31,13 +31,23 @@ export function toDonutData(response: MessagesTimeseriesResponse): DonutChartDat
   };
 }
 
+/**
+ * Legend/label color tuned for legibility on the dark gradient card
+ * background (`from-ink-900 to-ink-950`) this chart now shares with
+ * `gradient-stat-card.component.ts`; Chart.js's default legend text color
+ * is a dark gray that reads as near-invisible on that background.
+ */
+const DONUT_OPTIONS = {
+  plugins: { legend: { labels: { color: '#c0a9e3' } } },
+};
+
 @Component({
   selector: 'app-message-split-chart',
   imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
   template: `
     <div
       data-testid="message-split-chart"
-      class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+      class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
       @if (fetcher.loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
@@ -46,7 +56,12 @@ export function toDonutData(response: MessagesTimeseriesResponse): DonutChartDat
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <app-chart-canvas type="doughnut" [data]="toDonutData(data)" height="220px" />
+        <app-chart-canvas
+          type="doughnut"
+          [data]="toDonutData(data)"
+          [options]="donutOptions"
+          height="220px"
+        />
         <table class="sr-only">
           <caption>
             Message split
@@ -74,6 +89,8 @@ export class MessageSplitChartComponent {
   private readonly http = inject(HttpClient);
 
   readonly period = input.required<Period>();
+
+  protected readonly donutOptions = DONUT_OPTIONS;
 
   private fetcherInstance?: MetricFetcher<MessagesTimeseriesResponse>;
 

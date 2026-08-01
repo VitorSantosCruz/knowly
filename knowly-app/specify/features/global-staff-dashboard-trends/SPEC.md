@@ -194,6 +194,14 @@ components/mappers) change.
 - **The tenant-scoped `DashboardPageComponent`** — unchanged, out of
   scope, per the app owner's explicit confirmation that this redesign
   targets the staff/global dashboard only.
+  > **Amendment (2026-07-31):** the user later explicitly approved
+  > reopening this exclusion for the *visual card style only* — see
+  > `DECISIONS.md`'s "Tenant dashboard cards unified to the
+  > gradient-stat-card style (2026-07-31)" entry. `metric-tile.component.ts`
+  > and the other tenant-dashboard card components now share
+  > `gradient-stat-card.component.ts`'s gradient chrome; this SPEC's
+  > original text is left as-is above as the historical record of what
+  > was approved at the time.
 - **`/welcome`'s quick-link card** (`staff-global-dashboard` REQ-8) —
   unchanged; this SPEC doesn't touch `/welcome`.
 - **Support-ticket real data** — the fifth tile stays a disabled

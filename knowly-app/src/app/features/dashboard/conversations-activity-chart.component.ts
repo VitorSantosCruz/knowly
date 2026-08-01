@@ -27,13 +27,28 @@ export function toBarData(response: ConversationsTimeseriesResponse): BarChartDa
   };
 }
 
+/**
+ * Bar/axis colors tuned for legibility on the dark gradient card
+ * background (`from-ink-900 to-ink-950`) this chart now shares with
+ * `gradient-stat-card.component.ts`; Chart.js's default bar/axis colors
+ * are dark grays that read as near-invisible on that background.
+ */
+const BAR_OPTIONS = {
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { ticks: { color: '#c0a9e3' }, grid: { color: 'rgba(192, 169, 227, 0.15)' } },
+    y: { ticks: { color: '#c0a9e3' }, grid: { color: 'rgba(192, 169, 227, 0.15)' } },
+  },
+  elements: { bar: { backgroundColor: '#7c4fb8' } },
+};
+
 @Component({
   selector: 'app-conversations-activity-chart',
   imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent],
   template: `
     <div
       data-testid="conversations-activity-chart"
-      class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+      class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
       @if (fetcher.loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
@@ -42,7 +57,12 @@ export function toBarData(response: ConversationsTimeseriesResponse): BarChartDa
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <app-chart-canvas type="bar" [data]="toBarData(data)" height="220px" />
+        <app-chart-canvas
+          type="bar"
+          [data]="toBarData(data)"
+          [options]="barOptions"
+          height="220px"
+        />
         <table class="sr-only">
           <caption>
             Conversations per day
@@ -70,6 +90,8 @@ export class ConversationsActivityChartComponent {
   private readonly http = inject(HttpClient);
 
   readonly period = input.required<Period>();
+
+  protected readonly barOptions = BAR_OPTIONS;
 
   private fetcherInstance?: MetricFetcher<ConversationsTimeseriesResponse>;
 

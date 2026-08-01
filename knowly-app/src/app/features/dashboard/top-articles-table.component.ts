@@ -21,7 +21,7 @@ interface ArticleUsageResponse {
   template: `
     <div
       data-testid="top-articles-table"
-      class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 transition-shadow duration-base ease-fluid dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+      class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
       @if (fetcher.loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
@@ -33,12 +33,12 @@ interface ArticleUsageResponse {
         <input
           data-testid="article-search"
           type="text"
-          class="mb-3 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
+          class="mb-3 w-full rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-white placeholder:text-ink-400 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none"
           [placeholder]="'dashboard.searchArticles' | transloco"
           [value]="searchTerm()"
           (input)="searchTerm.set($any($event.target).value)"
         />
-        <table class="w-full">
+        <table class="w-full text-ink-100">
           <tbody>
             @for (article of filteredArticles(); track article.id) {
               <tr data-testid="article-row">

@@ -1267,6 +1267,34 @@ pre-existing, unrelated bug was noticed during this work:
 `900` — that class silently does nothing in dark mode and should be
 fixed separately, not folded into this palette change.
 
+## Tenant dashboard cards unified to the gradient-stat-card style (2026-07-31)
+
+`gradient-stat-card.component.ts` was built for
+`GlobalDashboardPageComponent` only; its own file comment noted that
+restyling `metric-tile.component.ts` (the tenant-level `Painel`
+dashboard's card) was "Out of scope" per
+`specify/features/global-staff-dashboard-trends/SPEC.md`. The user
+explicitly approved reopening that scope: `metric-tile.component.ts`,
+`members-breakdown-card.component.ts`, `top-articles-table.component.ts`,
+`message-split-chart.component.ts`, and
+`conversations-activity-chart.component.ts` were all restyled to the
+same `rounded-2xl ... bg-gradient-to-br from-ink-900 to-ink-950 ...
+text-white` gradient-card chrome as `gradient-stat-card.component.ts`,
+so both the staff global dashboard and the tenant dashboard share one
+visual language for their metric cards. Only the presentational
+container/text-color classes changed — each component's content
+(loading/error/no-access states, data fetching, chart rendering) is
+unchanged. Chart.js color options (`SPARKLINE_OPTIONS` in
+`metric-tile.component.ts`, plus new options objects in
+`message-split-chart.component.ts`/`conversations-activity-chart.component.ts`)
+were also tuned, since their previous defaults were picked for a light
+card background and read as low-contrast/invisible against the new dark
+gradient. **Applies to new decisions:** any new tenant-dashboard card
+component should default to this same gradient treatment rather than
+the old plain `bg-white dark:bg-ink-900` card — that plain style is now
+considered legacy/superseded on this dashboard, not a still-valid
+alternative to pick between.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
