@@ -155,6 +155,42 @@ describe('ArticlesPageComponent', () => {
     ).toContain('Processing');
   });
 
+  it('disables the Upload button until both title and file are provided', () => {
+    fixture.detectChanges();
+    flushSetup([]);
+
+    const submitButton: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="upload-submit"]',
+    );
+    expect(submitButton.disabled).toBe(true);
+
+    const titleInput: HTMLInputElement = fixture.nativeElement.querySelector(
+      '[data-testid="upload-title"]',
+    );
+    titleInput.value = 'New doc';
+    titleInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(submitButton.disabled).toBe(true);
+
+    titleInput.value = '';
+    titleInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const file = new File(['content'], 'new.pdf', { type: 'application/pdf' });
+    const fileInput: HTMLInputElement = fixture.nativeElement.querySelector(
+      '[data-testid="upload-file"]',
+    );
+    Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+    fileInput.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(submitButton.disabled).toBe(true);
+
+    titleInput.value = 'New doc';
+    titleInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(submitButton.disabled).toBe(false);
+  });
+
   it('shows an error and adds nothing when the upload is rejected', () => {
     fixture.detectChanges();
     flushSetup([]);

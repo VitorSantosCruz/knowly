@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, effect, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { EMPTY, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
@@ -57,7 +57,12 @@ const POLL_INTERVAL_MS = 4000;
                     class="hidden"
                   />
                 </label>
-                <button type="submit" [class]="uploadButtonClass">
+                <button
+                  type="submit"
+                  data-testid="upload-submit"
+                  [disabled]="!canUpload()"
+                  [class]="uploadButtonClass"
+                >
                   {{ 'articles.upload' | transloco }}
                 </button>
                 @if (uploadError(); as uploadErrorMessage) {
@@ -218,13 +223,17 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
   protected readonly error = signal<ArticlesError>(null);
   protected readonly selectedFileName = signal<string | null>(null);
   protected readonly pendingDelete = signal<ArticleSummary | null>(null);
+  protected readonly selectedFile = signal<File | null>(null);
+  protected readonly canUpload = computed(
+    () => this.uploadTitle().trim().length > 0 && this.selectedFile() !== null,
+  );
 
   protected readonly inputClass =
     'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white';
-  protected readonly uploadButtonClass = buttonClass('primary') + ' w-fit';
+  protected readonly uploadButtonClass =
+    buttonClass('primary') + ' w-fit disabled:opacity-50 disabled:cursor-not-allowed';
   protected readonly deleteButtonClass = buttonClass('danger', { ghost: true }) + ' shrink-0';
 
-  private selectedFile: File | null = null;
   private hasLoaded = false;
   private pollTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -303,15 +312,16 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
 
   protected onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.selectedFile = input.files?.[0] ?? null;
-    this.selectedFileName.set(this.selectedFile?.name ?? null);
+    const file = input.files?.[0] ?? null;
+    this.selectedFile.set(file);
+    this.selectedFileName.set(file?.name ?? null);
   }
 
   protected onUpload(event: Event): void {
     event.preventDefault();
     const tenantId = this.activeTenantService.activeTenantId();
     const title = this.uploadTitle();
-    const file = this.selectedFile;
+    const file = this.selectedFile();
 
     if (tenantId === null || !title || !file) {
       return;
@@ -337,7 +347,7 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
       )
       .subscribe((article) => {
         this.uploadTitle.set('');
-        this.selectedFile = null;
+        this.selectedFile.set(null);
         this.selectedFileName.set(null);
         this.articles.update((articles) => [article, ...articles]);
         this.schedulePollIfNeeded(tenantId, this.articles());
