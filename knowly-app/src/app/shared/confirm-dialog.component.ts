@@ -8,7 +8,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
     <dialog
       #dialog
       data-testid="confirm-dialog"
-      class="rounded-2xl border border-ink-200/70 p-6 shadow-lg shadow-ink-900/5 backdrop:bg-ink-950/60 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+      class="fixed inset-0 m-auto w-full max-w-sm rounded-2xl border border-ink-200/70 p-6 shadow-lg shadow-ink-900/5 backdrop:bg-ink-950/60 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
       (cancel)="onNativeDialogCancel($event)"
     >
       <p class="mb-6 text-sm text-ink-700 dark:text-ink-300">{{ message() }}</p>
