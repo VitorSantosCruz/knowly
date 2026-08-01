@@ -152,6 +152,11 @@ public class GlobalMetricsService {
                                                         currentStart.orElseThrow()))
                         .orElse(null);
 
+        List<DailyCountDto> totalTenantsPerDay =
+                mergeCarryForwardDays(tenantRepository.countCumulativeTenantsByDay(), period);
+        List<DailyCountDto> staffCountPerDay =
+                mergeCarryForwardDays(userRepository.countCumulativeStaffByDay(), period);
+
         return new GlobalTrendsDto(
                 newTenantsPerDay,
                 articlesReadPerDay,
@@ -159,8 +164,8 @@ public class GlobalMetricsService {
                 comparison(tenantWindowCurrent, tenantWindowPrevious),
                 comparison(citationWindowCurrent, citationWindowPrevious),
                 comparison(staffWindowCurrent, staffWindowPrevious),
-                List.of(),
-                List.of());
+                totalTenantsPerDay,
+                staffCountPerDay);
     }
 
     /**

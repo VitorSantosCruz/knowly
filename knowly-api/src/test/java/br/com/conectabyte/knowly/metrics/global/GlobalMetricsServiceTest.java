@@ -110,6 +110,13 @@ class GlobalMetricsServiceTest {
                 tenant.getId());
     }
 
+    private void backdateUser(User user, Instant createdAt) {
+        jdbcTemplate.update(
+                "update users set created_at = ? where id = ?",
+                Timestamp.from(createdAt),
+                user.getId());
+    }
+
     // --- REQ-1/3/4/5/6: correct counts, using the injected (fixed) Clock ---
 
     @Test
@@ -385,6 +392,58 @@ class GlobalMetricsServiceTest {
         assertThat(sevenDaysPrevious).isEqualTo(currentStart.minus(7, ChronoUnit.DAYS));
         assertThat(thirtyDaysPrevious).isEqualTo(currentStart.minus(30, ChronoUnit.DAYS));
         assertThat(ninetyDaysPrevious).isEqualTo(currentStart.minus(90, ChronoUnit.DAYS));
+    }
+
+    // --- specify/features/global-staff-dashboard-sparklines/SPEC.md REQ-1/2/6: globalTrends wires
+    // the two new cumulative series through mergeCarryForwardDays, and existing fields are
+    // unchanged ---
+
+    @Test
+    void globalTrendsWiresCumulativeTotalTenantsAndStaffCountPerDay() {
+        setUpStaffAdminActor("sparklines-wiring@example.com");
+
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Sparklines Wiring Co"));
+        backdateTenant(tenant, FIXED_NOW.minus(3, ChronoUnit.DAYS));
+
+        User extraStaff = staff("sparklines-wiring-staff@example.com");
+        backdateUser(extraStaff, FIXED_NOW.minus(3, ChronoUnit.DAYS));
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.SEVEN_DAYS);
+
+        assertThat(result.totalTenantsPerDay()).hasSize(7);
+        assertThat(result.staffCountPerDay()).hasSize(7);
+        // Cumulative series must never be zero on the last (today) day once at least one tenant
+        // exists.
+        assertThat(result.totalTenantsPerDay().get(6).count()).isGreaterThan(0);
+        assertThat(result.staffCountPerDay().get(6).count()).isGreaterThan(0);
+        // Never decreasing day over day.
+        long previousTotalTenants = Long.MIN_VALUE;
+        for (DailyCountDto day : result.totalTenantsPerDay()) {
+            assertThat(day.count()).isGreaterThanOrEqualTo(previousTotalTenants);
+            previousTotalTenants = day.count();
+        }
+        long previousStaffCount = Long.MIN_VALUE;
+        for (DailyCountDto day : result.staffCountPerDay()) {
+            assertThat(day.count()).isGreaterThanOrEqualTo(previousStaffCount);
+            previousStaffCount = day.count();
+        }
+    }
+
+    @Test
+    void globalTrendsLeavesExistingFieldsUnchangedAfterAddingCumulativeSeries() {
+        setUpStaffAdminActor("sparklines-regression@example.com");
+
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Sparklines Regression Co"));
+        backdateTenant(tenant, FIXED_NOW.minus(2, ChronoUnit.DAYS));
+
+        GlobalTrendsDto result = globalMetricsService.globalTrends(MetricsPeriod.SEVEN_DAYS);
+
+        assertThat(result.newTenantsPerDay()).hasSize(7);
+        assertThat(result.articlesReadPerDay()).hasSize(7);
+        assertThat(result.totalTenants()).isNotNull();
+        assertThat(result.newTenants()).isNotNull();
+        assertThat(result.totalArticlesRead()).isNotNull();
+        assertThat(result.staffCount()).isNotNull();
     }
 
     @TestConfiguration
