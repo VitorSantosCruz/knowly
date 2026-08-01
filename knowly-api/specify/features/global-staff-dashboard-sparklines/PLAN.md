@@ -258,3 +258,29 @@ TDAD, Red → Green, per constitution:
     (from the sibling feature) still pass unmodified — no new
     authorization test needed per REQ-7, just confirmation the existing
     ones still gate the now-larger response.
+
+## Deviations during implementation
+
+- **Prerequisite port, not just a PLAN dependency note.** This worktree
+  had branched from `main` before `global-staff-dashboard-trends` (this
+  feature's direct backend dependency — the endpoint/DTO/service method
+  it appends to) had landed there. Rather than block, the trends
+  feature's backend (repository queries, `GlobalTrendsDto`/
+  `PeriodComparisonDto`, `GlobalMetricsService#globalTrends`,
+  `GlobalMetricsController`'s `/trends` mapping, `V21` migration, and
+  every associated test) was ported into this branch verbatim, as its
+  own commit, before starting this feature's own TASKS.md — see
+  `PROJECT_STATUS.md`'s `global-staff-dashboard-trends` row (marked
+  "this branch") for the full description of what was ported. No
+  `active-members-trend`/`ActiveMemberSnapshot` code was pulled in
+  alongside it — confirmed as a genuinely separate, non-dependency
+  sibling feature per the orchestrating agent's instructions, and this
+  feature's own repository queries/merge helper have no dependency on
+  it.
+- Test hook `GlobalMetricsService#mergeCarryForwardDaysForTest(...)`:
+  `mergeCarryForwardDays` itself stayed `private` as planned, but a
+  package-visible one-line delegator was added so a plain, mocked-
+  repository unit test (`GlobalMetricsServiceMergeCarryForwardDaysTest`,
+  no Spring context) could exercise the algorithm directly — same
+  package-visibility convention this class already uses for
+  `previousWindowStart`, not a new pattern.
