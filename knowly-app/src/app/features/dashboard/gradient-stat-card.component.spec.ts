@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { GradientStatCardComponent } from './gradient-stat-card.component';
+import { SparklineDay } from './metric-tile.component';
 
 @Component({
   selector: 'app-host',
@@ -12,6 +13,9 @@ import { GradientStatCardComponent } from './gradient-stat-card.component';
       subtitle="Companies with an active workspace"
       [value]="12"
       [percentChange]="percentChange"
+      [sparklineData]="sparklineData"
+      [showSparkline]="showSparkline"
+      [disabled]="disabled"
     >
       <span icon data-testid="stat-card-icon">icon</span>
     </app-gradient-stat-card>
@@ -19,6 +23,9 @@ import { GradientStatCardComponent } from './gradient-stat-card.component';
 })
 class HostComponent {
   percentChange: number | null | undefined = undefined;
+  sparklineData: SparklineDay[] | undefined = undefined;
+  showSparkline = true;
+  disabled = false;
 }
 
 describe('GradientStatCardComponent', () => {
@@ -71,5 +78,53 @@ describe('GradientStatCardComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="stat-card-badge"]')).toBeFalsy();
+  });
+
+  it('renders a sparkline chart and sr-only data table when sparklineData is non-empty', () => {
+    fixture.componentInstance.sparklineData = [
+      { date: '2026-07-01', count: 3 },
+      { date: '2026-07-02', count: 5 },
+    ];
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    expect(el.querySelector('app-chart-canvas')).toBeTruthy();
+    const table = el.querySelector('table.sr-only');
+    expect(table).toBeTruthy();
+    expect(table.textContent).toContain('2026-07-01');
+    expect(table.textContent).toContain('3');
+  });
+
+  it('renders no chart/table when sparklineData is undefined', () => {
+    fixture.componentInstance.sparklineData = undefined;
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement;
+    expect(el.querySelector('app-chart-canvas')).toBeFalsy();
+    expect(el.querySelector('table.sr-only')).toBeFalsy();
+    expect(el.querySelector('[data-testid="stat-card-value"]').textContent).toContain('12');
+  });
+
+  it('renders no chart/table when sparklineData is an empty array', () => {
+    fixture.componentInstance.sparklineData = [];
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeFalsy();
+  });
+
+  it('suppresses the chart when showSparkline is false even with data present', () => {
+    fixture.componentInstance.sparklineData = [{ date: '2026-07-01', count: 3 }];
+    fixture.componentInstance.showSparkline = false;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeFalsy();
+  });
+
+  it('never renders a sparkline when disabled, regardless of sparklineData', () => {
+    fixture.componentInstance.disabled = true;
+    fixture.componentInstance.sparklineData = [{ date: '2026-07-01', count: 3 }];
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeFalsy();
   });
 });

@@ -1,4 +1,11 @@
 import { Component, input } from '@angular/core';
+import { ChartCanvasComponent } from '../../shared/chart-canvas.component';
+import {
+  SPARKLINE_OPTIONS,
+  SparklineChartData,
+  SparklineDay,
+  toSparklineData,
+} from './metric-tile.component';
 
 /**
  * Presentational gradient-styled stat card, originally built for
@@ -13,6 +20,7 @@ import { Component, input } from '@angular/core';
  */
 @Component({
   selector: 'app-gradient-stat-card',
+  imports: [ChartCanvasComponent],
   host: {
     class: 'block h-full',
   },
@@ -42,6 +50,39 @@ import { Component, input } from '@angular/core';
         </div>
       </div>
 
+      @if (!disabled() && showSparkline() && hasSparklineData()) {
+        <div class="mt-2 h-12">
+          <app-chart-canvas
+            type="line"
+            [data]="chartData()"
+            [options]="sparklineOptions"
+            height="48px"
+          />
+        </div>
+        <table class="sr-only">
+          <caption>
+            {{
+              label()
+            }}
+            trend
+          </caption>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (day of sparklineData(); track day.date) {
+              <tr>
+                <td>{{ day.date }}</td>
+                <td>{{ day.count }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
       @if (subtitle()) {
         <p class="mt-2 text-xs text-ink-400">{{ subtitle() }}</p>
       }
@@ -67,6 +108,21 @@ export class GradientStatCardComponent {
   /** Renders a muted "coming soon" label instead of a value; no badge. */
   readonly disabled = input(false);
   readonly comingSoonLabel = input<string>('Coming soon');
+  /** Day-bucketed series for this card's sparkline, already fetched by the parent page.
+   * `undefined`/empty renders no chart (before the owning fetch has succeeded). */
+  readonly sparklineData = input<SparklineDay[] | undefined>(undefined);
+  readonly showSparkline = input<boolean>(true);
+
+  protected readonly sparklineOptions = SPARKLINE_OPTIONS;
+
+  protected hasSparklineData(): boolean {
+    const data = this.sparklineData();
+    return data !== undefined && data.length > 0;
+  }
+
+  protected chartData(): SparklineChartData {
+    return toSparklineData(this.sparklineData() ?? []);
+  }
 
   protected hasBadge(): boolean {
     const change = this.percentChange();
