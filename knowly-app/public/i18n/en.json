@@ -47,6 +47,7 @@
     "searchArticles": "Search articles…",
     "export": "Export CSV",
     "comingSoon": "Coming soon",
+    "inactiveMembers": "Inactive members",
     "tiles": {
       "articles": "Active articles",
       "conversations": "Conversations",

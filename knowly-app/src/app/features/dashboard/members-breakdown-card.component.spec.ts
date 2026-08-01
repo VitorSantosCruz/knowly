@@ -23,6 +23,17 @@ describe('MembersBreakdownCardComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('3');
   });
 
+  it('renders labels alongside the active/inactive counts', () => {
+    const { fixture, httpMock } = createMetricWidgetHarness(MembersBreakdownCardComponent);
+    fixture.detectChanges();
+
+    httpMock.expectOne(URL).flush({ activeCount: 7, inactiveCount: 3 });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Active members');
+    expect(fixture.nativeElement.textContent).toContain('Inactive members');
+  });
+
   it('shows an error state with the trace id on a network/server error', () => {
     const { fixture, httpMock } = createMetricWidgetHarness(MembersBreakdownCardComponent);
     fixture.detectChanges();

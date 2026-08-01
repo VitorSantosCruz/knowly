@@ -81,13 +81,14 @@ interface MembersResponse {
         label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
         [valueSelector]="activeMembersValueSelector"
         [sparklineSelector]="activeMembersSparklineSelector"
+        class="sm:col-span-2"
       />
 
-      <app-message-split-chart [period]="period()" />
-      <app-conversations-activity-chart [period]="period()" />
+      <app-message-split-chart [period]="period()" class="sm:col-span-2" />
+      <app-conversations-activity-chart [period]="period()" class="sm:col-span-2" />
 
-      <app-top-articles-table />
-      <app-members-breakdown-card />
+      <app-top-articles-table class="sm:col-span-2" />
+      <app-members-breakdown-card class="sm:col-span-2" />
       <a
         data-testid="articles-link"
         routerLink="/articles"

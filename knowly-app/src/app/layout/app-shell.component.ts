@@ -55,7 +55,7 @@ const BARE_ROUTES = ['/login'];
             <span class="mx-1 h-5 w-px shrink-0 bg-ink-200 dark:bg-ink-800"></span>
             <app-logout-button />
           </header>
-          <main class="min-w-0 flex-1">
+          <main class="min-w-0 flex-1 bg-ink-50 dark:bg-ink-950">
             <router-outlet />
           </main>
         </div>
