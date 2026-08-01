@@ -13,10 +13,13 @@ import { Component, input } from '@angular/core';
  */
 @Component({
   selector: 'app-gradient-stat-card',
+  host: {
+    class: 'block h-full',
+  },
   template: `
     <div
       [attr.data-testid]="testId()"
-      class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
+      class="enter-fluid relative flex h-full flex-col overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
       <div class="flex items-start justify-between gap-3">
         <div>
@@ -47,7 +50,7 @@ import { Component, input } from '@angular/core';
         <span
           data-testid="stat-card-badge"
           [class]="badgeClass()"
-          class="mt-3 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
+          class="mt-3 inline-flex w-fit items-center gap-1 self-start rounded-full px-2 py-0.5 text-xs font-semibold"
         >
           {{ badgeText() }}
         </span>
