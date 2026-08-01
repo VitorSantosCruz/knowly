@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.article;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,8 +13,10 @@ import br.com.conectabyte.knowly.tenancy.Tenant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 
 class ArticleEmbeddingListenerTest {
 
@@ -50,6 +53,33 @@ class ArticleEmbeddingListenerTest {
                 .containsEntry("article_id", 7L);
         assertThat(article.getEmbeddingStatus()).isEqualTo(EmbeddingStatus.READY);
         verify(articleRepository).save(article);
+    }
+
+    @Test
+    void deletesAnyExistingVectorStoreEntriesForTheArticleBeforeAddingNewOnes() {
+        Article article = aReadyArticle(7L, 3L, "This is the article's extracted plain text.");
+        when(articleRepository.findById(7L)).thenReturn(java.util.Optional.of(article));
+
+        listener.handle(new ArticleReadyForEmbeddingEvent(7L));
+
+        InOrder inOrder = inOrder(vectorStore);
+        inOrder.verify(vectorStore)
+                .delete(new FilterExpressionBuilder().eq("article_id", 7L).build());
+        inOrder.verify(vectorStore).add(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void redeliveryOfTheSameEventDoesNotDuplicateVectorStoreEntries() {
+        Article article = aReadyArticle(7L, 3L, "This is the article's extracted plain text.");
+        when(articleRepository.findById(7L)).thenReturn(java.util.Optional.of(article));
+
+        listener.handle(new ArticleReadyForEmbeddingEvent(7L));
+        listener.handle(new ArticleReadyForEmbeddingEvent(7L));
+
+        verify(vectorStore, org.mockito.Mockito.times(2))
+                .delete(new FilterExpressionBuilder().eq("article_id", 7L).build());
+        verify(vectorStore, org.mockito.Mockito.times(2))
+                .add(org.mockito.ArgumentMatchers.anyList());
     }
 
     @Test

@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -48,6 +49,11 @@ public class ArticleEmbeddingListener {
                             .build();
             List<Document> chunks = textSplitter.split(document);
 
+            // Delete before add so redelivery of this event (e.g. after a crash between
+            // vectorStore.add() succeeding and the RabbitMQ ack) is idempotent instead of
+            // accumulating duplicate embeddings for the same article.
+            vectorStore.delete(
+                    new FilterExpressionBuilder().eq("article_id", article.getId()).build());
             vectorStore.add(chunks);
             article.setEmbeddingStatus(EmbeddingStatus.READY);
             log.info(
