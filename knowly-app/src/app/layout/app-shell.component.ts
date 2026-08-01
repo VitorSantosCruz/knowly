@@ -6,7 +6,7 @@ import { LanguageSwitcherComponent } from '../shared/language-switcher.component
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 import { HelpMenuComponent } from '../shared/help-menu.component';
 import { TourOverlayComponent } from '../shared/tour-overlay.component';
-import { LogoutButtonComponent } from '../shared/logout-button.component';
+import { AvatarMenuComponent } from '../shared/avatar-menu.component';
 import { NavMenuComponent } from './nav-menu.component';
 
 const BARE_ROUTES = ['/login'];
@@ -19,7 +19,7 @@ const BARE_ROUTES = ['/login'];
     ThemeToggleComponent,
     HelpMenuComponent,
     TourOverlayComponent,
-    LogoutButtonComponent,
+    AvatarMenuComponent,
     NavMenuComponent,
   ],
   template: `
@@ -52,8 +52,7 @@ const BARE_ROUTES = ['/login'];
             <app-help-menu />
             <app-language-switcher />
             <app-theme-toggle />
-            <span class="mx-1 h-5 w-px shrink-0 bg-ink-200 dark:bg-ink-800"></span>
-            <app-logout-button />
+            <app-avatar-menu />
           </header>
           <main class="min-w-0 flex-1 bg-ink-50 dark:bg-ink-950">
             <router-outlet />

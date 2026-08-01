@@ -42,4 +42,12 @@ describe('AppShellComponent', () => {
 
     expect(fixture.nativeElement.querySelector('router-outlet')).toBeTruthy();
   });
+
+  it('renders the avatar menu instead of a standalone logout button', () => {
+    const fixture = TestBed.createComponent(AppShellComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-avatar-menu')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-logout-button')).toBeFalsy();
+  });
 });
