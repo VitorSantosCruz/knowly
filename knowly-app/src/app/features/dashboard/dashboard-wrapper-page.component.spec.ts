@@ -58,14 +58,16 @@ describe('DashboardWrapperPageComponent', () => {
     expect(fixture.nativeElement.querySelector('app-dashboard-page')).toBeFalsy();
     expect(fixture.nativeElement.querySelector('app-global-dashboard-page')).toBeFalsy();
 
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
   });
 
   it('renders DashboardPageComponent when an active tenant is resolved', () => {
     fixture.detectChanges();
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-dashboard-page')).toBeTruthy();
@@ -76,7 +78,9 @@ describe('DashboardWrapperPageComponent', () => {
 
   it('renders GlobalDashboardPageComponent when no active tenant is resolved (staff)', () => {
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-global-dashboard-page')).toBeTruthy();

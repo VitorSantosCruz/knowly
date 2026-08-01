@@ -9,6 +9,13 @@ export interface TenantMembership {
   active: boolean;
 }
 
+export interface ActiveTenant {
+  tenantId: number;
+  tenantName: string;
+  /** Omitted by the backend for a staff session acting as a tenant with no real membership row. */
+  role?: 'MEMBER_ADMIN' | 'MEMBER';
+}
+
 export interface TenantSummary {
   id: number;
   name: string;
@@ -43,31 +50,38 @@ export class ActiveTenantService {
   readonly activeTenantResolved = this._activeTenantResolved.asReadonly();
 
   /**
-   * True only while the current activeTenantId was set by selectTenant()'s optimistic
-   * update and hasn't yet been confirmed by a real TenantMembership row from the backend
-   * (a staff session acting as a tenant never gets one — only server-side session state,
-   * so `list()` never reflects it for that case). fetch() only preserves the existing
-   * signal value on this narrow race; a fetch() finding no active membership otherwise
-   * (fresh page load/login, or a previously-real membership that's no longer active) must
-   * null the signals out rather than carry a stale value across sessions.
+   * fetch() used to derive the active tenant from list()'s TenantMembership rows, which a
+   * staff session acting as a tenant never has one of (server-side session state only) — a
+   * `locallySelected` flag used to work around that by preserving selectTenant()'s optimistic
+   * value across a fetch() that legitimately found nothing. GET /api/tenants/active (below)
+   * reads TenantContext directly, the same source selectTenant()/leaveTenant() write to, so it
+   * is authoritative for both the staff and regular-member cases and that workaround is no
+   * longer needed — removed rather than kept as dead code.
    */
-  private locallySelected = false;
-
   fetch(): void {
-    this.list().subscribe((memberships) => {
-      const active = memberships.find((membership) => membership.active);
+    this.getActive().subscribe((active) => {
       if (active) {
         this._activeTenantId.set(active.tenantId);
         this._activeTenantName.set(active.tenantName);
-        this._activeTenantRole.set(active.role);
-        this.locallySelected = false;
-      } else if (!this.locallySelected) {
+        this._activeTenantRole.set(active.role ?? null);
+      } else {
         this._activeTenantId.set(null);
         this._activeTenantName.set(null);
         this._activeTenantRole.set(null);
       }
       this._activeTenantResolved.set(true);
     });
+  }
+
+  /**
+   * The caller's session-derived active tenant, straight from TenantContext server-side —
+   * works for a staff session acting as a tenant (no real TenantMembership row, `role`
+   * omitted by the backend) just as well as a regular member's real membership. Angular's
+   * HttpClient resolves a 204 (no active tenant) to a null body, so no special-casing needed
+   * beyond the return type.
+   */
+  getActive(): Observable<ActiveTenant | null> {
+    return this.http.get<ActiveTenant | null>('/api/tenants/active');
   }
 
   list(): Observable<TenantMembership[]> {
@@ -96,7 +110,6 @@ export class ActiveTenantService {
         this._activeTenantId.set(null);
         this._activeTenantName.set(null);
         this._activeTenantRole.set(null);
-        this.locallySelected = false;
       }),
     );
   }
@@ -106,7 +119,6 @@ export class ActiveTenantService {
       tap(() => {
         this._activeTenantId.set(tenantId);
         this._activeTenantName.set(tenantName);
-        this.locallySelected = true;
       }),
     );
   }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
@@ -345,7 +345,13 @@ export class NavMenuComponent implements OnInit {
   protected readonly workspaceGroup = computed<NavMenuGroup | null>(() => {
     const items: NavMenuItem[] = [];
 
-    if (this.globalPermissionsService.has('TENANT_CREATE')) {
+    // Also requires no active tenant: a session already inside a tenant should switch or
+    // leave, not create a second one from within the workspace it's currently in — holding
+    // TENANT_CREATE alone (e.g. a staff admin) isn't enough on its own.
+    if (
+      this.globalPermissionsService.has('TENANT_CREATE') &&
+      this.activeTenantService.activeTenantId() === null
+    ) {
       items.push({
         labelKey: 'nav.createTenant',
         testId: 'nav-create-tenant',
@@ -371,6 +377,32 @@ export class NavMenuComponent implements OnInit {
     }
 
     return items.length > 0 ? { categoryKey: 'nav.category.workspace', items } : null;
+  });
+
+  // Without this, tenant-scoped permissions (ARTICLE_VIEW/CONVERSATION_USE, driving
+  // overviewGroups()) only got fetched once at session start, before any tenant was selected —
+  // selecting or leaving a tenant later only updated ActiveTenantService's own signals, leaving
+  // Articles/Conversations stale until a full reload re-ran ngOnInit(). Waits for
+  // activeTenantResolved() (ActiveTenantService's own "first fetch() has resolved" signal)
+  // before reacting at all, and treats the *first* time it resolves as the session-start case
+  // ngOnInit() already covers with its own permissionsService.fetch() call — only an
+  // activeTenantId() change *after* that first resolution (selectTenant()/leaveTenant(), later
+  // in the session) re-fetches, avoiding a redundant double-fetch on initial load.
+  private previousActiveTenantId: number | null | undefined = undefined;
+  private readonly refetchPermissionsOnTenantChange = effect(() => {
+    const resolved = this.activeTenantService.activeTenantResolved();
+    const id = this.activeTenantService.activeTenantId();
+    if (!resolved) {
+      return;
+    }
+    if (this.previousActiveTenantId === undefined) {
+      this.previousActiveTenantId = id;
+      return;
+    }
+    if (id !== this.previousActiveTenantId) {
+      this.previousActiveTenantId = id;
+      this.permissionsService.fetch();
+    }
   });
 
   protected onLeaveTenant(): void {

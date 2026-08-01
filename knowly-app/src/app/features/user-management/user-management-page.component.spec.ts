@@ -39,14 +39,16 @@ describe('UserManagementPageComponent', () => {
     expect(fixture.nativeElement.querySelector('app-members-page')).toBeFalsy();
     expect(fixture.nativeElement.querySelector('app-staff-directory-page')).toBeFalsy();
 
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
   });
 
   it('renders MembersPageComponent when an active tenant is resolved', () => {
     fixture.detectChanges();
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-members-page')).toBeTruthy();
@@ -55,15 +57,17 @@ describe('UserManagementPageComponent', () => {
     // MembersPageComponent (unchanged, reused as-is) calls ActiveTenantService.fetch()
     // itself in its own ngOnInit, independent of the wrapper's own fetch() above.
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     httpMock.expectOne('/api/tenants/7/members').flush([]);
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
   });
 
   it('renders StaffDirectoryPageComponent when no active tenant is resolved (staff)', () => {
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-staff-directory-page')).toBeTruthy();

@@ -30,69 +30,74 @@ describe('ActiveTenantService', () => {
     service.fetch();
     expect(service.activeTenantResolved()).toBe(false);
 
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
-
-    expect(service.activeTenantResolved()).toBe(true);
-  });
-
-  it('resolves even on the "no active membership found, preserve prior value" branch', () => {
-    service.fetch();
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false }]);
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
 
-    expect(service.activeTenantId()).toBeNull();
     expect(service.activeTenantResolved()).toBe(true);
   });
 
-  it('exposes the active membership after fetching', () => {
+  it('exposes the active tenant reported by GET /api/tenants/active (source of truth for server-side session state)', () => {
     service.fetch();
 
-    const req = httpMock.expectOne('/api/tenants/memberships');
-    req.flush([
-      { tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false },
-      { tenantId: 2, tenantName: 'Tenant B', role: 'MEMBER_ADMIN', active: true },
-    ]);
+    const req = httpMock.expectOne('/api/tenants/active');
+    expect(req.request.method).toBe('GET');
+    req.flush({ tenantId: 2, tenantName: 'Tenant B', role: 'MEMBER_ADMIN' });
 
     expect(service.activeTenantId()).toBe(2);
     expect(service.activeTenantName()).toBe('Tenant B');
+    expect(service.activeTenantRole()).toBe('MEMBER_ADMIN');
   });
 
-  it('leaves the active tenant null when no membership is marked active', () => {
+  it('reflects a staff session acting as a tenant (role omitted, no real membership row) since GET /api/tenants/active reads TenantContext directly', () => {
     service.fetch();
 
-    const req = httpMock.expectOne('/api/tenants/memberships');
-    req.flush([{ tenantId: 1, tenantName: 'Tenant A', role: 'MEMBER', active: false }]);
-
-    expect(service.activeTenantId()).toBeNull();
-  });
-
-  it('preserves an already-known active tenant (staff, no real membership row) when fetch finds none active', () => {
-    service.selectTenant(5, 'Staffed Co').subscribe();
-    httpMock.expectOne('/api/tenants/active').flush({});
-    expect(service.activeTenantName()).toBe('Staffed Co');
-
-    service.fetch();
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock.expectOne('/api/tenants/active').flush({ tenantId: 5, tenantName: 'Staffed Co' });
 
     expect(service.activeTenantId()).toBe(5);
     expect(service.activeTenantName()).toBe('Staffed Co');
+    expect(service.activeTenantRole()).toBeNull();
   });
 
-  it('nulls out a stale active tenant from a prior real membership when a later fetch finds none active (fresh session, not a selectTenant() race)', () => {
+  it('leaves the active tenant null when GET /api/tenants/active returns 204 (no active tenant)', () => {
     service.fetch();
+
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 2, tenantName: 'Tenant B', role: 'MEMBER_ADMIN', active: true }]);
-
-    expect(service.activeTenantId()).toBe(2);
-
-    service.fetch();
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
 
     expect(service.activeTenantId()).toBeNull();
     expect(service.activeTenantName()).toBeNull();
     expect(service.activeTenantRole()).toBeNull();
+  });
+
+  it('nulls out a stale active tenant from a prior fetch when a later fetch finds none active', () => {
+    service.fetch();
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 2, tenantName: 'Tenant B', role: 'MEMBER_ADMIN' });
+
+    expect(service.activeTenantId()).toBe(2);
+
+    service.fetch();
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(service.activeTenantId()).toBeNull();
+    expect(service.activeTenantName()).toBeNull();
+    expect(service.activeTenantRole()).toBeNull();
+  });
+
+  it('getActive() resolves null for a 204 response', () => {
+    let result: unknown = 'unset';
+    service.getActive().subscribe((active) => (result = active));
+
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(result).toBeNull();
   });
 
   it('list() fetches the memberships without mutating the active-tenant signals', () => {
@@ -187,10 +192,12 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantName()).toBeNull();
     expect(service.activeTenantRole()).toBeNull();
 
-    // locallySelected must be reset by leaveTenant(), or a later fetch() finding no active
-    // membership would wrongly preserve a stale value under the "staff race" protection.
+    // fetch() re-reads server-side session state directly from GET /api/tenants/active, so a
+    // later fetch() correctly reports no active tenant after leaveTenant() clears the session.
     service.fetch();
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
     expect(service.activeTenantId()).toBeNull();
   });
 

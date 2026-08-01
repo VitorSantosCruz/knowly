@@ -53,6 +53,15 @@ describe('NavMenuComponent', () => {
     globalPermissions?: string[];
     tenantPermissions?: string[] | 'forbidden';
     anyTenantProfileEdit?: boolean;
+    // Explicit override for GET /api/tenants/active's response. Undefined derives it from
+    // `memberships` (the membership flagged active), null forces the 204 "no active tenant"
+    // case regardless of memberships — needed for a staff session (0 memberships) that already
+    // has an active tenant via ActiveTenantService.selectTenant()'s optimistic update.
+    activeTenant?: {
+      tenantId: number;
+      tenantName: string;
+      role?: 'MEMBER_ADMIN' | 'MEMBER';
+    } | null;
   }): void {
     flushSessionCheck(true);
     httpMock
@@ -73,11 +82,35 @@ describe('NavMenuComponent', () => {
       .expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT')
       .flush({ granted: options.anyTenantProfileEdit ?? false });
 
-    // ngOnInit() now calls both list() (into the local memberships signal) and fetch()
-    // (into ActiveTenantService's own activeTenantId signal) — both hit the same endpoint.
+    // list() (into the local memberships signal) and fetch() (GET /api/tenants/active, into
+    // ActiveTenantService's own activeTenantId signal) now hit two different endpoints.
     httpMock
       .match('/api/tenants/memberships')
       .forEach((req) => req.flush(options.memberships ?? []));
+
+    const active =
+      options.activeTenant !== undefined
+        ? options.activeTenant
+        : (() => {
+            const activeMembership = (options.memberships ?? []).find((m) => m.active);
+            return activeMembership
+              ? {
+                  tenantId: activeMembership.tenantId,
+                  tenantName: activeMembership.tenantName,
+                  role: activeMembership.role,
+                }
+              : null;
+          })();
+    httpMock.match('/api/tenants/active').forEach((req) => {
+      if (req.request.method !== 'GET') {
+        return;
+      }
+      if (active === null) {
+        req.flush(null, { status: 204, statusText: 'No Content' });
+      } else {
+        req.flush(active);
+      }
+    });
   }
 
   it('shows nothing when not logged in', () => {
@@ -185,6 +218,22 @@ describe('NavMenuComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeTruthy();
+  });
+
+  it('hides the create-tenant link when granted TENANT_CREATE but already inside a tenant', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({
+      memberships: [],
+      globalPermissions: ['TENANT_CREATE'],
+      activeTenant: { tenantId: 9, tenantName: 'Staffed Co' },
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeFalsy();
   });
 
   it('shows the switch-tenant link for a 0-membership (staff) session', () => {
@@ -319,7 +368,7 @@ describe('NavMenuComponent', () => {
     httpMock.expectOne('/api/tenants/active').flush({});
 
     fixture.detectChanges();
-    flush({ memberships: [] });
+    flush({ memberships: [], activeTenant: { tenantId: 9, tenantName: 'Staffed Co' } });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeTruthy();
@@ -362,6 +411,9 @@ describe('NavMenuComponent', () => {
       .expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT')
       .flush({ granted: false });
     httpMock.match('/api/tenants/memberships').forEach((req) => req.flush([]));
+    httpMock
+      .match('/api/tenants/active')
+      .forEach((req) => req.flush(null, { status: 204, statusText: 'No Content' }));
     fixture.detectChanges();
 
     expect(fetchSpy).toHaveBeenCalled();
@@ -376,7 +428,7 @@ describe('NavMenuComponent', () => {
     httpMock.expectOne('/api/tenants/active').flush({});
 
     fixture.detectChanges();
-    flush({ memberships: [] });
+    flush({ memberships: [], activeTenant: { tenantId: 9, tenantName: 'Staffed Co' } });
     fixture.detectChanges();
 
     const button = fixture.nativeElement.querySelector(
@@ -385,6 +437,10 @@ describe('NavMenuComponent', () => {
     button.click();
 
     httpMock.expectOne('/api/tenants/active/clear').flush({});
+    fixture.detectChanges();
+    // leaveTenant() changes activeTenantId (9 -> null), which re-triggers
+    // permissionsService.fetch() per the reactive re-fetch effect (bug 2 fix).
+    httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
 
     expect(navigateSpy).toHaveBeenCalledWith('/welcome');
   });
@@ -398,7 +454,7 @@ describe('NavMenuComponent', () => {
     httpMock.expectOne('/api/tenants/active').flush({});
 
     fixture.detectChanges();
-    flush({ memberships: [] });
+    flush({ memberships: [], activeTenant: { tenantId: 9, tenantName: 'Staffed Co' } });
     fixture.detectChanges();
 
     const button = fixture.nativeElement.querySelector(
@@ -423,7 +479,7 @@ describe('NavMenuComponent', () => {
     activeTenantServiceSelectAndFlush();
 
     fixture.detectChanges();
-    flush({ memberships: [] });
+    flush({ memberships: [], activeTenant: { tenantId: 9, tenantName: 'Staffed Co' } });
     fixture.detectChanges();
 
     expect(
@@ -436,6 +492,9 @@ describe('NavMenuComponent', () => {
     button.click();
     httpMock.expectOne('/api/tenants/active/clear').flush({});
     fixture.detectChanges();
+    // leaveTenant() changes activeTenantId (9 -> null), which re-triggers
+    // permissionsService.fetch() per the reactive re-fetch effect (bug 2 fix).
+    httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
 
     expect(
       fixture.nativeElement.querySelector('[role="dialog"], [data-testid="confirm-dialog"]'),
@@ -458,7 +517,7 @@ describe('NavMenuComponent', () => {
     httpMock.expectOne('/api/tenants/active').flush({});
 
     fixture.detectChanges();
-    flush({ memberships: [] });
+    flush({ memberships: [], activeTenant: { tenantId: 9, tenantName: 'Staffed Co' } });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeTruthy();
@@ -469,7 +528,31 @@ describe('NavMenuComponent', () => {
     button.click();
     httpMock.expectOne('/api/tenants/active/clear').flush({});
     fixture.detectChanges();
+    // leaveTenant() changes activeTenantId (9 -> null), which re-triggers
+    // permissionsService.fetch() per the reactive re-fetch effect (bug 2 fix).
+    httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeFalsy();
+  });
+
+  it('re-fetches tenant-scoped permissions when entering a tenant after session start, without a full reload', () => {
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(3, 'Acme').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+    fixture.detectChanges();
+
+    // Entering a tenant re-triggers permissionsService.fetch() so overviewGroups() reflects
+    // ARTICLE_VIEW/CONVERSATION_USE without requiring a full page reload (bug 2 fix).
+    httpMock
+      .expectOne('/api/tenants/permissions')
+      .flush({ permissions: ['ARTICLE_VIEW', 'CONVERSATION_USE'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-articles"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeTruthy();
   });
 });

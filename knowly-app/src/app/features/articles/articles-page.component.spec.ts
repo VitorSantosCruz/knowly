@@ -45,8 +45,8 @@ describe('ArticlesPageComponent', () => {
     permissions: Permission[] = ALL_ARTICLE_PERMISSIONS,
   ) {
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     httpMock.expectOne('/api/tenants/permissions').flush({ permissions });
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/7/articles').flush(articles);
@@ -66,8 +66,8 @@ describe('ArticlesPageComponent', () => {
   it('shows a permission-denied state when the list is forbidden', () => {
     fixture.detectChanges();
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
     fixture.detectChanges();
     httpMock

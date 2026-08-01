@@ -48,7 +48,20 @@ describe('WelcomePageComponent', () => {
     httpMock
       .expectOne('/api/users/me/onboarding-status')
       .flush({ completed: options.onboardingCompleted ?? true });
-    httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
+
+    const activeMembership = (options.memberships ?? []).find((m) => m.active);
+    if (activeMembership) {
+      httpMock.expectOne('/api/tenants/active').flush({
+        tenantId: activeMembership.tenantId,
+        tenantName: activeMembership.tenantName,
+        role: activeMembership.role,
+      });
+    } else {
+      httpMock
+        .expectOne('/api/tenants/active')
+        .flush(null, { status: 204, statusText: 'No Content' });
+    }
+
     httpMock
       .expectOne('/api/staff/permissions')
       .flush({ permissions: options.globalPermissions ?? [] });

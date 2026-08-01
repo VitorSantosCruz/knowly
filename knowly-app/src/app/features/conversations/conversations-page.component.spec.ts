@@ -38,8 +38,8 @@ describe('ConversationsPageComponent', () => {
 
   function flushActiveTenantAndList(conversations: { id: number; title: string | null }[]) {
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/7/conversations').flush(conversations);
     fixture.detectChanges();
@@ -97,8 +97,8 @@ describe('ConversationsPageComponent', () => {
   it('shows a permission-denied state when the conversation list is forbidden', () => {
     fixture.detectChanges();
     httpMock
-      .expectOne('/api/tenants/memberships')
-      .flush([{ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }]);
+      .expectOne('/api/tenants/active')
+      .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/7/conversations')

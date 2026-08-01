@@ -44,7 +44,20 @@ describe('SupportPageComponent', () => {
     httpMock
       .expectOne('/api/tenants/permissions')
       .flush({ permissions: options.permissions ?? [] });
-    httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
+
+    const activeMembership = (options.memberships ?? []).find((m) => m.active);
+    if (activeMembership) {
+      httpMock.expectOne('/api/tenants/active').flush({
+        tenantId: activeMembership.tenantId,
+        tenantName: activeMembership.tenantName,
+        role: activeMembership.role,
+      });
+    } else {
+      httpMock
+        .expectOne('/api/tenants/active')
+        .flush(null, { status: 204, statusText: 'No Content' });
+    }
+
     httpMock
       .expectOne('/api/users/me/profile')
       .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
