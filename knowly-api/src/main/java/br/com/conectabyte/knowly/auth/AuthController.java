@@ -301,6 +301,16 @@ public class AuthController {
 
         HttpSession session = request.getSession(true);
 
+        // A reused HTTP session (e.g. changeSessionId() only rotates the id, it doesn't clear
+        // attributes) may still carry tenant-selection state from a previous login on this same
+        // session. A fresh login always starts from a clean tenant context, regardless of what was
+        // selected before -- otherwise a stale ACTIVE_TENANT_ID can outlive the login that set it
+        // and desync from the freshly (re)computed authorities/outcome above.
+        session.removeAttribute(TenantSessionKeys.ACTIVE_TENANT_ID);
+        session.removeAttribute(TenantSessionKeys.STAFF);
+        session.removeAttribute(TenantSessionKeys.STAFF_ADMIN);
+        session.removeAttribute(TenantSessionKeys.SELECTION_PENDING);
+
         if (outcome instanceof TenantSessionOutcome.Staff) {
             session.setAttribute(TenantSessionKeys.STAFF, true);
             session.setAttribute(
