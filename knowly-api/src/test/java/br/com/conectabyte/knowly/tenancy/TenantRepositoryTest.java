@@ -143,4 +143,53 @@ class TenantRepositoryTest {
 
         assertThat(count).isEqualTo(2);
     }
+
+    // --- specify/features/global-staff-dashboard-sparklines/SPEC.md REQ-1/2: cumulative,
+    // day-bucketed running total of tenants ---
+
+    @Test
+    void countCumulativeTenantsByDayReturnsATrueRunningTotalNeverDecreasing() {
+        long baselineTotal =
+                tenantRepository.countCumulativeTenantsByDay().stream()
+                        .reduce((first, last) -> last)
+                        .map(DailyCountProjection::getCount)
+                        .orElse(0L);
+
+        Instant dayOne = safeAnchor().minus(3, ChronoUnit.DAYS);
+        Instant dayTwo = safeAnchor().minus(2, ChronoUnit.DAYS);
+
+        // Two tenants on the same day must aggregate into a single bump of +2, not two rows.
+        Tenant dayOneFirst = tenantRepository.saveAndFlush(new Tenant("Cumulative Day One A"));
+        backdateTenant(dayOneFirst, dayOne);
+        Tenant dayOneSecond = tenantRepository.saveAndFlush(new Tenant("Cumulative Day One B"));
+        backdateTenant(dayOneSecond, dayOne.plus(2, ChronoUnit.HOURS));
+
+        Tenant dayTwoTenant = tenantRepository.saveAndFlush(new Tenant("Cumulative Day Two"));
+        backdateTenant(dayTwoTenant, dayTwo);
+
+        List<DailyCountProjection> rows = tenantRepository.countCumulativeTenantsByDay();
+
+        assertThat(rows).isSortedAccordingTo(java.util.Comparator.comparing(r -> r.getDay()));
+
+        var dayOneRow =
+                rows.stream()
+                        .filter(r -> r.getDay().equals(LocalDate.ofInstant(dayOne, ZoneOffset.UTC)))
+                        .findFirst()
+                        .orElseThrow();
+        var dayTwoRow =
+                rows.stream()
+                        .filter(r -> r.getDay().equals(LocalDate.ofInstant(dayTwo, ZoneOffset.UTC)))
+                        .findFirst()
+                        .orElseThrow();
+
+        assertThat(dayOneRow.getCount()).isEqualTo(baselineTotal + 2);
+        assertThat(dayTwoRow.getCount()).isEqualTo(baselineTotal + 3);
+
+        // Running total across every returned day must never decrease.
+        long previous = Long.MIN_VALUE;
+        for (DailyCountProjection row : rows) {
+            assertThat(row.getCount()).isGreaterThanOrEqualTo(previous);
+            previous = row.getCount();
+        }
+    }
 }

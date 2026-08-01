@@ -44,6 +44,30 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     List<DailyCountProjection> countTenantsByDaySince(@Param("from") Instant from);
 
     /**
+     * specify/features/global-staff-dashboard-sparklines/SPEC.md REQ-1/2: cross-tenant,
+     * day-bucketed cumulative running total of tenants, computed over full history regardless of
+     * the requested period (see that feature's PLAN.md "Architectural decisions" — bounding this
+     * query by the display window would understate the true running total for early days in the
+     * window). The projection's {@code count} column is aliased to reuse {@link
+     * br.com.conectabyte.knowly.metrics.DailyCountProjection} even though it now holds a cumulative
+     * value, not a per-day-created value.
+     */
+    @Query(
+            value =
+                    """
+                    with daily as (
+                      select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as cnt
+                      from tenants
+                      group by day
+                    )
+                    select day, sum(cnt) over (order by day) as count
+                    from daily
+                    order by day
+                    """,
+            nativeQuery = true)
+    List<DailyCountProjection> countCumulativeTenantsByDay();
+
+    /**
      * specify/features/tenant-pagination-search/SPEC.md REQ-2/5/6/7/9: DB-level pagination and
      * case-insensitive substring search across {@code name}/{@code cnpj}/{@code razaoSocial}, OR'd
      * together. {@code search == null} short-circuits the {@code WHERE} clause to match every row.
