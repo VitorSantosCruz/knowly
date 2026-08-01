@@ -61,4 +61,21 @@ class SecurityConfigIntegrationTest {
         Assertions.assertThat(result.getResponse().getCookie("XSRF-TOKEN")).isNotNull();
         Assertions.assertThat(result.getResponse().getCookie("XSRF-TOKEN").isHttpOnly()).isFalse();
     }
+
+    @Test
+    void everyResponseCarriesATraceparentHeaderForClientErrorCorrelation() {
+        var result = mockMvc.get().uri("/actuator/health").exchange();
+
+        String traceparent = result.getResponse().getHeader("traceparent");
+        Assertions.assertThat(traceparent).isNotNull();
+        Assertions.assertThat(traceparent).matches("00-[0-9a-f]{32}-[0-9a-f]{16}-01");
+    }
+
+    @Test
+    void unauthenticatedErrorResponsesAlsoCarryATraceparentHeader() {
+        var result = mockMvc.get().uri("/some-protected-resource").exchange();
+
+        Assertions.assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
+        Assertions.assertThat(result.getResponse().getHeader("traceparent")).isNotNull();
+    }
 }

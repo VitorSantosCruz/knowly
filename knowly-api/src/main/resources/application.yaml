@@ -66,6 +66,10 @@ spring:
           multiplier: 2.0
           max-interval: 10s
 
+logging:
+  pattern:
+    correlation: "[%X{traceId:-}] "
+
 management:
   endpoints:
     web:
