@@ -217,7 +217,46 @@ class GlobalMetricsControllerIntegrationTest {
                     .extractingPath("$.totalArticlesRead.current")
                     .isNotNull();
             assertThat(response).bodyJson().extractingPath("$.staffCount.current").isNotNull();
+            assertThat(response).bodyJson().extractingPath("$.totalTenantsPerDay").isNotNull();
+            assertThat(response).bodyJson().extractingPath("$.staffCountPerDay").isNotNull();
         }
+    }
+
+    // --- specify/features/global-staff-dashboard-sparklines/SPEC.md REQ-1/2/3/7: cumulative
+    // carry-forward series at the API boundary ---
+
+    @Test
+    void globalTrendsReturnsCumulativeCarryForwardSeriesWithSameShapeAsExistingSeries()
+            throws Exception {
+        staffAdmin("sparklines-controller-admin@example.com");
+        Cookie session = logIn("sparklines-controller-admin@example.com");
+
+        Instant beforeWindow = Instant.now().minus(40, ChronoUnit.DAYS);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Sparklines Controller Co"));
+        backdateTenant(tenant, beforeWindow);
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/staff/metrics/global/trends")
+                        .param("period", "7d")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        var body =
+                new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(response.getResponse().getContentAsString());
+        var totalTenantsPerDay = body.get("totalTenantsPerDay");
+        var staffCountPerDay = body.get("staffCountPerDay");
+
+        assertThat(totalTenantsPerDay.size()).isEqualTo(7);
+        assertThat(staffCountPerDay.size()).isEqualTo(7);
+        assertThat(totalTenantsPerDay.get(0).has("date")).isTrue();
+        assertThat(totalTenantsPerDay.get(0).has("count")).isTrue();
+
+        // The tenant created well before the 7d window must still be carried forward on day 1,
+        // never zero-filled, since it existed as of that day's running total.
+        assertThat(totalTenantsPerDay.get(0).get("count").asLong()).isGreaterThan(0);
     }
 
     @Test
