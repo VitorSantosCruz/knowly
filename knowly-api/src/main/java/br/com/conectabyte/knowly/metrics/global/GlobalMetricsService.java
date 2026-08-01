@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -215,5 +216,79 @@ public class GlobalMetricsService {
         return dates.stream()
                 .map(date -> new DailyCountDto(date, counts.getOrDefault(date, 0L)))
                 .toList();
+    }
+
+    /**
+     * specify/features/global-staff-dashboard-sparklines/SPEC.md REQ-2/3/4/5/6: cumulative,
+     * carry-forward day-bucketed merge — distinct from {@link #mergeZeroCountDays}. {@code rows}
+     * already holds one row per day-with-activity, sorted ascending by day (per the {@code ORDER BY
+     * day} in {@code countCumulativeTenantsByDay()}/{@code countCumulativeStaffByDay()}), each
+     * value already a cumulative running total as of that day.
+     *
+     * <p>For a bounded period, the first displayed day seeds its carry value from the last
+     * cumulative total recorded strictly before the display range starts (REQ-3) — not {@code 0} —
+     * so a tenant created long before a {@code 7d} window still shows its true running total on day
+     * 1 of that window, not a reset to zero.
+     *
+     * <p>For {@link MetricsPeriod#ALL}, an empty {@code rows} yields an empty list (REQ-5); a
+     * non-empty {@code rows} spans from its earliest day through today (REQ-4) — {@code
+     * period.dateRange(clock)} cannot be used for {@code ALL} since it returns {@link
+     * Optional#empty()} for that period.
+     */
+    private List<DailyCountDto> mergeCarryForwardDays(
+            List<DailyCountProjection> rows, MetricsPeriod period) {
+        Map<LocalDate, Long> cumulativeByDay =
+                rows.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        DailyCountProjection::getDay,
+                                        DailyCountProjection::getCount));
+
+        List<LocalDate> dates;
+        long carry;
+        if (period == MetricsPeriod.ALL) {
+            if (rows.isEmpty()) {
+                return List.of();
+            }
+
+            LocalDate earliest = rows.get(0).getDay();
+            LocalDate today = LocalDate.now(clock);
+            dates = new ArrayList<>();
+            for (LocalDate date = earliest; !date.isAfter(today); date = date.plusDays(1)) {
+                dates.add(date);
+            }
+            carry = 0L;
+        } else {
+            dates = period.dateRange(clock).orElseThrow();
+            LocalDate rangeStart = dates.get(0);
+            carry =
+                    rows.stream()
+                            .filter(r -> r.getDay().isBefore(rangeStart))
+                            .reduce((first, last) -> last)
+                            .map(DailyCountProjection::getCount)
+                            .orElse(0L);
+        }
+
+        List<DailyCountDto> merged = new ArrayList<>();
+        for (LocalDate date : dates) {
+            Long rowValue = cumulativeByDay.get(date);
+            if (rowValue != null) {
+                carry = rowValue;
+            }
+            merged.add(new DailyCountDto(date, carry));
+        }
+
+        return merged;
+    }
+
+    /**
+     * Package-visible test hook for {@link #mergeCarryForwardDays}, kept {@code private} on the
+     * production API surface (same convention as {@link #previousWindowStart}, which is exposed
+     * package-visibly for its own unit test) — this method exists purely so a plain, mocked-
+     * repository unit test can exercise the merge algorithm without a Spring context.
+     */
+    List<DailyCountDto> mergeCarryForwardDaysForTest(
+            List<DailyCountProjection> rows, MetricsPeriod period) {
+        return mergeCarryForwardDays(rows, period);
     }
 }
