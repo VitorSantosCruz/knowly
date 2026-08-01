@@ -288,16 +288,58 @@ describe('ArticlesPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Corrected text');
   });
 
-  it('deleting an article removes it from the list', () => {
+  it('deleting an article requires confirmation, naming the article', () => {
     fixture.detectChanges();
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
 
     fixture.nativeElement.querySelector('[data-testid="delete-article-1"]').click();
+    fixture.detectChanges();
+
+    httpMock.expectNone('/api/tenants/7/articles/1');
+    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
+    expect(dialogEl).toBeTruthy();
+    expect(dialogEl.textContent).toContain('Handbook');
+
+    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+    fixture.detectChanges();
 
     httpMock.expectOne('/api/tenants/7/articles/1').flush({});
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Handbook');
+  });
+
+  it('cancelling the deletion confirmation leaves the article unchanged', () => {
+    fixture.detectChanges();
+    flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
+
+    fixture.nativeElement.querySelector('[data-testid="delete-article-1"]').click();
+    fixture.detectChanges();
+
+    fixture.nativeElement
+      .querySelector('app-confirm-dialog [data-testid="confirm-dialog-cancel"]')
+      .click();
+    fixture.detectChanges();
+
+    httpMock.expectNone('/api/tenants/7/articles/1');
+    expect(fixture.nativeElement.textContent).toContain('Handbook');
+    expect(fixture.nativeElement.querySelector('app-confirm-dialog')).toBeNull();
+  });
+
+  it('dismissing the deletion confirmation via the native cancel event leaves the article unchanged', () => {
+    fixture.detectChanges();
+    flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
+
+    fixture.nativeElement.querySelector('[data-testid="delete-article-1"]').click();
+    fixture.detectChanges();
+
+    fixture.nativeElement
+      .querySelector('app-confirm-dialog dialog')
+      .dispatchEvent(new Event('cancel'));
+    fixture.detectChanges();
+
+    httpMock.expectNone('/api/tenants/7/articles/1');
+    expect(fixture.nativeElement.textContent).toContain('Handbook');
   });
 
   it('hides upload/edit/delete controls when the corresponding permission is missing', () => {

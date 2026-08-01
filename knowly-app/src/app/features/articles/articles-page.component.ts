@@ -7,6 +7,7 @@ import { ArticleDetail, ArticleService, ArticleSummary } from '../../core/articl
 import { PermissionsService } from '../../core/permissions.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 
 type ArticlesError = 'network' | 'permission-denied' | null;
 
@@ -14,7 +15,7 @@ const POLL_INTERVAL_MS = 4000;
 
 @Component({
   selector: 'app-articles-page',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
+  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, ConfirmDialogComponent],
   template: `
     <div data-testid="articles-page" class="page-shell flex gap-6">
       @if (loading()) {
@@ -140,6 +141,15 @@ const POLL_INTERVAL_MS = 4000;
           </ul>
         </aside>
 
+        @if (pendingDelete(); as articleToDelete) {
+          <app-confirm-dialog
+            [open]="true"
+            [message]="'articles.confirmDelete' | transloco: { title: articleToDelete.title }"
+            (confirm)="confirmDelete()"
+            (cancel)="cancelDelete()"
+          />
+        }
+
         <section class="flex-1">
           @if (selectedDetail(); as detail) {
             <div
@@ -207,6 +217,7 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
   protected readonly loading = signal(true);
   protected readonly error = signal<ArticlesError>(null);
   protected readonly selectedFileName = signal<string | null>(null);
+  protected readonly pendingDelete = signal<ArticleSummary | null>(null);
 
   protected readonly inputClass =
     'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white';
@@ -385,12 +396,33 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
   }
 
   protected onDelete(articleId: number): void {
-    const tenantId = this.activeTenantService.activeTenantId();
+    const article = this.articles().find((a) => a.id === articleId);
 
-    if (tenantId === null) {
+    if (article === undefined) {
       return;
     }
 
+    this.pendingDelete.set(article);
+  }
+
+  protected confirmDelete(): void {
+    const tenantId = this.activeTenantService.activeTenantId();
+    const article = this.pendingDelete();
+
+    this.pendingDelete.set(null);
+
+    if (tenantId === null || article === null) {
+      return;
+    }
+
+    this.performDelete(tenantId, article.id);
+  }
+
+  protected cancelDelete(): void {
+    this.pendingDelete.set(null);
+  }
+
+  private performDelete(tenantId: number, articleId: number): void {
     this.articleService
       .remove(tenantId, articleId)
       .pipe(
