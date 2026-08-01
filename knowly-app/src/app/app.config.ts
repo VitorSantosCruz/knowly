@@ -12,13 +12,14 @@ import { routes } from './app.routes';
 import { TranslocoHttpLoader } from './i18n/transloco-loader';
 import { ConfigService } from './core/config.service';
 import { authInterceptor } from './core/auth.interceptor';
+import { localeInterceptor } from './core/locale.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(
-      withInterceptors([authInterceptor]),
+      withInterceptors([authInterceptor, localeInterceptor]),
       withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
     ),
     provideTransloco({
