@@ -223,7 +223,7 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
 
       if (tenantId !== null && !this.hasLoaded) {
         this.hasLoaded = true;
-        this.loadArticles(tenantId);
+        this.loadArticles(tenantId, { isInitialLoad: true });
       }
     });
   }
@@ -239,8 +239,10 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  private loadArticles(tenantId: number): void {
-    this.loading.set(true);
+  private loadArticles(tenantId: number, { isInitialLoad }: { isInitialLoad: boolean }): void {
+    if (isInitialLoad) {
+      this.loading.set(true);
+    }
     this.error.set(null);
 
     this.articleService
@@ -252,10 +254,26 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
         }),
       )
       .subscribe((articles) => {
-        this.articles.set(articles);
-        this.loading.set(false);
+        if (isInitialLoad || !this.sameArticles(this.articles(), articles)) {
+          this.articles.set(articles);
+        }
+        if (isInitialLoad) {
+          this.loading.set(false);
+        }
         this.schedulePollIfNeeded(tenantId, articles);
       });
+  }
+
+  private sameArticles(a: ArticleSummary[], b: ArticleSummary[]): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    return a.every(
+      (article, index) =>
+        article.id === b[index].id &&
+        article.title === b[index].title &&
+        article.status === b[index].status,
+    );
   }
 
   private schedulePollIfNeeded(tenantId: number, articles: ArticleSummary[]): void {
@@ -265,7 +283,10 @@ export class ArticlesPageComponent implements OnInit, OnDestroy {
     }
 
     if (articles.some((article) => article.status === 'PROCESSING')) {
-      this.pollTimer = setTimeout(() => this.loadArticles(tenantId), POLL_INTERVAL_MS);
+      this.pollTimer = setTimeout(
+        () => this.loadArticles(tenantId, { isInitialLoad: false }),
+        POLL_INTERVAL_MS,
+      );
     }
   }
 

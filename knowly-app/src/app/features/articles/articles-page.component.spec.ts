@@ -210,6 +210,47 @@ describe('ArticlesPageComponent', () => {
     }
   });
 
+  it('does not flicker the full list on a no-op poll tick', () => {
+    vi.useFakeTimers();
+    try {
+      fixture.detectChanges();
+      flushSetup([{ id: 1, title: 'Handbook', status: 'PROCESSING' }]);
+
+      const listBefore: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="article-list"]',
+      );
+
+      vi.advanceTimersByTime(4000);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-testid="loading-state"]')).toBeNull();
+
+      httpMock
+        .expectOne('/api/tenants/7/articles')
+        .flush([{ id: 1, title: 'Handbook', status: 'PROCESSING' }]);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="loading-state"]')).toBeNull();
+      const listAfter: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="article-list"]',
+      );
+      expect(listAfter).toBe(listBefore);
+
+      vi.advanceTimersByTime(4000);
+      httpMock
+        .expectOne('/api/tenants/7/articles')
+        .flush([{ id: 1, title: 'Handbook', status: 'READY' }]);
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="article-status-1"]').textContent,
+      ).toContain('Ready');
+
+      fixture.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('editing an article persists the new title/text', () => {
     fixture.detectChanges();
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
