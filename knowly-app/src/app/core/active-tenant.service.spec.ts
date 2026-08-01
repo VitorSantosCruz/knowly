@@ -79,6 +79,22 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantName()).toBe('Staffed Co');
   });
 
+  it('nulls out a stale active tenant from a prior real membership when a later fetch finds none active (fresh session, not a selectTenant() race)', () => {
+    service.fetch();
+    httpMock
+      .expectOne('/api/tenants/memberships')
+      .flush([{ tenantId: 2, tenantName: 'Tenant B', role: 'MEMBER_ADMIN', active: true }]);
+
+    expect(service.activeTenantId()).toBe(2);
+
+    service.fetch();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+
+    expect(service.activeTenantId()).toBeNull();
+    expect(service.activeTenantName()).toBeNull();
+    expect(service.activeTenantRole()).toBeNull();
+  });
+
   it('list() fetches the memberships without mutating the active-tenant signals', () => {
     let result: unknown;
     service.list().subscribe((memberships) => (result = memberships));
