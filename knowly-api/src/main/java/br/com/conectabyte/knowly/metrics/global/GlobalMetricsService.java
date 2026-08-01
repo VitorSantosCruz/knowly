@@ -157,7 +157,9 @@ public class GlobalMetricsService {
                 comparison(tenantWindowCurrent, tenantWindowPrevious),
                 comparison(tenantWindowCurrent, tenantWindowPrevious),
                 comparison(citationWindowCurrent, citationWindowPrevious),
-                comparison(staffWindowCurrent, staffWindowPrevious));
+                comparison(staffWindowCurrent, staffWindowPrevious),
+                List.of(),
+                List.of());
     }
 
     /**
