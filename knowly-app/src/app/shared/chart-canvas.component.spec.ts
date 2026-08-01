@@ -64,14 +64,44 @@ describe('ChartCanvasComponent', () => {
     });
   });
 
-  it('renders a canvas element sized by the height input', async () => {
+  it('wraps the canvas in a relatively-positioned container sized by the height input', async () => {
     const { fixture } = harness();
     fixture.detectChanges();
     await fixture.whenStable();
 
+    const wrapper = fixture.nativeElement.querySelector('div');
     const canvas = fixture.nativeElement.querySelector('canvas');
+    expect(wrapper).toBeTruthy();
     expect(canvas).toBeTruthy();
-    expect(canvas.style.height).toBe('220px');
+    expect(wrapper.classList.contains('relative')).toBe(true);
+    expect(wrapper.style.height).toBe('220px');
+    expect(wrapper.contains(canvas)).toBe(true);
+  });
+
+  it('defaults maintainAspectRatio to false and responsive to true without overriding caller options', async () => {
+    const { fixture } = harness();
+    fixture.componentInstance.options.set({ plugins: { legend: { display: false } } });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(FakeChart.instances[0].config).toMatchObject({
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+      },
+    });
+  });
+
+  it('does not override an explicit caller-supplied maintainAspectRatio', async () => {
+    const { fixture } = harness();
+    fixture.componentInstance.options.set({ maintainAspectRatio: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(FakeChart.instances[0].config).toMatchObject({
+      options: { maintainAspectRatio: true },
+    });
   });
 
   it('destroys the previous chart and creates a new one when data changes', async () => {

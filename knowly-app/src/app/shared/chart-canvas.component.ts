@@ -31,7 +31,11 @@ export const CHART_CTOR = new InjectionToken<typeof Chart>('CHART_CTOR', {
 // specify/features/primeng-removal/PLAN.md.
 @Component({
   selector: 'app-chart-canvas',
-  template: `<canvas #canvas [style.height]="height()"></canvas>`,
+  template: `
+    <div class="relative w-full" [style.height]="height()">
+      <canvas #canvas class="absolute inset-0 h-full w-full"></canvas>
+    </div>
+  `,
 })
 export class ChartCanvasComponent implements AfterViewInit, OnDestroy {
   readonly type = input.required<ChartType>();
@@ -59,7 +63,11 @@ export class ChartCanvasComponent implements AfterViewInit, OnDestroy {
       this.chart = new this.chartCtor(this.canvasRef().nativeElement, {
         type,
         data,
-        options,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          ...options,
+        },
       } as ChartConfiguration);
     });
   }
