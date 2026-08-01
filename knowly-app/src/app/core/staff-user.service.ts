@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { GlobalPermission } from './global-permission';
 
 export type GlobalRole = 'STAFF' | 'STAFF_ADMIN';
@@ -55,8 +55,22 @@ export class StaffUserService {
     return this.http.post<void>(`/api/staff/users/${userId}/permissions`, { permission });
   }
 
-  revokePermission(userId: number, permission: GlobalPermission): Observable<void> {
-    return this.http.delete<void>(`/api/staff/users/${userId}/permissions/${permission}`);
+  revokePermission(userId: number, permission: GlobalPermission, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/staff/users/${userId}/permissions/${permission}`, {
+      body: { word },
+    });
+  }
+
+  generatePermissionRevocationToken(
+    userId: number,
+    permission: GlobalPermission,
+  ): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/staff/users/${userId}/permissions/${permission}/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
   }
 
   listAccessGroups(): Observable<GlobalAccessGroup[]> {
@@ -80,8 +94,19 @@ export class StaffUserService {
     return this.http.post<void>(`/api/staff/users/${userId}/access-groups/${accessGroupId}`, {});
   }
 
-  unassignAccessGroup(userId: number, accessGroupId: number): Observable<void> {
-    return this.http.delete<void>(`/api/staff/users/${userId}/access-groups/${accessGroupId}`);
+  unassignAccessGroup(userId: number, accessGroupId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/staff/users/${userId}/access-groups/${accessGroupId}`, {
+      body: { word },
+    });
+  }
+
+  generateAccessGroupUnassignmentToken(userId: number, accessGroupId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/staff/users/${userId}/access-groups/${accessGroupId}/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
   }
 
   getAuditTrail(userId: number): Observable<AuditEvent[]> {

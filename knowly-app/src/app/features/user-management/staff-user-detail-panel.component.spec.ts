@@ -275,8 +275,24 @@ describe('StaffUserDetailPanelComponent', () => {
       '[data-testid="staff-unassign-access-group-5"]',
     );
     unassignButton.click();
+    fixture.detectChanges();
 
-    httpMock.expectOne('/api/staff/users/1/access-groups/5').flush({});
+    httpMock
+      .expectOne('/api/staff/users/1/access-groups/5/deletion-confirmation-token')
+      .flush({ word: 'correct-horse' });
+    fixture.detectChanges();
+
+    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
+    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
+    input.value = 'correct-horse';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+    fixture.detectChanges();
+
+    const deleteReq = httpMock.expectOne('/api/staff/users/1/access-groups/5');
+    expect(deleteReq.request.body).toEqual({ word: 'correct-horse' });
+    deleteReq.flush({});
     httpMock.expectOne('/api/staff/users/1/permissions').flush(emptyDetail);
     fixture.detectChanges();
 

@@ -1,6 +1,6 @@
 import { Component, OnChanges, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { catchError, of } from 'rxjs';
+import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-permission';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { ProfileService } from '../../core/profile.service';
@@ -12,13 +12,20 @@ import {
 } from '../../core/staff-user.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-staff-user-detail-panel',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, ProfileSectionComponent],
+  imports: [
+    TranslocoPipe,
+    ErrorStateComponent,
+    NoAccessStateComponent,
+    ProfileSectionComponent,
+    ConfirmDialogComponent,
+  ],
   template: `
     @if (error() === 'permission-denied') {
       <app-no-access-state />
@@ -185,6 +192,34 @@ type DetailError = 'network' | 'permission-denied' | null;
           [ownUserId]="ownUserId()"
         />
       </div>
+
+      @if (pendingPermissionRevoke(); as permission) {
+        <app-confirm-dialog
+          [open]="true"
+          [message]="
+            'staffDirectory.confirmRevokePermission'
+              | transloco: { permission, email: detail.email }
+          "
+          [fetchToken]="permissionRevocationTokenFetcher(permission)"
+          [retryToken]="permissionRevokeRetryToken()"
+          (confirm)="confirmPermissionRevoke($event)"
+          (dismissed)="cancelPermissionRevoke()"
+        />
+      }
+
+      @if (pendingGroupUnassign(); as group) {
+        <app-confirm-dialog
+          [open]="true"
+          [message]="
+            'staffDirectory.confirmUnassignGroup'
+              | transloco: { group: group.name, email: detail.email }
+          "
+          [fetchToken]="groupUnassignmentTokenFetcher(group.id)"
+          [retryToken]="groupUnassignRetryToken()"
+          (confirm)="confirmGroupUnassign($event)"
+          (dismissed)="cancelGroupUnassign()"
+        />
+      }
     }
   `,
 })
@@ -211,6 +246,11 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   // REQ-12/SPEC judgment call 5: sourced once per panel-open, threaded down to
   // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
   protected readonly ownUserId = signal<number | null>(null);
+
+  protected readonly pendingPermissionRevoke = signal<GlobalPermission | null>(null);
+  protected readonly permissionRevokeRetryToken = signal(0);
+  protected readonly pendingGroupUnassign = signal<GlobalAccessGroup | null>(null);
+  protected readonly groupUnassignRetryToken = signal(0);
 
   ngOnChanges(): void {
     this.loadDetail();
@@ -292,11 +332,13 @@ export class StaffUserDetailPanelComponent implements OnChanges {
       return;
     }
 
-    const request$ = isGranted
-      ? this.staffUserService.revokePermission(this.userId(), permission)
-      : this.staffUserService.grantPermission(this.userId(), permission);
+    if (isGranted) {
+      this.pendingPermissionRevoke.set(permission);
+      return;
+    }
 
-    request$
+    this.staffUserService
+      .grantPermission(this.userId(), permission)
       .pipe(
         catchError((err) => {
           this.reportError(err);
@@ -308,6 +350,45 @@ export class StaffUserDetailPanelComponent implements OnChanges {
           this.loadDetail();
         }
       });
+  }
+
+  protected permissionRevocationTokenFetcher(
+    permission: GlobalPermission,
+  ): () => Observable<string> {
+    return () => this.staffUserService.generatePermissionRevocationToken(this.userId(), permission);
+  }
+
+  protected confirmPermissionRevoke(word: string): void {
+    const permission = this.pendingPermissionRevoke();
+
+    if (permission === null) {
+      return;
+    }
+
+    this.staffUserService
+      .revokePermission(this.userId(), permission, word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.permissionRevokeRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingPermissionRevoke.set(null);
+            this.permissionRevokeRetryToken.set(0);
+            this.reportError(err);
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingPermissionRevoke.set(null);
+        this.permissionRevokeRetryToken.set(0);
+        this.loadDetail();
+      });
+  }
+
+  protected cancelPermissionRevoke(): void {
+    this.pendingPermissionRevoke.set(null);
+    this.permissionRevokeRetryToken.set(0);
   }
 
   protected onAssignAccessGroup(accessGroupId: number): void {
@@ -335,19 +416,51 @@ export class StaffUserDetailPanelComponent implements OnChanges {
       return;
     }
 
+    const group = this.detail()?.accessGroups.find((g) => g.id === accessGroupId);
+
+    if (group === undefined) {
+      return;
+    }
+
+    this.pendingGroupUnassign.set(group);
+  }
+
+  protected groupUnassignmentTokenFetcher(accessGroupId: number): () => Observable<string> {
+    return () =>
+      this.staffUserService.generateAccessGroupUnassignmentToken(this.userId(), accessGroupId);
+  }
+
+  protected confirmGroupUnassign(word: string): void {
+    const group = this.pendingGroupUnassign();
+
+    if (group === null) {
+      return;
+    }
+
     this.staffUserService
-      .unassignAccessGroup(this.userId(), accessGroupId)
+      .unassignAccessGroup(this.userId(), group.id, word)
       .pipe(
         catchError((err) => {
-          this.reportError(err);
-          return of(null);
+          if (err.status === 400) {
+            this.groupUnassignRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingGroupUnassign.set(null);
+            this.groupUnassignRetryToken.set(0);
+            this.reportError(err);
+          }
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.loadDetail();
-        }
+      .subscribe(() => {
+        this.pendingGroupUnassign.set(null);
+        this.groupUnassignRetryToken.set(0);
+        this.loadDetail();
       });
+  }
+
+  protected cancelGroupUnassign(): void {
+    this.pendingGroupUnassign.set(null);
+    this.groupUnassignRetryToken.set(0);
   }
 
   protected onCreateAccessGroup(event: Event): void {

@@ -67,12 +67,28 @@ describe('StaffUserService', () => {
     req.flush({});
   });
 
-  it('revokePermission() deletes the permission', () => {
-    service.revokePermission(1, 'STAFF_USER_CREATE').subscribe();
+  it('revokePermission() deletes the permission with the confirmation word', () => {
+    service.revokePermission(1, 'STAFF_USER_CREATE', 'correct-horse').subscribe();
 
     const req = httpMock.expectOne('/api/staff/users/1/permissions/STAFF_USER_CREATE');
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
     req.flush({});
+  });
+
+  it('generatePermissionRevocationToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service
+      .generatePermissionRevocationToken(1, 'STAFF_USER_CREATE')
+      .subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/staff/users/1/permissions/STAFF_USER_CREATE/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
   });
 
   it('listAccessGroups() fetches the global access groups', () => {
@@ -109,12 +125,26 @@ describe('StaffUserService', () => {
     req.flush({});
   });
 
-  it('unassignAccessGroup() deletes the assignment', () => {
-    service.unassignAccessGroup(1, 3).subscribe();
+  it('unassignAccessGroup() deletes the assignment with the confirmation word', () => {
+    service.unassignAccessGroup(1, 3, 'correct-horse').subscribe();
 
     const req = httpMock.expectOne('/api/staff/users/1/access-groups/3');
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
     req.flush({});
+  });
+
+  it('generateAccessGroupUnassignmentToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateAccessGroupUnassignmentToken(1, 3).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/staff/users/1/access-groups/3/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
   });
 
   it('getAuditTrail() fetches the target user audit trail', () => {

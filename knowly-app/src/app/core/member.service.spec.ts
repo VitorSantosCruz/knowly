@@ -36,12 +36,24 @@ describe('MemberService', () => {
     req.flush({});
   });
 
-  it('remove() deletes the membership', () => {
-    service.remove(1, 2).subscribe();
+  it('remove() deletes the membership with the confirmation word', () => {
+    service.remove(1, 2, 'correct-horse').subscribe();
 
     const req = httpMock.expectOne('/api/tenants/1/members/2');
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
     req.flush({});
+  });
+
+  it('generateRemovalToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateRemovalToken(1, 2).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne('/api/tenants/1/members/2/deletion-confirmation-token');
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
   });
 
   it('getDetail() fetches a member detail', () => {
@@ -68,12 +80,28 @@ describe('MemberService', () => {
     req.flush({});
   });
 
-  it('revokePermission() deletes the permission', () => {
-    service.revokePermission(1, 2, 'ARTICLE_VIEW').subscribe();
+  it('revokePermission() deletes the permission with the confirmation word', () => {
+    service.revokePermission(1, 2, 'ARTICLE_VIEW', 'correct-horse').subscribe();
 
     const req = httpMock.expectOne('/api/tenants/1/members/2/permissions/ARTICLE_VIEW');
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
     req.flush({});
+  });
+
+  it('generatePermissionRevocationToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service
+      .generatePermissionRevocationToken(1, 2, 'ARTICLE_VIEW')
+      .subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/tenants/1/members/2/permissions/ARTICLE_VIEW/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
   });
 
   it('listAccessGroups() fetches the tenant access groups', () => {
@@ -101,11 +129,25 @@ describe('MemberService', () => {
     req.flush({});
   });
 
-  it('unassignAccessGroup() deletes the assignment', () => {
-    service.unassignAccessGroup(1, 2, 3).subscribe();
+  it('unassignAccessGroup() deletes the assignment with the confirmation word', () => {
+    service.unassignAccessGroup(1, 2, 3, 'correct-horse').subscribe();
 
     const req = httpMock.expectOne('/api/tenants/1/members/2/access-groups/3');
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
     req.flush({});
+  });
+
+  it('generateAccessGroupUnassignmentToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateAccessGroupUnassignmentToken(1, 2, 3).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/tenants/1/members/2/access-groups/3/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
   });
 });

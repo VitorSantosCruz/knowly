@@ -38,7 +38,8 @@ class CaptchaServiceTest {
                         null,
                         null,
                         null,
-                        new AuthProperties.Captcha(5, 20, Duration.ofMinutes(5), "test-secret"));
+                        new AuthProperties.Captcha(5, 20, Duration.ofMinutes(5), "test-secret"),
+                        null);
 
         captchaService = new CaptchaService(builder, redisTemplate, properties);
     }

@@ -1,18 +1,25 @@
 import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { catchError, of } from 'rxjs';
+import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { Member, MemberService } from '../../core/member.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { MemberDetailPanelComponent } from './member-detail-panel.component';
 
 type MembersError = 'network' | 'permission-denied' | null;
 
 @Component({
   selector: 'app-members-page',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, MemberDetailPanelComponent],
+  imports: [
+    TranslocoPipe,
+    ErrorStateComponent,
+    NoAccessStateComponent,
+    MemberDetailPanelComponent,
+    ConfirmDialogComponent,
+  ],
   template: `
     <div data-testid="members-page" class="page-shell max-w-3xl">
       @if (loading()) {
@@ -82,6 +89,17 @@ type MembersError = 'network' | 'permission-denied' | null;
             />
           </div>
         }
+
+        @if (pendingRemoval(); as memberToRemove) {
+          <app-confirm-dialog
+            [open]="true"
+            [message]="'members.confirmRemove' | transloco: { email: memberToRemove.email }"
+            [fetchToken]="removalTokenFetcher(memberToRemove.membershipId)"
+            [retryToken]="removalRetryToken()"
+            (confirm)="confirmRemoval($event)"
+            (dismissed)="cancelRemoval()"
+          />
+        }
       }
     </div>
   `,
@@ -97,6 +115,8 @@ export class MembersPageComponent implements OnInit {
   protected readonly error = signal<MembersError>(null);
   protected readonly newMemberEmail = signal('');
   protected readonly selectedMembershipId = signal<number | null>(null);
+  protected readonly pendingRemoval = signal<Member | null>(null);
+  protected readonly removalRetryToken = signal(0);
 
   protected readonly viewerIsMemberAdminOfThisTenant = computed(
     () => this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN',
@@ -164,24 +184,55 @@ export class MembersPageComponent implements OnInit {
   }
 
   protected onRemoveMember(membershipId: number): void {
-    const tenantId = this.activeTenantService.activeTenantId();
+    const member = this.members().find((m) => m.membershipId === membershipId);
 
-    if (tenantId === null) {
+    if (member === undefined) {
+      return;
+    }
+
+    this.pendingRemoval.set(member);
+  }
+
+  protected removalTokenFetcher(membershipId: number): () => Observable<string> {
+    return () => {
+      const tenantId = this.activeTenantService.activeTenantId();
+      return this.memberService.generateRemovalToken(tenantId ?? -1, membershipId);
+    };
+  }
+
+  protected confirmRemoval(word: string): void {
+    const tenantId = this.activeTenantService.activeTenantId();
+    const member = this.pendingRemoval();
+
+    if (tenantId === null || member === null) {
       return;
     }
 
     this.memberService
-      .remove(tenantId, membershipId)
+      .remove(tenantId, member.membershipId, word)
       .pipe(
         catchError((err) => {
-          this.error.set(err.status === 403 ? 'permission-denied' : 'network');
-          return of(null);
+          if (err.status === 400) {
+            this.removalRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingRemoval.set(null);
+            this.removalRetryToken.set(0);
+            this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          }
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.members.update((members) => members.filter((m) => m.membershipId !== membershipId));
-        }
+      .subscribe(() => {
+        this.pendingRemoval.set(null);
+        this.removalRetryToken.set(0);
+        this.members.update((members) =>
+          members.filter((m) => m.membershipId !== member.membershipId),
+        );
       });
+  }
+
+  protected cancelRemoval(): void {
+    this.pendingRemoval.set(null);
+    this.removalRetryToken.set(0);
   }
 }

@@ -55,69 +55,69 @@
       `unassignAccessGroup` gain trailing `word`. Update
       `staff-user.service.spec.ts`.
 - [x] 10. Run `npm test -- article.service member.service staff-user.service`
-       and confirm green; commit
-       (`feat(core): add deletion-confirmation-token generation and word param to delete calls`).
+      and confirm green; commit
+      (`feat(core): add deletion-confirmation-token generation and word param to delete calls`).
 
 ## 4. Wire article deletion (REQ-1–10, already-dialog call site)
 
 - [x] 11. **Red/Green** — Update `articles-page.component.spec.ts`/`.ts`:
-       `pendingDelete` flow gains `deleteRetryToken` signal and a
-       `fetchToken` closure calling `articleService.generateDeletionToken`;
-       `confirmDelete(word)` calls `articleService.remove(..., word)`; a
-       400 bumps `deleteRetryToken` and keeps the dialog/article in
-       place; other errors close the dialog and show the page error
-       state; cancel/dismiss discard with no HTTP call.
+      `pendingDelete` flow gains `deleteRetryToken` signal and a
+      `fetchToken` closure calling `articleService.generateDeletionToken`;
+      `confirmDelete(word)` calls `articleService.remove(..., word)`; a
+      400 bumps `deleteRetryToken` and keeps the dialog/article in
+      place; other errors close the dialog and show the page error
+      state; cancel/dismiss discard with no HTTP call.
 - [x] 12. Run `npm test -- articles-page.component` and confirm green;
-       commit (`feat(articles): require the fetched confirmation word before deleting`).
+      commit (`feat(articles): require the fetched confirmation word before deleting`).
 
 ## 5. Wire tenant member removal (REQ-11/12)
 
 - [x] 13. **Red/Green** — `members-page.component.ts`/`.spec.ts`:
-       `onRemoveMember` opens `ConfirmDialogComponent` via `pendingRemoval`
-       instead of deleting immediately; `fetchToken` calls
-       `MemberService.generateRemovalToken`; confirming with the matched
-       word calls `MemberService.remove(..., word)`; a 400 bumps a
-       `removalRetryToken` signal and re-fetches; cancel discards.
+      `onRemoveMember` opens `ConfirmDialogComponent` via `pendingRemoval`
+      instead of deleting immediately; `fetchToken` calls
+      `MemberService.generateRemovalToken`; confirming with the matched
+      word calls `MemberService.remove(..., word)`; a 400 bumps a
+      `removalRetryToken` signal and re-fetches; cancel discards.
 - [x] 14. Run `npm test -- members-page.component` and confirm green;
-       commit (`feat(members): require confirmation-token flow before removing a member`).
+      commit (`feat(members): require confirmation-token flow before removing a member`).
 
 ## 6. Wire tenant permission revoke + access-group unassign (REQ-13–16)
 
 - [x] 15. **Red/Green** — `member-detail-panel.component.ts`/`.spec.ts`:
-       `onTogglePermission`'s revoke branch opens the dialog via
-       `pendingPermissionRevoke`/`permissionRevokeRetryToken` (grant
-       branch unchanged); `onUnassignAccessGroup` opens the dialog via
-       `pendingGroupUnassign`/`groupUnassignRetryToken`; each `fetchToken`
-       calls the matching new `MemberService` method; confirming calls
-       the matching `DELETE` with the word and refreshes detail on
-       success; a 400 bumps the matching retry signal; cancel discards.
+      `onTogglePermission`'s revoke branch opens the dialog via
+      `pendingPermissionRevoke`/`permissionRevokeRetryToken` (grant
+      branch unchanged); `onUnassignAccessGroup` opens the dialog via
+      `pendingGroupUnassign`/`groupUnassignRetryToken`; each `fetchToken`
+      calls the matching new `MemberService` method; confirming calls
+      the matching `DELETE` with the word and refreshes detail on
+      success; a 400 bumps the matching retry signal; cancel discards.
 - [x] 16. Run `npm test -- member-detail-panel.component` and confirm
-       green; commit
-       (`feat(members): require confirmation-token flow before revoking a permission or unassigning a group`).
+      green; commit
+      (`feat(members): require confirmation-token flow before revoking a permission or unassigning a group`).
 
 ## 7. Wire staff permission revoke + access-group unassign (REQ-17–20)
 
 - [x] 17. **Red/Green** — `staff-user-detail-panel.component.ts`/`.spec.ts`:
-       same shape as task 15/16, backed by `StaffUserService`'s new
-       methods.
+      same shape as task 15/16, backed by `StaffUserService`'s new
+      methods.
 - [x] 18. Run `npm test -- staff-user-detail-panel.component` and
-       confirm green; commit
-       (`feat(user-management): require confirmation-token flow before revoking staff permission or unassigning group`).
+      confirm green; commit
+      (`feat(user-management): require confirmation-token flow before revoking staff permission or unassigning group`).
 
 ## 8. i18n
 
 - [x] 19. Add `common.confirmDialog.*` (loading/fetchError/retry/
-       invalidWord/inputLabel/inputPlaceholder), `members.confirmRemove`,
-       `members.confirmRevokePermission`, `members.confirmUnassignGroup`,
-       `staffDirectory.confirmRevokePermission`,
-       `staffDirectory.confirmUnassignGroup` to `public/i18n/en.json` and
-       `public/i18n/pt-BR.json`.
+      invalidWord/inputLabel/inputPlaceholder), `members.confirmRemove`,
+      `members.confirmRevokePermission`, `members.confirmUnassignGroup`,
+      `staffDirectory.confirmRevokePermission`,
+      `staffDirectory.confirmUnassignGroup` to `public/i18n/en.json` and
+      `public/i18n/pt-BR.json`.
 
 ## 9. Final verification
 
 - [x] 20. Run `npm run format`, then
-       `npm run format:check && npm test && npm run build && npm run lint`
-       for the whole `knowly-app` project and confirm everything is
-       green (note any pre-existing unrelated-file failures separately).
+      `npm run format:check && npm test && npm run build && npm run lint`
+      for the whole `knowly-app` project and confirm everything is
+      green (note any pre-existing unrelated-file failures separately).
 - [x] 21. Cross-check SPEC.md's acceptance criteria and tick them off.
 - [x] 22. Final commit for any doc-only changes.

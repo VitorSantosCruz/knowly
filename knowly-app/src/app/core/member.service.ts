@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { Permission } from './permission';
 
 export interface Member {
@@ -33,8 +33,19 @@ export class MemberService {
     return this.http.post<void>(`/api/tenants/${tenantId}/members`, { email, role });
   }
 
-  remove(tenantId: number, membershipId: number): Observable<void> {
-    return this.http.delete<void>(`/api/tenants/${tenantId}/members/${membershipId}`);
+  remove(tenantId: number, membershipId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/tenants/${tenantId}/members/${membershipId}`, {
+      body: { word },
+    });
+  }
+
+  generateRemovalToken(tenantId: number, membershipId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/tenants/${tenantId}/members/${membershipId}/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
   }
 
   getDetail(tenantId: number, membershipId: number): Observable<MemberDetail> {
@@ -55,10 +66,25 @@ export class MemberService {
     tenantId: number,
     membershipId: number,
     permission: Permission,
+    word: string,
   ): Observable<void> {
     return this.http.delete<void>(
       `/api/tenants/${tenantId}/members/${membershipId}/permissions/${permission}`,
+      { body: { word } },
     );
+  }
+
+  generatePermissionRevocationToken(
+    tenantId: number,
+    membershipId: number,
+    permission: Permission,
+  ): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/tenants/${tenantId}/members/${membershipId}/permissions/${permission}/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
   }
 
   listAccessGroups(tenantId: number): Observable<AccessGroup[]> {
@@ -84,9 +110,24 @@ export class MemberService {
     tenantId: number,
     membershipId: number,
     accessGroupId: number,
+    word: string,
   ): Observable<void> {
     return this.http.delete<void>(
       `/api/tenants/${tenantId}/members/${membershipId}/access-groups/${accessGroupId}`,
+      { body: { word } },
     );
+  }
+
+  generateAccessGroupUnassignmentToken(
+    tenantId: number,
+    membershipId: number,
+    accessGroupId: number,
+  ): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/tenants/${tenantId}/members/${membershipId}/access-groups/${accessGroupId}/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
   }
 }

@@ -105,6 +105,8 @@ knowly:
       verify-velocity-threshold: 20
       velocity-window: 5m
       turnstile-secret: ${TURNSTILE_SECRET_KEY}
+    deletion-confirmation-token:
+      ttl: 5m
   storage:
     endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
     region: us-east-1
