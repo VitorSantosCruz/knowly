@@ -11,6 +11,10 @@ export function toNewTenantsChartData(rows: DailyCountRow[]): TrendChartData {
   };
 }
 
+// Single, unlabeled dataset — the card title above already says what this is, so a legend would
+// only ever show a "undefined" entry for the dataset's missing `label`.
+const CHART_OPTIONS = { plugins: { legend: { display: false } } };
+
 /**
  * Presentational "new tenants per day" trend chart. Pre-fetched-data mode
  * only (`data`/`error` inputs) — `GlobalDashboardPageComponent` owns the
@@ -34,7 +38,12 @@ export function toNewTenantsChartData(rows: DailyCountRow[]): TrendChartData {
       @if (error()) {
         <app-error-state />
       } @else {
-        <app-chart-canvas type="line" [data]="toNewTenantsChartData(data())" height="220px" />
+        <app-chart-canvas
+          type="line"
+          [data]="toNewTenantsChartData(data())"
+          [options]="chartOptions"
+          height="220px"
+        />
         <table class="sr-only">
           <caption>
             {{
@@ -63,6 +72,8 @@ export function toNewTenantsChartData(rows: DailyCountRow[]): TrendChartData {
 export class NewTenantsTrendChartComponent {
   readonly data = input.required<DailyCountRow[]>();
   readonly error = input<boolean>(false);
+
+  protected readonly chartOptions = CHART_OPTIONS;
 
   protected toNewTenantsChartData(rows: DailyCountRow[]): TrendChartData {
     return toNewTenantsChartData(rows);
