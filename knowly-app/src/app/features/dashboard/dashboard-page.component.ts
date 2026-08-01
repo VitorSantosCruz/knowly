@@ -1,6 +1,13 @@
 import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
+import {
+  LucideBookOpenCheck,
+  LucideBotMessageSquare,
+  LucideMessagesSquare,
+  LucideUser,
+  LucideUsers,
+} from '@lucide/angular';
 import { ConversationsActivityChartComponent } from './conversations-activity-chart.component';
 import { ExportButtonComponent } from './export-button.component';
 import { MembersBreakdownCardComponent } from './members-breakdown-card.component';
@@ -34,6 +41,11 @@ interface MembersResponse {
     ExportButtonComponent,
     MessageSplitChartComponent,
     ConversationsActivityChartComponent,
+    LucideBookOpenCheck,
+    LucideMessagesSquare,
+    LucideUser,
+    LucideBotMessageSquare,
+    LucideUsers,
   ],
   template: `
     <div data-testid="dashboard-page" class="page-shell grid gap-4 sm:grid-cols-2">
@@ -49,7 +61,9 @@ interface MembersResponse {
         label="{{ 'dashboard.tiles.articles' | transloco }}"
         [valueSelector]="dailyCountValueSelector"
         [sparklineSelector]="dailyCountSparklineSelector"
-      />
+      >
+        <svg lucideBookOpenCheck icon aria-hidden="true"></svg>
+      </app-metric-tile>
       <app-metric-tile
         testId="conversations-tile"
         [period]="period()"
@@ -57,7 +71,9 @@ interface MembersResponse {
         label="{{ 'dashboard.tiles.conversations' | transloco }}"
         [valueSelector]="dailyCountValueSelector"
         [sparklineSelector]="dailyCountSparklineSelector"
-      />
+      >
+        <svg lucideMessagesSquare icon aria-hidden="true"></svg>
+      </app-metric-tile>
       <app-metric-tile
         testId="user-messages-tile"
         [period]="period()"
@@ -65,7 +81,9 @@ interface MembersResponse {
         label="{{ 'dashboard.tiles.userMessages' | transloco }}"
         [valueSelector]="userMessagesValueSelector"
         [sparklineSelector]="userMessagesSparklineSelector"
-      />
+      >
+        <svg lucideUser icon aria-hidden="true"></svg>
+      </app-metric-tile>
       <app-metric-tile
         testId="assistant-messages-tile"
         [period]="period()"
@@ -73,7 +91,9 @@ interface MembersResponse {
         label="{{ 'dashboard.tiles.assistantMessages' | transloco }}"
         [valueSelector]="assistantMessagesValueSelector"
         [sparklineSelector]="assistantMessagesSparklineSelector"
-      />
+      >
+        <svg lucideBotMessageSquare icon aria-hidden="true"></svg>
+      </app-metric-tile>
       <app-metric-tile
         testId="active-members-tile"
         [period]="period()"
@@ -82,7 +102,9 @@ interface MembersResponse {
         [valueSelector]="activeMembersValueSelector"
         [sparklineSelector]="activeMembersSparklineSelector"
         class="sm:col-span-2"
-      />
+      >
+        <svg lucideUsers icon aria-hidden="true"></svg>
+      </app-metric-tile>
 
       <app-message-split-chart [period]="period()" class="sm:col-span-2" />
       <app-conversations-activity-chart [period]="period()" class="sm:col-span-2" />

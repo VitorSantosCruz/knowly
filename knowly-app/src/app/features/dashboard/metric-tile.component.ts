@@ -44,30 +44,39 @@ const SPARKLINE_OPTIONS = {
 @Component({
   selector: 'app-metric-tile',
   imports: [ErrorStateComponent, NoAccessStateComponent, ChartCanvasComponent, TranslocoPipe],
+  host: {
+    class: 'block h-full',
+  },
   template: `
     <div
       [attr.data-testid]="testId()"
-      class="enter-fluid relative overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
+      class="enter-fluid relative flex h-full flex-col overflow-hidden rounded-2xl border border-ink-200/70 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-lg shadow-ink-900/10 transition-shadow duration-base ease-fluid dark:border-ink-800/70"
     >
-      @if (disabled()) {
+      <div class="flex items-start justify-between gap-3">
         <p class="text-sm text-ink-300">{{ label() }}</p>
-        <p data-testid="metric-tile-coming-soon" class="text-lg font-semibold text-ink-400">
+        <div
+          aria-hidden="true"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-signal-500 to-signal-600 text-white"
+        >
+          <ng-content select="[icon]" />
+        </div>
+      </div>
+      @if (disabled()) {
+        <p data-testid="metric-tile-coming-soon" class="mt-1 text-lg font-semibold text-ink-400">
           {{ 'dashboard.comingSoon' | transloco }}
         </p>
       } @else if (value() !== undefined) {
-        <p class="text-sm text-ink-300">{{ label() }}</p>
-        <p data-testid="metric-tile-value" class="text-3xl font-bold text-white">
+        <p data-testid="metric-tile-value" class="mt-1 text-3xl font-bold text-white">
           {{ value() }}
         </p>
       } @else if (fetcher?.loading()) {
-        <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
+        <p data-testid="loading-state" class="mt-1 text-sm text-ink-400">…</p>
       } @else if (fetcher?.error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (fetcher?.error() === 'network') {
         <app-error-state [traceId]="fetcher?.traceId()" />
       } @else if (fetcher?.data(); as data) {
-        <p class="text-sm text-ink-300">{{ label() }}</p>
-        <p data-testid="metric-tile-value" class="text-3xl font-bold text-white">
+        <p data-testid="metric-tile-value" class="mt-1 text-3xl font-bold text-white">
           {{ valueSelector()!(data) }}
         </p>
         <div class="mt-2 h-12">
