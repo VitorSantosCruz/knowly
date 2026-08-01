@@ -90,6 +90,17 @@ export class ActiveTenantService {
     return this.http.post<void>('/api/tenants', { name, adminEmail });
   }
 
+  leaveTenant(): Observable<void> {
+    return this.http.post<void>('/api/tenants/active/clear', {}).pipe(
+      tap(() => {
+        this._activeTenantId.set(null);
+        this._activeTenantName.set(null);
+        this._activeTenantRole.set(null);
+        this.locallySelected = false;
+      }),
+    );
+  }
+
   selectTenant(tenantId: number, tenantName: string): Observable<void> {
     return this.http.post<void>('/api/tenants/active', { tenantId }).pipe(
       tap(() => {

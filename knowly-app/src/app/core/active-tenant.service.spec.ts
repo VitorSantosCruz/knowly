@@ -170,4 +170,43 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantId()).toBe(2);
     expect(service.activeTenantName()).toBe('Tenant B');
   });
+
+  it('leaveTenant() posts to the clear endpoint and nulls the active tenant signals on success', () => {
+    service.selectTenant(5, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+    expect(service.activeTenantId()).toBe(5);
+
+    service.leaveTenant().subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/active/clear');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({});
+
+    expect(service.activeTenantId()).toBeNull();
+    expect(service.activeTenantName()).toBeNull();
+    expect(service.activeTenantRole()).toBeNull();
+
+    // locallySelected must be reset by leaveTenant(), or a later fetch() finding no active
+    // membership would wrongly preserve a stale value under the "staff race" protection.
+    service.fetch();
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    expect(service.activeTenantId()).toBeNull();
+  });
+
+  it('leaveTenant() leaves the active tenant signals unchanged when the HTTP call fails', () => {
+    service.selectTenant(5, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+    expect(service.activeTenantId()).toBe(5);
+    expect(service.activeTenantName()).toBe('Staffed Co');
+
+    service.leaveTenant().subscribe({ error: () => {} });
+
+    httpMock
+      .expectOne('/api/tenants/active/clear')
+      .flush({}, { status: 500, statusText: 'Internal Server Error' });
+
+    expect(service.activeTenantId()).toBe(5);
+    expect(service.activeTenantName()).toBe('Staffed Co');
+  });
 });
