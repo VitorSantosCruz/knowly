@@ -69,11 +69,24 @@ class MessageArticleCitationRepositoryTest {
                 new MessageArticleCitation(message, article));
     }
 
+    /**
+     * Noon UTC "today," not the literal {@code Instant.now()}: day-bucket assertions below compare
+     * a UTC-computed {@code LocalDate} against what the DB's {@code date_trunc('day', ...)}
+     * bucketed -- a backdated instant within a few hours of a real UTC midnight can land in the
+     * "wrong" day depending on the DB session's timezone, which is exactly what broke this suite
+     * when it happened to run near local midnight (see the incident this fixes, 2026-07-31/08-01
+     * rollover). Anchoring every backdated instant to noon keeps a multi-hour timezone skew from
+     * ever crossing a day boundary.
+     */
+    private static Instant safeAnchor() {
+        return Instant.now().truncatedTo(ChronoUnit.DAYS).plus(12, ChronoUnit.HOURS);
+    }
+
     @Test
     void countCitationsByDaySinceReturnsRowsSortedChronologicallyAcrossAllTenants() {
         Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Citation Tenant A"));
         Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Citation Tenant B"));
-        Instant cutoff = Instant.now().minus(3, ChronoUnit.DAYS);
+        Instant cutoff = safeAnchor().minus(3, ChronoUnit.DAYS);
 
         MessageArticleCitation dayOne = citationFor(tenantA);
         backdateCitation(dayOne, cutoff.plus(1, ChronoUnit.HOURS));
@@ -97,12 +110,14 @@ class MessageArticleCitationRepositoryTest {
     void countCitationsByDayReturnsAllRowsWithNoLowerBound() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Citation All Time Tenant"));
         MessageArticleCitation citation = citationFor(tenant);
+        Instant createdAt = safeAnchor();
+        backdateCitation(citation, createdAt);
 
         List<DailyCountProjection> rows = messageArticleCitationRepository.countCitationsByDay();
 
         assertThat(rows)
                 .extracting(DailyCountProjection::getDay)
-                .contains(LocalDate.ofInstant(citation.getCreatedAt(), ZoneOffset.UTC));
+                .contains(LocalDate.ofInstant(createdAt, ZoneOffset.UTC));
     }
 
     @Test

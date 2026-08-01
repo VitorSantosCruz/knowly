@@ -70,9 +70,22 @@ class TenantRepositoryTest {
     // --- specify/features/global-staff-dashboard-trends/SPEC.md REQ-2a/4/11: cross-tenant,
     // day-bucketed and windowed counts for the trends endpoint ---
 
+    /**
+     * Noon UTC "today," not the literal {@code Instant.now()}: day-bucket assertions below compare
+     * a UTC-computed {@code LocalDate} against what the DB's {@code date_trunc('day', ...)}
+     * bucketed -- a backdated instant within a few hours of a real UTC midnight can land in the
+     * "wrong" day depending on the DB session's timezone, which is exactly what broke this suite
+     * when it happened to run near local midnight (see the incident this fixes, 2026-07-31/08-01
+     * rollover). Anchoring every backdated instant to noon keeps a multi-hour timezone skew from
+     * ever crossing a day boundary.
+     */
+    private static Instant safeAnchor() {
+        return Instant.now().truncatedTo(ChronoUnit.DAYS).plus(12, ChronoUnit.HOURS);
+    }
+
     @Test
     void countTenantsByDaySinceReturnsRowsSortedChronologicallyAcrossAllTenants() {
-        Instant cutoff = Instant.now().minus(3, ChronoUnit.DAYS);
+        Instant cutoff = safeAnchor().minus(3, ChronoUnit.DAYS);
         Tenant dayOne = tenantRepository.saveAndFlush(new Tenant("Day One Co"));
         backdateTenant(dayOne, cutoff.plus(1, ChronoUnit.HOURS));
         Tenant dayTwo = tenantRepository.saveAndFlush(new Tenant("Day Two Co"));
@@ -96,13 +109,15 @@ class TenantRepositoryTest {
     @Test
     void countTenantsByDayReturnsAllRowsWithNoLowerBound() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("All Time Trend Co"));
+        Instant createdAt = safeAnchor();
+        backdateTenant(tenant, createdAt);
 
         List<DailyCountProjection> rows = tenantRepository.countTenantsByDay();
 
         assertThat(rows).isNotEmpty();
         assertThat(rows)
                 .extracting(DailyCountProjection::getDay)
-                .contains(LocalDate.ofInstant(tenant.getCreatedAt(), ZoneOffset.UTC));
+                .contains(LocalDate.ofInstant(createdAt, ZoneOffset.UTC));
     }
 
     @Test
