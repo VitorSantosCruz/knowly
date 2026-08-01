@@ -7,7 +7,7 @@ import br.com.conectabyte.knowly.conversation.MessageRepository;
 import br.com.conectabyte.knowly.conversation.MessageRole;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
-import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantSelectionRequiredException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -251,7 +251,14 @@ public class MetricsService {
         return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * No active tenant (staff who hasn't switched into one, or a member whose selection lapsed) is
+     * a "pick a tenant first" state, not "you don't have access to this tenant" -- {@link
+     * TenantSelectionRequiredException} (409) matches the exact case this project already uses it
+     * for elsewhere (e.g. tenant-scoped route guards), instead of the misleading {@code
+     * TenantAccessDeniedException} (403) this used to throw here.
+     */
     private Long requireActiveTenant() {
-        return tenantContext.getActiveTenantId().orElseThrow(TenantAccessDeniedException::new);
+        return tenantContext.getActiveTenantId().orElseThrow(TenantSelectionRequiredException::new);
     }
 }

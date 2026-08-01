@@ -115,6 +115,12 @@ class MetricsControllerIntegrationTest {
                 new Article(tenant, title, "key", "file.pdf", "application/pdf"));
     }
 
+    private User staffAdmin(String email) {
+        User user = userRepository.saveAndFlush(new User(email));
+        user.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF_ADMIN);
+        return userRepository.saveAndFlush(user);
+    }
+
     @Test
     void eachMetricsEndpointRequiresDashboardViewPermissionIndependently() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("NoPerm Tenant"));
@@ -621,5 +627,20 @@ class MetricsControllerIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    // --- No active tenant (e.g. staff who hasn't switched into one) ---
+
+    @Test
+    void staffWithNoActiveTenantGetsTenantSelectionRequiredNotAccessDenied() throws Exception {
+        staffAdmin("no-active-tenant-staff@example.com");
+        Cookie session = logIn("no-active-tenant-staff@example.com");
+
+        var response =
+                mockMvc.get().uri("/api/tenants/metrics/articles").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CONFLICT);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("TENANT_SELECTION_REQUIRED");
     }
 }
