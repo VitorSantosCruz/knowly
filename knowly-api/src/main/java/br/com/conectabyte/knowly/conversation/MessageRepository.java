@@ -19,7 +19,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query(
             value =
                     """
-                    select date_trunc('day', m.created_at)::date as day, m.role as role, count(*) as count
+                    select date_trunc('day', m.created_at AT TIME ZONE 'UTC')::date as day, m.role as role, count(*) as count
                     from messages m
                     join conversations c on c.id = m.conversation_id
                     where c.tenant_id = :tenantId
@@ -32,7 +32,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query(
             value =
                     """
-                    select date_trunc('day', m.created_at)::date as day, m.role as role, count(*) as count
+                    select date_trunc('day', m.created_at AT TIME ZONE 'UTC')::date as day, m.role as role, count(*) as count
                     from messages m
                     join conversations c on c.id = m.conversation_id
                     where c.tenant_id = :tenantId and m.created_at >= :from

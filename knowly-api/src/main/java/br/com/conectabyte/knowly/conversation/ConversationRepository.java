@@ -21,7 +21,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     @Query(
             value =
                     """
-                    select date_trunc('day', created_at)::date as day, count(*) as count
+                    select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as count
                     from conversations
                     where tenant_id = :tenantId
                     group by day
@@ -33,7 +33,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     @Query(
             value =
                     """
-                    select date_trunc('day', created_at)::date as day, count(*) as count
+                    select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as count
                     from conversations
                     where tenant_id = :tenantId and created_at >= :from
                     group by day

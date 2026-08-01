@@ -288,6 +288,8 @@ class GlobalMetricsServiceTest {
         assertThat(result.newTenantsPerDay())
                 .extracting(DailyCountDto::count)
                 .contains(0L); // at least one zero-filled day with no new tenant
+        assertThat(result.newTenantsPerDay().stream().mapToLong(DailyCountDto::count).sum())
+                .isGreaterThanOrEqualTo(1L);
         assertThat(result.articlesReadPerDay()).hasSize(7);
         assertThat(result.articlesReadPerDay()).allMatch(day -> day.count() == 0L);
     }

@@ -10,7 +10,42 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Chart, ChartConfiguration, ChartData, ChartType } from 'chart.js';
+import {
+  ArcElement,
+  BarController,
+  BarElement,
+  CategoryScale,
+  Chart,
+  ChartConfiguration,
+  ChartData,
+  ChartType,
+  DoughnutController,
+  Filler,
+  Legend,
+  LineController,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip,
+} from 'chart.js';
+
+// Chart.js's tree-shakeable core (imported from `chart.js`, not `chart.js/auto`) renders
+// nothing until its controllers/elements/scales are registered — every chart type this app
+// renders (line/bar/doughnut) must be registered here once, globally.
+Chart.register(
+  LineController,
+  BarController,
+  DoughnutController,
+  LineElement,
+  BarElement,
+  ArcElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Legend,
+  Tooltip,
+  Filler,
+);
 
 /**
  * Injectable seam for the Chart.js constructor. Defaults to the real

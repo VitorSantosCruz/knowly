@@ -16,7 +16,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(
             value =
                     """
-                    select date_trunc('day', created_at)::date as day, count(*) as count
+                    select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as count
                     from articles
                     where tenant_id = :tenantId and active = true
                     group by day
@@ -28,7 +28,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(
             value =
                     """
-                    select date_trunc('day', created_at)::date as day, count(*) as count
+                    select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as count
                     from articles
                     where tenant_id = :tenantId and active = true and created_at >= :from
                     group by day

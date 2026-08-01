@@ -31,7 +31,7 @@ public interface MessageArticleCitationRepository
     @Query(
             value =
                     """
-                    select date_trunc('day', created_at)::date as day, count(*) as count
+                    select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as count
                     from message_article_citations
                     group by day
                     order by day
@@ -42,7 +42,7 @@ public interface MessageArticleCitationRepository
     @Query(
             value =
                     """
-                    select date_trunc('day', created_at)::date as day, count(*) as count
+                    select date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*) as count
                     from message_article_citations
                     where created_at >= :from
                     group by day
