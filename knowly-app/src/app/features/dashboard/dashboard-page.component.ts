@@ -106,7 +106,7 @@ interface MembersResponse {
           label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
           subtitle="{{ 'dashboard.trends.activeMembersSubtitle' | transloco }}"
           [valueSelector]="activeMembersValueSelector"
-          [sparklineSelector]="activeMembersSparklineSelector"
+          [showSparkline]="false"
         >
           <svg lucideUsers icon aria-hidden="true"></svg>
         </app-metric-tile>
@@ -157,8 +157,4 @@ export class DashboardPageComponent {
 
   protected readonly activeMembersValueSelector = (data: unknown) =>
     (data as MembersResponse).activeCount;
-
-  protected readonly activeMembersSparklineSelector = (data: unknown): SparklineDay[] => [
-    { date: '', count: (data as MembersResponse).activeCount },
-  ];
 }

@@ -50,6 +50,27 @@ class HostComponent {
   readonly sparklineSelector = (data: unknown) => (data as TimeseriesResponse).days;
 }
 
+interface SnapshotResponse {
+  activeCount: number;
+}
+
+@Component({
+  selector: 'app-no-sparkline-host',
+  imports: [MetricTileComponent],
+  template: `
+    <app-metric-tile
+      testId="active-members-tile"
+      url="/api/tenants/metrics/members"
+      label="Active members"
+      [valueSelector]="valueSelector"
+      [showSparkline]="false"
+    />
+  `,
+})
+class NoSparklineHostComponent {
+  readonly valueSelector = (data: unknown) => (data as SnapshotResponse).activeCount;
+}
+
 describe('MetricTileComponent', () => {
   const URL = '/api/tenants/metrics/conversations/timeseries';
 
@@ -96,6 +117,31 @@ describe('MetricTileComponent', () => {
       fixture.nativeElement.querySelector('[data-testid="conversations-tile"]').textContent,
     ).toContain('8');
     expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeTruthy();
+  });
+
+  it('renders the value with no sparkline when showSparkline is false, even with fetched data', () => {
+    TestBed.configureTestingModule({
+      imports: [NoSparklineHostComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideTransloco({
+          config: { availableLangs: ['en', 'pt-BR'], defaultLang: 'en' },
+          loader: FakeTranslocoLoader,
+        }),
+      ],
+    });
+    const fixture = TestBed.createComponent(NoSparklineHostComponent);
+    const httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === '/api/tenants/metrics/members').flush({ activeCount: 4 });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="active-members-tile"]').textContent,
+    ).toContain('4');
+    expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeFalsy();
   });
 
   it('shows an error state with the trace id on a network/server error', () => {

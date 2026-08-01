@@ -82,36 +82,38 @@ const SPARKLINE_OPTIONS = {
         <p data-testid="metric-tile-value" class="mt-1 text-3xl font-bold text-white">
           {{ valueSelector()!(data) }}
         </p>
-        <div class="mt-2 h-12">
-          <app-chart-canvas
-            type="line"
-            [data]="toChartData(data)"
-            [options]="sparklineOptions"
-            height="48px"
-          />
-        </div>
-        <table class="sr-only">
-          <caption>
-            {{
-              label()
-            }}
-            trend
-          </caption>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (day of sparklineSelector()!(data); track day.date) {
+        @if (showSparkline()) {
+          <div class="mt-2 h-12">
+            <app-chart-canvas
+              type="line"
+              [data]="toChartData(data)"
+              [options]="sparklineOptions"
+              height="48px"
+            />
+          </div>
+          <table class="sr-only">
+            <caption>
+              {{
+                label()
+              }}
+              trend
+            </caption>
+            <thead>
               <tr>
-                <td>{{ day.date }}</td>
-                <td>{{ day.count }}</td>
+                <th>Date</th>
+                <th>Value</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (day of sparklineSelector()!(data); track day.date) {
+                <tr>
+                  <td>{{ day.date }}</td>
+                  <td>{{ day.count }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
         @if (subtitle()) {
           <p class="mt-2 text-xs text-ink-400">{{ subtitle() }}</p>
         }
@@ -129,6 +131,10 @@ export class MetricTileComponent {
   readonly testId = input<string>('metric-tile');
   readonly valueSelector = input<((data: unknown) => number) | undefined>(undefined);
   readonly sparklineSelector = input<((data: unknown) => SparklineDay[]) | undefined>(undefined);
+  /** False for metrics with no real day-bucketed series behind them (e.g. active member
+   * count, a point-in-time snapshot) — renders the value alone rather than a fake single-point
+   * "chart" that Chart.js can't draw a line through anyway. */
+  readonly showSparkline = input<boolean>(true);
 
   /** Additive "pre-fetched value" mode — see DECISIONS.md. When set, the tile renders this
    * number directly and skips its own fetch entirely (no sparkline chart/table either). */
