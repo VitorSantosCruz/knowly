@@ -154,6 +154,19 @@ and this app's "state lives in services as signals, not components"
 rule (this component still owns zero state; it's a pure render of
 whatever its parent passes in).
 
+## Deviations from this PLAN
+
+- TASKS.md sequenced wiring as two steps (task section 3: `newTenantsPerDay`/
+  `articlesReadPerDay`, no backend dependency; section 4:
+  `totalTenantsPerDay`/`staffCountPerDay`, depends on the companion backend
+  PLAN). By the time implementation started, `main` already carried the
+  merged backend contract with all four fields on `GlobalTrendsDto`
+  simultaneously, so there was no longer a reason to split the frontend
+  wiring into two separate Red/Green/commit cycles — all four
+  `[sparklineData]` bindings were added and tested together in one task/
+  commit. No behavioral difference from the PLAN, purely a sequencing
+  simplification once the dependency was already satisfied.
+
 ## Dependencies
 
 None. Chart.js is already a dependency (via `ChartCanvasComponent`,
