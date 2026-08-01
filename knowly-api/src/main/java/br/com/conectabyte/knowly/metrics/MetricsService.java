@@ -27,6 +27,7 @@ public class MetricsService {
     private final MessageRepository messageRepository;
     private final MessageArticleCitationRepository messageArticleCitationRepository;
     private final TenantMembershipRepository tenantMembershipRepository;
+    private final ActiveMemberSnapshotRepository activeMemberSnapshotRepository;
     private final TenantContext tenantContext;
     private final Clock clock;
 
@@ -36,6 +37,7 @@ public class MetricsService {
             MessageRepository messageRepository,
             MessageArticleCitationRepository messageArticleCitationRepository,
             TenantMembershipRepository tenantMembershipRepository,
+            ActiveMemberSnapshotRepository activeMemberSnapshotRepository,
             TenantContext tenantContext,
             Clock clock) {
         this.articleRepository = articleRepository;
@@ -43,6 +45,7 @@ public class MetricsService {
         this.messageRepository = messageRepository;
         this.messageArticleCitationRepository = messageArticleCitationRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
+        this.activeMemberSnapshotRepository = activeMemberSnapshotRepository;
         this.tenantContext = tenantContext;
         this.clock = clock;
     }
@@ -194,6 +197,20 @@ public class MetricsService {
         return dates.stream()
                 .map(date -> new DailyCountDto(date, counts.getOrDefault(date, 0L)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public MembersTimeseriesDto membersTimeseries(MetricsPeriod period) {
+        Long tenantId = requireActiveTenant();
+        List<DailyCountProjection> rows =
+                period.startInstant(clock)
+                        .map(
+                                from ->
+                                        activeMemberSnapshotRepository.countByTenantSince(
+                                                tenantId, from))
+                        .orElseGet(() -> activeMemberSnapshotRepository.countByTenant(tenantId));
+
+        return new MembersTimeseriesDto(mergeZeroCountDays(rows, period));
     }
 
     @Transactional(readOnly = true)

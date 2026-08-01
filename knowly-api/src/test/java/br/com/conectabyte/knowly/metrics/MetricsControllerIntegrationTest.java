@@ -59,6 +59,7 @@ class MetricsControllerIntegrationTest {
     @Autowired private ConversationRepository conversationRepository;
     @Autowired private MessageRepository messageRepository;
     @Autowired private MessageArticleCitationRepository messageArticleCitationRepository;
+    @Autowired private ActiveMemberSnapshotRepository activeMemberSnapshotRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @MockitoBean private JavaMailSender mailSender;
 
@@ -163,8 +164,77 @@ class MetricsControllerIntegrationTest {
                 .hasStatus(HttpStatus.FORBIDDEN);
         assertThat(mockMvc.get().uri("/api/tenants/metrics/members").cookie(session).exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(
+                        mockMvc.get()
+                                .uri("/api/tenants/metrics/members/timeseries")
+                                .cookie(session)
+                                .exchange())
+                .hasStatus(HttpStatus.FORBIDDEN);
         assertThat(mockMvc.get().uri("/api/tenants/metrics/export").cookie(session).exchange())
                 .hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void membersTimeseriesReturnsSevenChronologicalDaysZeroFilledForTenantAOnly() throws Exception {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        memberWithPermissions("memberstimeseries@example.com", tenantA, Permission.DASHBOARD_VIEW);
+        java.time.LocalDate today = java.time.LocalDate.now();
+        activeMemberSnapshotRepository.upsert(tenantA.getId(), today, 5L, "system:test");
+        activeMemberSnapshotRepository.upsert(
+                tenantA.getId(), today.minusDays(2), 3L, "system:test");
+        activeMemberSnapshotRepository.upsert(tenantB.getId(), today, 999L, "system:test");
+        Cookie session = logIn("memberstimeseries@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/members/timeseries?period=7d")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        long dayOccurrences =
+                java.util.regex.Pattern.compile("\"date\":").matcher(body).results().count();
+        assertThat(dayOccurrences).isEqualTo(7);
+        long totalCount =
+                java.util.regex.Pattern.compile("\"count\":(\\d+)")
+                        .matcher(body)
+                        .results()
+                        .mapToLong(m -> Long.parseLong(m.group(1)))
+                        .sum();
+        assertThat(totalCount).isEqualTo(8L);
+        assertThat(body).doesNotContain("999");
+    }
+
+    @Test
+    void membersTimeseriesRejectsAnInvalidPeriod() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("membersbadperiod@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("membersbadperiod@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/tenants/metrics/members/timeseries?period=bogus")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_PERIOD");
+    }
+
+    @Test
+    void membersMetricEndpointRemainsUnchangedByTheTimeseriesFeature() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));
+        memberWithPermissions("membersregression@example.com", tenant, Permission.DASHBOARD_VIEW);
+        Cookie session = logIn("membersregression@example.com");
+
+        var response = mockMvc.get().uri("/api/tenants/metrics/members").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"activeCount\":").contains("\"inactiveCount\":");
+        assertThat(body).doesNotContain("\"days\":");
     }
 
     @Test

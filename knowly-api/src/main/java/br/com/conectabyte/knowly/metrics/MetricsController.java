@@ -80,6 +80,13 @@ public class MetricsController {
         return metricsService.membersMetric();
     }
 
+    @GetMapping("/members/timeseries")
+    @RequiresPermission(Permission.DASHBOARD_VIEW)
+    @AuditLog(action = "metrics.members.timeseries.view", resourceType = "Metrics")
+    public MembersTimeseriesDto membersTimeseries(@RequestParam(required = false) String period) {
+        return metricsService.membersTimeseries(MetricsPeriod.from(period));
+    }
+
     @GetMapping("/export")
     @RequiresPermission(Permission.DASHBOARD_VIEW)
     @AuditLog(action = "metrics.export.view", resourceType = "Metrics")
