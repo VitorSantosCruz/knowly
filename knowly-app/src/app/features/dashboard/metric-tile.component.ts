@@ -31,7 +31,7 @@ export function toSparklineData(days: SparklineDay[]): SparklineChartData {
  * for the old plain white/`ink-900` card and read as near-invisible on
  * the darker gradient.
  */
-const SPARKLINE_OPTIONS = {
+export const SPARKLINE_OPTIONS = {
   plugins: { legend: { display: false } },
   scales: { x: { display: false }, y: { display: false } },
   elements: {
