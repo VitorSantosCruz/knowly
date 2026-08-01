@@ -31,6 +31,16 @@ describe('TopArticlesTableComponent', () => {
     expect(rows[0].textContent).toContain('Onboarding guide');
   });
 
+  it('hides the search input when there are no articles to show', () => {
+    const { fixture, httpMock } = createMetricWidgetHarness(TopArticlesTableComponent);
+    fixture.detectChanges();
+
+    httpMock.expectOne(URL).flush({ articles: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="article-search"]')).toBeNull();
+  });
+
   it('filters rendered rows by title via the search input', () => {
     const { fixture, httpMock } = createMetricWidgetHarness(TopArticlesTableComponent);
     fixture.detectChanges();

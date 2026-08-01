@@ -30,14 +30,16 @@ interface ArticleUsageResponse {
       } @else if (fetcher.error() === 'network') {
         <app-error-state [traceId]="fetcher.traceId()" />
       } @else if (fetcher.data(); as data) {
-        <input
-          data-testid="article-search"
-          type="text"
-          class="mb-3 w-full rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-white placeholder:text-ink-400 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none"
-          [placeholder]="'dashboard.searchArticles' | transloco"
-          [value]="searchTerm()"
-          (input)="searchTerm.set($any($event.target).value)"
-        />
+        @if (data.articles.length > 0) {
+          <input
+            data-testid="article-search"
+            type="text"
+            class="mb-3 w-full rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-white placeholder:text-ink-400 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none"
+            [placeholder]="'dashboard.searchArticles' | transloco"
+            [value]="searchTerm()"
+            (input)="searchTerm.set($any($event.target).value)"
+          />
+        }
         <table class="w-full text-ink-100">
           <tbody>
             @for (article of filteredArticles(); track article.id) {
