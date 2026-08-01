@@ -25,7 +25,11 @@ const POLL_INTERVAL_MS = 4000;
       } @else if (error() === 'network') {
         <app-error-state />
       } @else {
-        <aside class="w-80 shrink-0">
+        <aside
+          class="shrink-0"
+          [class.w-full]="selectedDetail() === null"
+          [class.w-80]="selectedDetail() !== null"
+        >
           @if (permissionsService.has('ARTICLE_CREATE')) {
             <div
               data-testid="upload-form-card"
@@ -155,8 +159,8 @@ const POLL_INTERVAL_MS = 4000;
           />
         }
 
-        <section class="flex-1">
-          @if (selectedDetail(); as detail) {
+        @if (selectedDetail(); as detail) {
+          <section class="flex-1">
             <div
               class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-5 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
             >
@@ -202,8 +206,8 @@ const POLL_INTERVAL_MS = 4000;
                 </form>
               }
             </div>
-          }
-        </section>
+          </section>
+        }
       }
     </div>
   `,

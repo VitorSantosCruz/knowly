@@ -378,6 +378,31 @@ describe('ArticlesPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Handbook');
   });
 
+  it('renders full width with no article content panel until an article is selected', () => {
+    fixture.detectChanges();
+    flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }]);
+
+    const aside: HTMLElement = fixture.nativeElement.querySelector('aside');
+    expect(aside.classList.contains('w-full')).toBe(true);
+    expect(aside.classList.contains('w-80')).toBe(false);
+    expect(fixture.nativeElement.querySelector('section')).toBeNull();
+
+    fixture.nativeElement.querySelector('[data-testid="select-article-1"]').click();
+    httpMock.expectOne('/api/tenants/7/articles/1').flush({
+      id: 1,
+      title: 'Handbook',
+      text: 'Extracted text',
+      status: 'READY',
+      failureReason: null,
+      originalFileUrl: 'https://example.com/handbook.pdf',
+    });
+    fixture.detectChanges();
+
+    expect(aside.classList.contains('w-full')).toBe(false);
+    expect(aside.classList.contains('w-80')).toBe(true);
+    expect(fixture.nativeElement.querySelector('section')).toBeTruthy();
+  });
+
   it('hides upload/edit/delete controls when the corresponding permission is missing', () => {
     fixture.detectChanges();
     flushSetup([{ id: 1, title: 'Handbook', status: 'READY' }], ['ARTICLE_VIEW']);
