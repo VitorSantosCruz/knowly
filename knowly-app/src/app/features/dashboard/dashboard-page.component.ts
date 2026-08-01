@@ -24,11 +24,6 @@ interface DailyRoleCountResponse {
   days: { date: string; userCount: number; assistantCount: number }[];
 }
 
-interface MembersResponse {
-  activeCount: number;
-  inactiveCount: number;
-}
-
 @Component({
   selector: 'app-dashboard-page',
   imports: [
@@ -102,11 +97,11 @@ interface MembersResponse {
         <app-metric-tile
           testId="active-members-tile"
           [period]="period()"
-          url="/api/tenants/metrics/members"
+          url="/api/tenants/metrics/members/timeseries"
           label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
           subtitle="{{ 'dashboard.trends.activeMembersSubtitle' | transloco }}"
           [valueSelector]="activeMembersValueSelector"
-          [showSparkline]="false"
+          [sparklineSelector]="dailyCountSparklineSelector"
         >
           <svg lucideUsers icon aria-hidden="true"></svg>
         </app-metric-tile>
@@ -156,5 +151,5 @@ export class DashboardPageComponent {
     }));
 
   protected readonly activeMembersValueSelector = (data: unknown) =>
-    (data as MembersResponse).activeCount;
+    (data as DailyCountResponse).days.at(-1)?.count ?? 0;
 }

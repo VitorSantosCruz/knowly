@@ -75,22 +75,22 @@ its siblings, instead of a bare number.
 
 ## Acceptance criteria
 
-- [ ] The active-members tile calls
+- [x] The active-members tile calls
       `GET /api/tenants/metrics/members/timeseries` (not
       `GET /api/tenants/metrics/members`), including the current
       `period` filter value.
-- [ ] The active-members tile renders a trend sparkline, matching the
+- [x] The active-members tile renders a trend sparkline, matching the
       visual treatment of the articles/conversations/messages tiles.
-- [ ] The tile's headline number continues to reflect the current
+- [x] The tile's headline number continues to reflect the current
       active-member count (most recent day in the series), not a sum
       across the period.
-- [ ] Changing the dashboard's period filter (`7d`/`30d`/`90d`/`all`)
+- [x] Changing the dashboard's period filter (`7d`/`30d`/`90d`/`all`)
       updates the active-members tile's sparkline the same way it
       already updates the other four tiles.
-- [ ] A `403`/network failure on the new endpoint renders the tile's
+- [x] A `403`/network failure on the new endpoint renders the tile's
       existing no-access/error fallback, unchanged from today's
       behavior on every other tile.
-- [ ] `npm run format:check && npm test && npm run build && npm run lint`
+- [x] `npm run format:check && npm test && npm run build && npm run lint`
       all pass.
 
 ## Out of scope

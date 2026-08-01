@@ -3,7 +3,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
+import { By } from '@angular/platform-browser';
 import { DashboardPageComponent } from './dashboard-page.component';
+import { MetricTileComponent } from './metric-tile.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 
 describe('DashboardPageComponent', () => {
@@ -39,9 +41,10 @@ describe('DashboardPageComponent', () => {
       .flush({ activeCount: 0, inactiveCount: 0 });
     httpMock
       .expectOne(
-        (r) => r.url === '/api/tenants/metrics/members' && r.params.get('period') === '30d',
+        (r) =>
+          r.url === '/api/tenants/metrics/members/timeseries' && r.params.get('period') === '30d',
       )
-      .flush({ activeCount: 0, inactiveCount: 0 });
+      .flush({ days: [] });
     httpMock
       .expectOne((r) => r.url === '/api/tenants/metrics/articles/timeseries')
       .flush({ days: [] });
@@ -93,5 +96,70 @@ describe('DashboardPageComponent', () => {
       fixture.nativeElement.querySelector('[data-testid="members-breakdown-card"]'),
     ).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="export-button"]')).toBeTruthy();
+  });
+
+  it("fetches the active-members tile's data from the timeseries endpoint with the current period", () => {
+    fixture.detectChanges();
+    flushMetricRequests();
+
+    // flushMetricRequests already asserts the /members/timeseries?period=30d request was made
+    // (via httpMock.expectOne + httpMock.verify() in afterEach failing on any unmatched request).
+    expect(true).toBe(true);
+  });
+
+  it('renders the active-members tile with sparklines enabled (no showSparkline override)', () => {
+    fixture.detectChanges();
+    flushMetricRequests();
+
+    const activeMembersTile = fixture.debugElement
+      .queryAll(By.css('[data-testid="active-members-tile"]'))
+      .find((el) => el.componentInstance instanceof MetricTileComponent);
+
+    const tileInstance = activeMembersTile?.componentInstance as MetricTileComponent | undefined;
+
+    expect(tileInstance?.showSparkline()).toBe(true);
+    expect(tileInstance?.sparklineSelector()).toBeDefined();
+  });
+
+  it("computes the active-members tile's headline value from the last day's count, not a sum", () => {
+    fixture.detectChanges();
+
+    const activeMembersTile = fixture.debugElement
+      .queryAll(By.css('[data-testid="active-members-tile"]'))
+      .find((el) => el.componentInstance instanceof MetricTileComponent);
+    const tileInstance = activeMembersTile?.componentInstance as MetricTileComponent | undefined;
+
+    const sample = {
+      days: [
+        { date: '2026-07-30', count: 10 },
+        { date: '2026-07-31', count: 25 },
+      ],
+    };
+
+    expect(tileInstance?.valueSelector()?.(sample)).toBe(25);
+
+    flushMetricRequests();
+  });
+
+  it("reuses dailyCountSparklineSelector as the active-members tile's sparklineSelector", () => {
+    fixture.detectChanges();
+
+    const activeMembersTile = fixture.debugElement
+      .queryAll(By.css('[data-testid="active-members-tile"]'))
+      .find((el) => el.componentInstance instanceof MetricTileComponent);
+    const articleCountTile = fixture.debugElement
+      .queryAll(By.css('[data-testid="article-count-tile"]'))
+      .find((el) => el.componentInstance instanceof MetricTileComponent);
+
+    const activeMembersInstance = activeMembersTile?.componentInstance as
+      MetricTileComponent | undefined;
+    const articleCountInstance = articleCountTile?.componentInstance as
+      MetricTileComponent | undefined;
+
+    expect(activeMembersInstance?.sparklineSelector()).toBe(
+      articleCountInstance?.sparklineSelector(),
+    );
+
+    flushMetricRequests();
   });
 });
