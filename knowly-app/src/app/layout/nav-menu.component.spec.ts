@@ -269,12 +269,12 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeFalsy();
   });
 
-  it('always shows "My profile" once logged in, regardless of tenant/permission state', () => {
+  it('no longer shows a "My profile" entry (moved into the avatar dropdown menu)', () => {
     fixture.detectChanges();
     flush({ memberships: [], tenantPermissions: [] });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('[data-testid="nav-my-profile"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-my-profile"]')).toBeFalsy();
   });
 
   it('shows the edit-request inbox link for a PROFILE_EDIT holder in any tenant (not necessarily the active one)', () => {

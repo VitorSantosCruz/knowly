@@ -203,25 +203,6 @@ const CATEGORY_LABEL_CLASS =
             </ul>
           </div>
         }
-
-        <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
-          <ul class="w-full border-0 bg-transparent p-0">
-            <li>
-              <span [class]="categoryLabelClass">{{ 'nav.category.account' | transloco }}</span>
-            </li>
-            <li>
-              <a
-                data-testid="nav-my-profile"
-                routerLink="/profile"
-                routerLinkActive="active-nav-link"
-                [class]="linkClass"
-              >
-                <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
-                {{ 'profile.myProfile' | transloco }}
-              </a>
-            </li>
-          </ul>
-        </div>
       </nav>
     }
   `,
@@ -234,7 +215,7 @@ export class NavMenuComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly linkClass =
-    'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
+    'group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
   protected readonly iconClass = 'h-4 w-4 shrink-0';
   protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
 
