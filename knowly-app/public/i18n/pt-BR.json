@@ -197,7 +197,8 @@
       "processing": "Processando",
       "ready": "Pronto",
       "failed": "Falhou"
-    }
+    },
+    "confirmDelete": "Excluir '{{title}}'? Isso não pode ser desfeito."
   },
   "selectTenant": {
     "title": "Escolha um tenant para continuar",
@@ -348,5 +349,9 @@
       "title": "Ver histórico de suporte de membros",
       "noAccess": "Você não tem acesso a isso."
     }
+  },
+  "common": {
+    "confirm": "Confirmar",
+    "cancel": "Cancelar"
   }
 }

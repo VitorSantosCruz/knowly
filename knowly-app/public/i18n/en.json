@@ -197,7 +197,8 @@
       "processing": "Processing",
       "ready": "Ready",
       "failed": "Failed"
-    }
+    },
+    "confirmDelete": "Delete '{{title}}'? This cannot be undone."
   },
   "selectTenant": {
     "title": "Choose a tenant to continue",
@@ -348,5 +349,9 @@
       "title": "Browse member support history",
       "noAccess": "You don't have access to this."
     }
+  },
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel"
   }
 }
