@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { NavMenuComponent } from './nav-menu.component';
+import { ActiveTenantService } from '../core/active-tenant.service';
 import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
 
 describe('NavMenuComponent', () => {
@@ -72,7 +73,11 @@ describe('NavMenuComponent', () => {
       .expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT')
       .flush({ granted: options.anyTenantProfileEdit ?? false });
 
-    httpMock.expectOne('/api/tenants/memberships').flush(options.memberships ?? []);
+    // ngOnInit() now calls both list() (into the local memberships signal) and fetch()
+    // (into ActiveTenantService's own activeTenantId signal) — both hit the same endpoint.
+    httpMock
+      .match('/api/tenants/memberships')
+      .forEach((req) => req.flush(options.memberships ?? []));
   }
 
   it('shows nothing when not logged in', () => {
@@ -306,5 +311,165 @@ describe('NavMenuComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="nav-profile-edit-requests"]'),
     ).toBeFalsy();
+  });
+
+  it('shows the leave-tenant action for a 0-membership staff session with an active tenant', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeTruthy();
+  });
+
+  it('never shows the leave-tenant action for a session with one or more real memberships', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: [],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeFalsy();
+  });
+
+  it('does not show the leave-tenant action for a 0-membership staff session with no active tenant', () => {
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeFalsy();
+  });
+
+  it('calls activeTenantService.fetch() during ngOnInit so activeTenantId() does not depend on another routed page having fetched it first', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    const fetchSpy = vi.spyOn(activeTenantService, 'fetch');
+
+    fixture.detectChanges();
+    flushSessionCheck(true);
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
+    httpMock
+      .expectOne('/api/tenants/permissions')
+      .flush({ code: 'TENANT_ACCESS_DENIED' }, { status: 403, statusText: 'Forbidden' });
+    httpMock
+      .expectOne('/api/tenants/permissions/any-tenant?permission=PROFILE_EDIT')
+      .flush({ granted: false });
+    httpMock.match('/api/tenants/memberships').forEach((req) => req.flush([]));
+    fixture.detectChanges();
+
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it('clicking leave-tenant calls leaveTenant() and navigates to /welcome on success', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector(
+      '[data-testid="nav-leave-tenant"]',
+    ) as HTMLButtonElement;
+    button.click();
+
+    httpMock.expectOne('/api/tenants/active/clear').flush({});
+
+    expect(navigateSpy).toHaveBeenCalledWith('/welcome');
+  });
+
+  it('on a leaveTenant() failure, keeps the active tenant unchanged, shows the error banner, and does not navigate', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector(
+      '[data-testid="nav-leave-tenant"]',
+    ) as HTMLButtonElement;
+    button.click();
+
+    httpMock
+      .expectOne('/api/tenants/active/clear')
+      .flush({}, { status: 500, statusText: 'Internal Server Error' });
+    fixture.detectChanges();
+
+    expect(activeTenantService.activeTenantId()).toBe(9);
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-testid="error-state"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[role="dialog"], [data-testid="confirm-dialog"]'),
+    ).toBeFalsy();
+  });
+
+  it('never shows a confirmation dialog before or after the leave-tenant click', () => {
+    activeTenantServiceSelectAndFlush();
+
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[role="dialog"], [data-testid="confirm-dialog"]'),
+    ).toBeFalsy();
+
+    const button = fixture.nativeElement.querySelector(
+      '[data-testid="nav-leave-tenant"]',
+    ) as HTMLButtonElement;
+    button.click();
+    httpMock.expectOne('/api/tenants/active/clear').flush({});
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[role="dialog"], [data-testid="confirm-dialog"]'),
+    ).toBeFalsy();
+  });
+
+  function activeTenantServiceSelectAndFlush(): void {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+  }
+
+  it('hides the leave-tenant action after a successful leave (canLeaveTenant reacts to the signal change)', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({ memberships: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeTruthy();
+
+    const button = fixture.nativeElement.querySelector(
+      '[data-testid="nav-leave-tenant"]',
+    ) as HTMLButtonElement;
+    button.click();
+    httpMock.expectOne('/api/tenants/active/clear').flush({});
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeFalsy();
   });
 });

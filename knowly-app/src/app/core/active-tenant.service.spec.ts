@@ -200,7 +200,8 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantId()).toBe(5);
     expect(service.activeTenantName()).toBe('Staffed Co');
 
-    service.leaveTenant().subscribe({ error: () => {} });
+    let capturedError: unknown;
+    service.leaveTenant().subscribe({ error: (err) => (capturedError = err) });
 
     httpMock
       .expectOne('/api/tenants/active/clear')
@@ -208,5 +209,6 @@ describe('ActiveTenantService', () => {
 
     expect(service.activeTenantId()).toBe(5);
     expect(service.activeTenantName()).toBe('Staffed Co');
+    expect(capturedError).toBeTruthy();
   });
 });

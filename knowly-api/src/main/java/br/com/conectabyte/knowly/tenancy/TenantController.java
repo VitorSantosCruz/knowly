@@ -151,6 +151,43 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Request-scoped transport slot for the tenant id that was active before this call, so {@link
+     * AuditLog}'s post-{@code proceed()} SpEL evaluation can still observe it after the session's
+     * {@code ACTIVE_TENANT_ID} attribute has already been removed. See PLAN.md ({@code
+     * staff-leave-tenant}) for the full rationale.
+     */
+    private static final String PREVIOUS_TENANT_ID_ATTR = "clearActiveTenant.previousTenantId";
+
+    @PostMapping("/active/clear")
+    @AuditLog(
+            action = "tenant.active_tenant.clear",
+            resourceType = "Tenant",
+            resourceIdExpression = "#httpRequest.getAttribute('" + PREVIOUS_TENANT_ID_ATTR + "')")
+    public ResponseEntity<Void> clearActiveTenant(
+            HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        if (!tenantContext.isStaff()) {
+            throw new TenantAccessDeniedException();
+        }
+
+        User user = currentUser();
+        HttpSession session = httpRequest.getSession(true);
+        Object previousTenantId = session.getAttribute(TenantSessionKeys.ACTIVE_TENANT_ID);
+        httpRequest.setAttribute(PREVIOUS_TENANT_ID_ATTR, previousTenantId);
+
+        List<GrantedAuthority> authorities = TenantAuthorityFactory.forStaff(user.getGlobalRole());
+        var authentication =
+                new UsernamePasswordAuthenticationToken(user.getEmail(), null, authorities);
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+        new HttpSessionSecurityContextRepository().saveContext(context, httpRequest, httpResponse);
+
+        session.removeAttribute(TenantSessionKeys.ACTIVE_TENANT_ID);
+
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping
     public ResponseEntity<Void> createTenant(@Valid @RequestBody CreateTenantRequestDto request) {
         tenantService.createTenant(currentUser(), request.name(), request.adminEmail());

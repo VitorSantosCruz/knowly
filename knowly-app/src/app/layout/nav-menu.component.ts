@@ -1,10 +1,12 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { catchError, of } from 'rxjs';
 import {
   LucideArrowRightLeft,
   LucideBookOpen,
   LucideLayoutGrid,
+  LucideLogOut,
   LucideMessagesSquare,
   LucidePlus,
   LucideUsers,
@@ -15,8 +17,10 @@ import { ALL_GLOBAL_PERMISSIONS } from '../core/global-permission';
 import { ActiveTenantService, TenantMembership } from '../core/active-tenant.service';
 import { AuthService } from '../core/auth.service';
 import { BrandWordmarkComponent } from '../shared/brand-wordmark.component';
+import { ErrorStateComponent } from '../shared/error-state.component';
 
-type NavIconName = 'layout-grid' | 'book-open' | 'messages-square' | 'users' | 'plus' | 'swap';
+type NavIconName =
+  'layout-grid' | 'book-open' | 'messages-square' | 'users' | 'plus' | 'swap' | 'log-out';
 
 /**
  * A nav item carrying the fields this sidebar's template needs:
@@ -25,13 +29,18 @@ type NavIconName = 'layout-grid' | 'book-open' | 'messages-square' | 'users' | '
  * `categoryKey` for Transloco translation at render time rather than
  * baking a fixed-locale string into the model. Replaces the previous
  * `primeng/api` `MenuItem` extension now that `p-menu` is gone.
+ *
+ * `routerLink` is optional and `onClick` is new: the first workspace-group
+ * item that's an action rather than a navigation target (Leave tenant)
+ * needs no route, just a handler run on click.
  */
 interface NavMenuItem {
   labelKey: string;
   testId?: string;
   tourId?: string;
   icon: NavIconName;
-  routerLink: string;
+  routerLink?: string;
+  onClick?: () => void;
 }
 
 interface NavMenuGroup {
@@ -49,12 +58,14 @@ const CATEGORY_LABEL_CLASS =
     RouterLinkActive,
     TranslocoPipe,
     BrandWordmarkComponent,
+    ErrorStateComponent,
     LucideLayoutGrid,
     LucideBookOpen,
     LucideMessagesSquare,
     LucideUsers,
     LucidePlus,
     LucideArrowRightLeft,
+    LucideLogOut,
   ],
   template: `
     @if (authService.isLoggedIn()) {
@@ -97,6 +108,9 @@ const CATEGORY_LABEL_CLASS =
                       @case ('swap') {
                         <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
                       }
+                      @case ('log-out') {
+                        <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
+                      }
                     }
                     {{ item.labelKey | transloco }}
                   </a>
@@ -108,41 +122,82 @@ const CATEGORY_LABEL_CLASS =
 
         @if (workspaceGroup(); as group) {
           <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
+            @if (leaveTenantError() === 'network') {
+              <app-error-state />
+            }
             <ul class="w-full border-0 bg-transparent p-0">
               <li>
                 <span [class]="categoryLabelClass">{{ group.categoryKey | transloco }}</span>
               </li>
               @for (item of group.items; track item.testId) {
                 <li>
-                  <a
-                    [attr.data-testid]="item.testId"
-                    [attr.data-tour-id]="item.tourId"
-                    [routerLink]="item.routerLink"
-                    routerLinkActive="active-nav-link"
-                    [class]="linkClass"
-                  >
-                    @switch (item.icon) {
-                      @case ('layout-grid') {
-                        <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                  @if (item.onClick) {
+                    <button
+                      type="button"
+                      [attr.data-testid]="item.testId"
+                      [attr.data-tour-id]="item.tourId"
+                      [class]="linkClass"
+                      (click)="item.onClick()"
+                    >
+                      @switch (item.icon) {
+                        @case ('layout-grid') {
+                          <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('book-open') {
+                          <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('messages-square') {
+                          <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('users') {
+                          <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('plus') {
+                          <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('swap') {
+                          <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('log-out') {
+                          <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
+                        }
                       }
-                      @case ('book-open') {
-                        <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                      {{ item.labelKey | transloco }}
+                    </button>
+                  } @else {
+                    <a
+                      [attr.data-testid]="item.testId"
+                      [attr.data-tour-id]="item.tourId"
+                      [routerLink]="item.routerLink"
+                      routerLinkActive="active-nav-link"
+                      [class]="linkClass"
+                    >
+                      @switch (item.icon) {
+                        @case ('layout-grid') {
+                          <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('book-open') {
+                          <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('messages-square') {
+                          <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('users') {
+                          <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('plus') {
+                          <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('swap') {
+                          <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
+                        }
+                        @case ('log-out') {
+                          <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
+                        }
                       }
-                      @case ('messages-square') {
-                        <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
-                      }
-                      @case ('users') {
-                        <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
-                      }
-                      @case ('plus') {
-                        <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
-                      }
-                      @case ('swap') {
-                        <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
-                      }
-                    }
-                    {{ item.labelKey | transloco }}
-                  </a>
+                      {{ item.labelKey | transloco }}
+                    </a>
+                  }
                 </li>
               }
             </ul>
@@ -176,17 +231,28 @@ export class NavMenuComponent implements OnInit {
   protected readonly permissionsService = inject(PermissionsService);
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly activeTenantService = inject(ActiveTenantService);
+  private readonly router = inject(Router);
 
   protected readonly linkClass =
     'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
   protected readonly iconClass = 'h-4 w-4 shrink-0';
   protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
 
+  protected readonly leaveTenantError = signal<'network' | null>(null);
+
   private readonly memberships = signal<TenantMembership[]>([]);
   // 0 memberships (staff, who never hold a real TenantMembership row even after switching
   // into a tenant — see below) needs this link just as much as >1 does: it's their only path
   // to any tenant. Only a single-membership session (already home, nothing to switch to) hides it.
   protected readonly canSwitchTenant = computed(() => this.memberships().length !== 1);
+
+  // Zero is a strictly stronger condition than canSwitchTenant's "!== 1": a multi-membership
+  // regular member (length > 1) must never see this, so it's checked directly rather than
+  // derived from canSwitchTenant. activeTenantId() is read off the service's own signal, not
+  // off memberships (which a staff session acting as a tenant never populates).
+  protected readonly canLeaveTenant = computed(
+    () => this.memberships().length === 0 && this.activeTenantService.activeTenantId() !== null,
+  );
 
   // Fourth occurrence of this page-local computed, precedented by staff-global-dashboard's
   // PLAN (StaffDirectoryPageComponent/WelcomePageComponent/OwnProfilePageComponent) — not
@@ -295,9 +361,34 @@ export class NavMenuComponent implements OnInit {
         routerLink: '/select-tenant',
       });
     }
+    if (this.canLeaveTenant()) {
+      items.push({
+        labelKey: 'nav.leaveTenant',
+        testId: 'nav-leave-tenant',
+        icon: 'log-out',
+        onClick: () => this.onLeaveTenant(),
+      });
+    }
 
     return items.length > 0 ? { categoryKey: 'nav.category.workspace', items } : null;
   });
+
+  protected onLeaveTenant(): void {
+    this.leaveTenantError.set(null);
+    this.activeTenantService
+      .leaveTenant()
+      .pipe(
+        catchError(() => {
+          this.leaveTenantError.set('network');
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result !== null) {
+          this.router.navigateByUrl('/welcome');
+        }
+      });
+  }
 
   ngOnInit(): void {
     // Resyncs against the real session rather than trusting isLoggedIn()'s in-memory state,
@@ -324,6 +415,10 @@ export class NavMenuComponent implements OnInit {
       this.activeTenantService.list().subscribe((memberships) => {
         this.memberships.set(memberships);
       });
+      // Closes a "depends on some other routed page having already called fetch()" gap:
+      // the nav menu is a persistent layout component and canLeaveTenant() must reflect
+      // activeTenantId() correctly regardless of which page is currently routed.
+      this.activeTenantService.fetch();
     });
   }
 }

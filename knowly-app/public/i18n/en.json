@@ -135,7 +135,8 @@
     "conversations": "Conversations",
     "members": "Members",
     "createTenant": "Create tenant",
-    "switchTenant": "Switch tenant"
+    "switchTenant": "Switch tenant",
+    "leaveTenant": "Leave tenant"
   },
   "logout": {
     "label": "Log out"

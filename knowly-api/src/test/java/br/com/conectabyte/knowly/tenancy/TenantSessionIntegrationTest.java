@@ -322,6 +322,223 @@ class TenantSessionIntegrationTest {
     }
 
     @Test
+    void aFreshLoginClearsAStaleActiveTenantIdLeftBehindByAPriorLoginOnTheSameSession()
+            throws Exception {
+        User staff = userRepository.saveAndFlush(new User("stale-staff@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Stale Tenant"));
+
+        Cookie firstSession = logIn("stale-staff@example.com");
+        var switchResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(firstSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenant.getId() + "}")
+                        .exchange();
+        assertThat(switchResponse).hasStatus(HttpStatus.OK);
+
+        // Reuses the same (now post-switch) SESSION cookie to simulate a fresh login on a HTTP
+        // session that already carried a stale ACTIVE_TENANT_ID attribute from an earlier login.
+        stubMail();
+        String code = loginCodeService.generate("stale-staff@example.com");
+        var reLoginResult =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"stale-staff@example.com\",\"code\":\"" + code + "\"}")
+                        .cookie(firstSession)
+                        .exchange();
+        assertThat(reLoginResult).hasStatus(HttpStatus.OK);
+        Cookie freshSession = reLoginResult.getResponse().getCookie("SESSION");
+
+        // A fresh login must not carry over the previous session's active-tenant selection. If the
+        // stale ACTIVE_TENANT_ID leaked into this new session, this would incorrectly return 200
+        // (staff admins get every permission for whatever tenant is "active"); with a clean session
+        // there is no active tenant, so this must fail with TENANT_ACCESS_DENIED instead.
+        var permissionsResponse =
+                mockMvc.get().uri("/api/tenants/permissions").cookie(freshSession).exchange();
+
+        assertThat(permissionsResponse).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(permissionsResponse.getResponse().getContentAsString())
+                .contains("TENANT_ACCESS_DENIED");
+    }
+
+    /**
+     * /api/tenants/active/clear is not CSRF-exempt (only /api/tenants/active is, see
+     * SecurityConfig), so every call in this suite needs a real XSRF-TOKEN cookie + header, same
+     * convention as TenantManagementIntegrationTest#obtainCsrfCookie().
+     */
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
+    @Test
+    void staffClearingTheirActiveTenantReturnsToTheTenantLessGlobalStaffView() throws Exception {
+        User staff = userRepository.saveAndFlush(new User("leaver@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Leave Tenant"));
+
+        Cookie session = logIn("leaver@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var switchResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenant.getId() + "}")
+                        .exchange();
+        assertThat(switchResponse).hasStatus(HttpStatus.OK);
+
+        var clearResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active/clear")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(clearResponse).hasStatus(HttpStatus.OK);
+
+        // AC1: staff-only global-scope endpoint still succeeds.
+        var listResponse = mockMvc.get().uri("/api/tenants").cookie(session).exchange();
+        assertThat(listResponse).hasStatus(HttpStatus.OK);
+
+        // AC1/AC2: tenant-scoped endpoint now behaves as if no tenant is selected, proving
+        // ACTIVE_TENANT_ID is absent from the session.
+        var permissionsResponse =
+                mockMvc.get().uri("/api/tenants/permissions").cookie(session).exchange();
+        assertThat(permissionsResponse).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(permissionsResponse.getResponse().getContentAsString())
+                .contains("TENANT_ACCESS_DENIED");
+    }
+
+    @Test
+    void clearingActiveTenantRecordsAnAuditEventWithThePreviouslyActiveTenantId() throws Exception {
+        User staff = userRepository.saveAndFlush(new User("audited-leaver@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Audited Tenant A"));
+
+        Cookie session = logIn("audited-leaver@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        mockMvc.post()
+                .uri("/api/tenants/active")
+                .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":" + tenantA.getId() + "}")
+                .exchange();
+
+        var clearResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active/clear")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+        assertThat(clearResponse).hasStatus(HttpStatus.OK);
+
+        List<br.com.conectabyte.knowly.audit.AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(staff.getId());
+        assertThat(events).isNotEmpty();
+        assertThat(events.get(0).getAction()).isEqualTo("tenant.active_tenant.clear");
+        assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+        assertThat(events.get(0).getResourceId()).isEqualTo(String.valueOf(tenantA.getId()));
+    }
+
+    @Test
+    void staffWithNoActiveTenantCanCallClearAsANoOp() throws Exception {
+        User staff = userRepository.saveAndFlush(new User("noop-staff@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+
+        Cookie session = logIn("noop-staff@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var clearResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active/clear")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(clearResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void nonStaffCallingClearActiveTenantIsRejectedAndSessionIsUnchanged() throws Exception {
+        User user = userRepository.saveAndFlush(new User("regular-leaver@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Regular Leaver Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("regular-leaver@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var clearResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active/clear")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(clearResponse).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(clearResponse.getResponse().getContentAsString())
+                .contains("TENANT_ACCESS_DENIED");
+
+        var membershipsResponse =
+                mockMvc.get().uri("/api/tenants/memberships").cookie(session).exchange();
+        assertThat(membershipsResponse).hasStatus(HttpStatus.OK);
+        assertThat(membershipsResponse.getResponse().getContentAsString())
+                .contains("Regular Leaver Tenant");
+    }
+
+    @Test
+    void clearActiveTenantRequiresAuthentication() {
+        // No SESSION cookie at all -- a valid CSRF cookie/header is still supplied so the
+        // unauthenticated rejection observed here is genuinely Spring Security's authentication
+        // check (401), not an incidental CSRF-filter rejection (403) from omitting the token.
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/active/clear")
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void clearActiveTenantIsNotCsrfExempt() {
+        User staff = userRepository.saveAndFlush(new User("csrf-leaver@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+
+        Cookie session = logIn("csrf-leaver@example.com");
+
+        var response = mockMvc.post().uri("/api/tenants/active/clear").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void nonStaffCannotListAllTenants() {
         User user = userRepository.saveAndFlush(new User("regular@example.com"));
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Regular Tenant"));

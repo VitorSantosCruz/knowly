@@ -138,7 +138,8 @@
     "conversations": "Conversas",
     "members": "Membros",
     "createTenant": "Criar tenant",
-    "switchTenant": "Trocar tenant"
+    "switchTenant": "Trocar tenant",
+    "leaveTenant": "Sair do tenant"
   },
   "members": {
     "add": "Adicionar membro",
