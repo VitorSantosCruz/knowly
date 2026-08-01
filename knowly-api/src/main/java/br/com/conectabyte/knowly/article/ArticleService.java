@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.List;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,26 +24,26 @@ public class ArticleService {
     private final ArticleRepository articleRepository;
     private final TenantRepository tenantRepository;
     private final ArticleStorageService articleStorageService;
-    private final ArticleExtractionPublisher articleExtractionPublisher;
     private final VectorStore vectorStore;
     private final TenantContext tenantContext;
     private final ArticleProperties articleProperties;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public ArticleService(
             ArticleRepository articleRepository,
             TenantRepository tenantRepository,
             ArticleStorageService articleStorageService,
-            ArticleExtractionPublisher articleExtractionPublisher,
             VectorStore vectorStore,
             TenantContext tenantContext,
-            ArticleProperties articleProperties) {
+            ArticleProperties articleProperties,
+            ApplicationEventPublisher applicationEventPublisher) {
         this.articleRepository = articleRepository;
         this.tenantRepository = tenantRepository;
         this.articleStorageService = articleStorageService;
-        this.articleExtractionPublisher = articleExtractionPublisher;
         this.vectorStore = vectorStore;
         this.tenantContext = tenantContext;
         this.articleProperties = articleProperties;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     @Transactional
@@ -72,7 +73,8 @@ public class ArticleService {
         article.setOriginalFileKey(key);
         article = articleRepository.save(article);
 
-        articleExtractionPublisher.publish(article.getId());
+        applicationEventPublisher.publishEvent(
+                new ArticleUploadedApplicationEvent(article.getId()));
 
         return ArticleSummaryDto.from(article);
     }

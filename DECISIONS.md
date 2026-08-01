@@ -1362,6 +1362,40 @@ itself to a specific base package/annotation instead) — Spring Data
 repository proxies are not automatically out of scope for
 application-defined aspects just because they're framework-generated.
 
+## `ArticleService.create()` deferred the "article uploaded" AMQP publish to `AFTER_COMMIT` (Tier 1, 2026-08-01)
+
+**Bug (live incident, distinct from the `TenantFilterAspect` fix
+above):** `ArticleService.create()` is `@Transactional` and called
+`ArticleExtractionPublisher.publish(article.getId())` synchronously,
+still inside its own open write transaction, before commit. On a fast
+local broker `ArticleExtractionListener` could dequeue and call
+`findById` before the INSERT was visible outside the transaction,
+hitting its `article == null` branch and silently skipping processing
+forever — same visible symptom as the tenant-filter bug
+(`article.extraction_skipped ... reason=not_found`), different root
+cause. Reproduced live: article id=4 hit this ~50ms after creation.
+
+**Fix:** standard transactional-outbox-style deferral — `create()` now
+raises a plain `ArticleUploadedApplicationEvent` via
+`ApplicationEventPublisher` instead of calling the AMQP publisher
+directly; a new `ArticleUploadedEventListener`
+(`@TransactionalEventListener(phase = AFTER_COMMIT)`) is the only thing
+that calls `ArticleExtractionPublisher.publish`, so the message can
+never reach the broker before the row is committed and visible.
+`ArticleExtractionListener` itself was checked and is *not* similarly
+exposed — its class doc already establishes it's deliberately not
+`@Transactional`, so its own `publishReadyForEmbedding` call isn't
+wrapped in an open transaction the way `create()`'s was.
+
+Routine, idiomatic Spring fix — no new tradeoff to weigh, so no
+Tier 2/3 reasoning needed here.
+
+**Known stuck rows (not in scope for this fix):** articles id 1, 2 (the
+earlier tenant-filter bug) and id 4 (this race) are stuck in
+`PROCESSING` in local dev — their AMQP messages were already taken off
+the queue and ACKed, so they need to be re-uploaded or manually
+re-published, same as noted in the entry above.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
