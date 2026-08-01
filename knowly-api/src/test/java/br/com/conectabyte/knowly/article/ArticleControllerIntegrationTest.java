@@ -10,6 +10,8 @@ import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationWordlist;
+import br.com.conectabyte.knowly.deletion.DeletionLocale;
 import br.com.conectabyte.knowly.tenancy.DirectPermissionGrant;
 import br.com.conectabyte.knowly.tenancy.DirectPermissionGrantRepository;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
@@ -50,6 +52,7 @@ class ArticleControllerIntegrationTest {
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private ArticleRepository articleRepository;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private DeletionConfirmationWordlist deletionConfirmationWordlist;
     @MockitoBean private JavaMailSender mailSender;
 
     private Cookie logIn(String email) {
@@ -278,6 +281,58 @@ class ArticleControllerIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void ptBrAcceptLanguageYieldsAPtBrWordAndAMissingHeaderYieldsAnEnWord() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Locale Tenant"));
+        memberWithPermissions("localeuser@example.com", tenant, Permission.ARTICLE_DELETE);
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(tenant, "Locale", "key", "f.pdf", "application/pdf"));
+        Cookie session = logIn("localeuser@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var ptResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/articles/"
+                                        + article.getId()
+                                        + "/deletion-confirmation-token")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .header("Accept-Language", "pt-BR")
+                        .exchange();
+        assertThat(ptResponse).hasStatus(HttpStatus.OK);
+        String ptWord =
+                com.jayway.jsonpath.JsonPath.read(
+                        ptResponse.getResponse().getContentAsString(), "$.word");
+        String[] ptParts = ptWord.split("-");
+        assertThat(deletionConfirmationWordlist.forLocale(DeletionLocale.PT_BR))
+                .contains(ptParts[0], ptParts[1]);
+
+        var enResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/articles/"
+                                        + article.getId()
+                                        + "/deletion-confirmation-token")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+        assertThat(enResponse).hasStatus(HttpStatus.OK);
+        String enWord =
+                com.jayway.jsonpath.JsonPath.read(
+                        enResponse.getResponse().getContentAsString(), "$.word");
+        String[] enParts = enWord.split("-");
+        assertThat(deletionConfirmationWordlist.forLocale(DeletionLocale.EN))
+                .contains(enParts[0], enParts[1]);
     }
 
     @Test

@@ -232,6 +232,46 @@ class StaffRbacIntegrationTest {
         assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
     }
 
+    @Test
+    void
+            staffPermissionRevocationDeletionConfirmationTokenGenerationIsGatedByStaffPermissionManage()
+                    throws Exception {
+        User target = limitedStaff("revoke-token-target@example.com");
+        directGlobalPermissionGrantRepository.saveAndFlush(
+                new DirectGlobalPermissionGrant(target, GlobalPermission.TENANT_CREATE));
+
+        User unprivilegedStaff = limitedStaff("revoke-token-nogrant@example.com");
+        Cookie noGrantSession = logIn("revoke-token-nogrant@example.com");
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/staff/users/"
+                                        + target.getId()
+                                        + "/permissions/TENANT_CREATE/deletion-confirmation-token")
+                        .cookie(noGrantSession)
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(unprivilegedStaff).isNotNull();
+
+        staffAdmin("revoke-token-admin@example.com");
+        Cookie adminSession = logIn("revoke-token-admin@example.com");
+        Cookie adminCsrf = obtainCsrfCookie();
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/staff/users/"
+                                        + target.getId()
+                                        + "/permissions/TENANT_CREATE/deletion-confirmation-token")
+                        .cookie(adminSession)
+                        .cookie(adminCsrf)
+                        .header("X-XSRF-TOKEN", adminCsrf.getValue())
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+        assertThat(allowedResponse.getResponse().getContentAsString()).contains("\"word\"");
+    }
+
     private void grantGlobalPermission(User user, GlobalPermission permission) {
         directGlobalPermissionGrantRepository.saveAndFlush(
                 new DirectGlobalPermissionGrant(user, permission));
@@ -296,6 +336,8 @@ class StaffRbacIntegrationTest {
                         .cookie(noGrantSession)
                         .cookie(noGrantCsrf)
                         .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"irrelevant-word\"}")
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
@@ -317,6 +359,54 @@ class StaffRbacIntegrationTest {
                         .content("{\"word\":\"" + word + "\"}")
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void memberRemovalDeletionConfirmationTokenGenerationIsGatedByTenantMemberManageAny()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Token Gen Co"));
+        User member = userRepository.saveAndFlush(new User("tokengen-removable@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        limitedStaff("nogrant-tokengen-remove@example.com");
+        Cookie noGrantSession = logIn("nogrant-tokengen-remove@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/deletion-confirmation-token")
+                        .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-tokengen-remove@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        Cookie grantedSession = logIn("grant-tokengen-remove@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/deletion-confirmation-token")
+                        .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+        assertThat(allowedResponse.getResponse().getContentAsString()).contains("\"word\"");
     }
 
     @Test
@@ -487,6 +577,8 @@ class StaffRbacIntegrationTest {
                         .cookie(noGrantSession)
                         .cookie(noGrantCsrf)
                         .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"irrelevant-word\"}")
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
@@ -594,6 +686,8 @@ class StaffRbacIntegrationTest {
                         .cookie(noGrantSession)
                         .cookie(noGrantCsrf)
                         .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"irrelevant-word\"}")
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
