@@ -208,6 +208,26 @@ class ArticleControllerIntegrationTest {
         assertThat(response.getResponse().getContentAsString()).contains("Fixed title");
     }
 
+    private String fetchDeletionConfirmationWord(
+            Cookie session, Cookie csrf, Long tenantId, Long articleId) throws Exception {
+        var response =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenantId
+                                        + "/articles/"
+                                        + articleId
+                                        + "/deletion-confirmation-token")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        return com.jayway.jsonpath.JsonPath.read(
+                response.getResponse().getContentAsString(), "$.word");
+    }
+
     @Test
     void deleteRequiresDeletePermissionAndSoftDeletes() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Tenant"));
@@ -217,6 +237,7 @@ class ArticleControllerIntegrationTest {
                         new Article(tenant, "To delete", "key", "f.pdf", "application/pdf"));
         Cookie session = logIn("deleter@example.com");
         Cookie csrf = obtainCsrfCookie();
+        String word = fetchDeletionConfirmationWord(session, csrf, tenant.getId(), article.getId());
 
         var response =
                 mockMvc.delete()
@@ -224,11 +245,64 @@ class ArticleControllerIntegrationTest {
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(articleRepository.findById(article.getId())).isPresent();
         assertThat(articleRepository.findByTenantIdAndActiveTrue(tenant.getId())).isEmpty();
+    }
+
+    @Test
+    void deletionConfirmationTokenGenerationRequiresArticleDeletePermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("No Delete Perm Tenant"));
+        memberWithPermissions("noperm@example.com", tenant, Permission.ARTICLE_VIEW);
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(tenant, "Protected", "key", "f.pdf", "application/pdf"));
+        Cookie session = logIn("noperm@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/articles/"
+                                        + article.getId()
+                                        + "/deletion-confirmation-token")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void deleteRejectsAMissingOrWrongConfirmationWordWithoutDeleting() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Reject Delete Tenant"));
+        memberWithPermissions("rejecter@example.com", tenant, Permission.ARTICLE_DELETE);
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(tenant, "Kept", "key", "f.pdf", "application/pdf"));
+        Cookie session = logIn("rejecter@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        fetchDeletionConfirmationWord(session, csrf, tenant.getId(), article.getId());
+
+        var response =
+                mockMvc.delete()
+                        .uri("/api/tenants/" + tenant.getId() + "/articles/" + article.getId())
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"wrong-word\"}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(articleRepository.findByTenantIdAndActiveTrue(tenant.getId())).isNotEmpty();
     }
 
     @Test

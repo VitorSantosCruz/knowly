@@ -5,6 +5,9 @@ import br.com.conectabyte.knowly.article.dto.ArticleSummaryDto;
 import br.com.conectabyte.knowly.article.exception.ArticleNotFoundException;
 import br.com.conectabyte.knowly.article.exception.FileTooLargeException;
 import br.com.conectabyte.knowly.article.exception.UnsupportedFileTypeException;
+import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
+import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
@@ -28,6 +31,9 @@ public class ArticleService {
     private final TenantContext tenantContext;
     private final ArticleProperties articleProperties;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final DeletionConfirmationTokenService deletionConfirmationTokenService;
+
+    private static final String DELETION_RESOURCE_TYPE = "article";
 
     public ArticleService(
             ArticleRepository articleRepository,
@@ -36,7 +42,8 @@ public class ArticleService {
             VectorStore vectorStore,
             TenantContext tenantContext,
             ArticleProperties articleProperties,
-            ApplicationEventPublisher applicationEventPublisher) {
+            ApplicationEventPublisher applicationEventPublisher,
+            DeletionConfirmationTokenService deletionConfirmationTokenService) {
         this.articleRepository = articleRepository;
         this.tenantRepository = tenantRepository;
         this.articleStorageService = articleStorageService;
@@ -44,6 +51,7 @@ public class ArticleService {
         this.tenantContext = tenantContext;
         this.articleProperties = articleProperties;
         this.applicationEventPublisher = applicationEventPublisher;
+        this.deletionConfirmationTokenService = deletionConfirmationTokenService;
     }
 
     @Transactional
@@ -109,10 +117,28 @@ public class ArticleService {
         return ArticleDetailDto.from(article, url);
     }
 
+    /** REQ-14: generates a confirmation token scoped to this article and the requesting actor. */
+    @Transactional(readOnly = true)
+    public String generateDeletionConfirmationToken(
+            Long tenantId, Long articleId, User actor, String acceptLanguageHeaderValue) {
+        requireActiveTenant(tenantId);
+        requireArticle(articleId);
+
+        return deletionConfirmationTokenService.generate(
+                DELETION_RESOURCE_TYPE, articleId.toString(), actor, acceptLanguageHeaderValue);
+    }
+
+    /** REQ-13: requires and validates a deletion confirmation token before deleting. */
     @Transactional
-    public void delete(Long tenantId, Long articleId) {
+    public void delete(Long tenantId, Long articleId, User actor, String word) {
         requireActiveTenant(tenantId);
         Article article = requireArticle(articleId);
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                DELETION_RESOURCE_TYPE, articleId.toString(), actor, word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
+
         article.setActive(false);
         articleRepository.save(article);
 

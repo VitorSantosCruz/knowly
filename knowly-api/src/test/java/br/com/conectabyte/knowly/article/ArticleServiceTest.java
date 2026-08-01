@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
@@ -39,6 +40,7 @@ class ArticleServiceTest {
     @Mock private VectorStore vectorStore;
     @Mock private TenantContext tenantContext;
     @Mock private ApplicationEventPublisher applicationEventPublisher;
+    @Mock private DeletionConfirmationTokenService deletionConfirmationTokenService;
 
     private ArticleService articleService;
 
@@ -54,7 +56,8 @@ class ArticleServiceTest {
                         vectorStore,
                         tenantContext,
                         articleProperties,
-                        applicationEventPublisher);
+                        applicationEventPublisher,
+                        deletionConfirmationTokenService);
     }
 
     @Test
