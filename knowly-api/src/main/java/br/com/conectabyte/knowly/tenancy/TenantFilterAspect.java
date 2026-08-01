@@ -16,14 +16,21 @@ import org.springframework.stereotype.Component;
  * {@code @Transactional} service method, so tenant-scoped entities never leak across tenants
  * regardless of which query loads them within that transaction.
  *
- * <p>This must target {@code @Transactional}-annotated *service* methods, not repository
- * interfaces: Spring Data repository proxies get their transactional behavior from their own
- * dedicated proxy-creation pipeline (RepositoryFactorySupport), which is a separate layer that
- * always sits *inside* the general Spring AOP auto-proxy chain regardless of {@code @Order} — so an
- * aspect targeting repository executions runs *before* that inner transaction opens, enabling the
- * filter on a throwaway, immediately discarded EntityManager. Targeting {@code @Transactional}
- * service methods instead puts this aspect on the same, single, @Order-controlled proxy as the
- * transaction advisor (see TransactionManagementConfig), so ordering actually holds.
+ * <p>This must target {@code @Transactional}-annotated *service* methods only, never Spring Data
+ * repository proxies: {@code SimpleJpaRepository}'s own internal {@code @Transactional} methods
+ * (e.g. {@code findById}/{@code save}) satisfy the same {@code @annotation(Transactional)}
+ * pointcut, since Spring's repository proxies are still ordinary Spring AOP proxies subject to the
+ * application's other registered aspects. Without the {@code !within(Repository+)} exclusion below,
+ * any plain repository call made with no active tenant in context -- e.g. from a
+ * {@code @RabbitListener} background consumer, which is deliberately not itself
+ * {@code @Transactional} (see {@code ArticleExtractionListener}) -- gets the Hibernate tenant
+ * filter force-enabled with the fail-closed sentinel ({@link
+ * TenantFilter#NO_ACTIVE_TENANT_SENTINEL}), silently hiding rows the caller had every right to see
+ * by explicit id (see DECISIONS.md, "TenantFilterAspect pointcut too broad" for the incident this
+ * caused). {@code Repository} is a marker interface only Spring Data proxies implement, and every
+ * repository in this codebase is a plain {@code interface X extends JpaRepository<...>} with no
+ * custom impl classes, so this exclusion cannot accidentally let a real tenant-scoped service
+ * method skip filtering.
  */
 @Aspect
 @Component
@@ -38,7 +45,9 @@ public class TenantFilterAspect {
         this.tenantContext = tenantContext;
     }
 
-    @Around("@annotation(org.springframework.transaction.annotation.Transactional)")
+    @Around(
+            "@annotation(org.springframework.transaction.annotation.Transactional) &&"
+                    + " !within(org.springframework.data.repository.Repository+)")
     public Object enableTenantFilter(ProceedingJoinPoint joinPoint) throws Throwable {
         var activeTenantId = tenantContext.getActiveTenantId();
         Session session = entityManager.unwrap(Session.class);

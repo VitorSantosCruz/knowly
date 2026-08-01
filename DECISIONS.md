@@ -1295,6 +1295,73 @@ the old plain `bg-white dark:bg-ink-900` card — that plain style is now
 considered legacy/superseded on this dashboard, not a still-valid
 alternative to pick between.
 
+## `TenantFilterAspect` pointcut too broad: excluded Spring Data repository proxies with `!within(Repository+)` (Tier 2, 2026-08-01)
+
+**Bug (live incident):** `TenantFilterAspect`'s pointcut was
+`@Around("@annotation(org.springframework.transaction.annotation.Transactional)")`.
+This also matched Spring Data JPA's own internal `@Transactional`
+methods on `SimpleJpaRepository` (`findById`, `save`, ...), because
+Spring's repository proxies are still ordinary Spring AOP proxies
+subject to every other aspect registered in the application context —
+they aren't exempt just because Spring Data built them. So any plain
+repository call made from a thread with no active tenant in context
+(e.g. a `@RabbitListener` background consumer, which is deliberately
+*not* itself `@Transactional` — see `ArticleExtractionListener`,
+`ArticleEmbeddingListener`) got the Hibernate `TenantFilter`
+force-enabled with the fail-closed sentinel
+(`TenantFilter.NO_ACTIVE_TENANT_SENTINEL`), silently hiding rows the
+caller had every right to see by explicit id. In production this left
+two uploaded articles permanently stuck in `PROCESSING`:
+`ArticleExtractionListener.handle()` couldn't find its own row via
+`articleRepository.findById(event.articleId())`.
+
+**Fix:** narrow the pointcut to
+`@annotation(org.springframework.transaction.annotation.Transactional) && !within(org.springframework.data.repository.Repository+)`.
+`Repository` is a marker interface only Spring Data proxies implement;
+every repository in this codebase is a plain
+`interface X extends JpaRepository<...>` with no custom impl classes
+(confirmed by appsec), so this exclusion is structurally airtight — it
+cannot accidentally let a real tenant-scoped *service* method skip
+filtering, since application services never implement `Repository`.
+
+**Why Tier 2, not Tier 3:** this removes an accidental
+exemption-widening bug — it makes the aspect fire in *fewer* cases
+(never for repository-internal transactions), not more, and doesn't
+loosen the tenant-isolation guarantee itself: every genuine
+`@Transactional` service method is still covered exactly as before (see
+`TenantFilterAspectPointcutIntegrationTest`'s
+`genuineTransactionalServiceMethodStaysTenantFilteredWithNoActiveTenant`
+regression guard). No new bypass surface is introduced, so this didn't
+need product-owner sign-off — approved by software-architect + appsec.
+
+**Test note:** the aspect firing for a `Repository`-typed target
+doesn't reproduce through Spring Data's real proxy pipeline in a
+`@SpringBootTest` in this Spring Boot version — matching a plain
+`ArticleRepository.findById()` call against `TenantFilterAspect`
+empirically never triggered the advice either before or after the fix
+in a `@SpringBootTest` (see
+`TenantFilterAspectPointcutIntegrationTest`, which is kept as a
+behavioral regression guard even though it doesn't exercise the exact
+before/after Red/Green transition). The actual pointcut-matching bug
+was proven Red-then-Green with an isolated `AspectJProxyFactory` unit
+test (`TenantFilterAspectPointcutUnitTest`) that directly builds a
+woven proxy around a type implementing `Repository` with a
+`@Transactional`-annotated method, matching `SimpleJpaRepository`'s
+real shape without depending on Spring Data's own proxy-construction
+internals for a given Spring/Spring Data version.
+
+**Known follow-up (not in this fix's scope):** the two articles already
+stuck in `PROCESSING` from before this fix landed were already consumed
+off the queue and ACKed, so they will not automatically reprocess — they
+need to be re-uploaded, or manually re-published, separately.
+
+**Applies to new decisions:** any future aspect targeting
+`@Transactional`-annotated methods generically (not a single named
+service) must add the same `!within(Repository+)` exclusion (or scope
+itself to a specific base package/annotation instead) — Spring Data
+repository proxies are not automatically out of scope for
+application-defined aspects just because they're framework-generated.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
