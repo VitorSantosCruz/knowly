@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.chat;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import br.com.conectabyte.knowly.chat.dto.ChatConversationDetailDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessageDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessagePageDto;
@@ -125,6 +126,8 @@ public class SupportChannelController {
     private User currentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(AuthenticatedUserNotFoundException::new);
     }
 }

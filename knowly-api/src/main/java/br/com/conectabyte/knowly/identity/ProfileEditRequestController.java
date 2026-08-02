@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.identity;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestDto;
 import java.util.List;
@@ -93,6 +94,8 @@ public class ProfileEditRequestController {
     private User currentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(AuthenticatedUserNotFoundException::new);
     }
 }

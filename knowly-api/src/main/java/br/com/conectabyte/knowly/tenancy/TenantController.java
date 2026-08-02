@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import br.com.conectabyte.knowly.deletion.dto.DeleteConfirmationRequestDto;
 import br.com.conectabyte.knowly.deletion.dto.DeletionConfirmationTokenDto;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
@@ -481,6 +482,8 @@ public class TenantController {
     private User currentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(AuthenticatedUserNotFoundException::new);
     }
 }

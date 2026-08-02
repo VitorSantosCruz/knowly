@@ -4,6 +4,7 @@ import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.audit.RequiresPermission;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import br.com.conectabyte.knowly.conversation.dto.ConversationDetailDto;
 import br.com.conectabyte.knowly.conversation.dto.ConversationSummaryDto;
 import br.com.conectabyte.knowly.conversation.dto.SendMessageRequestDto;
@@ -82,6 +83,8 @@ public class ConversationController {
     private User currentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(AuthenticatedUserNotFoundException::new);
     }
 }

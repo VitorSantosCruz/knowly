@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.onboarding;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import java.time.Instant;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,6 +43,8 @@ public class OnboardingController {
     private User currentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(AuthenticatedUserNotFoundException::new);
     }
 }

@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.tenancy;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.dto.NotificationDto;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +53,8 @@ public class NotificationController {
     private User currentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .orElseThrow(AuthenticatedUserNotFoundException::new);
     }
 }

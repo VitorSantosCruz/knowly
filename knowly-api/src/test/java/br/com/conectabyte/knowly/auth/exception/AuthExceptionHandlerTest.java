@@ -37,4 +37,13 @@ class AuthExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().code()).isEqualTo("CAPTCHA_REQUIRED");
     }
+
+    @Test
+    void mapsAuthenticatedUserNotFoundTo401() {
+        ResponseEntity<AuthErrorResponseDto> response =
+                handler.handleAuthenticatedUserNotFound(new AuthenticatedUserNotFoundException());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().code()).isEqualTo("AUTHENTICATED_USER_NOT_FOUND");
+    }
 }
