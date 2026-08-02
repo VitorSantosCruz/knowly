@@ -52,6 +52,7 @@ describe('NavMenuComponent', () => {
       active: boolean;
     }[];
     globalPermissions?: string[];
+    isStaffAccount?: boolean;
     tenantPermissions?: string[] | 'forbidden';
     anyTenantProfileEdit?: boolean;
     // Explicit override for GET /api/tenants/active's response. Undefined derives it from
@@ -65,9 +66,10 @@ describe('NavMenuComponent', () => {
     } | null;
   }): void {
     flushSessionCheck(true);
-    httpMock
-      .expectOne('/api/staff/permissions')
-      .flush({ permissions: options.globalPermissions ?? [] });
+    httpMock.expectOne('/api/staff/permissions').flush({
+      permissions: options.globalPermissions ?? [],
+      isStaffAccount: options.isStaffAccount ?? false,
+    });
 
     const tenantPermissionsReq = httpMock.expectOne('/api/tenants/permissions');
     if (options.tenantPermissions === 'forbidden' || options.tenantPermissions === undefined) {
@@ -251,12 +253,51 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeFalsy();
   });
 
-  it('shows the switch-tenant link for a 0-membership (staff) session', () => {
+  it('shows the switch-tenant link for a 0-membership session holding TENANT_ACT_AS_ANY (REQ-10 first clause)', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['TENANT_ACT_AS_ANY'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeTruthy();
+  });
+
+  it('hides the switch-tenant link for a 0-membership session with no TENANT_ACT_AS_ANY and no other GlobalPermissions (REQ-11)', () => {
     fixture.detectChanges();
     flush({ memberships: [] });
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeFalsy();
+  });
+
+  it('shows the switch-tenant and leave-tenant items for a STAFF account with exactly one real membership (closes the previously-flagged isStaffAccount gap)', () => {
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(1, 'Acme').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: [],
+      isStaffAccount: true,
+      activeTenant: { tenantId: 1, tenantName: 'Acme' },
+    });
+    fixture.detectChanges();
+
     expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeTruthy();
+  });
+
+  it('does not show switch-tenant/leave-tenant for a plain MEMBER with exactly one membership (isStaffAccount: false, unchanged regression)', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: [],
+      isStaffAccount: false,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeFalsy();
   });
 
   it('shows the switch-tenant link with more than one membership', () => {
@@ -282,6 +323,45 @@ describe('NavMenuComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-switch-tenant"]')).toBeFalsy();
+  });
+
+  it('always renders the logo for a logged-in MEMBER with zero tenant permissions and zero memberships-derived state (REQ-7 regression)', () => {
+    fixture.detectChanges();
+    flush({ memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-brand-wordmark')).toBeTruthy();
+  });
+
+  it('never shows "Create tenant" or "leave tenant" for a MEMBER/MEMBER_ADMIN session, regardless of tenant permission level (REQ-12)', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
+      tenantPermissions: ALL_PERMISSIONS,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-leave-tenant"]')).toBeFalsy();
+  });
+
+  it('shows "Create tenant" for a STAFF session holding TENANT_CREATE only while not acting inside a tenant session, and hides it once acting inside one (REQ-13)', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['TENANT_CREATE'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeTruthy();
+
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(9, 'Staffed Co').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush({});
+    fixture.detectChanges();
+    // Entering a tenant after session start re-triggers permissionsService.fetch() (the
+    // reactive re-fetch effect), same as other post-init selectTenant() tests in this file.
+    httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-create-tenant"]')).toBeFalsy();
   });
 
   it('no longer shows a "My profile" entry (moved into the avatar dropdown menu)', () => {

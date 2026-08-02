@@ -22,6 +22,7 @@ describe('GlobalPermissionsService', () => {
   it('starts with no known permissions', () => {
     expect(service.permissions()).toBeNull();
     expect(service.has('TENANT_CREATE')).toBe(false);
+    expect(service.isStaffAccount()).toBe(false);
   });
 
   it('exposes the fetched permissions and has() reflects them', () => {
@@ -29,10 +30,19 @@ describe('GlobalPermissionsService', () => {
 
     const req = httpMock.expectOne('/api/staff/permissions');
     expect(req.request.method).toBe('GET');
-    req.flush({ permissions: ['TENANT_CREATE'] });
+    req.flush({ permissions: ['TENANT_CREATE'], isStaffAccount: true });
 
     expect(service.permissions()).toEqual(['TENANT_CREATE']);
     expect(service.has('TENANT_CREATE')).toBe(true);
     expect(service.has('TENANT_ACT_AS_ANY')).toBe(false);
+    expect(service.isStaffAccount()).toBe(true);
+  });
+
+  it('exposes isStaffAccount: false for a plain member response', () => {
+    service.fetch();
+
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions: [], isStaffAccount: false });
+
+    expect(service.isStaffAccount()).toBe(false);
   });
 });

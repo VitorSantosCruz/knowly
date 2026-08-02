@@ -222,18 +222,38 @@ export class NavMenuComponent implements OnInit {
   protected readonly leaveTenantError = signal<'network' | null>(null);
 
   private readonly memberships = signal<TenantMembership[]>([]);
-  // 0 memberships (staff, who never hold a real TenantMembership row even after switching
-  // into a tenant — see below) needs this link just as much as >1 does: it's their only path
-  // to any tenant. Only a single-membership session (already home, nothing to switch to) hides it.
-  protected readonly canSwitchTenant = computed(() => this.memberships().length !== 1);
+  // >1 is always true regardless of account shape (a real member's only path to switch, and
+  // also true for a STAFF account that atypically holds more than one real membership).
+  // 0 memberships (the canonical staff shape, who never hold a real TenantMembership row even
+  // after switching into a tenant — see below) resolves off TENANT_ACT_AS_ANY (REQ-10/REQ-11):
+  // only a STAFF user actually granted the tenant-list permission gets the full-listing item: a
+  // plain MEMBER never has 0 memberships in the first place, so this never wrongly shows for one.
+  // A length-1 session is "already home" by default (matches the plain-MEMBER case) UNLESS
+  // isStaffAccount() is true — the atypical "STAFF holding exactly one real membership" case
+  // (staff-rbac-split REQ-9's isStaffAccount field), which still needs the item to enter that
+  // one tenant and leave back to the staff area.
+  protected readonly canSwitchTenant = computed(() => {
+    const length = this.memberships().length;
+    if (length > 1) {
+      return true;
+    }
+    if (length === 1) {
+      return this.globalPermissionsService.isStaffAccount();
+    }
+    return this.globalPermissionsService.has('TENANT_ACT_AS_ANY');
+  });
 
-  // Zero is a strictly stronger condition than canSwitchTenant's "!== 1": a multi-membership
-  // regular member (length > 1) must never see this, so it's checked directly rather than
-  // derived from canSwitchTenant. activeTenantId() is read off the service's own signal, not
-  // off memberships (which a staff session acting as a tenant never populates).
-  protected readonly canLeaveTenant = computed(
-    () => this.memberships().length === 0 && this.activeTenantService.activeTenantId() !== null,
-  );
+  // Zero (or, per staff-rbac-split's isStaffAccount, an atypical length-1 STAFF account) is a
+  // strictly stronger condition than canSwitchTenant's shape: a multi-membership regular member
+  // (length > 1) must never see this, so it's checked directly rather than derived from
+  // canSwitchTenant. activeTenantId() is read off the service's own signal, not off memberships
+  // (which a staff session acting as a tenant never populates).
+  protected readonly canLeaveTenant = computed(() => {
+    const length = this.memberships().length;
+    const eligibleMembershipShape =
+      length === 0 || (length === 1 && this.globalPermissionsService.isStaffAccount());
+    return eligibleMembershipShape && this.activeTenantService.activeTenantId() !== null;
+  });
 
   // Fourth occurrence of this page-local computed, precedented by staff-global-dashboard's
   // PLAN (StaffDirectoryPageComponent/WelcomePageComponent/OwnProfilePageComponent) — not

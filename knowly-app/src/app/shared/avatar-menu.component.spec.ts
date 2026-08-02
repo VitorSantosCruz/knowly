@@ -109,6 +109,18 @@ describe('AvatarMenuComponent', () => {
     return fixture;
   }
 
+  it('always offers a logout entry to a logged-in MEMBER, regardless of tenant permission level (REQ-8 regression)', () => {
+    const fixture = createLoggedIn();
+
+    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="avatar-menu-toggle"]',
+    );
+    trigger.click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="avatar-menu-logout"]')).toBeTruthy();
+  });
+
   it('clicking the trigger opens a menu with exactly two entries in order, each with an icon', () => {
     const fixture = createLoggedIn();
 
