@@ -249,8 +249,11 @@ class StaffServiceCeilingIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
 
+    // Superseded by specify/features/staff-rbac-management-operations/SPEC.md REQ-17/18: a direct
+    // grant against a STAFF_ADMIN target is now rejected outright, even for a STAFF_ADMIN caller —
+    // demote/delete are the only paths allowed to touch an admin-tier target going forward.
     @Test
-    void staffAdminCanGrantAPermissionToAnotherStaffAdmin() {
+    void staffAdminCannotGrantAPermissionToAnotherStaffAdmin() {
         staffAdmin("grant-admin-actor@example.com");
         User target = staffAdmin("grant-admin-target@example.com");
         Cookie session = logIn("grant-admin-actor@example.com");
@@ -266,7 +269,7 @@ class StaffServiceCeilingIntegrationTest {
                         .content("{\"permission\":\"TENANT_CREATE\"}")
                         .exchange();
 
-        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -374,8 +377,11 @@ class StaffServiceCeilingIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
 
+    // Superseded by specify/features/staff-rbac-management-operations/SPEC.md REQ-19: an
+    // access-group assignment against a STAFF_ADMIN target is now rejected outright, same
+    // reasoning as staffAdminCannotGrantAPermissionToAnotherStaffAdmin above.
     @Test
-    void staffAdminCanAssignAnAccessGroupToAnotherStaffAdmin() {
+    void staffAdminCannotAssignAnAccessGroupToAnotherStaffAdmin() {
         staffAdmin("assign-admin-actor@example.com");
         User target = staffAdmin("assign-admin-target@example.com");
         GlobalAccessGroup group =
@@ -395,7 +401,7 @@ class StaffServiceCeilingIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .exchange();
 
-        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
 
     // --- createStaffUser ---
