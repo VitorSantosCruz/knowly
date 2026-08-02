@@ -1059,6 +1059,50 @@ class TenantServiceTest {
         assertThat(tenantRepository.count()).isEqualTo(tenantCountBefore);
     }
 
+    // tenant-crud REQ-11/PLAN.md "Architectural decisions": a soft-deleted tenant is rejected at
+    // the switch-time chokepoints the same way a "no access" tenant already is.
+
+    @Test
+    void requireActiveMembershipRejectsASoftDeletedTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Deleted Membership Co"));
+        User user = userRepository.saveAndFlush(new User("soft-deleted-membership@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+
+        assertThatThrownBy(() -> tenantService.requireActiveMembership(user, tenant.getId()))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException
+                                .class);
+    }
+
+    @Test
+    void requireTenantRejectsASoftDeletedTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Deleted Act As Co"));
+        User staff = staffAdmin("soft-deleted-act-as@example.com");
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+
+        assertThatThrownBy(() -> tenantService.requireTenant(staff, tenant.getId()))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException
+                                .class);
+    }
+
+    @Test
+    void getActiveTenantRejectsASoftDeletedTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Deleted Active Co"));
+        User user = userRepository.saveAndFlush(new User("soft-deleted-active@example.com"));
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+
+        assertThatThrownBy(() -> tenantService.getActiveTenant(user, tenant.getId()))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException
+                                .class);
+    }
+
     @Test
     void nonStaffCannotCreateATenant() {
         User user = userRepository.saveAndFlush(new User("non-staff-create-tenant@example.com"));

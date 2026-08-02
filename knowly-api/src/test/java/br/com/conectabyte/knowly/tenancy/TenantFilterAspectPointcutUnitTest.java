@@ -97,7 +97,8 @@ class TenantFilterAspectPointcutUnitTest {
      * container in this pure AspectJ-proxy unit test.
      */
     private TenantFilterAspect newAspect(EntityManager entityManager) throws Exception {
-        TenantFilterAspect aspect = new TenantFilterAspect(new TenantContext());
+        TenantFilterAspect aspect =
+                new TenantFilterAspect(new TenantContext(), mock(TenantRepository.class));
 
         Field field = TenantFilterAspect.class.getDeclaredField("entityManager");
         field.setAccessible(true);

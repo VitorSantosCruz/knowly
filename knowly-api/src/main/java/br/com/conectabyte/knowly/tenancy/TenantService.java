@@ -154,10 +154,14 @@ public class TenantService {
         Tenant tenant = new Tenant();
         tenant.setId(tenantId);
 
-        return tenantMembershipRepository
-                .findByUserAndTenant(user, tenant)
-                .filter(TenantMembership::isActive)
-                .orElseThrow(TenantAccessDeniedException::new);
+        TenantMembership membership =
+                tenantMembershipRepository
+                        .findByUserAndTenant(user, tenant)
+                        .filter(TenantMembership::isActive)
+                        .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSoftDeleted(membership.getTenant());
+
+        return membership;
     }
 
     /**
@@ -171,6 +175,7 @@ public class TenantService {
     public ActiveTenantDto getActiveTenant(User user, Long tenantId) {
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
+        requireNotSoftDeleted(tenant);
         MembershipRole role =
                 tenantMembershipRepository
                         .findByUserAndTenant(user, tenant)
@@ -213,7 +218,22 @@ public class TenantService {
     public Tenant requireTenant(User actor, Long tenantId) {
         requireStaff(actor, GlobalPermission.TENANT_ACT_AS_ANY);
 
-        return tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
+        Tenant tenant =
+                tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
+        requireNotSoftDeleted(tenant);
+
+        return tenant;
+    }
+
+    /**
+     * REQ-11 (tenant-crud): a soft-deleted tenant is rejected the same way "no access" already is,
+     * at every switch-time chokepoint. See {@code TenantFilterAspect} for the complementary,
+     * ongoing-session-lifetime check this alone does not cover.
+     */
+    private void requireNotSoftDeleted(Tenant tenant) {
+        if (tenant.getDeletedAt() != null) {
+            throw new TenantAccessDeniedException();
+        }
     }
 
     /**

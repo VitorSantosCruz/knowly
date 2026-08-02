@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.tenancy;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.util.Optional;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -40,9 +41,11 @@ public class TenantFilterAspect {
     @PersistenceContext private EntityManager entityManager;
 
     private final TenantContext tenantContext;
+    private final TenantRepository tenantRepository;
 
-    public TenantFilterAspect(TenantContext tenantContext) {
+    public TenantFilterAspect(TenantContext tenantContext, TenantRepository tenantRepository) {
         this.tenantContext = tenantContext;
+        this.tenantRepository = tenantRepository;
     }
 
     @Around(
@@ -61,11 +64,31 @@ public class TenantFilterAspect {
             session.disableFilter(TenantFilter.NAME);
         } else {
             session.enableFilter(TenantFilter.NAME)
-                    .setParameter(
-                            TenantFilter.PARAMETER,
-                            activeTenantId.orElse(TenantFilter.NO_ACTIVE_TENANT_SENTINEL));
+                    .setParameter(TenantFilter.PARAMETER, resolveEffectiveTenantId(activeTenantId));
         }
 
         return joinPoint.proceed();
+    }
+
+    /**
+     * tenant-crud REQ-11 (AppSec correction, see PLAN.md "Architectural decisions"): a session
+     * whose active tenant was soft-deleted *after* the session picked it must not keep
+     * tenant-scoped access for the rest of that session -- {@code TenantContextFilter} re-derives
+     * the active tenant id from the session attribute on every request with no DB lookup, so this
+     * aspect (the true single chokepoint every {@code @Transactional} service method runs through)
+     * is where that gap is closed: an active tenant id that no longer resolves to a live
+     * (non-soft-deleted) tenant falls back to the same fail-closed sentinel already used for
+     * "staff, no active tenant."
+     */
+    private long resolveEffectiveTenantId(Optional<Long> activeTenantId) {
+        if (activeTenantId.isEmpty()) {
+            return TenantFilter.NO_ACTIVE_TENANT_SENTINEL;
+        }
+
+        return tenantRepository
+                .findById(activeTenantId.get())
+                .filter(tenant -> tenant.getDeletedAt() == null)
+                .map(tenant -> activeTenantId.get())
+                .orElse(TenantFilter.NO_ACTIVE_TENANT_SENTINEL);
     }
 }
