@@ -33,7 +33,7 @@ describe('StaffDirectoryPageComponent', () => {
     httpMock.verify();
   });
 
-  it('renders the staff user list once it resolves', () => {
+  it('renders the staff user list via app-shared-list once it resolves', () => {
     fixture.detectChanges();
 
     httpMock
@@ -41,8 +41,9 @@ describe('StaffDirectoryPageComponent', () => {
       .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('app-shared-list')).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('staffer@example.com');
-    expect(fixture.nativeElement.textContent).toContain('STAFF');
+    expect(fixture.nativeElement.textContent).toContain('Staff');
   });
 
   it('entering a search term calls list(email) and refreshes the list', () => {
@@ -122,10 +123,10 @@ describe('StaffDirectoryPageComponent', () => {
       .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
     fixture.detectChanges();
 
-    const row: HTMLElement = fixture.nativeElement.querySelector(
-      '[data-testid="select-staff-user-1"]',
+    const editButton: HTMLElement = fixture.nativeElement.querySelector(
+      '[data-testid="shared-list-action-sharedList.actions.edit-1"]',
     );
-    row.click();
+    editButton.click();
     fixture.detectChanges();
 
     httpMock.expectOne('/api/staff/users/1/permissions').flush({

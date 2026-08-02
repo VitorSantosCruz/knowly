@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { LucideSquarePen } from '@lucide/angular';
 import { catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ALL_GLOBAL_PERMISSIONS } from '../../core/global-permission';
@@ -7,6 +8,8 @@ import { GlobalPermissionsService } from '../../core/global-permissions.service'
 import { StaffUserService, StaffUserSummary } from '../../core/staff-user.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { SharedListComponent } from '../../shared/shared-list/shared-list.component';
+import { SharedListColumn, SharedListRowAction } from '../../shared/shared-list/shared-list.model';
 import { StaffUserDetailPanelComponent } from './staff-user-detail-panel.component';
 
 type StaffDirectoryError = 'network' | 'permission-denied' | null;
@@ -17,6 +20,7 @@ type StaffDirectoryError = 'network' | 'permission-denied' | null;
     TranslocoPipe,
     ErrorStateComponent,
     NoAccessStateComponent,
+    SharedListComponent,
     StaffUserDetailPanelComponent,
   ],
   template: `
@@ -57,32 +61,15 @@ type StaffDirectoryError = 'network' | 'permission-denied' | null;
           </form>
         }
 
-        <table
+        <app-shared-list
           data-testid="staff-users-list"
-          class="enter-fluid w-full overflow-hidden rounded-2xl border border-ink-200/70 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:shadow-none"
-        >
-          <tbody>
-            @for (staffUser of staffUsers(); track staffUser.id) {
-              <tr>
-                <td>
-                  <span
-                    [attr.data-testid]="'select-staff-user-' + staffUser.id"
-                    role="button"
-                    tabindex="0"
-                    (click)="selectedUserId.set(staffUser.id)"
-                    (keydown.enter)="selectedUserId.set(staffUser.id)"
-                    class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
-                  >
-                    {{ staffUser.email }}
-                  </span>
-                </td>
-                <td class="text-right text-sm text-ink-500 dark:text-ink-400">
-                  {{ staffUser.globalRole }}
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+          [title]="'staffDirectory.title' | transloco"
+          [rows]="staffUsers()"
+          [columns]="columns"
+          [rowActions]="rowActions"
+          [rowId]="rowId"
+          [emptyMessageKey]="'sharedList.empty.staffDirectory'"
+        />
 
         @if (selectedUserId(); as userId) {
           <div class="mt-6">
@@ -107,6 +94,43 @@ export class StaffDirectoryPageComponent implements OnInit {
   protected readonly searchTerm = signal('');
   protected readonly newStaffUserEmail = signal('');
   protected readonly selectedUserId = signal<number | null>(null);
+
+  protected readonly rowId = (row: StaffUserSummary): number => row.id;
+
+  protected readonly columns: SharedListColumn<StaffUserSummary>[] = [
+    {
+      key: 'email',
+      headerKey: 'staffDirectory.columns.email',
+      sortable: true,
+      render: (row) => ({
+        type: 'identity',
+        primary: row.email,
+        initials: row.email.charAt(0).toUpperCase(),
+      }),
+    },
+    {
+      key: 'role',
+      headerKey: 'staffDirectory.columns.role',
+      essential: false,
+      render: (row) => ({
+        type: 'pill',
+        labelKey: `staffDirectory.roles.${row.globalRole}`,
+        colorClass:
+          row.globalRole === 'STAFF_ADMIN'
+            ? 'bg-signal-100 text-signal-700 dark:bg-signal-900/40 dark:text-signal-300'
+            : 'bg-ink-100 text-ink-700 dark:bg-ink-800 dark:text-ink-300',
+      }),
+    },
+  ];
+
+  protected readonly rowActions: SharedListRowAction<StaffUserSummary>[] = [
+    {
+      icon: LucideSquarePen,
+      labelKey: 'sharedList.actions.edit',
+      variant: 'secondary',
+      onClick: (row) => this.selectedUserId.set(row.id),
+    },
+  ];
 
   protected readonly viewerIsStaffAdmin = computed(() =>
     ALL_GLOBAL_PERMISSIONS.every((permission) => this.globalPermissionsService.has(permission)),

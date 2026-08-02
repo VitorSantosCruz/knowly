@@ -230,7 +230,16 @@
     "createGroup": "Criar grupo",
     "confirmRemove": "Remover {{email}}? Isso não pode ser desfeito.",
     "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Isso não pode ser desfeito.",
-    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito."
+    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito.",
+    "title": "Membros",
+    "columns": {
+      "email": "E-mail",
+      "role": "Papel"
+    },
+    "roles": {
+      "MEMBER": "Membro",
+      "MEMBER_ADMIN": "Membro Admin"
+    }
   },
   "sharedList": {
     "selectAll": "Selecionar tudo",
@@ -270,6 +279,15 @@
       "outcome": "Resultado",
       "global": "global",
       "noHistory": "Sem histórico de auditoria"
+    },
+    "title": "Usuários staff",
+    "columns": {
+      "email": "E-mail",
+      "role": "Papel"
+    },
+    "roles": {
+      "STAFF": "Staff",
+      "STAFF_ADMIN": "Staff Admin"
     }
   },
   "conversations": {

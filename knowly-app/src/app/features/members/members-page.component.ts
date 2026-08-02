@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { LucideSquarePen, LucideTrash2 } from '@lucide/angular';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
@@ -7,6 +8,8 @@ import { Member, MemberService } from '../../core/member.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
+import { SharedListComponent } from '../../shared/shared-list/shared-list.component';
+import { SharedListColumn, SharedListRowAction } from '../../shared/shared-list/shared-list.model';
 import { MemberDetailPanelComponent } from './member-detail-panel.component';
 
 type MembersError = 'network' | 'permission-denied' | null;
@@ -17,6 +20,7 @@ type MembersError = 'network' | 'permission-denied' | null;
     TranslocoPipe,
     ErrorStateComponent,
     NoAccessStateComponent,
+    SharedListComponent,
     MemberDetailPanelComponent,
     ConfirmDialogComponent,
   ],
@@ -47,38 +51,15 @@ type MembersError = 'network' | 'permission-denied' | null;
           </button>
         </form>
 
-        <table
+        <app-shared-list
           data-testid="members-list"
-          class="enter-fluid w-full overflow-hidden rounded-2xl border border-ink-200/70 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:shadow-none"
-        >
-          <tbody>
-            @for (member of members(); track member.membershipId) {
-              <tr>
-                <td>
-                  <span
-                    [attr.data-testid]="'select-member-' + member.membershipId"
-                    role="button"
-                    tabindex="0"
-                    (click)="selectedMembershipId.set(member.membershipId)"
-                    (keydown.enter)="selectedMembershipId.set(member.membershipId)"
-                    class="cursor-pointer text-sm text-ink-800 dark:text-ink-100"
-                  >
-                    {{ member.email }}
-                  </span>
-                </td>
-                <td class="text-right">
-                  <button
-                    [attr.data-testid]="'remove-member-' + member.membershipId"
-                    (click)="onRemoveMember(member.membershipId)"
-                    [class]="removeButtonClass"
-                  >
-                    {{ 'members.remove' | transloco }}
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+          [title]="'members.title' | transloco"
+          [rows]="members()"
+          [columns]="columns"
+          [rowActions]="rowActions"
+          [rowId]="rowId"
+          [emptyMessageKey]="'sharedList.empty.tenantMembers'"
+        />
 
         @if (selectedMembershipId(); as membershipId) {
           <div class="mt-6">
@@ -109,7 +90,6 @@ export class MembersPageComponent implements OnInit {
   private readonly memberService = inject(MemberService);
 
   protected readonly addButtonClass = buttonClass('primary');
-  protected readonly removeButtonClass = buttonClass('danger', { ghost: true });
   protected readonly members = signal<Member[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<MembersError>(null);
@@ -117,6 +97,49 @@ export class MembersPageComponent implements OnInit {
   protected readonly selectedMembershipId = signal<number | null>(null);
   protected readonly pendingRemoval = signal<Member | null>(null);
   protected readonly removalRetryToken = signal(0);
+
+  protected readonly rowId = (row: Member): number => row.membershipId;
+
+  protected readonly columns: SharedListColumn<Member>[] = [
+    {
+      key: 'email',
+      headerKey: 'members.columns.email',
+      sortable: true,
+      render: (row) => ({
+        type: 'identity',
+        primary: row.email,
+        initials: row.email.charAt(0).toUpperCase(),
+      }),
+    },
+    {
+      key: 'role',
+      headerKey: 'members.columns.role',
+      essential: false,
+      render: (row) => ({
+        type: 'pill',
+        labelKey: `members.roles.${row.role}`,
+        colorClass:
+          row.role === 'MEMBER_ADMIN'
+            ? 'bg-signal-100 text-signal-700 dark:bg-signal-900/40 dark:text-signal-300'
+            : 'bg-ink-100 text-ink-700 dark:bg-ink-800 dark:text-ink-300',
+      }),
+    },
+  ];
+
+  protected readonly rowActions: SharedListRowAction<Member>[] = [
+    {
+      icon: LucideSquarePen,
+      labelKey: 'sharedList.actions.edit',
+      variant: 'secondary',
+      onClick: (row) => this.selectedMembershipId.set(row.membershipId),
+    },
+    {
+      icon: LucideTrash2,
+      labelKey: 'sharedList.actions.delete',
+      variant: 'danger',
+      onClick: (row) => this.onRemoveMember(row.membershipId),
+    },
+  ];
 
   protected readonly viewerIsMemberAdminOfThisTenant = computed(
     () => this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN',

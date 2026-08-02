@@ -49,6 +49,7 @@ describe('MembersPageComponent', () => {
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('app-shared-list')).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('a@example.com');
   });
 
@@ -92,7 +93,7 @@ describe('MembersPageComponent', () => {
     fixture.detectChanges();
 
     const removeButton: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="remove-member-1"]',
+      '[data-testid="shared-list-action-sharedList.actions.delete-1"]',
     );
     removeButton.click();
     fixture.detectChanges();
@@ -129,8 +130,10 @@ describe('MembersPageComponent', () => {
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
     fixture.detectChanges();
 
-    const row: HTMLElement = fixture.nativeElement.querySelector('[data-testid="select-member-1"]');
-    row.click();
+    const editButton: HTMLElement = fixture.nativeElement.querySelector(
+      '[data-testid="shared-list-action-sharedList.actions.edit-1"]',
+    );
+    editButton.click();
     fixture.detectChanges();
 
     httpMock.expectOne('/api/tenants/7/members/1').flush({
