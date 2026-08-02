@@ -1381,6 +1381,69 @@ class TenantServiceTest {
                 .isNotNull();
     }
 
+    // tenant-crud REQ-19/REQ-20/REQ-21: active-vs-deactivated listing split.
+
+    @Test
+    void listAllTenantsExcludesASoftDeletedTenant() {
+        User admin = staffAdmin("list-excludes-deleted@example.com");
+        String marker = "ListExcludeDeleted" + System.nanoTime();
+        tenantRepository.saveAndFlush(new Tenant(marker + "Active"));
+        Tenant deleted = tenantRepository.saveAndFlush(new Tenant(marker + "Deleted"));
+        deleted.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(deleted);
+
+        var page = tenantService.listAllTenants(admin, 0, 20, marker);
+
+        assertThat(page.content())
+                .extracting(TenantSummaryDto::name)
+                .containsExactly(marker + "Active");
+    }
+
+    @Test
+    void listDeactivatedTenantsReturnsOnlySoftDeletedTenantsWithDeletedAtPopulated() {
+        User admin = staffAdmin("list-deactivated@example.com");
+        authenticateAs("list-deactivated@example.com");
+        tenantContext.setStaffAdmin(true);
+        String marker = "ListDeactivated" + System.nanoTime();
+        tenantRepository.saveAndFlush(new Tenant(marker + "Active"));
+        Tenant deleted = tenantRepository.saveAndFlush(new Tenant(marker + "Deleted"));
+        deleted.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(deleted);
+
+        var page = tenantService.listDeactivatedTenants(admin, 0, 20, marker);
+
+        assertThat(page.content())
+                .extracting(TenantSummaryDto::name)
+                .containsExactly(marker + "Deleted");
+        assertThat(page.content().get(0).deletedAt()).isNotNull();
+    }
+
+    @Test
+    void listDeactivatedTenantsRejectsStaffWithOnlyTenantActAsAny() {
+        User staff = limitedStaff("list-deactivated-ungranted@example.com");
+        authenticateAs("list-deactivated-ungranted@example.com");
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_ACT_AS_ANY);
+
+        assertThatThrownBy(() -> tenantService.listDeactivatedTenants(staff, 0, 20, null))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void listDeactivatedTenantsSucceedsForStaffGrantedTenantDeleteAndTenantView() {
+        User staff = limitedStaff("list-deactivated-granted@example.com");
+        authenticateAs("list-deactivated-granted@example.com");
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_DELETE);
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_VIEW);
+        String marker = "ListDeactivatedGranted" + System.nanoTime();
+        Tenant deleted = tenantRepository.saveAndFlush(new Tenant(marker));
+        deleted.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(deleted);
+
+        var page = tenantService.listDeactivatedTenants(staff, 0, 20, marker);
+
+        assertThat(page.content()).extracting(TenantSummaryDto::name).containsExactly(marker);
+    }
+
     @Test
     void nonStaffCannotCreateATenant() {
         User user = userRepository.saveAndFlush(new User("non-staff-create-tenant@example.com"));

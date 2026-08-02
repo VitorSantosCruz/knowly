@@ -219,6 +219,28 @@ public class TenantService {
                 tenantRepository.search(search, pageable).map(TenantSummaryDto::from));
     }
 
+    /**
+     * tenant-crud REQ-20/REQ-21 (product owner decision 2026-08-02): every soft-deleted tenant, for
+     * the separate "deactivated tenants" listing -- gated by {@code TENANT_DELETE} (which per the
+     * house rule already requires {@code TENANT_VIEW}), not {@code TENANT_ACT_AS_ANY}, since this
+     * is closer to an audit/deletion-history concern than the "act as this tenant" picker {@link
+     * #listAllTenants} powers. Same pagination/search/sort shape as {@link #listAllTenants}.
+     */
+    @Transactional(readOnly = true)
+    @RequiresGlobalPermission(GlobalPermission.TENANT_DELETE)
+    public PageResponseDto<TenantSummaryDto> listDeactivatedTenants(
+            User actor, int page, int size, String search) {
+        if (page < 0 || size <= 0) {
+            throw new InvalidPaginationException("page must be >= 0 and size must be > 0");
+        }
+
+        int effectiveSize = Math.min(size, MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(page, effectiveSize, Sort.by("name").ascending());
+
+        return PageResponseDto.from(
+                tenantRepository.searchDeactivated(search, pageable).map(TenantSummaryDto::from));
+    }
+
     /** Confirms a tenant exists, for staff switching to act as it without holding a membership. */
     @Transactional(readOnly = true)
     public Tenant requireTenant(User actor, Long tenantId) {

@@ -139,6 +139,21 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.listAllTenants(currentUser(), page, size, search));
     }
 
+    /**
+     * tenant-crud REQ-20/REQ-21: soft-deleted tenants only, for audit/discoverability -- gated by
+     * {@code TENANT_DELETE}, distinct from {@link #listAllTenants}'s {@code TENANT_ACT_AS_ANY}. See
+     * PLAN.md's "Architectural decisions" for why this is a separate endpoint/permission rather
+     * than a status query parameter on the existing listing.
+     */
+    @GetMapping("/deactivated")
+    public ResponseEntity<PageResponseDto<TenantSummaryDto>> listDeactivatedTenants(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(
+                tenantService.listDeactivatedTenants(currentUser(), page, size, search));
+    }
+
     @PostMapping("/active")
     @AuditLog(
             action = "tenant.active_tenant.switch",

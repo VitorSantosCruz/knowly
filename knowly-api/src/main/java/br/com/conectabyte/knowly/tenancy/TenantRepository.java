@@ -85,10 +85,26 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     @Query(
             """
             SELECT t FROM Tenant t
-            WHERE CAST(:search AS string) IS NULL
+            WHERE t.deletedAt IS NULL
+              AND (CAST(:search AS string) IS NULL
                OR LOWER(t.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
                OR LOWER(t.legalName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
-               OR LOWER(t.taxId) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+               OR LOWER(t.taxId) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<Tenant> search(@Param("search") String search, Pageable pageable);
+
+    /**
+     * tenant-crud REQ-20/REQ-21: the deactivated-tenants listing's counterpart to {@link
+     * #search(String, Pageable)} -- same shape, {@code deletedAt IS NOT NULL} instead.
+     */
+    @Query(
+            """
+            SELECT t FROM Tenant t
+            WHERE t.deletedAt IS NOT NULL
+              AND (CAST(:search AS string) IS NULL
+               OR LOWER(t.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+               OR LOWER(t.legalName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+               OR LOWER(t.taxId) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+            """)
+    Page<Tenant> searchDeactivated(@Param("search") String search, Pageable pageable);
 }

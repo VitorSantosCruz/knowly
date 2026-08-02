@@ -192,4 +192,38 @@ class TenantRepositoryTest {
             previous = row.getCount();
         }
     }
+
+    // tenant-crud REQ-19/REQ-20: search excludes soft-deleted tenants; searchDeactivated returns
+    // only soft-deleted ones.
+
+    @Test
+    void searchExcludesASoftDeletedTenant() {
+        String marker = "SearchExclude" + System.nanoTime();
+        Tenant active = tenantRepository.saveAndFlush(new Tenant(marker + "Active"));
+        Tenant deleted = tenantRepository.saveAndFlush(new Tenant(marker + "Deleted"));
+        deleted.setDeletedAt(Instant.now());
+        tenantRepository.saveAndFlush(deleted);
+
+        var page =
+                tenantRepository.search(
+                        marker, org.springframework.data.domain.PageRequest.of(0, 20));
+
+        assertThat(page.getContent()).extracting(Tenant::getId).containsExactly(active.getId());
+    }
+
+    @Test
+    void searchDeactivatedReturnsOnlySoftDeletedTenants() {
+        String marker = "SearchDeactivated" + System.nanoTime();
+        Tenant active = tenantRepository.saveAndFlush(new Tenant(marker + "Active"));
+        Tenant deleted = tenantRepository.saveAndFlush(new Tenant(marker + "Deleted"));
+        deleted.setDeletedAt(Instant.now());
+        tenantRepository.saveAndFlush(deleted);
+
+        var page =
+                tenantRepository.searchDeactivated(
+                        marker, org.springframework.data.domain.PageRequest.of(0, 20));
+
+        assertThat(page.getContent()).extracting(Tenant::getId).containsExactly(deleted.getId());
+        assertThat(active.getId()).isNotIn(page.getContent().stream().map(Tenant::getId).toList());
+    }
 }
