@@ -447,5 +447,20 @@ New:
 
 ## Deviations from this PLAN (discovered during implementation)
 
-_(none yet — update as implementation proceeds, per TASKS.md's own
-closing task.)_
+- **Migration number confirmed as `V25`**, exactly as this PLAN assumed
+  (`tenant-creation`'s `V23` and `permission-granularity-model`'s `V24`
+  had both already landed by the time this feature started).
+- **REQ-12 does require a service-layer change, contra this PLAN's
+  original claim** ("no service-layer change to `createTenant` needed;
+  the database constraint alone determines uniqueness scope").
+  `TenantService#createTenant`'s existing proactive uniqueness check
+  (`tenantRepository.existsByTaxId(...)`, run *before* any insert, to
+  avoid a corrupted-persistence-context failure mode documented on that
+  method) has no `deletedAt` awareness of its own — it kept rejecting a
+  new tenant's `taxId` even when the only colliding row was
+  soft-deleted, entirely independent of the V25 partial unique index
+  this PLAN added. Fixed by renaming/scoping the derived query to
+  `existsByTaxIdAndDeletedAtIsNull`, mirroring the partial index's own
+  scope. Caught by task 14's REQ-12 API-level integration test (the
+  SQL-level migration test alone did not catch this, since it exercises
+  the constraint directly, not `createTenant`'s proactive check).
