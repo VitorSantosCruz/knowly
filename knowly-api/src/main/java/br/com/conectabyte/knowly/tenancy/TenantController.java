@@ -226,6 +226,26 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.editTenant(currentUser(), tenantId, request));
     }
 
+    @PostMapping("/{tenantId}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto> generateTenantDeletionConfirmationToken(
+            @PathVariable Long tenantId,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generateTenantDeletionConfirmationToken(
+                                currentUser(), tenantId, acceptLanguage)));
+    }
+
+    @DeleteMapping("/{tenantId}")
+    public ResponseEntity<Void> deleteTenant(
+            @PathVariable Long tenantId,
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        tenantService.deleteTenant(
+                currentUser(), tenantId, request == null ? null : request.word());
+
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/{tenantId}/members")
     public ResponseEntity<Void> addMember(
             @PathVariable Long tenantId, @Valid @RequestBody AddMemberRequestDto request) {

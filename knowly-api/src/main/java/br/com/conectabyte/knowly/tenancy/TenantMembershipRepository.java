@@ -7,7 +7,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface TenantMembershipRepository extends JpaRepository<TenantMembership, Long> {
 
@@ -38,6 +40,18 @@ public interface TenantMembershipRepository extends JpaRepository<TenantMembersh
                     + " m.active = true")
     List<TenantMembership> findByTenantIdAndRoleAndActiveTrueForUpdate(
             Long tenantId, MembershipRole role);
+
+    /**
+     * tenant-crud REQ-9/PLAN.md ("Architectural decisions"): bulk (not per-row) soft-removal of
+     * every currently-active membership of {@code tenant}, cascaded atomically alongside the
+     * tenant's own {@code deletedAt} write within {@link TenantService#deleteTenant}'s single
+     * transaction -- deliberately a bulk update, not a Java loop, since REQ-18 rules out any
+     * volume-based blocking rule and this must stay cheap regardless of membership count.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+            "update TenantMembership m set m.active = false where m.tenant = :tenant and m.active = true")
+    void deactivateAllByTenant(@Param("tenant") Tenant tenant);
 
     /**
      * specify/features/active-members-trend/PLAN.md: cross-tenant, systemwide aggregate feeding the

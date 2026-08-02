@@ -29,6 +29,7 @@ import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -63,6 +64,7 @@ public class TenantService {
     private static final String ACCESS_GROUP_RESOURCE_TYPE = "tenant-access-group";
     private static final String HARD_DELETE_RESOURCE_TYPE = "tenant-member-hard-delete";
     private static final String BATCH_RESOURCE_TYPE = "tenant-permission-batch";
+    private static final String TENANT_RESOURCE_TYPE = "tenant";
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -395,6 +397,51 @@ public class TenantService {
         if (value != null && value.isBlank()) {
             throw new InvalidTenantEditException(fieldName + " must not be blank");
         }
+    }
+
+    /**
+     * tenant-crud REQ-13/REQ-15: generation endpoint reuses the exact same guard as {@link
+     * #deleteTenant} -- {@code DeletionConfirmationTokenService} reused verbatim, a sixth {@code
+     * resourceType} ("tenant") with a single scalar {@code resourceId} (the tenant id), per
+     * PLAN.md.
+     */
+    @Transactional(readOnly = true)
+    @RequiresGlobalPermission(GlobalPermission.TENANT_DELETE)
+    public String generateTenantDeletionConfirmationToken(
+            User actor, Long tenantId, String acceptLanguageHeaderValue) {
+        return deletionConfirmationTokenService.generate(
+                TENANT_RESOURCE_TYPE, tenantId.toString(), actor, acceptLanguageHeaderValue);
+    }
+
+    /**
+     * tenant-crud REQ-8/REQ-9/REQ-10/REQ-14/REQ-16: soft-deletes the tenant and, atomically in the
+     * same transaction, deactivates every one of its currently-active memberships (REQ-9) via a
+     * bulk update rather than a per-row loop (REQ-18: no volume-based blocking, must stay cheap
+     * regardless of membership count). {@code Article}/{@code Conversation}/{@code AccessGroup}/
+     * permission-grant rows are untouched by construction (REQ-10) -- nothing here reaches those
+     * tables.
+     */
+    @Transactional
+    @RequiresGlobalPermission(GlobalPermission.TENANT_DELETE)
+    @AuditLog(action = "tenant.delete", resourceType = "Tenant")
+    public void deleteTenant(User actor, Long tenantId, String word) {
+        Tenant tenant =
+                tenantRepository
+                        .findById(tenantId)
+                        .filter(t -> t.getDeletedAt() == null)
+                        .orElseThrow(TenantNotFoundException::new);
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                TENANT_RESOURCE_TYPE, tenantId.toString(), actor, word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
+
+        tenant.setDeletedAt(Instant.now());
+        // saveAndFlush, not save: deactivateAllByTenant below clears the persistence context
+        // (@Modifying(clearAutomatically = true)) -- this write must be flushed to the DB first or
+        // it would be silently discarded by that clear rather than committed.
+        tenantRepository.saveAndFlush(tenant);
+        tenantMembershipRepository.deactivateAllByTenant(tenant);
     }
 
     /**

@@ -1258,6 +1258,129 @@ class TenantServiceTest {
                 new DirectGlobalPermissionGrant(user, permission));
     }
 
+    // tenant-crud: TenantService#deleteTenant unit coverage (PLAN.md's "Testing strategy").
+
+    private String tenantDeletionWord(User actor, Long tenantId) {
+        return deletionConfirmationTokenService.generate(
+                "tenant", tenantId.toString(), actor, null);
+    }
+
+    @Test
+    void deleteTenantSoftDeletesAndDeactivatesEveryActiveMembership() {
+        User staff = staffAdmin("delete-basic@example.com");
+        authenticateAs("delete-basic@example.com");
+        tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Basic Co"));
+        User member = userRepository.saveAndFlush(new User("delete-basic-member@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        String word = tenantDeletionWord(staff, tenant.getId());
+
+        tenantService.deleteTenant(staff, tenant.getId(), word);
+
+        Tenant persisted = tenantRepository.findById(tenant.getId()).orElseThrow();
+        assertThat(persisted.getDeletedAt()).isNotNull();
+        assertThat(tenantMembershipRepository.findById(membership.getId()))
+                .hasValueSatisfying(m -> assertThat(m.isActive()).isFalse());
+    }
+
+    @Test
+    void deleteTenantRejectsAMissingOrInvalidConfirmationWordAndAppliesNoChange() {
+        User staff = staffAdmin("delete-invalid-word@example.com");
+        authenticateAs("delete-invalid-word@example.com");
+        tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Invalid Word Co"));
+
+        assertThatThrownBy(() -> tenantService.deleteTenant(staff, tenant.getId(), "wrong-word"))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.deletion.exception
+                                .DeletionConfirmationInvalidException.class);
+
+        assertThat(tenantRepository.findById(tenant.getId()).orElseThrow().getDeletedAt()).isNull();
+    }
+
+    @Test
+    void deleteTenantOnAnAlreadySoftDeletedTenantThrowsTenantNotFound() {
+        User staff = staffAdmin("delete-already-deleted@example.com");
+        authenticateAs("delete-already-deleted@example.com");
+        tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Already Deleted Co"));
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+        String word = tenantDeletionWord(staff, tenant.getId());
+
+        assertThatThrownBy(() -> tenantService.deleteTenant(staff, tenant.getId(), word))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException.class);
+    }
+
+    @Test
+    void deleteTenantOnANonExistentTenantThrowsTenantNotFound() {
+        User staff = staffAdmin("delete-missing@example.com");
+        authenticateAs("delete-missing@example.com");
+        tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
+
+        assertThatThrownBy(
+                        () -> tenantService.deleteTenant(staff, Long.MAX_VALUE, "irrelevant-word"))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException.class);
+    }
+
+    @Test
+    void deleteTenantRejectsStaffGrantedOnlyTenantDeleteWithoutTenantView() {
+        User staff = limitedStaff("delete-no-view@example.com");
+        authenticateAs("delete-no-view@example.com");
+        tenantContext.setStaff(true);
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_DELETE);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete No View Co"));
+
+        assertThatThrownBy(
+                        () -> tenantService.deleteTenant(staff, tenant.getId(), "irrelevant-word"))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void deleteTenantSucceedsForStaffGrantedTenantDeleteAndTenantView() {
+        User staff = limitedStaff("delete-granted@example.com");
+        authenticateAs("delete-granted@example.com");
+        tenantContext.setStaff(true);
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_DELETE);
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_VIEW);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Granted Co"));
+        String word = tenantDeletionWord(staff, tenant.getId());
+
+        tenantService.deleteTenant(staff, tenant.getId(), word);
+
+        assertThat(tenantRepository.findById(tenant.getId()).orElseThrow().getDeletedAt())
+                .isNotNull();
+    }
+
+    @Test
+    void deleteTenantDoesNotBlockRegardlessOfMembershipCount() {
+        User staff = staffAdmin("delete-volume@example.com");
+        authenticateAs("delete-volume@example.com");
+        tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Volume Co"));
+        for (int i = 0; i < 25; i++) {
+            User member =
+                    userRepository.saveAndFlush(new User("delete-volume-" + i + "@example.com"));
+            tenantMembershipRepository.saveAndFlush(
+                    new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        }
+        String word = tenantDeletionWord(staff, tenant.getId());
+
+        tenantService.deleteTenant(staff, tenant.getId(), word);
+
+        assertThat(tenantRepository.findById(tenant.getId()).orElseThrow().getDeletedAt())
+                .isNotNull();
+    }
+
     @Test
     void nonStaffCannotCreateATenant() {
         User user = userRepository.saveAndFlush(new User("non-staff-create-tenant@example.com"));
