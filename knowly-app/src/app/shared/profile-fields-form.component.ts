@@ -309,7 +309,7 @@ export class ProfileFieldsFormComponent {
 
   protected readonly contactTypes = CONTACT_TYPES;
   protected readonly maxContacts = MAX_CONTACTS;
-  protected readonly countryCodes = Object.keys(COUNTRY_FIELD_CONFIG).filter(
+  protected readonly countryCodes = [...COUNTRY_FIELD_CONFIG.keys()].filter(
     (code) => code !== 'DEFAULT',
   );
 

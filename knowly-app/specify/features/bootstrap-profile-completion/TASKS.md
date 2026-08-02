@@ -146,3 +146,28 @@
        `user-profile-v2`'s masking amendment (TASKS.md tasks 33–41)
        hasn't landed yet, otherwise Green with no new code, per
        PLAN.md's amendment ordering note).
+
+## Amendment (2026-08-02) — RG/birth_date removal + country-agnostic model (follow-up closed)
+
+> Closes the PLAN/TASKS-level follow-up SPEC.md's RG-removal and
+> birth_date-removal amendments explicitly deferred (judgment calls 5/6)
+> — this screen composes `ProfileFieldsFormComponent` unmodified
+> (PLAN.md, judgment call 1), so the RG/birthDate inputs disappeared and
+> the field set became `taxId`/`countryCode`/the 6-field country-agnostic
+> address automatically once `user-profile-v2`'s own amendment retrofitted
+> that shared component — no separate implementation needed here.
+
+- [x] 26. Confirm `EMPTY_FIELDS` in `complete-profile-page.component.ts`
+      matches `ProfileFields`'s new shape (no `rg`/`rgOrgaoEmissor`/
+      `birthDate`; `taxId`/`countryCode` present) (Red/Green alongside
+      `user-profile-v2`'s `core/profile.service.ts` type change).
+- [x] 27. Update `complete-profile-page.component.spec.ts`'s fixtures/
+      assertions (`cpf` → `taxId`, old 8-field address → 6-field
+      country-agnostic shape, request-body field-error assertions) to
+      match; confirm no `rg`/`rgOrgaoEmissor`/`birthDate` input renders
+      anywhere on this screen and none are sent in the `POST
+      /api/users/me/profile/complete` body (closes SPEC.md's two
+      struck-through acceptance criteria added 2026-08-02).
+- [x] 28. Run `npm run format:check && npm test && npm run build &&
+      npm run lint` and confirm everything is green (verified together
+      with `user-profile-v2`'s amendment — same commit, same run).

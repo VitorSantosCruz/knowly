@@ -19,13 +19,17 @@ function onlyDigits(value: string): string {
 function formatGrouped(digits: string, groupLengths: number[], separators: string[]): string {
   let result = '';
   let index = 0;
-  for (let i = 0; i < groupLengths.length; i++) {
-    const part = digits.slice(index, index + groupLengths[i]);
+  let isFirst = true;
+
+  for (const [groupIndex, groupLength] of groupLengths.entries()) {
+    const part = digits.slice(index, index + groupLength);
     if (!part) {
       break;
     }
-    result += i === 0 ? part : separators[i - 1] + part;
-    index += groupLengths[i];
+    const separator = isFirst ? '' : (separators.at(groupIndex - 1) ?? '');
+    result += separator + part;
+    isFirst = false;
+    index += groupLength;
   }
   return result;
 }
@@ -77,26 +81,31 @@ interface MaskDefinition {
 
 // Per-`(mask, country)` concrete patterns. Any pair not listed here has no known mask (REQ-21) —
 // the directive/`formatMaskedValue` fall back to a plain, capped-nowhere passthrough of the raw
-// digits, unformatted.
-const MASK_TABLE: Partial<Record<InputMaskType, Record<string, MaskDefinition>>> = {
-  taxId: {
-    BR: { maxDigits: 11, format: formatCpf },
-    US: { maxDigits: 9, format: formatSsn },
-  },
-  postalCode: {
-    BR: { maxDigits: 8, format: formatCep },
-    US: { maxDigits: 5, format: formatZip },
-  },
-  phone: {
-    BR: { maxDigits: 11, format: formatPhoneBr },
-  },
-};
+// digits, unformatted. Nested `Map`s (not `Record`s) — avoids a dynamic-key object-injection lint
+// warning on the lookup below.
+const MASK_TABLE = new Map<InputMaskType, Map<string, MaskDefinition>>([
+  [
+    'taxId',
+    new Map([
+      ['BR', { maxDigits: 11, format: formatCpf }],
+      ['US', { maxDigits: 9, format: formatSsn }],
+    ]),
+  ],
+  [
+    'postalCode',
+    new Map([
+      ['BR', { maxDigits: 8, format: formatCep }],
+      ['US', { maxDigits: 5, format: formatZip }],
+    ]),
+  ],
+  ['phone', new Map([['BR', { maxDigits: 11, format: formatPhoneBr }]])],
+]);
 
 function definitionFor(
   mask: InputMaskType,
   country: string | null | undefined,
 ): MaskDefinition | null {
-  return MASK_TABLE[mask]?.[country ?? ''] ?? null;
+  return MASK_TABLE.get(mask)?.get(country ?? '') ?? null;
 }
 
 function formatByMask(

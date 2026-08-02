@@ -1,5 +1,36 @@
 # SPEC — bootstrap-profile-completion (frontend)
 
+> **Amendment (2026-08-02, product owner decision — RG removal):** per
+> `identity-profile-model-v2/SPEC.md`'s own 2026-08-02 RG-removal
+> amendment (LGPD data-minimization), `rg`/`rgOrgaoEmissor` are removed
+> entirely from this SPEC's mandatory field set, request body, and
+> screen — no field, no input, no display. This SPEC was implemented and
+> committed **today**, before this decision (commit `90777be`), with
+> REQ-3 explicitly listing RG and RG issuing body as mandatory; that
+> requirement (and every acceptance criterion/DTO reference built on it)
+> is struck through and marked **~~(superseded 2026-08-02 — RG removed)~~**
+> rather than deleted, per this repo's "collected, then removed"
+> traceability discipline — this is now a PLAN/TASKS-level follow-up
+> (out of scope for this pass) to actually remove the already-shipped RG
+> inputs from the implemented screen.
+
+> **Amendment (2026-08-02, product owner decision, direct instruction —
+> birth_date removal):** in the same live conversation as the RG
+> decision above, the product owner directly instructed: "tira data de
+> nascimento também" (take out birth date too), per
+> `identity-profile-model-v2/SPEC.md`'s own companion amendment (same
+> date, same reasoning). `birthDate` is removed entirely from this
+> SPEC's mandatory field set, request body, and screen — no field, no
+> input, no display. This SPEC was implemented and committed **today**,
+> before this decision (commit `90777be`), with REQ-3 explicitly listing
+> `birthDate` as mandatory alongside `fullName`/`cpf`/RG; that
+> requirement (and every acceptance criterion/DTO reference built on it)
+> is struck through and marked **~~(superseded 2026-08-02 — birth_date
+> removed)~~**, same traceability discipline as RG — this is likewise a
+> PLAN/TASKS-level follow-up (out of scope for this pass) to actually
+> remove the already-shipped `birthDate` input from the implemented
+> screen.
+
 > **Amendment (2026-08-02, product owner decision):** this SPEC's
 > non-functional requirements originally carried over `user-profile-v2`'s
 > "no CPF/RG format/checksum validation, no masked input" line verbatim.
@@ -8,7 +39,11 @@
 > new REQ-15 below. Client-side format/checksum *validation* remains out
 > of scope here; the backend (`identity-profile-model-v2/SPEC.md`'s
 > REQ-4a) normalizes and, for `cpf` only, checksum-validates every field
-> this screen submits, regardless of what this screen sends.
+> this screen submits, regardless of what this screen sends. **(RG struck
+> from this line 2026-08-02, same day, second amendment — RG removed
+> entirely, see amendment above.)** `birthDate` was never a masked
+> field, so it is unaffected by this particular amendment — its removal
+> is covered entirely by the birth_date-removal amendment above.
 
 > The what and the why. No technical implementation details.
 
@@ -56,8 +91,10 @@ reactively via a 409.
 **This SPEC does not reopen any backend rule.** The mandatory field set,
 the "no approval needed, self-only, one-time" nature of this endpoint,
 and the full-block allowlist are all carried over verbatim from
-`mandatory-complete-profile/SPEC.md` — only screen layout, form
-structure, and client-side flow are this SPEC's own judgment calls.
+`mandatory-complete-profile/SPEC.md` (as amended 2026-08-02 to remove RG
+and, separately, `birth_date` — see amendments at top of this SPEC) —
+only screen layout, form structure, and client-side flow are this
+SPEC's own judgment calls.
 
 **API contract (read-only reference, not re-litigated here):**
 
@@ -72,13 +109,20 @@ Request body (`MandatoryProfileFieldsDto`, all fields required except
 
 ```
 fullName: string
-birthDate: string (date)
+~~birthDate: string (date)~~
 cpf: string
-rg: string
-rgOrgaoEmissor: string
+~~rg: string~~
+~~rgOrgaoEmissor: string~~
 address: { cep, logradouro, numero?, complemento?, bairro, cidade, estado, pais }
 contacts: [{ type: 'PHONE'|'WHATSAPP'|'EMAIL'|'OTHER', value, label?, isPrimary }, ...]  // at least 1
 ```
+
+**(`rg`/`rgOrgaoEmissor` struck 2026-08-02 — RG removed entirely; see
+amendment at top of this SPEC. `birthDate` struck 2026-08-02 —
+birth_date removed entirely; see second amendment at top of this SPEC.
+The already-implemented screen currently still sends all three fields —
+removing them from the actual submitted payload/form is a PLAN/TASKS-
+level follow-up, out of scope for this SPEC amendment pass.)**
 
 Response on success: `UserProfileDto` — the same shape
 `ProfileService`'s existing `UserProfile` interface already models
@@ -94,10 +138,12 @@ there is nowhere else for the pending account to go.
 ## User stories
 
 - As the bootstrap `STAFF_ADMIN`, on my very first login, I want a clear
-  screen asking me to fill in my full profile (name, birth date, CPF,
-  RG, address, at least one contact) — not a generic profile page that
-  offers actions I can't actually use yet — so I understand what's
-  required and can get past it in one shot.
+  screen asking me to fill in my full profile (name, CPF, address, at
+  least one contact) — not a generic profile page that offers actions I
+  can't actually use yet — so I understand what's required and can get
+  past it in one shot. **(RG struck from this story 2026-08-02 — RG
+  removed entirely. `birth date` struck 2026-08-02 — birth_date removed
+  entirely.)**
 - As the bootstrap `STAFF_ADMIN`, I want to be sent to this screen
   automatically the moment I log in while my profile is still
   incomplete, not just after happening to trigger a 409 on some
@@ -108,11 +154,12 @@ there is nowhere else for the pending account to go.
 - As the bootstrap `STAFF_ADMIN`, if I submit an incomplete or invalid
   form, I want clear, field-level feedback — not a bare network-error
   screen — so I can fix it and resubmit without confusion.
-- **As the bootstrap `STAFF_ADMIN`, I want my CPF, RG, CEP, and phone
+- **As the bootstrap `STAFF_ADMIN`, I want my CPF, CEP, and phone
   number to display with the usual punctuation as I type**, matching the
   same masking behavior `user-profile-v2` gives every other user, rather
   than this one-time screen feeling less polished than the ordinary
-  profile form.
+  profile form. **(RG struck from this story 2026-08-02 — RG removed
+  entirely.)**
 
 ## Requirements (EARS/GEARS)
 
@@ -137,14 +184,28 @@ there is nowhere else for the pending account to go.
 
 ### The completion screen itself
 
-- **REQ-3 [Ubiquitous]** The completion screen shall present a form
+- **REQ-3 [Ubiquitous]** ~~The completion screen shall present a form
   collecting exactly the mandatory field set: full name, birth date,
   CPF, RG, RG issuing body (`rgOrgaoEmissor`), a structured address
   (`cep`/`logradouro`/`numero`/`complemento`/`bairro`/`cidade`/`estado`/
   `pais`, with `numero`/`complemento` optional and every other address
   field required), and a contacts list requiring at least one entry
   (`type`/`value`/`label`/`isPrimary`, one of `PHONE`/`WHATSAPP`/`EMAIL`/
-  `OTHER`).
+  `OTHER`).~~ **(superseded 2026-08-02 — RG removed)** ~~The completion
+  screen shall present a form collecting exactly the mandatory field
+  set: full name, birth date, CPF, a structured address
+  (`cep`/`logradouro`/`numero`/`complemento`/`bairro`/`cidade`/`estado`/
+  `pais`, with `numero`/`complemento` optional and every other address
+  field required), and a contacts list requiring at least one entry
+  (`type`/`value`/`label`/`isPrimary`, one of `PHONE`/`WHATSAPP`/`EMAIL`/
+  `OTHER`).~~ **(superseded 2026-08-02, same day, second amendment —
+  birth_date removed)** The completion screen shall present a form
+  collecting exactly the mandatory field set: full name, CPF, a
+  structured address (`cep`/`logradouro`/`numero`/`complemento`/
+  `bairro`/`cidade`/`estado`/`pais`, with `numero`/`complemento` optional
+  and every other address field required), and a contacts list requiring
+  at least one entry (`type`/`value`/`label`/`isPrimary`, one of
+  `PHONE`/`WHATSAPP`/`EMAIL`/`OTHER`).
 - **REQ-4 [Ubiquitous]** The completion screen shall present its
   requirement as mandatory, one-time, and self-completed — its copy
   shall not use `/profile`'s "pending approval"/"edit request" language,
@@ -205,7 +266,7 @@ there is nowhere else for the pending account to go.
 
 ### Masked input — display-only (added 2026-08-02, product owner decision)
 
-- **REQ-15 [Ubiquitous]** The `cpf`, `rg`, `cep` (within the structured
+- **REQ-15 [Ubiquitous]** The `cpf`, `cep` (within the structured
   address), and any contact entry whose `type` is `PHONE`/`WHATSAPP`
   shall apply the same mask-as-you-type display formatting specified in
   `user-profile-v2/SPEC.md`'s REQ-21 — reusing that shared sub-form
@@ -217,6 +278,11 @@ there is nowhere else for the pending account to go.
   constitute client-side format/checksum validation — the form does not
   block submission or show a validation error based on the mask or a
   checksum failing; that check is server-side only (REQ-8 above).
+  **(`rg` struck from this requirement 2026-08-02 — RG removed
+  entirely, matching `user-profile-v2/SPEC.md`'s own REQ-21 narrowing on
+  the same date. `birthDate` was never a masked field, so it is
+  unaffected here — its removal is covered entirely by the
+  birth_date-removal amendment at the top of this SPEC.)**
 
 ## Non-functional requirements
 
@@ -230,17 +296,18 @@ there is nowhere else for the pending account to go.
   clear focus states, matching the bar already set for
   `user-profile-v2` (including its masking-related accessibility
   requirement).
-- Security: `cpf`/`rg` values are never logged to the browser console
+- Security: `cpf` values are never logged to the browser console
   and never appear in any client-side error message beyond naming the
-  field.
-- **No CPF/RG/CEP/phone format or checksum *validation* on the
+  field. (`rg` struck 2026-08-02 — RG removed entirely.)
+- **No CPF/CEP/phone format or checksum *validation* on the
   frontend** — masking (REQ-15) is display-only and does not imply or
   require validation; the frontend never blocks submission based on
   checksum correctness. **Amended 2026-08-02:** the earlier "no masked
   input" wording is reversed (see REQ-15) — only client-side
   format/checksum *validation* and CEP-to-address autofill/lookup remain
   out of scope, matching `user-profile-v2`'s identical, already-amended
-  scope discipline.
+  scope discipline. **(`RG` struck from this line 2026-08-02, same day,
+  second amendment — RG removed entirely.)**
 - This screen is reachable only by a session whose `pendingProfileCompletion`
   is (or was) `true` — it performs no authorization check of its own
   beyond calling the backend endpoint, which independently re-enforces
@@ -253,10 +320,19 @@ there is nowhere else for the pending account to go.
       anything else renders.
 - [ ] A 409 `PROFILE_COMPLETION_REQUIRED` anywhere in the app navigates
       to the completion screen, not the generic `/profile` page.
-- [ ] The completion screen renders the full mandatory field set
+- [ ] ~~The completion screen renders the full mandatory field set
       (name, birth date, CPF, RG, RG issuing body, structured address,
       contacts with a minimum of one entry) with no avatar-upload
-      control and no navigation to other parts of the app.
+      control and no navigation to other parts of the app.~~
+      **(superseded 2026-08-02 — RG removed)** ~~The completion screen
+      renders the full mandatory field set (name, birth date, CPF,
+      structured address, contacts with a minimum of one entry) with no
+      avatar-upload control and no navigation to other parts of the
+      app.~~ **(superseded 2026-08-02, same day, second amendment —
+      birth_date removed)** The completion screen renders the full
+      mandatory field set (name, CPF, structured address, contacts with
+      a minimum of one entry) with no avatar-upload control and no
+      navigation to other parts of the app.
 - [ ] Submitting with any required field (including zero contacts)
       empty is blocked client-side with field-level messages, no
       backend call made.
@@ -272,10 +348,24 @@ there is nowhere else for the pending account to go.
 - [ ] `email` is shown read-only if at all, never editable, never
       submitted.
 - [ ] Typing into the `cpf`, `cep`, and phone-type contact fields shows
-      standard mask punctuation live; `rg` shows a best-effort digit
-      grouping. The submitted payload is unmasked/plain in every case.
+      standard mask punctuation live. The submitted payload is
+      unmasked/plain in every case. **(The former "`rg` shows a
+      best-effort digit grouping" clause is struck 2026-08-02 — RG
+      removed entirely.)**
 - [ ] Masking never blocks submission and never triggers a client-side
       validation error on its own.
+- [ ] No `rg`/`rgOrgaoEmissor` field, input, or display exists anywhere
+      on this screen, and neither is sent in the `POST
+      /api/users/me/profile/complete` request body. (Added 2026-08-02 —
+      this is a PLAN/TASKS-level follow-up against the
+      already-implemented screen, not yet satisfied as of this
+      amendment.)
+- [ ] No `birthDate` field, input, or display exists anywhere on this
+      screen, and it is not sent in the `POST
+      /api/users/me/profile/complete` request body. (Added 2026-08-02 —
+      this, too, is a PLAN/TASKS-level follow-up against the
+      already-implemented screen, not yet satisfied as of this
+      amendment.)
 - [ ] `npm run format:check && npm test && npm run build && npm run lint`
       all pass.
 
@@ -285,7 +375,8 @@ there is nowhere else for the pending account to go.
   validation, encryption/blind-index handling, or the two-mechanism
   design (`mandatory-complete-profile` owns all of that, untouched
   here) — this includes the normalization/CPF-checksum mechanics added
-  by that SPEC's own 2026-08-02 amendment; this screen only submits
+  by that SPEC's own 2026-08-02 amendment, and the RG-removal and
+  birth_date-removal decisions themselves; this screen only submits
   values and displays whatever 400 message the backend returns, it does
   not re-implement or duplicate that logic.
 - Any change to `staff-user-provisioning`'s or `TenantService.addMember`'s
@@ -308,9 +399,21 @@ there is nowhere else for the pending account to go.
 - Retrofitting `staff-bootstrap-user`'s migration or any pre-existing
   incomplete account created before this feature shipped — same
   exclusion `mandatory-complete-profile`'s own SPEC already carries.
-- Client-side CPF/RG/CEP/phone format/checksum *validation* — unchanged
+- Client-side CPF/CEP/phone format/checksum *validation* — unchanged
   exclusion; only masked *display* (REQ-15) was ever reopened by the
-  2026-08-02 amendment.
+  2026-08-02 amendment. (`RG` struck 2026-08-02, same day, second
+  amendment — RG removed entirely.)
+- **`rg`/`rgOrgaoEmissor` as fields anywhere on this screen** (added
+  2026-08-02, product owner decision — LGPD data-minimization; see
+  amendment at top of this SPEC). Actually removing the already-
+  implemented RG inputs from the shipped screen/DTO usage is a
+  PLAN/TASKS-level follow-up, not performed by this SPEC amendment pass.
+- **`birthDate` as a field anywhere on this screen** (added 2026-08-02,
+  product owner decision, direct instruction — LGPD data-minimization;
+  see second amendment at top of this SPEC). Actually removing the
+  already-implemented `birthDate` input from the shipped screen/DTO
+  usage is likewise a PLAN/TASKS-level follow-up, not performed by this
+  SPEC amendment pass.
 
 ## Judgment calls (Tier 2 — flag before PLAN.md work starts if any should be reconsidered)
 
@@ -341,3 +444,18 @@ there is nowhere else for the pending account to go.
    as judgment call 1's general "reuse shared sub-form pieces" policy;
    whatever mask directive/pipe PLAN.md for `user-profile-v2` settles on
    is the one this screen imports, not a duplicate.
+5. **RG removal (2026-08-02) is stated as a requirement here but not yet
+   implemented against the already-shipped screen** — this SPEC
+   amendment pass only updates the SPEC document per the user's explicit
+   instruction to defer PLAN/TASKS work; the actual removal of RG
+   inputs/DTO fields from the committed `90777be` implementation is a
+   follow-up PLAN/TASKS update, tracked via the struck-through
+   acceptance criterion above.
+6. **birth_date removal (2026-08-02, direct instruction, same day as the
+   RG removal) is treated exactly the same way as judgment call 5** —
+   stated as a requirement here but not yet implemented against the
+   already-shipped screen; the actual removal of the `birthDate`
+   input/DTO field from the committed `90777be` implementation is a
+   follow-up PLAN/TASKS update, tracked via its own struck-through
+   acceptance criterion above.
+</content>

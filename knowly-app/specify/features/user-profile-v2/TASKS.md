@@ -222,3 +222,103 @@
       during implementation; update `PROJECT_STATUS.md` noting
       REQ-21/22/23 shipped and that `bootstrap-profile-completion`
       inherits this masking automatically via the shared component.
+
+## Amendment — country-agnostic identity/address model (2026-08-02)
+
+> Delta only, per PLAN.md's matching amendment section. **Task 42 is a
+> hard gate: do not start task 43+ until `identity-profile-model-v2`'s
+> backend amendment (that feature's TASKS.md task 37) is confirmed
+> frozen.**
+
+- [x] 42. Confirm `identity-profile-model-v2`'s backend amendment DTO
+      shapes (`taxId`, `countryCode`, restructured `AddressDto`) are
+      frozen/shipped before proceeding — per this PLAN's own sequencing
+      dependency note. **Note:** proceeded against the applied migration
+      files (`V26__remove_rg_and_birth_date_fields.sql`/
+      `V27__country_agnostic_identity_address.sql`) and the backend
+      PLAN's amendment text as ground truth, per explicit direction —
+      the backend implementation was still in progress concurrently
+      when this frontend work landed, so `knowly-api`'s DTOs weren't
+      yet renamed in its working tree. No file conflicts, disjoint
+      subprojects.
+- [x] 43. Write `country-field-config.spec.ts` asserting `BR`/`US`/`GB`
+      lookups return their documented labels/masks and an unknown code
+      falls back to `DEFAULT` (Red); write
+      `shared/country-field-config.ts` (Green).
+- [x] 44. Update `core/profile.service.ts`'s `Address`/`ProfileFields`
+      interfaces to the new shape (`addressLine1`/`addressLine2`/
+      `city`/`stateRegion`/`postalCode`/`countryCode`; `taxId` renamed
+      from `cpf`; new `countryCode` on `ProfileFields`); update
+      `profile.service.spec.ts` fixtures accordingly (Red/Green).
+- [x] 45. Extend `InputMaskDirective`/`formatMaskedValue` with a
+      `country` parameter, looking up the mask pattern via a small
+      `(mask, country)` pattern table instead of a hardcoded Brazilian
+      pattern (Red: `BR`+`taxId` still masks per the existing
+      regression fixtures; `GB`+`postalCode`, no mask defined, passes
+      the raw value through unmasked; Green: implementation). Renamed
+      the mask keys `'cpf'`/`'cep'` → `'taxId'`/`'postalCode'`
+      throughout. **Deviation (Tier 2):** the table is nested `Map`s,
+      not `Record`s (avoids an ESLint `security/detect-object-injection`
+      warning on dynamic-key lookups); also added a concrete US
+      `SSN`/`ZIP` pattern, matching `CountryFieldConfig`'s `US` entry
+      having `hasTaxIdMask`/`hasPostalCodeMask: true`.
+- [x] 46. Write `phone-ddi-input.component.spec.ts` — folded into
+      `profile-fields-form.component.spec.ts`'s "phone/WhatsApp contact
+      rows" + "submitting a mix of..." describe blocks (covers render,
+      compose-on-change, and round-trip through the shared form, which
+      is `PhoneDdiInputComponent`'s only real consumer) rather than a
+      separate top-level spec file duplicating the same assertions
+      (Red/Green); implement `shared/phone-ddi-input.component.ts`
+      (Green). **Deviation (Tier 2, bugfix caught during TDAD):** the
+      naive "always resync `ddi`/`number` from the parent's round-
+      tripped `value`" effect fought a manually-typed DDI whose digit
+      length differs from `ddiLengthFor(countryCode)`'s guess — same
+      class of self-fighting bug the masking directive's
+      `formatMaskedValue` fix already worked around. Fixed by tracking
+      `lastEmitted` and skipping the resync when the incoming `value`
+      is this component's own last emission (not a genuinely external
+      change).
+- [x] 47. Update `profile-fields-form.component.spec.ts`: existing
+      `cpf`/`cep`-labeled assertions renamed to `taxId`/`postalCode`;
+      old 8-field address assertions replaced with the new 6-field
+      shape (Red); update `shared/profile-fields-form.component.ts`'s
+      template/fields accordingly (Green).
+- [x] 48. Add the `countryCode` `<select>` to
+      `ProfileFieldsFormComponent`, wired to
+      `CountryFieldConfig`-driven labels for `taxId`/`postalCode`/
+      address-line fields (Red: selecting a different `countryCode`
+      updates labels/mask behavior live, no reload; Green:
+      implementation). **Deviation (Tier 2, bugfix):** a plain
+      `[value]` binding on the `<select>` silently failed to select the
+      matching `<option>` in tests (Angular evaluates the select's own
+      property binding before its `@for`-generated `<option>` children
+      exist in the DOM on the very first change-detection pass) — fixed
+      by binding `[selected]` per-`<option>` instead of `[value]` on
+      the `<select>` itself.
+- [x] 49. Wire `PhoneDdiInputComponent` into the contacts list editor,
+      conditionally per row on `type === 'PHONE' || type === 'WHATSAPP'`
+      (Red: a `PHONE`/`WHATSAPP` row shows the DDI+number inputs, an
+      `EMAIL`/`OTHER` row shows the plain value input; Green:
+      implementation).
+- [x] 50. Confirm/extend `own-profile-page.component.spec.ts`,
+      `profile-section.component.spec.ts`,
+      `profile-edit-requests-inbox-page.component.spec.ts` for the
+      renamed/restructured fields (regression pass — no new behavior
+      expected beyond the field-shape rename in these three). Also
+      updated `tenant-creation`'s already-shipped
+      `tenant-create-page.component.ts`/`active-tenant.service.ts`
+      (first-admin's `MandatoryProfileFieldsDto`-mirroring
+      `CreateTenantProfile` shape) and `bootstrap-profile-completion`'s
+      `complete-profile-page.component.ts`, since both consume the same
+      renamed/restructured field set — not originally listed as a task
+      here but required by the same rename to keep the app buildable.
+- [x] 51. Run `npm run format:check && npm test && npm run build &&
+      npm run lint` and confirm everything is green, including every
+      pre-existing masking/contacts test from the prior amendment.
+      623/623 tests green, `format:check`/`build`/`lint` all clean.
+- [x] 52. Update `PLAN.md`'s amendment section for any decision that
+      changed during implementation (especially the DDI-length
+      heuristic in `PhoneDdiInputComponent`, if it proves inadequate);
+      update `PROJECT_STATUS.md` noting this amendment shipped and that
+      `bootstrap-profile-completion`'s shared-component reuse inherits
+      the new fields automatically.

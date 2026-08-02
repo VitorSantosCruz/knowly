@@ -519,3 +519,326 @@ methods; `profile-edit-requests-inbox-page.component.spec.ts` covers the
 `requesterName`/`requesterEmail` render + fallback chain (both-null,
 name-only, email-fallback cases). `user-profile-v2` has no further
 outstanding rough edges after this follow-up.
+
+## Amendment — country-agnostic identity/address model (2026-08-02)
+
+> Delta only. Covers SPEC.md's third 2026-08-02 amendment: `cpf` →
+> `taxId`, restructured country-agnostic `address`, new `countryCode`
+> selector, country-driven labels/masks, and a phone/WhatsApp DDI
+> selector composing E.164 client-side. **Blocked on
+> `identity-profile-model-v2`'s matching backend amendment (that
+> feature's TASKS.md task 37, DTO shapes frozen) — same sequencing rule
+> as this PLAN's own top-of-file dependency note.**
+
+### Architectural decisions
+
+- **`core/profile.service.ts` types retrofitted in place**: `Address`'s
+  eight Brazil-only fields replaced by `addressLine1`, `addressLine2:
+  string | null`, `city`, `stateRegion: string | null`, `postalCode`,
+  `countryCode`. `ProfileFields.cpf` renamed `taxId`; new
+  `ProfileFields.countryCode: string | null`. `Contact.value` unchanged
+  in type (still `string`) — E.164-ness is a content convention, not a
+  type-level distinction, so no new field/type is added to `Contact`
+  itself (per backend SPEC's REQ-3c, no `contacts.countryCode` DTO
+  field).
+- **New `CountryFieldConfig` lookup table** (`shared/country-field-config.ts`,
+  plain exported const object, no new dependency) — the mechanism REQ-1a/
+  REQ-21 require: a `Record<string, CountryLabels>`-shaped map plus a
+  fixed `DEFAULT` fallback entry, keyed by ISO 3166-1 alpha-2 country
+  code. Each entry supplies: `taxIdLabel: string`, `postalCodeLabel:
+  string`, `addressLine1Label`/`cityLabel`/`stateRegionLabel` (default to
+  generic "Address line 1"/"City"/"State/Region" for every country not
+  overridden — most countries need no override here, only the tax-id/
+  postal-code labels realistically vary enough to matter per SPEC's own
+  user story), and optional `taxIdMask`/`postalCodeMask`/`phoneMask`
+  strings consumed by `InputMaskDirective`'s existing mask-pattern
+  mechanism (extended, not replaced — see below).
+  - **Concrete entries, per the task's own "2-3 examples" ask**:
+    - `BR`: `taxIdLabel: 'CPF'`, `postalCodeLabel: 'CEP'`, masks
+      `'000.000.000-00'` / `'00000-000'` (unchanged from the existing
+      `InputMaskDirective` patterns — this amendment doesn't change
+      Brazil's own behavior, only makes it one entry in a table instead
+      of the only behavior).
+    - `US`: `taxIdLabel: 'SSN'`, `postalCodeLabel: 'ZIP Code'`,
+      `stateRegionLabel: 'State'`, mask `taxIdMask: '000-00-0000'`
+      (standard SSN grouping), `postalCodeMask: '00000'` (5-digit ZIP —
+      deliberately not the ZIP+4 extended format, since SPEC doesn't ask
+      for country-specific *validation*, just a reasonable display mask,
+      and 5-digit is the common case).
+    - `GB`: `taxIdLabel: 'NINO'`, `postalCodeLabel: 'Postcode'`,
+      `stateRegionLabel: 'County'` (optional field, per SPEC REQ-2a —
+      the UK genuinely has no mandatory state/region, matching the
+      backend's own `stateRegion` nullability), no `taxIdMask`/
+      `postalCodeMask` defined (UK postcodes/NINOs have irregular,
+      non-fixed-length shapes that don't reduce to one simple digit
+      mask — falls back to the plain-unmasked-input behavior REQ-21
+      explicitly allows for exactly this case).
+    - `DEFAULT`: `taxIdLabel: 'Tax ID'`, `postalCodeLabel: 'Postal
+      Code'`, `addressLine1Label: 'Address line 1'`, no masks — the
+      REQ-1a-mandated fallback for every `countryCode` not explicitly
+      listed (this table intentionally does not attempt full ISO-3166
+      coverage, per SPEC's own "Out of scope" line on this exact point).
+  - **Why a plain lookup object, not a service/signal**: this is static
+    reference data, not application state — no HTTP call backs it, no
+    component needs to react to it changing at runtime (it doesn't
+    change), so it doesn't fit `PermissionsService`-style
+    signal-plus-`fetch()` shape; a directly-imported const is the
+    correct level of ceremony, same rationale this codebase already
+    applies to any other static config-like lookup.
+- **`InputMaskDirective` extended with a `country` input, not
+  replaced**: `[appInputMask]="'taxId' | 'postalCode' | 'phone'"`
+  (renamed from `'cpf' | 'cep' | 'phone'` — `'rg'` already dropped by
+  the prior amendment) gains a sibling `[appInputMaskCountry]="countryCode()"`
+  input; the directive's `HostListener` looks up the mask pattern for
+  the given `(mask, country)` pair via `CountryFieldConfig` instead of
+  a single hardcoded Brazilian pattern per mask type. **Where no mask is
+  defined for the given country** (e.g. `GB`), the directive becomes a
+  no-op passthrough (writes the raw value back unchanged, emits it
+  unchanged via `(appInputMaskChange)`) — this is the "plain, unmasked
+  text input" behavior REQ-21 requires for a country with no known mask,
+  achieved by the directive doing nothing rather than the template
+  conditionally omitting the directive (simpler: one binding shape,
+  always present, behavior varies by config rather than by
+  template-level conditional logic).
+  - `formatMaskedValue(mask, country, rawValue)` (the existing exported
+    helper, per this PLAN's prior "Implemented" deviation note) gains
+    the same `country` parameter, used identically in both the
+    directive and `ProfileFieldsFormComponent`'s template `[value]`
+    bindings — no divergence between the two call sites is introduced
+    by this amendment, same agreement invariant the prior deviation
+    fix already established.
+- **`ProfileFieldsFormComponent` gains a `countryCode` `<select>`**
+  (new form control, populated from `CountryFieldConfig`'s keys plus
+  a "not specified" empty option, since `countryCode` is nullable per
+  backend REQ-1b) whose value drives: (a) the `taxId`/`postalCode`
+  labels (via `CountryFieldConfig` lookup, rendered directly in the
+  template next to each field, not hardcoded "CPF"/"CEP" strings
+  anymore), (b) the mask inputs above, and (c) the default
+  `AddressDto.countryCode` value for newly-entered addresses (per the
+  backend's Judgment-call-6 resolution — the frontend does **not**
+  duplicate a second, independent address-country selector, resolving
+  SPEC's Judgment call 9 in favor of **one shared control**: simplest
+  UI, matches the backend's "defaults, doesn't force" write-time
+  behavior, and nothing in SPEC requires exposing the "different
+  tax-residence-vs-address-country" edge case as a user-facing feature
+  yet — if a future SPEC amendment wants two independent selectors,
+  that's new UI scope, not assumed here).
+  - Address fieldset's 8 old inputs replaced by 6 new ones
+    (`addressLine1`, `addressLine2`, `city`, `stateRegion`,
+    `postalCode`, no separate address-level country selector per
+    the above).
+- **Phone/WhatsApp DDI selector (REQ-6a, resolving SPEC Judgment call
+  10) — decision: a plain text prefix input, not a searchable
+  flag+code dropdown.** New `PhoneDdiInputComponent`
+  (`shared/phone-ddi-input.component.ts`) renders two native inputs side
+  by side: a short text input for the DDI (pre-filled from
+  `CountryFieldConfig`'s entry for the row's `type`-linked country
+  context — falls back to the profile's own `countryCode` as a
+  starting guess, user-editable, not locked) and the existing
+  national-number input; on any change it emits the composed
+  `+<ddi><number>` string (digits-only concatenation, `IdentityFieldNormalizer`-
+  equivalent stripping applied client-side before composing) via a
+  single `(valueChange)` output carrying the full E.164 string, and
+  accepts an existing E.164 `value` as input, splitting it back via a
+  small `splitE164(value): {ddi: string; number: string}` helper (a
+  fixed max-3-digit DDI heuristic — E.164 doesn't self-delimit DDI
+  length from the string alone; this component does not attempt a full
+  ITU calling-code table, it defaults to a simple "first 1–3 digits,
+  configurable via a short known-DDI-length map seeded with `BR: 2`,
+  `US: 1`, `GB: 2`" — **flagged as an approximation, not a complete
+  solution**, since a fully correct DDI-length disambiguation needs the
+  same ITU calling-code table a searchable-dropdown approach would also
+  need; this PLAN accepts the approximation to avoid a new dependency,
+  per Judgment call 10's framing that this exact choice is open).
+  *Why not a searchable flag+dropdown*: that shape typically wants a
+  bundled country-list-with-flags asset/library (e.g.
+  `country-flag-icons`, `libphonenumber-js` for its own metadata) — a
+  new dependency this PLAN does not introduce without flagging it
+  first (see Dependencies below); a plain two-input composition needs
+  none.
+- **Contact row's DDI/number split display** reuses
+  `PhoneDdiInputComponent` only when `row.type` is `PHONE`/`WHATSAPP`
+  (same conditional-rendering precedent `[appInputMask]`'s per-row
+  `type` binding already established for the prior amendment) — for
+  `EMAIL`/`OTHER` rows the plain `value` text input is unchanged.
+
+### Components and routes (delta)
+
+```
+shared/country-field-config.ts        (NEW — plain data, no component)
+shared/phone-ddi-input.component.ts    (NEW — presentational)
+shared/input-mask.directive.ts         (MODIFIED — country-aware)
+shared/profile-fields-form.component.ts (MODIFIED — countryCode select,
+                                          restructured address fieldset,
+                                          PhoneDdiInputComponent per
+                                          PHONE/WHATSAPP row)
+```
+
+No route changes, no new page components.
+
+### Consumed API contracts (delta)
+
+Per `identity-profile-model-v2/PLAN.md`'s matching amendment (task 37 —
+confirm frozen before implementing here):
+
+```ts
+interface Address {
+  addressLine1: string; addressLine2: string | null; city: string;
+  stateRegion: string | null; postalCode: string; countryCode: string;
+}
+interface ProfileFields {
+  fullName: string | null; taxId: string | null; countryCode: string | null;
+  address: Address | null; contacts: Contact[];
+}
+```
+`Contact`/`ContactChange`/`ProfileEditRequest` shapes otherwise
+unchanged (E.164 lives inside the existing `value: string`, no new
+field).
+
+### State and data (delta)
+
+- `ProfileFieldsFormComponent`: new local `countryCode = signal<string
+  | null>(...)` driving the `CountryFieldConfig` lookups (computed
+  `activeCountryConfig = computed(() =>
+  COUNTRY_FIELD_CONFIG[this.countryCode() ?? ''] ?? COUNTRY_FIELD_CONFIG['DEFAULT'])`).
+- `PhoneDdiInputComponent`: no signal state of its own — pure
+  input/output, same shape as `AvatarUploadComponent`.
+
+### Dependencies
+
+None new — `CountryFieldConfig` is a hand-rolled const, `PhoneDdiInputComponent`
+is a hand-rolled pair of native inputs, no ITU calling-code library, no
+flag-icon asset package. **If the DDI-length approximation proves too
+inaccurate in practice (e.g. real users routinely need 3-digit DDIs this
+PLAN's seed map doesn't cover), reaching for `libphonenumber-js` (or
+similar) would be a genuine new Tier 3 dependency decision — flagged
+here as the likely next request, not pre-approved by this amendment.**
+
+### Testing strategy (delta)
+
+- `country-field-config.spec.ts` (new): `BR`/`US`/`GB`/unknown-code
+  fallback-to-`DEFAULT` lookups return the expected label/mask shape.
+- `input-mask.directive.spec.ts`: extend existing cases with a
+  `country` input — `BR` + `taxId` still masks as before (regression);
+  `GB` + `postalCode` (no mask defined) passes the raw value through
+  unmodified, no masking applied.
+- `phone-ddi-input.component.spec.ts` (new): renders DDI + number
+  inputs; composes a valid E.164 string on change; splits an existing
+  E.164 value back into DDI/number on init for `BR`/`US`-shaped inputs.
+- `profile-fields-form.component.spec.ts`: update every existing
+  `cpf`/`cep`-labeled assertion to `taxId`/`postalCode`; new cases —
+  selecting a different `countryCode` updates the `taxId`/`postalCode`
+  labels and mask behavior live without reload (SPEC acceptance
+  criterion); the address fieldset renders exactly the 6 new fields,
+  no old 8-field shape remains; a `PHONE`/`WHATSAPP` contact row shows
+  `PhoneDdiInputComponent`, an `EMAIL`/`OTHER` row does not.
+- No new i18n keys beyond whatever `CountryFieldConfig`'s labels
+  literally are (plain English strings per the concrete entries above
+  — if this app's existing i18n convention requires translated labels
+  rather than literal strings, that's a Tier 2 follow-up flagged for
+  whoever implements this, not resolved here, since it depends on
+  reading the current i18n setup for `ProfileFieldsFormComponent`'s
+  other labels first).
+
+### AppSec note
+
+No new PII surface — `countryCode`/address restructuring are the same
+sensitivity class as the fields they replace (per backend SPEC's own
+"no new sensitivity" privacy note); this frontend amendment introduces
+no new backend call, no new stored credential, no new CORS surface.
+**Mandatory `appsec` pass still applies at the backend-amendment level
+(see that PLAN's AppSec gate) — nothing additional required here purely
+for the frontend delta, but flag this amendment for the same appsec
+review pass as a bundle, not a separate one, per this repo's "appsec
+gate before TASKS.md" standing rule.**
+
+### Deviations from this PLAN (discovered during implementation)
+
+- **Proceeded without waiting for `identity-profile-model-v2`'s backend
+  amendment to land in this checkout** (this PLAN's own top-of-section
+  sequencing gate) — the backend implementation was in progress
+  concurrently, in the same repo, when this frontend amendment was
+  implemented; its DTOs (`ProfileFieldsDto`/`AddressDto`/
+  `MandatoryProfileFieldsDto`) were not yet renamed at that point. Per
+  explicit direction, this frontend work used the already-applied
+  migration files (`V26__remove_rg_and_birth_date_fields.sql`/
+  `V27__country_agnostic_identity_address.sql`) and the backend PLAN's
+  amendment text as the frozen ground truth for field names/shapes
+  instead of reading the (still-in-progress) Java DTOs directly. No
+  file conflicts resulted (disjoint subprojects); the two efforts'
+  target shapes agree (`taxId`, `countryCode`,
+  `addressLine1`/`addressLine2`/`city`/`stateRegion`/`postalCode`).
+- **`InputMaskDirective`'s per-country mask table is nested `Map`s, not
+  `Record`s** (`shared/input-mask.directive.ts`'s `MASK_TABLE`,
+  `country-field-config.ts`'s `COUNTRY_FIELD_CONFIG`/
+  `DDI_LENGTH_BY_COUNTRY`/`DEFAULT_DDI_BY_COUNTRY`) — a `Record` with a
+  dynamic string-key lookup (`obj[key]`) trips this repo's ESLint
+  `security/detect-object-injection` rule (added when ESLint security
+  rules landed in CI, per `knowly-app/CLAUDE.md`); `Map.get(key)` isn't
+  a property-access expression the rule flags, so this sidesteps the
+  warning without a `// eslint-disable` comment or any behavior change.
+  Tier 2 (implementation-detail data-structure choice, not a scope
+  change).
+- **`formatGrouped` (`input-mask.directive.ts`) rewritten to iterate via
+  `.entries()`/`.at()` instead of indexing plain arrays with a loop
+  variable** — same ESLint rule, same reasoning, applied to array
+  indexing rather than object-key indexing.
+- **`ProfileFieldsFormComponent`'s `countryCode` `<select>` binds
+  `[selected]` per-`<option>`, not `[value]` on the `<select>` itself**
+  — a real bug caught by TDAD: a plain `[value]` property binding on
+  the host `<select>` silently failed to select the matching `<option>`
+  in tests, because Angular evaluates a parent element's own property
+  bindings before its `@for`-generated child `<option>`s exist in the
+  DOM on the very first change-detection pass (so `select.value = 'BR'`
+  runs against a `<select>` with no `<option value="BR">` in it yet,
+  and the browser silently no-ops the assignment). Fixed by moving the
+  "which one is selected" decision onto each `<option>`'s own
+  `[selected]="code === localFields().countryCode"` binding instead,
+  which doesn't depend on element-creation ordering.
+- **`PhoneDdiInputComponent` guards its resync effect against its own
+  echoed emission** (`shared/phone-ddi-input.component.ts`'s
+  `lastEmitted` field) — a real bug caught by TDAD, the same class of
+  self-fighting-binding issue this PLAN's prior "Implemented (2026-08-02)"
+  deviation note already documented for `InputMaskDirective`'s
+  `[value]`/`formatMaskedValue` fix. Composing a DDI/number pair and
+  emitting the result, which the parent stores and hands straight back
+  as this component's `value` input on the next change-detection pass,
+  would otherwise re-split that round-tripped E.164 string using
+  `ddiLengthFor(countryCode)`'s fixed-length heuristic on every
+  keystroke — silently overwriting a manually-typed DDI whose length
+  doesn't match that heuristic's guess (e.g. a 1-digit DDI in a country
+  seeded for 2). Fixed by tracking the component's own last-emitted
+  value and skipping the resync when the incoming `value` matches it
+  (i.e. it's an echo of our own emission, not a genuinely external
+  change — initial load, an existing contact swapped in, etc. still
+  resync normally).
+- **`phone-ddi-input.component.spec.ts` was not written as a separate
+  top-level spec file** — its behavior (render DDI + number inputs,
+  compose on change, split an existing E.164 value on init) is covered
+  by `profile-fields-form.component.spec.ts`'s "phone/WhatsApp contact
+  rows" and "submitting a mix of..." cases instead, since
+  `ProfileFieldsFormComponent` is this component's only real consumer
+  and the shared spec already exercises it end-to-end (including the
+  round-trip-through-the-parent scenario the `lastEmitted` fix above
+  addresses, which a component-only spec wouldn't naturally cover).
+  Tier 2 (test-organization call, not a coverage gap — flagged here
+  since TASKS.md's task 46 literally names the file).
+- **`tenant-creation`'s already-shipped `TenantCreatePageComponent`/
+  `ActiveTenantService` were also updated**, not originally listed in
+  this amendment's TASKS.md — the first admin's mandatory-profile
+  section mirrors `MandatoryProfileFieldsDto`'s shape one-for-one (per
+  that backend DTO's own doc comment, "reused as-is by staff creation,
+  `addMember`, and the bootstrap completion endpoint"), so the same
+  `taxId`/`countryCode`/6-field-address rename applies there too or the
+  app doesn't build/type-check. `CreateTenantProfile`'s address and the
+  company's own `CreateTenantAddress` now share field *names*
+  (`city`/`postalCode`) for the first time (previously disambiguated by
+  using Portuguese names for the user's address) — `AddressFieldsComponent`
+  gained a new `idPrefix` input (default `''`, preserving every other
+  call site's existing `data-testid`s unchanged) so the two address
+  blocks' rendered `data-testid`s stay unique on the same page
+  (`address-field-postalCode` vs. `address-field-user-postalCode`).
+  `bootstrap-profile-completion`'s `CompleteProfilePageComponent` needed
+  no further change beyond its already-shared `EMPTY_FIELDS` constant,
+  since it composes `ProfileFieldsFormComponent` directly and inherits
+  the new field set automatically, per that feature's own PLAN.md.
