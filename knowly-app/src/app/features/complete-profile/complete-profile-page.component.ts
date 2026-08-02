@@ -1,14 +1,30 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { MandatoryProfileFields, ProfileFields, ProfileService } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
+import { getCountryFieldConfig } from '../../shared/country-field-config';
 import {
   ProfileFieldsFormComponent,
   ProfileFieldsFormSubmission,
 } from '../../shared/profile-fields-form.component';
+
+// Human-readable Transloco key per flat field name a backend field-error can name — mirrors the
+// labels the form itself renders (`profile.fields.*`), so the banner and the inline per-field
+// message agree with what the user sees on the input. `taxId` is handled separately (country-driven
+// CPF/SSN/NINO label, not a fixed Transloco string) — see `fieldLabel()` below. A `Map`, not a plain
+// object, avoids a dynamic-key object-injection lint warning on the lookup (same reasoning as
+// `country-field-config.ts`'s `COUNTRY_FIELD_CONFIG`).
+const FIELD_LABEL_KEYS = new Map<string, string>([
+  ['fullName', 'profile.fields.fullName'],
+  ['address.addressLine1', 'profile.fields.address.addressLine1'],
+  ['address.addressLine2', 'profile.fields.address.addressLine2'],
+  ['address.city', 'profile.fields.address.city'],
+  ['address.stateRegion', 'profile.fields.address.stateRegion'],
+  ['address.postalCode', 'profile.fields.postalCodeGeneric'],
+]);
 
 // Same local shape `OwnProfilePageComponent` already defines — duplicated per that component's
 // own existing pattern (PLAN.md's "State and data" section), not extracted into a shared const.
@@ -64,7 +80,7 @@ interface BackendFieldError {
               <p>{{ 'completeProfile.fieldErrorsIntro' | transloco }}</p>
               <ul>
                 @for (field of errors; track field) {
-                  <li>{{ field }}</li>
+                  <li>{{ fieldLabel(field) }}</li>
                 }
               </ul>
             </div>
@@ -74,6 +90,7 @@ interface BackendFieldError {
             [fields]="formFields()"
             [requireAllFields]="true"
             [disabled]="submitting()"
+            [fieldErrors]="fieldErrors() ?? []"
             (submitted)="onSubmit($event)"
           />
         </div>
@@ -84,6 +101,7 @@ interface BackendFieldError {
 export class CompleteProfilePageComponent implements OnInit {
   private readonly profileService = inject(ProfileService);
   private readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly profile = signal<{ email: string } | null>(null);
   protected readonly formFields = signal<ProfileFields>(EMPTY_FIELDS);
@@ -144,6 +162,17 @@ export class CompleteProfilePageComponent implements OnInit {
           }
 
           if (err.status === 400) {
+            // Bugfix (2026-08-02): `INVALID_CPF` is the checksum-failure code the backend actually
+            // sends for this endpoint (`IdentityExceptionHandler#handleInvalidCpf`) — a plain
+            // `{ code }` body, no `errors` array — so it never matched the generic mapping below
+            // and always fell through to the `'unknown'` fallback. Mirrors `tenant-create`'s
+            // existing `INVALID_TAX_ID` handling for the CNPJ case.
+            const code = err.error?.code as string | undefined;
+            if (code === 'INVALID_CPF') {
+              this.fieldErrors.set(['taxId']);
+              return of(null);
+            }
+
             // Only derived field *names* are ever surfaced/logged — never the raw error body,
             // which may carry cpf/rg values (SPEC.md's security NFR, task 17a).
             const backendErrors = Array.isArray(err.error?.errors)
@@ -166,5 +195,18 @@ export class CompleteProfilePageComponent implements OnInit {
           this.router.navigateByUrl('/welcome');
         }
       });
+  }
+
+  // Bugfix (2026-08-02): resolves a flat field name (`'taxId'`, `'address.city'`, ...) into the
+  // human-readable label the form itself renders for that field, instead of the raw backend key
+  // (or the `'unknown'` fallback) previously shown verbatim in the banner. `taxId` is
+  // country-driven (CPF/SSN/NINO), same as `ProfileFieldsFormComponent`'s own label logic.
+  protected fieldLabel(field: string): string {
+    if (field === 'taxId') {
+      return getCountryFieldConfig(this.formFields().countryCode).taxIdLabel;
+    }
+
+    const key = FIELD_LABEL_KEYS.get(field);
+    return key ? this.transloco.translate(key) : field;
   }
 }

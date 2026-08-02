@@ -123,10 +123,41 @@ describe('CompleteProfilePageComponent', () => {
       '[data-testid="complete-profile-field-errors"]',
     );
     expect(errorEl).toBeTruthy();
-    expect(errorEl.textContent).toContain('taxId');
+    // Renders the human-readable, country-driven label (CPF for BR) instead of the raw
+    // backend field key.
+    expect(errorEl.textContent).toContain('CPF');
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-field-fullName"]').value,
     ).toBe('Jane Doe');
+  });
+
+  it('maps a 400 INVALID_CPF response onto the taxId field, not "unknown"', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    flushOwnProfile();
+    fixture.detectChanges();
+
+    submit();
+
+    httpMock
+      .expectOne('/api/users/me/profile/complete')
+      .flush({ code: 'INVALID_CPF' }, { status: 400, statusText: 'Bad Request' });
+    fixture.detectChanges();
+
+    const errorEl = fixture.nativeElement.querySelector(
+      '[data-testid="complete-profile-field-errors"]',
+    );
+    expect(errorEl).toBeTruthy();
+    expect(errorEl.textContent).not.toContain('unknown');
+    expect(errorEl.textContent).toContain('CPF');
+
+    // The offending input itself gets inline error styling/message too, not just the banner.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-field-taxId"]').className,
+    ).toContain('border-red-500');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-field-error-taxId"]'),
+    ).toBeTruthy();
   });
 
   it('never passes the raw error/body to any console.* call on a 400 response', async () => {
