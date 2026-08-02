@@ -277,6 +277,120 @@ class TenantDeleteIntegrationTest {
                 .isNotNull();
     }
 
+    // REQ-11: after soft-deletion, a member's switchActiveTenant and staff's act-as-tenant flow
+    // against that tenant id both -> 403, audited as DENIED (end to end through the
+    // controller/aspect -- confirms task 4's unit coverage holds through the full stack).
+
+    @Test
+    void memberCannotSwitchIntoASoftDeletedTenantAndTheAttemptIsAuditedAsDenied() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Switch Member Co"));
+        Tenant otherTenant = tenantRepository.saveAndFlush(new Tenant("Delete Switch Other Co"));
+        User member = userRepository.saveAndFlush(new User("delete-switch-member@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        // A second active membership keeps login's auto-select-single-tenant path from firing
+        // (which would itself hit the soft-deleted-tenant rejection during login, before this test
+        // gets to exercise the explicit switch attempt) -- login resolves to "selection pending"
+        // instead, then the test explicitly targets the soft-deleted tenant.
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, otherTenant, MembershipRole.MEMBER));
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+
+        Cookie session = logIn("delete-switch-member@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenant.getId() + "}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+
+        var events = auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(member.getId());
+        assertThat(events)
+                .anySatisfy(
+                        e -> {
+                            assertThat(e.getAction()).isEqualTo("tenant.active_tenant.switch");
+                            assertThat(e.getOutcome())
+                                    .isEqualTo(br.com.conectabyte.knowly.audit.AuditOutcome.DENIED);
+                        });
+    }
+
+    @Test
+    void staffCannotActAsASoftDeletedTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Switch Staff Co"));
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+        staffAdmin("delete-switch-staffadmin@example.com");
+        Cookie session = logIn("delete-switch-staffadmin@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenant.getId() + "}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    // REQ-12: a new tenant creation reusing a soft-deleted tenant's taxId succeeds, confirmed from
+    // the API layer (not just the migration's raw-SQL constraint test).
+
+    @Test
+    void creatingANewTenantWithASoftDeletedTenantsTaxIdSucceeds() {
+        String taxId = "EIN-REQ12-REUSE-" + System.nanoTime();
+        Tenant deleted = new Tenant("Old Closed Co");
+        deleted.setTaxId(taxId);
+        deleted.setCountry("US");
+        deleted.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(deleted);
+
+        staffAdmin("delete-req12@example.com");
+        Cookie session = logIn("delete-req12@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"name\":\"New Reonboarded Co\",\"legalName\":\"New Reonboarded"
+                                        + " Ltda\",\"taxId\":\""
+                                        + taxId
+                                        + "\",\"country\":\"US\",\"contactEmail\":\"contact@reonboarded.com\","
+                                        + "\"contactPhone\":\"11999999999\","
+                                        + "\"address\":{\"postalCode\":\"01000-000\",\"street\":\"Rua"
+                                        + " Um\",\"number\":\"1\",\"neighborhood\":\"Centro\","
+                                        + "\"city\":\"Sao Paulo\",\"state\":\"SP\"},"
+                                        + "\"adminEmail\":\"admin-reonboarded@example.com\","
+                                        + "\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
+                                        + "\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\","
+                                        + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua"
+                                        + " Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao"
+                                        + " Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                                        + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}"
+                                        + "}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(userRepository.findByEmailIgnoreCase("admin-reonboarded@example.com"))
+                .isPresent();
+    }
+
     @Test
     void everyDeletionAttemptIsAuditLogged() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Audit Flow Co"));

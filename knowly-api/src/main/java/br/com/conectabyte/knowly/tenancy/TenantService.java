@@ -295,7 +295,7 @@ public class TenantService {
             throw new TenantAlreadyExistsException();
         }
 
-        if (tenantRepository.existsByTaxId(request.taxId())) {
+        if (tenantRepository.existsByTaxIdAndDeletedAtIsNull(request.taxId())) {
             throw new TenantAlreadyExistsException();
         }
 

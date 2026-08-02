@@ -15,8 +15,12 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
 
     /**
      * REQ-4/REQ-5 (tenant-creation): proactive uniqueness check, see TenantService#createTenant.
+     * tenant-crud REQ-12: scoped to active (non-soft-deleted) tenants only -- the partial unique
+     * index (V25) already enforces this at the DB level, but this proactive check must mirror the
+     * same scope, or a soft-deleted tenant's taxId would still be rejected here before ever
+     * reaching the DB constraint.
      */
-    boolean existsByTaxId(String taxId);
+    boolean existsByTaxIdAndDeletedAtIsNull(String taxId);
 
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant to);
 
