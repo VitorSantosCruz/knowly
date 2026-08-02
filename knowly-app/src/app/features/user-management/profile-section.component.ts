@@ -45,14 +45,14 @@ type DetailError = 'network' | 'permission-denied' | null;
 
         @if (!editing()) {
           <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.fullName }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.rg }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.cpf }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.rgOrgaoEmissor }}</p>
-          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.birthDate }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.taxId }}</p>
+          <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.fields.countryCode }}</p>
           @if (profile.fields.address; as address) {
             <p class="text-sm text-ink-600 dark:text-ink-400">
-              {{ address.logradouro }}, {{ address.numero }} - {{ address.bairro }},
-              {{ address.cidade }}/{{ address.estado }} - {{ address.cep }} - {{ address.pais }}
+              {{ address.addressLine1 }}, {{ address.addressLine2 }} - {{ address.city }}/{{
+                address.stateRegion
+              }}
+              - {{ address.postalCode }} - {{ address.countryCode }}
             </p>
           }
           @for (contact of profile.fields.contacts; track contact.id) {

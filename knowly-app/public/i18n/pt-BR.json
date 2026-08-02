@@ -367,10 +367,6 @@
     "contactPhone": "Telefone de contato",
     "adminEmail": "Email de login do administrador",
     "fullName": "Nome completo",
-    "birthDate": "Data de nascimento",
-    "cpf": "CPF",
-    "rg": "RG",
-    "rgOrgaoEmissor": "Órgão emissor do RG",
     "role": "Papel",
     "roleMemberAdmin": "Administrador",
     "roleMember": "Membro",
@@ -383,7 +379,10 @@
       "complement": "Complemento",
       "neighborhood": "Bairro",
       "city": "Cidade",
-      "state": "Estado"
+      "state": "Estado",
+      "addressLine1": "Endereço linha 1",
+      "addressLine2": "Endereço linha 2",
+      "stateRegion": "Estado/Região"
     },
     "contacts": {
       "title": "Contatos",
@@ -394,7 +393,8 @@
     "submit": "Criar",
     "invalid": "Corrija os campos destacados.",
     "submitError": "Não foi possível criar o tenant. Verifique os dados e tente novamente.",
-    "taxIdConflict": "Este CNPJ/Tax ID já está em uso por outro tenant."
+    "taxIdConflict": "Este CNPJ/Tax ID já está em uso por outro tenant.",
+    "userTaxId": "CPF/Tax ID"
   },
   "profile": {
     "myProfile": "Meu perfil",
@@ -402,21 +402,10 @@
     "email": "E-mail",
     "fields": {
       "fullName": "Nome completo",
-      "rg": "RG",
-      "cpf": "CPF",
-      "rgOrgaoEmissor": "Orgao emissor do RG",
-      "birthDate": "Data de nascimento",
       "save": "Salvar",
       "address": {
         "title": "Endereco",
-        "cep": "CEP",
-        "logradouro": "Logradouro",
-        "numero": "Numero",
-        "complemento": "Complemento",
-        "bairro": "Bairro",
-        "cidade": "Cidade",
-        "estado": "Estado",
-        "pais": "Pais"
+        "addressLine2": "Endereço linha 2"
       },
       "contacts": {
         "title": "Contatos",
@@ -427,7 +416,9 @@
         "add": "Adicionar contato",
         "limitReached": "Voce pode adicionar ate 5 contatos.",
         "required": "Pelo menos um contato e obrigatorio."
-      }
+      },
+      "country": "País",
+      "countryNotSpecified": "Não especificado"
     },
     "pending": "Sua alteração de perfil está aguardando aprovação.",
     "alreadyPending": "Já existe uma solicitação de alteração de perfil pendente.",

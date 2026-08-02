@@ -1,4 +1,4 @@
-import { Component, effect, input, output, signal } from '@angular/core';
+import { Component, computed, effect, input, output, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import {
   Address,
@@ -7,28 +7,26 @@ import {
   ContactType,
   ProfileFields,
 } from '../core/profile.service';
+import { COUNTRY_FIELD_CONFIG, getCountryFieldConfig } from './country-field-config';
 import { formatMaskedValue, InputMaskDirective } from './input-mask.directive';
+import { PhoneDdiInputComponent } from './phone-ddi-input.component';
 
 const CONTACT_TYPES: ContactType[] = ['PHONE', 'WHATSAPP', 'EMAIL', 'OTHER'];
 const MAX_CONTACTS = 5;
 
 const EMPTY_ADDRESS: Address = {
-  cep: '',
-  logradouro: '',
-  numero: '',
-  complemento: '',
-  bairro: '',
-  cidade: '',
-  estado: '',
-  pais: '',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  stateRegion: '',
+  postalCode: '',
+  countryCode: '',
 };
 
 const EMPTY_FIELDS: ProfileFields = {
   fullName: '',
-  cpf: '',
-  rg: '',
-  rgOrgaoEmissor: '',
-  birthDate: '',
+  taxId: '',
+  countryCode: '',
   address: EMPTY_ADDRESS,
   contacts: [],
 };
@@ -52,7 +50,7 @@ export interface ProfileFieldsFormSubmission {
 
 @Component({
   selector: 'app-profile-fields-form',
-  imports: [TranslocoPipe, InputMaskDirective],
+  imports: [TranslocoPipe, InputMaskDirective, PhoneDdiInputComponent],
   template: `
     <form data-testid="profile-fields-form" (submit)="onSubmit($event)" class="flex flex-col gap-3">
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -67,52 +65,37 @@ export interface ProfileFieldsFormSubmission {
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
       </label>
+
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-        {{ 'profile.fields.rg' | transloco }}
-        <input
-          data-testid="profile-field-rg"
-          type="text"
-          [value]="localFields().rg"
+        {{ 'profile.fields.country' | transloco }}
+        <select
+          data-testid="profile-field-countryCode"
           [disabled]="disabled()"
-          [required]="requireAllFields()"
-          (input)="onFieldChange('rg', $any($event.target).value)"
+          (change)="onFieldChange('countryCode', $any($event.target).value)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-        />
+        >
+          <option value="" [selected]="!localFields().countryCode">
+            {{ 'profile.fields.countryNotSpecified' | transloco }}
+          </option>
+          @for (code of countryCodes; track code) {
+            <option [value]="code" [selected]="code === localFields().countryCode">
+              {{ code }}
+            </option>
+          }
+        </select>
       </label>
+
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-        {{ 'profile.fields.rgOrgaoEmissor' | transloco }}
+        {{ activeCountryConfig().taxIdLabel }}
         <input
-          data-testid="profile-field-rgOrgaoEmissor"
+          data-testid="profile-field-taxId"
           type="text"
-          [value]="localFields().rgOrgaoEmissor"
+          [value]="formatMaskedValue('taxId', localFields().countryCode, localFields().taxId ?? '')"
           [disabled]="disabled()"
           [required]="requireAllFields()"
-          (input)="onFieldChange('rgOrgaoEmissor', $any($event.target).value)"
-          class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-        />
-      </label>
-      <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-        {{ 'profile.fields.cpf' | transloco }}
-        <input
-          data-testid="profile-field-cpf"
-          type="text"
-          [value]="formatMaskedValue('cpf', localFields().cpf ?? '')"
-          [disabled]="disabled()"
-          [required]="requireAllFields()"
-          [appInputMask]="'cpf'"
-          (appInputMaskChange)="onFieldChange('cpf', $event)"
-          class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-        />
-      </label>
-      <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-        {{ 'profile.fields.birthDate' | transloco }}
-        <input
-          data-testid="profile-field-birthDate"
-          type="date"
-          [value]="localFields().birthDate"
-          [disabled]="disabled()"
-          [required]="requireAllFields()"
-          (input)="onFieldChange('birthDate', $any($event.target).value)"
+          [appInputMask]="'taxId'"
+          [appInputMaskCountry]="localFields().countryCode"
+          (appInputMaskChange)="onFieldChange('taxId', $event)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
       </label>
@@ -121,36 +104,77 @@ export interface ProfileFieldsFormSubmission {
         <legend class="text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.title' | transloco }}
         </legend>
-        @for (field of addressFieldNames; track field) {
-          @if (field === 'cep') {
-            <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-              {{ 'profile.fields.address.' + field | transloco }}
-              <input
-                [attr.data-testid]="'profile-address-field-' + field"
-                type="text"
-                [value]="formatMaskedValue('cep', localFields().address?.[field] ?? '')"
-                [disabled]="disabled()"
-                [required]="requireAllFields()"
-                [appInputMask]="'cep'"
-                (appInputMaskChange)="onAddressFieldChange(field, $event)"
-                class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-              />
-            </label>
-          } @else {
-            <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-              {{ 'profile.fields.address.' + field | transloco }}
-              <input
-                [attr.data-testid]="'profile-address-field-' + field"
-                type="text"
-                [value]="localFields().address?.[field] ?? ''"
-                [disabled]="disabled()"
-                [required]="requireAllFields() && field !== 'numero' && field !== 'complemento'"
-                (input)="onAddressFieldChange(field, $any($event.target).value)"
-                class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-              />
-            </label>
-          }
-        }
+
+        <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+          {{ activeCountryConfig().addressLine1Label }}
+          <input
+            data-testid="profile-address-field-addressLine1"
+            type="text"
+            [value]="localFields().address?.addressLine1 ?? ''"
+            [disabled]="disabled()"
+            [required]="requireAllFields()"
+            (input)="onAddressFieldChange('addressLine1', $any($event.target).value)"
+            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+          {{ 'profile.fields.address.addressLine2' | transloco }}
+          <input
+            data-testid="profile-address-field-addressLine2"
+            type="text"
+            [value]="localFields().address?.addressLine2 ?? ''"
+            [disabled]="disabled()"
+            (input)="onAddressFieldChange('addressLine2', $any($event.target).value)"
+            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+          {{ activeCountryConfig().cityLabel }}
+          <input
+            data-testid="profile-address-field-city"
+            type="text"
+            [value]="localFields().address?.city ?? ''"
+            [disabled]="disabled()"
+            [required]="requireAllFields()"
+            (input)="onAddressFieldChange('city', $any($event.target).value)"
+            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+          {{ activeCountryConfig().stateRegionLabel }}
+          <input
+            data-testid="profile-address-field-stateRegion"
+            type="text"
+            [value]="localFields().address?.stateRegion ?? ''"
+            [disabled]="disabled()"
+            (input)="onAddressFieldChange('stateRegion', $any($event.target).value)"
+            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+          {{ activeCountryConfig().postalCodeLabel }}
+          <input
+            data-testid="profile-address-field-postalCode"
+            type="text"
+            [value]="
+              formatMaskedValue(
+                'postalCode',
+                localFields().countryCode,
+                localFields().address?.postalCode ?? ''
+              )
+            "
+            [disabled]="disabled()"
+            [required]="requireAllFields()"
+            [appInputMask]="'postalCode'"
+            [appInputMaskCountry]="localFields().countryCode"
+            (appInputMaskChange)="onAddressFieldChange('postalCode', $event)"
+            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          />
+        </label>
       </fieldset>
 
       @if (showContacts()) {
@@ -176,15 +200,12 @@ export interface ProfileFieldsFormSubmission {
                 }
               </select>
               @if (isPhoneContact(row.type)) {
-                <input
-                  [attr.data-testid]="'profile-contact-value-' + row.rowKey"
-                  type="text"
-                  [value]="formatMaskedValue('phone', row.value)"
+                <app-phone-ddi-input
+                  [testIdSuffix]="'-' + row.rowKey"
+                  [value]="row.value"
+                  [countryCode]="localFields().countryCode"
                   [disabled]="disabled()"
-                  [appInputMask]="'phone'"
-                  (appInputMaskChange)="onContactFieldChange(row.rowKey, 'value', $event)"
-                  [placeholder]="'profile.fields.contacts.value' | transloco"
-                  class="min-w-0 flex-1 rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+                  (valueChange)="onContactFieldChange(row.rowKey, 'value', $event)"
                 />
               } @else {
                 <input
@@ -288,16 +309,9 @@ export class ProfileFieldsFormComponent {
 
   protected readonly contactTypes = CONTACT_TYPES;
   protected readonly maxContacts = MAX_CONTACTS;
-  protected readonly addressFieldNames: (keyof Address)[] = [
-    'cep',
-    'logradouro',
-    'numero',
-    'complemento',
-    'bairro',
-    'cidade',
-    'estado',
-    'pais',
-  ];
+  protected readonly countryCodes = Object.keys(COUNTRY_FIELD_CONFIG).filter(
+    (code) => code !== 'DEFAULT',
+  );
 
   // Exposed for the template's `[value]` bindings on masked fields — see `input-mask.directive.ts`
   // for why the initial/externally-driven display must be formatted the same way the directive
@@ -308,6 +322,12 @@ export class ProfileFieldsFormComponent {
   protected readonly contacts = signal<ContactRow[]>([]);
   protected readonly contactLimitMessage = signal(false);
   protected readonly contactsRequiredMessage = signal(false);
+
+  // REQ-1a: drives the taxId/postalCode/address-line labels and mask availability live, without
+  // requiring a page reload — resolves SPEC Judgment call 9 in favor of one shared control.
+  protected readonly activeCountryConfig = computed(() =>
+    getCountryFieldConfig(this.localFields().countryCode),
+  );
 
   // The array this component was initialized/re-synced with, keyed by id, used to diff at
   // submit time (PLAN.md's "diff-on-submit, not a running change-log" judgment call).

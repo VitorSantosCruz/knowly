@@ -9,11 +9,13 @@ import { InputMaskDirective, InputMaskType } from './input-mask.directive';
     data-testid="masked-input"
     type="text"
     [appInputMask]="mask()"
+    [appInputMaskCountry]="country()"
     (appInputMaskChange)="onChange($event)"
   />`,
 })
 class HostComponent {
-  readonly mask = signal<InputMaskType>('cpf');
+  readonly mask = signal<InputMaskType>('taxId');
+  readonly country = signal<string | null>('BR');
   emitted: string[] = [];
 
   onChange(value: string): void {
@@ -26,11 +28,12 @@ describe('InputMaskDirective', () => {
   let host: HostComponent;
   let el: HTMLInputElement;
 
-  async function createFixture(mask: InputMaskType): Promise<void> {
+  async function createFixture(mask: InputMaskType, country: string | null = 'BR'): Promise<void> {
     await TestBed.configureTestingModule({ imports: [HostComponent] }).compileComponents();
     fixture = TestBed.createComponent(HostComponent);
     host = fixture.componentInstance;
     host.mask.set(mask);
+    host.country.set(country);
     fixture.detectChanges();
     el = fixture.nativeElement.querySelector('[data-testid="masked-input"]');
   }
@@ -44,8 +47,8 @@ describe('InputMaskDirective', () => {
     fixture.detectChanges();
   }
 
-  it('formats digits as CPF (000.000.000-00) as the user types', async () => {
-    await createFixture('cpf');
+  it('formats digits as CPF (000.000.000-00) for country BR (regression)', async () => {
+    await createFixture('taxId', 'BR');
 
     typeInto('1');
     expect(el.value).toBe('1');
@@ -60,29 +63,29 @@ describe('InputMaskDirective', () => {
     expect(el.value).toBe('123.456.789-00');
   });
 
-  it('formats digits as CEP (00000-000)', async () => {
-    await createFixture('cep');
+  it('formats digits as CEP (00000-000) for country BR', async () => {
+    await createFixture('postalCode', 'BR');
 
     typeInto('01310100');
     expect(el.value).toBe('01310-100');
   });
 
-  it('formats an 11-digit phone number as (00) 00000-0000', async () => {
-    await createFixture('phone');
+  it('formats an 11-digit phone number as (00) 00000-0000 for country BR', async () => {
+    await createFixture('phone', 'BR');
 
     typeInto('11987654321');
     expect(el.value).toBe('(11) 98765-4321');
   });
 
-  it('formats a 10-digit phone number as (00) 0000-0000', async () => {
-    await createFixture('phone');
+  it('formats a 10-digit phone number as (00) 0000-0000 for country BR', async () => {
+    await createFixture('phone', 'BR');
 
     typeInto('1132654321');
     expect(el.value).toBe('(11) 3265-4321');
   });
 
   it('emits the unmasked, digits-only value on every keystroke regardless of the mask', async () => {
-    await createFixture('cpf');
+    await createFixture('taxId', 'BR');
 
     typeInto('123');
     expect(host.emitted.at(-1)).toBe('123');
@@ -95,7 +98,7 @@ describe('InputMaskDirective', () => {
   });
 
   it('preserves the caret position when deleting a character mid-string', async () => {
-    await createFixture('cpf');
+    await createFixture('taxId', 'BR');
 
     typeInto('123.456.789-00');
     expect(el.value).toBe('123.456.789-00');
@@ -109,15 +112,30 @@ describe('InputMaskDirective', () => {
   });
 
   it('stops reformatting once the mask input changes away from a masked type', async () => {
-    await createFixture('phone');
+    await createFixture('phone', 'BR');
 
     typeInto('11987654321');
     expect(el.value).toBe('(11) 98765-4321');
 
-    host.mask.set('cpf');
+    host.mask.set('taxId');
     fixture.detectChanges();
 
     typeInto('12345678900');
     expect(el.value).toBe('123.456.789-00');
+  });
+
+  it('passes the raw value through unmodified for a country with no known mask (GB + postalCode)', async () => {
+    await createFixture('postalCode', 'GB');
+
+    typeInto('EC1A 1BB');
+    expect(el.value).toBe('EC1A 1BB');
+    expect(host.emitted.at(-1)).toBe('EC1A 1BB');
+  });
+
+  it('formats digits as SSN (000-00-0000) for country US', async () => {
+    await createFixture('taxId', 'US');
+
+    typeInto('123456789');
+    expect(el.value).toBe('123-45-6789');
   });
 });

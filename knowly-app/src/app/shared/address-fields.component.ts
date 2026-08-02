@@ -28,7 +28,7 @@ export interface AddressFieldSpec {
             field.labelKey | transloco
           }}</span>
           <input
-            [attr.data-testid]="'address-field-' + field.name"
+            [attr.data-testid]="'address-field-' + idPrefix() + field.name"
             type="text"
             [value]="controlValue(field.name)"
             (input)="onInput(field.name, $event)"
@@ -37,7 +37,7 @@ export interface AddressFieldSpec {
           />
           @if (showError(field.name)) {
             <p
-              [attr.data-testid]="'address-field-error-' + field.name"
+              [attr.data-testid]="'address-field-error-' + idPrefix() + field.name"
               class="text-sm text-red-600 dark:text-red-400"
             >
               {{ 'shared.fieldRequired' | transloco }}
@@ -51,6 +51,12 @@ export interface AddressFieldSpec {
 export class AddressFieldsComponent {
   readonly formGroup = input.required<FormGroup>();
   readonly fields = input.required<AddressFieldSpec[]>();
+  // Disambiguates two `<app-address-fields>` instances rendering overlapping field *names* on
+  // the same page (e.g. `tenant-creation`'s company vs. first-admin address sections, now that
+  // the first-admin's address shares the same country-agnostic 6-field shape/names as the
+  // company's own `AddressDto`) — default '' preserves every existing single-instance call site's
+  // `data-testid`s unchanged.
+  readonly idPrefix = input('');
 
   protected readonly inputClass = INPUT_CLASS;
 

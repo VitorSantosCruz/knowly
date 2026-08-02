@@ -19,7 +19,13 @@ import org.springframework.stereotype.Service;
 public class ContactService {
 
     private static final int MAX_CONTACTS_PER_USER = 5;
-    private static final Pattern PHONE_PATTERN = Pattern.compile("^\\+?\\d{10,13}$");
+
+    /**
+     * E.164 shape (REQ-3c, 2026-08-02 country-agnostic amendment): leading {@code +} is now
+     * mandatory (a bare national number is no longer a complete E.164 value), max 15 digits total
+     * per ITU E.164 (1 to 9 for the first digit after {@code +}, up to 14 more).
+     */
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^\\+[1-9]\\d{7,14}$");
 
     private final ContactRepository contactRepository;
     private final Validator validator;
@@ -32,7 +38,8 @@ public class ContactService {
     /** REQ-3/3a/3b: add a new contact, enforcing the cap, format, and primary-per-type clearing. */
     public Contact addContact(
             User user, ContactType type, String value, String label, boolean primary) {
-        validateFormat(type, value);
+        String normalizedValue = normalizeIfPhone(type, value);
+        validateFormat(type, normalizedValue);
 
         if (contactRepository.countByUser(user) >= MAX_CONTACTS_PER_USER) {
             throw new ContactCapExceededException();
@@ -42,7 +49,7 @@ public class ContactService {
             clearExistingPrimary(user, type);
         }
 
-        return contactRepository.save(new Contact(user, type, value, label, primary));
+        return contactRepository.save(new Contact(user, type, normalizedValue, label, primary));
     }
 
     /**
@@ -54,7 +61,7 @@ public class ContactService {
             contact.setType(type);
         }
         if (value != null) {
-            contact.setValue(value);
+            contact.setValue(normalizeIfPhone(contact.getType(), value));
         }
         validateFormat(contact.getType(), contact.getValue());
 
@@ -92,8 +99,7 @@ public class ContactService {
                 }
             }
             case PHONE, WHATSAPP -> {
-                String normalized = value.replaceAll("[^0-9+]", "");
-                if (!PHONE_PATTERN.matcher(normalized).matches()) {
+                if (!PHONE_PATTERN.matcher(value).matches()) {
                     throw new InvalidContactFormatException();
                 }
             }
@@ -102,6 +108,21 @@ public class ContactService {
             }
             default -> throw new InvalidContactFormatException();
         }
+    }
+
+    /**
+     * REQ-4a: normalizes only {@code PHONE}/{@code WHATSAPP} values -- deliberately narrower than
+     * PLAN.md's original "every type is a harmless no-op" assumption, which is factually wrong for
+     * {@code EMAIL} (every valid email contains a {@code .}, which {@link
+     * IdentityFieldNormalizer#stripFormatting} would strip, corrupting the domain) and for {@code
+     * OTHER} free text (which may legitimately contain spaces/dashes). See PLAN.md's "Deviations
+     * from this PLAN" section.
+     */
+    private String normalizeIfPhone(ContactType type, String value) {
+        if (type == ContactType.PHONE || type == ContactType.WHATSAPP) {
+            return IdentityFieldNormalizer.stripFormatting(value);
+        }
+        return value;
     }
 
     private void clearExistingPrimary(User user, ContactType type) {

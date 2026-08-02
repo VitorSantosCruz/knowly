@@ -14,19 +14,15 @@ import {
 // own existing pattern (PLAN.md's "State and data" section), not extracted into a shared const.
 const EMPTY_FIELDS: ProfileFields = {
   fullName: '',
-  cpf: '',
-  rg: '',
-  rgOrgaoEmissor: '',
-  birthDate: '',
+  taxId: '',
+  countryCode: '',
   address: {
-    cep: '',
-    logradouro: '',
-    numero: '',
-    complemento: '',
-    bairro: '',
-    cidade: '',
-    estado: '',
-    pais: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    stateRegion: '',
+    postalCode: '',
+    countryCode: '',
   },
   contacts: [],
 };

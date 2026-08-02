@@ -11,7 +11,6 @@ import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import java.time.LocalDate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -24,10 +23,12 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 1:1 with {@link User}, created eagerly at account creation (REQ-1), per
- * specify/features/identity-profile-model-v2/PLAN.md. {@code cpf}/{@code rg} reuse {@link
- * CpfRgEncryptionConverter}/{@link BlindIndexService} unchanged, just relocated from {@code
- * User.cpf}/{@code User.rg}. No {@code @Filter} -- user-owned, not tenant-owned, same as {@link
- * User} itself.
+ * specify/features/identity-profile-model-v2/PLAN.md. {@code taxId} reuses {@link
+ * TaxIdEncryptionConverter}/{@link BlindIndexService} unchanged, just relocated from {@code
+ * User.cpf}/renamed from {@code UserProfile.cpf} (country-agnostic identity/address model
+ * amendment, 2026-08-02). {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed
+ * entirely per the same day's LGPD data-minimization amendments (see V26 migration). No {@code
+ * @Filter} -- user-owned, not tenant-owned, same as {@link User} itself.
  */
 @Entity
 @Table(name = "user_profiles")
@@ -50,25 +51,16 @@ public class UserProfile {
     @Column(name = "full_name")
     private String fullName;
 
-    @Convert(converter = CpfRgEncryptionConverter.class)
-    @Column(name = "cpf")
-    private String cpf;
+    @Convert(converter = TaxIdEncryptionConverter.class)
+    @Column(name = "tax_id")
+    private String taxId;
 
-    @Column(name = "cpf_blind_index", length = 64)
-    private String cpfBlindIndex;
+    @Column(name = "tax_id_blind_index", length = 64)
+    private String taxIdBlindIndex;
 
-    @Convert(converter = CpfRgEncryptionConverter.class)
-    @Column(name = "rg")
-    private String rg;
-
-    @Column(name = "rg_orgao_emissor")
-    private String rgOrgaoEmissor;
-
-    @Column(name = "rg_blind_index", length = 64)
-    private String rgBlindIndex;
-
-    @Column(name = "birth_date")
-    private LocalDate birthDate;
+    /** ISO 3166-1 alpha-2, nullable until the user selects a country (REQ-1b). */
+    @Column(name = "country_code", length = 2)
+    private String countryCode;
 
     @Column(name = "avatar_url")
     private String avatarUrl;

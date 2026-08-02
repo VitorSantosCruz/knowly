@@ -11,6 +11,7 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
 import br.com.conectabyte.knowly.identity.exception.InvalidAvatarFileException;
+import br.com.conectabyte.knowly.identity.exception.InvalidCpfException;
 import br.com.conectabyte.knowly.identity.exception.ProfileAlreadyCompleteException;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.GlobalPermission;
@@ -230,7 +231,7 @@ public class UserProfileService {
 
     /**
      * The single choke point every direct-edit/approve call site routes through: plain fields are
-     * set directly on {@link UserProfile}/{@link Address}, {@code cpf}/{@code rg} are additionally
+     * set directly on {@link UserProfile}/{@link Address}, {@code taxId} is additionally
      * routed through {@link BlindIndexService} in the same call, and every {@code contactChanges}
      * entry is applied via {@link ContactService} -- all inside the same transactional boundary as
      * the caller (REQ-17's atomicity). Package-private so {@link ProfileEditRequestService} (same
@@ -244,19 +245,14 @@ public class UserProfileService {
             if (fields.fullName() != null) {
                 profile.setFullName(fields.fullName());
             }
-            if (fields.rgOrgaoEmissor() != null) {
-                profile.setRgOrgaoEmissor(fields.rgOrgaoEmissor());
+            if (fields.countryCode() != null) {
+                profile.setCountryCode(fields.countryCode());
             }
-            if (fields.birthDate() != null) {
-                profile.setBirthDate(fields.birthDate());
-            }
-            if (fields.cpf() != null) {
-                profile.setCpf(fields.cpf());
-                profile.setCpfBlindIndex(blindIndexService.hmac(fields.cpf()));
-            }
-            if (fields.rg() != null) {
-                profile.setRg(fields.rg());
-                profile.setRgBlindIndex(blindIndexService.hmac(fields.rg()));
+            if (fields.taxId() != null) {
+                String normalizedTaxId = IdentityFieldNormalizer.stripFormatting(fields.taxId());
+                requireValidTaxId(normalizedTaxId, profile.getCountryCode());
+                profile.setTaxId(normalizedTaxId);
+                profile.setTaxIdBlindIndex(blindIndexService.hmac(normalizedTaxId));
             }
             userProfileRepository.save(profile);
 
@@ -304,26 +300,27 @@ public class UserProfileService {
     public void applyMandatoryProfile(User target, MandatoryProfileFieldsDto fields) {
         UserProfile profile = requireUserProfile(target);
 
+        String normalizedTaxId = IdentityFieldNormalizer.stripFormatting(fields.taxId());
+        requireValidTaxId(normalizedTaxId, fields.countryCode());
+
         profile.setFullName(fields.fullName());
-        profile.setBirthDate(fields.birthDate());
-        profile.setRgOrgaoEmissor(fields.rgOrgaoEmissor());
-        profile.setCpf(fields.cpf());
-        profile.setCpfBlindIndex(blindIndexService.hmac(fields.cpf()));
-        profile.setRg(fields.rg());
-        profile.setRgBlindIndex(blindIndexService.hmac(fields.rg()));
+        profile.setCountryCode(fields.countryCode());
+        profile.setTaxId(normalizedTaxId);
+        profile.setTaxIdBlindIndex(blindIndexService.hmac(normalizedTaxId));
         userProfileRepository.save(profile);
 
         MandatoryAddressDto addressDto = fields.address();
         Address address =
                 addressRepository.findById(target.getId()).orElseGet(() -> new Address(target));
-        address.setCep(addressDto.cep());
-        address.setLogradouro(addressDto.logradouro());
-        address.setNumero(addressDto.numero());
-        address.setComplemento(addressDto.complemento());
-        address.setBairro(addressDto.bairro());
-        address.setCidade(addressDto.cidade());
-        address.setEstado(addressDto.estado());
-        address.setPais(addressDto.pais());
+        address.setAddressLine1(addressDto.addressLine1());
+        address.setAddressLine2(addressDto.addressLine2());
+        address.setCity(addressDto.city());
+        address.setStateRegion(addressDto.stateRegion());
+        address.setPostalCode(IdentityFieldNormalizer.stripFormatting(addressDto.postalCode()));
+        address.setCountryCode(
+                addressDto.countryCode() != null
+                        ? addressDto.countryCode()
+                        : profile.getCountryCode());
         addressRepository.save(address);
 
         for (ContactDto contact : fields.contacts()) {
@@ -336,20 +333,47 @@ public class UserProfileService {
         }
     }
 
+    /**
+     * REQ-4a: throws {@link InvalidCpfException} if {@code normalizedTaxId} is present, {@code
+     * countryCode} is {@code "BR"}, and it fails the mod-11 checksum (2026-08-02 country-agnostic
+     * amendment: the checksum is now conditional on {@code countryCode}, not unconditional -- every
+     * other country's {@code taxId} receives normalization only). A {@code null}/absent value is a
+     * presence question, not this method's concern, so it's silently skipped.
+     */
+    void requireValidTaxId(String normalizedTaxId, String countryCode) {
+        if (normalizedTaxId != null
+                && "BR".equals(countryCode)
+                && !CpfChecksumValidator.isValid(normalizedTaxId)) {
+            throw new InvalidCpfException();
+        }
+    }
+
     private void applyAddress(User target, AddressDto addressDto) {
+        UserProfile profile = requireUserProfile(target);
         Address address =
                 addressRepository.findById(target.getId()).orElseGet(() -> new Address(target));
 
-        address.setCep(addressDto.cep());
-        address.setLogradouro(addressDto.logradouro());
-        address.setNumero(addressDto.numero());
-        address.setComplemento(addressDto.complemento());
-        address.setBairro(addressDto.bairro());
-        address.setCidade(addressDto.cidade());
-        address.setEstado(addressDto.estado());
-        if (addressDto.pais() != null) {
-            address.setPais(addressDto.pais());
+        if (addressDto.addressLine1() != null) {
+            address.setAddressLine1(addressDto.addressLine1());
         }
+        if (addressDto.addressLine2() != null) {
+            address.setAddressLine2(addressDto.addressLine2());
+        }
+        if (addressDto.city() != null) {
+            address.setCity(addressDto.city());
+        }
+        if (addressDto.stateRegion() != null) {
+            address.setStateRegion(addressDto.stateRegion());
+        }
+        if (addressDto.postalCode() != null) {
+            address.setPostalCode(IdentityFieldNormalizer.stripFormatting(addressDto.postalCode()));
+        }
+        address.setCountryCode(
+                addressDto.countryCode() != null
+                        ? addressDto.countryCode()
+                        : (address.getCountryCode() != null
+                                ? address.getCountryCode()
+                                : profile.getCountryCode()));
 
         addressRepository.save(address);
     }
@@ -440,22 +464,18 @@ public class UserProfileService {
                 address == null
                         ? null
                         : new AddressDto(
-                                address.getCep(),
-                                address.getLogradouro(),
-                                address.getNumero(),
-                                address.getComplemento(),
-                                address.getBairro(),
-                                address.getCidade(),
-                                address.getEstado(),
-                                address.getPais());
+                                address.getAddressLine1(),
+                                address.getAddressLine2(),
+                                address.getCity(),
+                                address.getStateRegion(),
+                                address.getPostalCode(),
+                                address.getCountryCode());
 
         ProfileFieldsDto fields =
                 new ProfileFieldsDto(
                         profile.getFullName(),
-                        profile.getCpf(),
-                        profile.getRg(),
-                        profile.getRgOrgaoEmissor(),
-                        profile.getBirthDate(),
+                        profile.getTaxId(),
+                        profile.getCountryCode(),
                         addressDto,
                         contacts);
 

@@ -33,15 +33,18 @@ const COMPANY_ADDRESS_FIELDS: AddressFieldSpec[] = [
   { name: 'state', labelKey: 'tenantCreate.address.state' },
 ];
 
+// user-profile-v2 amendment (2026-08-02): the first admin's mandatory address is now the same
+// country-agnostic 6-field shape as `MandatoryProfileFieldsDto.address` everywhere else. A single
+// shared `userProfile.countryCode` control (rendered alongside `taxId`, see `userProfileFields`
+// below) drives both the profile-level and address-level `countryCode` values on submit —
+// resolving the same "one shared control" judgment call `user-profile-v2/PLAN.md` made, no
+// second, independent address-country selector here either.
 const USER_ADDRESS_FIELDS: AddressFieldSpec[] = [
-  { name: 'cep', labelKey: 'tenantCreate.address.postalCode' },
-  { name: 'logradouro', labelKey: 'tenantCreate.address.street' },
-  { name: 'numero', labelKey: 'tenantCreate.address.number' },
-  { name: 'complemento', labelKey: 'tenantCreate.address.complement' },
-  { name: 'bairro', labelKey: 'tenantCreate.address.neighborhood' },
-  { name: 'cidade', labelKey: 'tenantCreate.address.city' },
-  { name: 'estado', labelKey: 'tenantCreate.address.state' },
-  { name: 'pais', labelKey: 'tenantCreate.country' },
+  { name: 'addressLine1', labelKey: 'tenantCreate.address.addressLine1' },
+  { name: 'addressLine2', labelKey: 'tenantCreate.address.addressLine2' },
+  { name: 'city', labelKey: 'tenantCreate.address.city' },
+  { name: 'stateRegion', labelKey: 'tenantCreate.address.stateRegion' },
+  { name: 'postalCode', labelKey: 'tenantCreate.address.postalCode' },
 ];
 
 // REQ-10: only Brazil enforces the 14-digit CNPJ shape; every other country only needs a
@@ -167,7 +170,7 @@ function taxIdValidator(control: AbstractControl): ValidationErrors | null {
                 }}</span>
                 <input
                   [attr.data-testid]="'tenant-create-userProfile-' + field.name"
-                  [type]="field.name === 'birthDate' ? 'date' : 'text'"
+                  type="text"
                   [formControlName]="field.name"
                   (blur)="markUserProfileTouched(field.name)"
                   [class]="inputClass"
@@ -187,7 +190,11 @@ function taxIdValidator(control: AbstractControl): ValidationErrors | null {
           <h2 class="text-sm font-semibold text-ink-700 dark:text-ink-300">
             {{ 'tenantCreate.userAddressTitle' | transloco }}
           </h2>
-          <app-address-fields [formGroup]="userAddressGroup" [fields]="userAddressFields" />
+          <app-address-fields
+            [formGroup]="userAddressGroup"
+            [fields]="userAddressFields"
+            idPrefix="user-"
+          />
 
           <h2 class="text-sm font-semibold text-ink-700 dark:text-ink-300">
             {{ 'tenantCreate.contacts.title' | transloco }}
@@ -257,10 +264,8 @@ export class TenantCreatePageComponent {
 
   protected readonly userProfileFields: AddressFieldSpec[] = [
     { name: 'fullName', labelKey: 'tenantCreate.fullName' },
-    { name: 'birthDate', labelKey: 'tenantCreate.birthDate' },
-    { name: 'cpf', labelKey: 'tenantCreate.cpf' },
-    { name: 'rg', labelKey: 'tenantCreate.rg' },
-    { name: 'rgOrgaoEmissor', labelKey: 'tenantCreate.rgOrgaoEmissor' },
+    { name: 'taxId', labelKey: 'tenantCreate.userTaxId' },
+    { name: 'countryCode', labelKey: 'tenantCreate.country' },
   ];
 
   protected readonly form: FormGroup = this.fb.group({
@@ -282,19 +287,14 @@ export class TenantCreatePageComponent {
     adminEmail: ['', [Validators.required, Validators.email]],
     userProfile: this.fb.group({
       fullName: ['', Validators.required],
-      birthDate: ['', Validators.required],
-      cpf: ['', Validators.required],
-      rg: ['', Validators.required],
-      rgOrgaoEmissor: ['', Validators.required],
+      taxId: ['', Validators.required],
+      countryCode: ['', Validators.required],
       address: this.fb.group({
-        cep: ['', Validators.required],
-        logradouro: ['', Validators.required],
-        numero: ['', Validators.required],
-        complemento: [''],
-        bairro: ['', Validators.required],
-        cidade: ['', Validators.required],
-        estado: ['', Validators.required],
-        pais: ['', Validators.required],
+        addressLine1: ['', Validators.required],
+        addressLine2: [''],
+        city: ['', Validators.required],
+        stateRegion: [''],
+        postalCode: ['', Validators.required],
       }),
       contacts: this.fb.array([createContactGroup()]),
     }),
@@ -406,19 +406,15 @@ export class TenantCreatePageComponent {
       adminEmail: raw.adminEmail,
       profile: {
         fullName: raw.userProfile.fullName,
-        birthDate: raw.userProfile.birthDate,
-        cpf: raw.userProfile.cpf,
-        rg: raw.userProfile.rg,
-        rgOrgaoEmissor: raw.userProfile.rgOrgaoEmissor,
+        taxId: raw.userProfile.taxId,
+        countryCode: raw.userProfile.countryCode,
         address: {
-          cep: raw.userProfile.address.cep,
-          logradouro: raw.userProfile.address.logradouro,
-          numero: raw.userProfile.address.numero,
-          complemento: raw.userProfile.address.complemento || null,
-          bairro: raw.userProfile.address.bairro,
-          cidade: raw.userProfile.address.cidade,
-          estado: raw.userProfile.address.estado,
-          pais: raw.userProfile.address.pais,
+          addressLine1: raw.userProfile.address.addressLine1,
+          addressLine2: raw.userProfile.address.addressLine2 || null,
+          city: raw.userProfile.address.city,
+          stateRegion: raw.userProfile.address.stateRegion || null,
+          postalCode: raw.userProfile.address.postalCode,
+          countryCode: raw.userProfile.countryCode,
         },
         contacts: raw.userProfile.contacts,
       },

@@ -12,21 +12,17 @@ describe('ProfileFieldsFormComponent', () => {
 
   const fields: ProfileFields = {
     fullName: 'Jane Doe',
-    rg: '11.111.111-1',
-    cpf: '111.111.111-11',
-    rgOrgaoEmissor: 'SSP',
-    birthDate: '1990-01-01',
+    taxId: '111.111.111-11',
+    countryCode: 'BR',
     address: {
-      cep: '01000-000',
-      logradouro: 'Main St',
-      numero: '123',
-      complemento: null,
-      bairro: 'Centro',
-      cidade: 'Sao Paulo',
-      estado: 'SP',
-      pais: 'BR',
+      addressLine1: 'Main St, 123',
+      addressLine2: 'Centro',
+      city: 'Sao Paulo',
+      stateRegion: 'SP',
+      postalCode: '01000-000',
+      countryCode: 'BR',
     },
-    contacts: [{ id: 1, type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
+    contacts: [{ id: 1, type: 'PHONE', value: '+5511987654321', label: null, isPrimary: true }],
   };
 
   async function createFixture(
@@ -62,24 +58,30 @@ describe('ProfileFieldsFormComponent', () => {
       .dispatchEvent(new Event('submit', { cancelable: true }));
   }
 
-  it('renders the flat fields, the structured address fieldset, and never an email input', async () => {
+  it('renders the flat fields and the country-agnostic 6-field address block, never an email input', async () => {
     await createFixture();
 
     expect(input('profile-field-fullName').value).toBe('Jane Doe');
-    expect(input('profile-field-rg').value).toBe('11.111.111-1');
-    expect(input('profile-field-cpf').value).toBe('111.111.111-11');
-    expect(input('profile-field-rgOrgaoEmissor').value).toBe('SSP');
-    expect(input('profile-field-birthDate').value).toBe('1990-01-01');
-    expect(input('profile-address-field-cep').value).toBe('01000-000');
-    expect(input('profile-address-field-logradouro').value).toBe('Main St');
-    expect(input('profile-address-field-numero').value).toBe('123');
-    expect(input('profile-address-field-bairro').value).toBe('Centro');
-    expect(input('profile-address-field-cidade').value).toBe('Sao Paulo');
-    expect(input('profile-address-field-estado').value).toBe('SP');
-    expect(input('profile-address-field-pais').value).toBe('BR');
+    expect(input('profile-field-countryCode').value).toBe('BR');
+    expect(input('profile-field-taxId').value).toBe('111.111.111-11');
+    expect(input('profile-address-field-addressLine1').value).toBe('Main St, 123');
+    expect(input('profile-address-field-addressLine2').value).toBe('Centro');
+    expect(input('profile-address-field-city').value).toBe('Sao Paulo');
+    expect(input('profile-address-field-stateRegion').value).toBe('SP');
+    expect(input('profile-address-field-postalCode').value).toBe('01000-000');
+    // No old Brazil-only field names remain.
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-field-cpf"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-field-rg"]')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-field-rgOrgaoEmissor"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-field-birthDate"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-address-field-cep"]'),
+    ).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="profile-field-email"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-testid="profile-field-address"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-testid="profile-field-phone"]')).toBeNull();
   });
 
   it('emits submitted with the entered flat/address values, never including email', async () => {
@@ -158,8 +160,8 @@ describe('ProfileFieldsFormComponent', () => {
     fixture.detectChanges();
     const rows = fixture.nativeElement.querySelectorAll('[data-testid^="profile-contact-row-"]');
     const newRowKey = rows[1].getAttribute('data-testid').replace('profile-contact-row-', '');
-    // New rows default to PHONE (masked); switch this one to EMAIL so an arbitrary email
-    // string is a realistic value and stays unmasked, per REQ-21.
+    // New rows default to PHONE (rendered via PhoneDdiInputComponent); switch this one to EMAIL
+    // so an arbitrary email string is a realistic value and stays unmasked, per REQ-21.
     const select = fixture.nativeElement.querySelector(
       `[data-testid="profile-contact-type-${newRowKey}"]`,
     ) as HTMLSelectElement;
@@ -170,10 +172,12 @@ describe('ProfileFieldsFormComponent', () => {
     input(`profile-contact-value-${newRowKey}`).dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    // edit the existing PHONE contact — masked-as-you-type, but the diff carries the
-    // unmasked digits-only value (REQ-22), never the punctuated display string.
-    input('profile-contact-value-id-1').value = '+1 (555) 123-4';
-    input('profile-contact-value-id-1').dispatchEvent(new Event('input'));
+    // edit the existing PHONE contact via its DDI + national-number inputs — the diff carries
+    // the composed E.164 value (REQ-6a).
+    input('phone-ddi-input-id-1').value = '1';
+    input('phone-ddi-input-id-1').dispatchEvent(new Event('input'));
+    input('phone-number-input-id-1').value = '5551234';
+    input('phone-number-input-id-1').dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
     const emitted: ProfileFieldsFormSubmission[] = [];
@@ -183,7 +187,7 @@ describe('ProfileFieldsFormComponent', () => {
     const changes = emitted[0].contactChanges;
     expect(changes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ action: 'UPDATE', contactId: 1, value: '15551234' }),
+        expect.objectContaining({ action: 'UPDATE', contactId: 1, value: '+15551234' }),
         expect.objectContaining({ action: 'ADD', contactId: null, value: 'jane@example.com' }),
       ]),
     );
@@ -213,98 +217,112 @@ describe('ProfileFieldsFormComponent', () => {
     ).toBeNull();
   });
 
-  it('masks CPF as-you-type but submits the unmasked digits (REQ-21/22)', async () => {
+  it('masks taxId as-you-type (BR) but submits the unmasked digits (REQ-21/22)', async () => {
     await createFixture();
 
-    input('profile-field-cpf').value = '12345678900';
-    input('profile-field-cpf').dispatchEvent(new Event('input'));
+    input('profile-field-taxId').value = '12345678900';
+    input('profile-field-taxId').dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(input('profile-field-cpf').value).toBe('123.456.789-00');
+    expect(input('profile-field-taxId').value).toBe('123.456.789-00');
 
     const emitted: ProfileFieldsFormSubmission[] = [];
     fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
     submitForm();
 
-    expect(emitted[0].fields.cpf).toBe('12345678900');
+    expect(emitted[0].fields.taxId).toBe('12345678900');
   });
 
-  it('masks CEP as-you-type but submits the unmasked digits (REQ-21/22)', async () => {
+  it('masks postalCode as-you-type (BR) but submits the unmasked digits (REQ-21/22)', async () => {
     await createFixture();
 
-    input('profile-address-field-cep').value = '01310100';
-    input('profile-address-field-cep').dispatchEvent(new Event('input'));
+    input('profile-address-field-postalCode').value = '01310100';
+    input('profile-address-field-postalCode').dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(input('profile-address-field-cep').value).toBe('01310-100');
+    expect(input('profile-address-field-postalCode').value).toBe('01310-100');
 
     const emitted: ProfileFieldsFormSubmission[] = [];
     fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
     submitForm();
 
-    expect(emitted[0].fields.address?.cep).toBe('01310100');
+    expect(emitted[0].fields.address?.postalCode).toBe('01310100');
   });
 
-  it('masks a PHONE/WHATSAPP contact value as-you-type but stops once switched to EMAIL/OTHER', async () => {
+  it('does not block submission of a mask-incomplete taxId (REQ-23, no client-side format validation)', async () => {
     await createFixture();
 
-    // id-1 is PHONE — typing digits reformats the display.
-    input('profile-contact-value-id-1').value = '11987654321';
-    input('profile-contact-value-id-1').dispatchEvent(new Event('input'));
+    input('profile-field-taxId').value = '123';
+    input('profile-field-taxId').dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(input('profile-contact-value-id-1').value).toBe('(11) 98765-4321');
-
-    // Switching the row's type to EMAIL stops reformatting further keystrokes.
-    const select = fixture.nativeElement.querySelector(
-      '[data-testid="profile-contact-type-id-1"]',
-    ) as HTMLSelectElement;
-    select.value = 'EMAIL';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-
-    input('profile-contact-value-id-1').value = 'jane@example.com';
-    input('profile-contact-value-id-1').dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    expect(input('profile-contact-value-id-1').value).toBe('jane@example.com');
-  });
-
-  it('does not block submission of a mask-incomplete CPF (REQ-23, no client-side format validation)', async () => {
-    await createFixture();
-
-    input('profile-field-cpf').value = '123';
-    input('profile-field-cpf').dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    expect(input('profile-field-cpf').value).toBe('123');
-    expect(input('profile-field-cpf').getAttribute('aria-invalid')).toBeNull();
+    expect(input('profile-field-taxId').value).toBe('123');
+    expect(input('profile-field-taxId').getAttribute('aria-invalid')).toBeNull();
 
     const emitted: ProfileFieldsFormSubmission[] = [];
     fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
     submitForm();
 
     expect(emitted.length).toBe(1);
-    expect(emitted[0].fields.cpf).toBe('123');
+    expect(emitted[0].fields.taxId).toBe('123');
+  });
+
+  describe('country-driven labels/masks', () => {
+    it('selecting a different countryCode updates taxId/postalCode labels and mask behavior live, without reload', async () => {
+      await createFixture();
+
+      expect(fixture.nativeElement.textContent).toContain('CPF');
+      expect(fixture.nativeElement.textContent).toContain('CEP');
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      select.value = 'GB';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('NINO');
+      expect(fixture.nativeElement.textContent).toContain('Postcode');
+
+      // GB has no known postalCode mask — plain passthrough.
+      input('profile-address-field-postalCode').value = 'EC1A 1BB';
+      input('profile-address-field-postalCode').dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(input('profile-address-field-postalCode').value).toBe('EC1A 1BB');
+    });
+  });
+
+  describe('phone/WhatsApp contact rows', () => {
+    it('shows PhoneDdiInputComponent for a PHONE/WHATSAPP row, and a plain input for EMAIL/OTHER', async () => {
+      await createFixture();
+
+      expect(input('phone-ddi-input-id-1')).toBeTruthy();
+      expect(input('phone-number-input-id-1')).toBeTruthy();
+
+      const select = fixture.nativeElement.querySelector(
+        '[data-testid="profile-contact-type-id-1"]',
+      ) as HTMLSelectElement;
+      select.value = 'EMAIL';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="phone-ddi-input-id-1"]'),
+      ).toBeNull();
+      expect(input('profile-contact-value-id-1')).toBeTruthy();
+    });
   });
 
   describe('requireAllFields', () => {
-    it('renders required on every mandatory input except numero/complemento when true', async () => {
+    it('renders required on every mandatory input except addressLine2/stateRegion when true', async () => {
       await createFixture(false, true, true);
 
       expect(input('profile-field-fullName').required).toBe(true);
-      expect(input('profile-field-rg').required).toBe(true);
-      expect(input('profile-field-rgOrgaoEmissor').required).toBe(true);
-      expect(input('profile-field-cpf').required).toBe(true);
-      expect(input('profile-field-birthDate').required).toBe(true);
-      expect(input('profile-address-field-cep').required).toBe(true);
-      expect(input('profile-address-field-logradouro').required).toBe(true);
-      expect(input('profile-address-field-bairro').required).toBe(true);
-      expect(input('profile-address-field-cidade').required).toBe(true);
-      expect(input('profile-address-field-estado').required).toBe(true);
-      expect(input('profile-address-field-pais').required).toBe(true);
-      expect(input('profile-address-field-numero').required).toBe(false);
-      expect(input('profile-address-field-complemento').required).toBe(false);
+      expect(input('profile-field-taxId').required).toBe(true);
+      expect(input('profile-address-field-addressLine1').required).toBe(true);
+      expect(input('profile-address-field-city').required).toBe(true);
+      expect(input('profile-address-field-postalCode').required).toBe(true);
+      expect(input('profile-address-field-addressLine2').required).toBe(false);
+      expect(input('profile-address-field-stateRegion').required).toBe(false);
     });
 
     it('blocks submission with zero contacts and shows contactsRequiredMessage when true', async () => {
@@ -328,7 +346,7 @@ describe('ProfileFieldsFormComponent', () => {
       await createFixture(false, true, false);
 
       expect(input('profile-field-fullName').required).toBe(false);
-      expect(input('profile-address-field-numero').required).toBe(false);
+      expect(input('profile-address-field-addressLine2').required).toBe(false);
 
       input('profile-contact-remove-id-1').click();
       fixture.detectChanges();

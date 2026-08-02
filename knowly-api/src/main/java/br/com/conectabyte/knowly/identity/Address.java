@@ -21,8 +21,12 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
- * 1:1 with {@link User}, created only once an address is first submitted (REQ-2), per
- * specify/features/identity-profile-model-v2/PLAN.md.
+ * 1:1 with {@link User}, created only once an address is first submitted (REQ-2a), per
+ * specify/features/identity-profile-model-v2/PLAN.md's 2026-08-02 country-agnostic
+ * identity/address model amendment. Country-agnostic shape ({@code addressLine1}/{@code
+ * addressLine2}/{@code city}/{@code stateRegion}/{@code postalCode}/{@code countryCode}) replaces
+ * the Brazil-only {@code cep}/{@code logradouro}/{@code numero}/{@code complemento}/{@code
+ * bairro}/{@code cidade}/{@code estado}/{@code pais} shape (see V27 migration).
  */
 @Entity
 @Table(name = "addresses")
@@ -42,29 +46,23 @@ public class Address {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "cep", nullable = false, length = 9)
-    private String cep;
+    @Column(name = "address_line1", nullable = false)
+    private String addressLine1;
 
-    @Column(name = "logradouro", nullable = false)
-    private String logradouro;
+    @Column(name = "address_line2")
+    private String addressLine2;
 
-    @Column(name = "numero")
-    private String numero;
+    @Column(name = "city", nullable = false)
+    private String city;
 
-    @Column(name = "complemento")
-    private String complemento;
+    @Column(name = "state_region")
+    private String stateRegion;
 
-    @Column(name = "bairro", nullable = false)
-    private String bairro;
+    @Column(name = "postal_code", nullable = false, length = 20)
+    private String postalCode;
 
-    @Column(name = "cidade", nullable = false)
-    private String cidade;
-
-    @Column(name = "estado", nullable = false, length = 2)
-    private String estado;
-
-    @Column(name = "pais", nullable = false)
-    private String pais = "Brasil";
+    @Column(name = "country_code", nullable = false, length = 2)
+    private String countryCode;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

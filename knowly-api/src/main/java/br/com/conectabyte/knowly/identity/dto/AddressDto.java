@@ -1,12 +1,10 @@
 package br.com.conectabyte.knowly.identity.dto;
 
-/** REQ-2: a structured, single current address. */
+/** REQ-2a: a structured, single current address, country-agnostic shape. */
 public record AddressDto(
-        String cep,
-        String logradouro,
-        String numero,
-        String complemento,
-        String bairro,
-        String cidade,
-        String estado,
-        String pais) {}
+        String addressLine1,
+        String addressLine2,
+        String city,
+        String stateRegion,
+        String postalCode,
+        String countryCode) {}

@@ -13,8 +13,8 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Component;
 
 /**
- * REQ-3: encrypts {@code User.cpf}/{@code User.rg} (and {@code
- * ProfileEditRequest.proposedCpf}/{@code .proposedRg}) at rest via AES-256-GCM, a random 96-bit IV
+ * REQ-3: encrypts {@code UserProfile.taxId} (and {@code
+ * ProfileEditRequest.proposedTaxId}) at rest via AES-256-GCM, a random 96-bit IV
  * per write, {@code Base64(iv || ciphertext || tag)} in one opaque column -- see
  * specify/features/identity-profile-model/PLAN.md. Never used for equality/uniqueness -- see {@link
  * BlindIndexService} for that. Spring-managed ({@code @Component}) so Hibernate's
@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
  */
 @Converter(autoApply = false)
 @Component
-public class CpfRgEncryptionConverter implements AttributeConverter<String, String> {
+public class TaxIdEncryptionConverter implements AttributeConverter<String, String> {
 
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
     private static final int IV_LENGTH_BYTES = 12;
@@ -31,7 +31,7 @@ public class CpfRgEncryptionConverter implements AttributeConverter<String, Stri
 
     private final IdentityCryptoProperties properties;
 
-    public CpfRgEncryptionConverter(IdentityCryptoProperties properties) {
+    public TaxIdEncryptionConverter(IdentityCryptoProperties properties) {
         this.properties = properties;
     }
 

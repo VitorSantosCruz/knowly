@@ -11,21 +11,17 @@ describe('ProfileSectionComponent', () => {
 
   const fields = {
     fullName: 'Jane Doe',
-    cpf: '111.111.111-11',
-    rg: '11.111.111-1',
-    rgOrgaoEmissor: 'SSP',
-    birthDate: '1990-01-01',
+    taxId: '111.111.111-11',
+    countryCode: 'BR',
     address: {
-      cep: '01000-000',
-      logradouro: 'Main St',
-      numero: '123',
-      complemento: null,
-      bairro: 'Centro',
-      cidade: 'Sao Paulo',
-      estado: 'SP',
-      pais: 'BR',
+      addressLine1: 'Main St, 123',
+      addressLine2: 'Centro',
+      city: 'Sao Paulo',
+      stateRegion: 'SP',
+      postalCode: '01000-000',
+      countryCode: 'BR',
     },
-    contacts: [{ id: 1, type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
+    contacts: [{ id: 1, type: 'PHONE', value: '+5511987654321', label: null, isPrimary: true }],
   };
 
   const profile = { userId: 42, email: 'jane@example.com', fields, avatarUrl: null };
@@ -151,7 +147,7 @@ describe('ProfileSectionComponent', () => {
     fixture.nativeElement.querySelector('[data-testid="profile-fields-submit"]').click();
     httpMock
       .expectOne('/api/users/42/profile')
-      .flush({ conflictingFields: ['cpf'] }, { status: 409, statusText: 'Conflict' });
+      .flush({ conflictingFields: ['taxId'] }, { status: 409, statusText: 'Conflict' });
     fixture.detectChanges();
 
     expect(

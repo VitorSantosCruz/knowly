@@ -38,18 +38,18 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
                 }
               </p>
               <p class="text-sm text-ink-600 dark:text-ink-400">
-                {{ request.proposedFields.fullName }} · {{ request.proposedFields.rg }} ·
-                {{ request.proposedFields.cpf }} · {{ request.proposedFields.rgOrgaoEmissor }} ·
-                {{ request.proposedFields.birthDate }}
+                {{ request.proposedFields.fullName }} · {{ request.proposedFields.taxId }} ·
+                {{ request.proposedFields.countryCode }}
               </p>
               @if (request.proposedFields.address; as address) {
                 <p
                   [attr.data-testid]="'profile-edit-request-address-' + request.id"
                   class="text-sm text-ink-600 dark:text-ink-400"
                 >
-                  {{ address.logradouro }}, {{ address.numero }} - {{ address.bairro }},
-                  {{ address.cidade }}/{{ address.estado }} - {{ address.cep }} -
-                  {{ address.pais }}
+                  {{ address.addressLine1 }}, {{ address.addressLine2 }} - {{ address.city }}/{{
+                    address.stateRegion
+                  }}
+                  - {{ address.postalCode }} - {{ address.countryCode }}
                 </p>
               }
               @if (request.proposedContactChanges.length > 0) {

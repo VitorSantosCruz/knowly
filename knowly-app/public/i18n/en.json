@@ -367,10 +367,6 @@
     "contactPhone": "Contact phone",
     "adminEmail": "Admin login email",
     "fullName": "Full name",
-    "birthDate": "Birth date",
-    "cpf": "CPF",
-    "rg": "RG",
-    "rgOrgaoEmissor": "RG issuing body",
     "role": "Role",
     "roleMemberAdmin": "Member admin",
     "roleMember": "Member",
@@ -383,7 +379,10 @@
       "complement": "Complement",
       "neighborhood": "Neighborhood",
       "city": "City",
-      "state": "State/Province"
+      "state": "State/Province",
+      "addressLine1": "Address line 1",
+      "addressLine2": "Address line 2",
+      "stateRegion": "State/Region"
     },
     "contacts": {
       "title": "Contacts",
@@ -394,7 +393,8 @@
     "submit": "Create",
     "invalid": "Please fix the highlighted fields.",
     "submitError": "Couldn't create the tenant. Please check the details and try again.",
-    "taxIdConflict": "This tax ID is already in use by another tenant."
+    "taxIdConflict": "This tax ID is already in use by another tenant.",
+    "userTaxId": "Tax ID"
   },
   "profile": {
     "myProfile": "My profile",
@@ -402,21 +402,10 @@
     "email": "Email",
     "fields": {
       "fullName": "Full name",
-      "rg": "RG",
-      "cpf": "CPF",
-      "rgOrgaoEmissor": "RG issuing body",
-      "birthDate": "Birth date",
       "save": "Save",
       "address": {
         "title": "Address",
-        "cep": "CEP",
-        "logradouro": "Street",
-        "numero": "Number",
-        "complemento": "Complement",
-        "bairro": "Neighborhood",
-        "cidade": "City",
-        "estado": "State",
-        "pais": "Country"
+        "addressLine2": "Address line 2"
       },
       "contacts": {
         "title": "Contacts",
@@ -427,7 +416,9 @@
         "add": "Add contact",
         "limitReached": "You can add up to 5 contacts.",
         "required": "At least one contact is required."
-      }
+      },
+      "country": "Country",
+      "countryNotSpecified": "Not specified"
     },
     "pending": "Your profile change is pending approval.",
     "alreadyPending": "A profile change request is already pending approval.",

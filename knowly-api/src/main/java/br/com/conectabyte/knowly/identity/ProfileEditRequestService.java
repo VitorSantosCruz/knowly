@@ -95,10 +95,8 @@ public class ProfileEditRequestService {
     public ProfileFieldsDto proposedFieldsOf(ProfileEditRequest request) {
         return new ProfileFieldsDto(
                 request.getProposedFullName(),
-                request.getProposedCpf(),
-                request.getProposedRg(),
-                request.getProposedRgOrgaoEmissor(),
-                request.getProposedBirthDate(),
+                request.getProposedTaxId(),
+                request.getProposedCountryCode(),
                 proposedAddressOf(request),
                 null);
     }
@@ -116,22 +114,21 @@ public class ProfileEditRequestService {
         ProfileFieldsDto fields = body.fields();
         ProfileEditRequest request = new ProfileEditRequest(requester);
         if (fields != null) {
+            String normalizedTaxId = IdentityFieldNormalizer.stripFormatting(fields.taxId());
+            userProfileService.requireValidTaxId(normalizedTaxId, fields.countryCode());
+
             request.setProposedFullName(fields.fullName());
-            request.setProposedRg(fields.rg());
-            request.setProposedRgOrgaoEmissor(fields.rgOrgaoEmissor());
-            request.setProposedCpf(fields.cpf());
-            request.setProposedBirthDate(fields.birthDate());
+            request.setProposedTaxId(normalizedTaxId);
+            request.setProposedCountryCode(fields.countryCode());
 
             AddressDto address = fields.address();
             if (address != null) {
-                request.setProposedCep(address.cep());
-                request.setProposedLogradouro(address.logradouro());
-                request.setProposedNumero(address.numero());
-                request.setProposedComplemento(address.complemento());
-                request.setProposedBairro(address.bairro());
-                request.setProposedCidade(address.cidade());
-                request.setProposedEstado(address.estado());
-                request.setProposedPais(address.pais());
+                request.setProposedAddressLine1(address.addressLine1());
+                request.setProposedAddressLine2(address.addressLine2());
+                request.setProposedCity(address.city());
+                request.setProposedStateRegion(address.stateRegion());
+                request.setProposedPostalCode(
+                        IdentityFieldNormalizer.stripFormatting(address.postalCode()));
             }
         }
         request.setStatus(ProfileEditRequestStatus.PENDING);
@@ -198,19 +195,17 @@ public class ProfileEditRequestService {
     }
 
     private AddressDto proposedAddressOf(ProfileEditRequest request) {
-        if (request.getProposedCep() == null && request.getProposedLogradouro() == null) {
+        if (request.getProposedAddressLine1() == null && request.getProposedCity() == null) {
             return null;
         }
 
         return new AddressDto(
-                request.getProposedCep(),
-                request.getProposedLogradouro(),
-                request.getProposedNumero(),
-                request.getProposedComplemento(),
-                request.getProposedBairro(),
-                request.getProposedCidade(),
-                request.getProposedEstado(),
-                request.getProposedPais());
+                request.getProposedAddressLine1(),
+                request.getProposedAddressLine2(),
+                request.getProposedCity(),
+                request.getProposedStateRegion(),
+                request.getProposedPostalCode(),
+                request.getProposedCountryCode());
     }
 
     /** REQ-18: discard the proposed values and resolve as rejected. */

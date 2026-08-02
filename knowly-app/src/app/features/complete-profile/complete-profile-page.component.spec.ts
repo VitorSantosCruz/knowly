@@ -12,21 +12,17 @@ describe('CompleteProfilePageComponent', () => {
 
   const fields = {
     fullName: 'Jane Doe',
-    cpf: '111.111.111-11',
-    rg: '11.111.111-1',
-    rgOrgaoEmissor: 'SSP',
-    birthDate: '1990-01-01',
+    taxId: '111.111.111-11',
+    countryCode: 'BR',
     address: {
-      cep: '01000-000',
-      logradouro: 'Main St',
-      numero: '123',
-      complemento: null,
-      bairro: 'Centro',
-      cidade: 'Sao Paulo',
-      estado: 'SP',
-      pais: 'BR',
+      addressLine1: 'Main St, 123',
+      addressLine2: 'Centro',
+      city: 'Sao Paulo',
+      stateRegion: 'SP',
+      postalCode: '01000-000',
+      countryCode: 'BR',
     },
-    contacts: [{ id: 1, type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
+    contacts: [{ id: 1, type: 'PHONE', value: '+5511987654321', label: null, isPrimary: true }],
   };
 
   const profile = { userId: 1, email: 'jane@example.com', fields, avatarUrl: null };
@@ -118,7 +114,7 @@ describe('CompleteProfilePageComponent', () => {
     httpMock
       .expectOne('/api/users/me/profile/complete')
       .flush(
-        { errors: [{ field: 'cpf', message: 'invalid checksum' }] },
+        { errors: [{ field: 'taxId', message: 'invalid checksum' }] },
         { status: 400, statusText: 'Bad Request' },
       );
     fixture.detectChanges();
@@ -127,7 +123,7 @@ describe('CompleteProfilePageComponent', () => {
       '[data-testid="complete-profile-field-errors"]',
     );
     expect(errorEl).toBeTruthy();
-    expect(errorEl.textContent).toContain('cpf');
+    expect(errorEl.textContent).toContain('taxId');
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-field-fullName"]').value,
     ).toBe('Jane Doe');
@@ -149,7 +145,7 @@ describe('CompleteProfilePageComponent', () => {
     httpMock
       .expectOne('/api/users/me/profile/complete')
       .flush(
-        { errors: [{ field: 'cpf', message: 'invalid checksum', value: '123.456.789-00' }] },
+        { errors: [{ field: 'taxId', message: 'invalid checksum', value: '123.456.789-00' }] },
         { status: 400, statusText: 'Bad Request' },
       );
     fixture.detectChanges();
@@ -218,7 +214,7 @@ describe('CompleteProfilePageComponent', () => {
     ).toBe('Jane Doe');
   });
 
-  it('confirms masking is inherited from ProfileFieldsFormComponent (cpf display, unmasked submit)', async () => {
+  it('confirms masking is inherited from ProfileFieldsFormComponent (taxId display, unmasked submit)', async () => {
     await createFixture();
     fixture.detectChanges();
     flushOwnProfile();
@@ -227,19 +223,19 @@ describe('CompleteProfilePageComponent', () => {
     const router = TestBed.inject(Router);
     vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
-    const cpfInput: HTMLInputElement = fixture.nativeElement.querySelector(
-      '[data-testid="profile-field-cpf"]',
+    const taxIdInput: HTMLInputElement = fixture.nativeElement.querySelector(
+      '[data-testid="profile-field-taxId"]',
     );
-    cpfInput.value = '12345678900';
-    cpfInput.dispatchEvent(new Event('input'));
+    taxIdInput.value = '12345678900';
+    taxIdInput.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(cpfInput.value).toBe('123.456.789-00');
+    expect(taxIdInput.value).toBe('123.456.789-00');
 
     submit();
 
     const req = httpMock.expectOne('/api/users/me/profile/complete');
-    expect(req.request.body.cpf).toBe('12345678900');
+    expect(req.request.body.taxId).toBe('12345678900');
     req.flush(profile);
   });
 });

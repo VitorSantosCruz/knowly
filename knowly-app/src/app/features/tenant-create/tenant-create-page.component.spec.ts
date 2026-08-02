@@ -70,17 +70,13 @@ describe('TenantCreatePageComponent', () => {
   function fillUserSection(): void {
     setValue('tenant-create-adminEmail', 'admin@acme.test');
     setValue('tenant-create-userProfile-fullName', 'Jane Admin');
-    setValue('tenant-create-userProfile-birthDate', '1990-01-01');
-    setValue('tenant-create-userProfile-cpf', '12345678900');
-    setValue('tenant-create-userProfile-rg', '123456789');
-    setValue('tenant-create-userProfile-rgOrgaoEmissor', 'SSP');
-    setValue('address-field-cep', '01310-000');
-    setValue('address-field-logradouro', 'Av. Paulista');
-    setValue('address-field-numero', '1000');
-    setValue('address-field-bairro', 'Bela Vista');
-    setValue('address-field-cidade', 'São Paulo');
-    setValue('address-field-estado', 'SP');
-    setValue('address-field-pais', 'Brazil');
+    setValue('tenant-create-userProfile-taxId', '12345678900');
+    setValue('tenant-create-userProfile-countryCode', 'BR');
+    setValue('address-field-user-addressLine1', 'Av. Paulista, 1000');
+    setValue('address-field-user-addressLine2', 'Bela Vista');
+    setValue('address-field-user-city', 'São Paulo');
+    setValue('address-field-user-stateRegion', 'SP');
+    setValue('address-field-user-postalCode', '01310-000');
     setValue('contacts-value-0', 'admin@acme.test');
   }
 
@@ -260,19 +256,15 @@ describe('TenantCreatePageComponent', () => {
       adminEmail: 'admin@acme.test',
       profile: {
         fullName: 'Jane Admin',
-        birthDate: '1990-01-01',
-        cpf: '12345678900',
-        rg: '123456789',
-        rgOrgaoEmissor: 'SSP',
+        taxId: '12345678900',
+        countryCode: 'BR',
         address: {
-          cep: '01310-000',
-          logradouro: 'Av. Paulista',
-          numero: '1000',
-          complemento: null,
-          bairro: 'Bela Vista',
-          cidade: 'São Paulo',
-          estado: 'SP',
-          pais: 'Brazil',
+          addressLine1: 'Av. Paulista, 1000',
+          addressLine2: 'Bela Vista',
+          city: 'São Paulo',
+          stateRegion: 'SP',
+          postalCode: '01310-000',
+          countryCode: 'BR',
         },
         contacts: [{ type: 'EMAIL', value: 'admin@acme.test' }],
       },
@@ -358,13 +350,13 @@ describe('TenantCreatePageComponent', () => {
     fixture.detectChanges();
 
     setValue('address-field-postalCode', 'company-postal');
-    setValue('address-field-cep', 'user-cep');
+    setValue('address-field-user-postalCode', 'user-postal');
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="address-field-postalCode"]').value,
     ).toBe('company-postal');
-    expect(fixture.nativeElement.querySelector('[data-testid="address-field-cep"]').value).toBe(
-      'user-cep',
-    );
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="address-field-user-postalCode"]').value,
+    ).toBe('user-postal');
   });
 });

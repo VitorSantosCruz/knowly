@@ -1,56 +1,45 @@
 import { Directive, HostListener, input, output } from '@angular/core';
 
 // REQ-21/22/23 (user-profile-v2 amendment, 2026-08-02): mask-as-you-type display formatting
-// for CPF, CEP, and phone-type contact values. `rg` is deliberately excluded — Brazilian RG
-// has no single national format/checksum — see PLAN.md's amendment section and DECISIONS.md.
-export type InputMaskType = 'cpf' | 'cep' | 'phone';
-
-function maxDigitsFor(mask: InputMaskType): number {
-  switch (mask) {
-    case 'cpf':
-      return 11;
-    case 'cep':
-      return 8;
-    case 'phone':
-      return 11;
-  }
-}
+// for taxId, postalCode, and phone-type contact values. `rg` was deliberately excluded (removed
+// entirely, per that same day's separate RG-removal amendment) and stays excluded.
+//
+// Amendment (2026-08-02, "country-agnostic identity/address model"): mask keys renamed
+// `cpf`/`cep` -> `taxId`/`postalCode` and mask *selection* is now country-conditional via
+// `[appInputMaskCountry]`, looked up against a small per-country pattern table below (not a
+// generic mask-pattern-string interpreter — see PLAN.md's amendment). Where no pattern is
+// defined for the given `(mask, country)` pair, the directive is a no-op passthrough (REQ-21's
+// "plain, unmasked text input" behavior for a country with no known mask).
+export type InputMaskType = 'taxId' | 'postalCode' | 'phone';
 
 function onlyDigits(value: string): string {
   return value.replace(/\D/g, '');
 }
 
-function formatCpf(digits: string): string {
-  const part1 = digits.slice(0, 3);
-  const part2 = digits.slice(3, 6);
-  const part3 = digits.slice(6, 9);
-  const part4 = digits.slice(9, 11);
-
-  let result = part1;
-  if (part2) {
-    result += `.${part2}`;
-  }
-  if (part3) {
-    result += `.${part3}`;
-  }
-  if (part4) {
-    result += `-${part4}`;
+function formatGrouped(digits: string, groupLengths: number[], separators: string[]): string {
+  let result = '';
+  let index = 0;
+  for (let i = 0; i < groupLengths.length; i++) {
+    const part = digits.slice(index, index + groupLengths[i]);
+    if (!part) {
+      break;
+    }
+    result += i === 0 ? part : separators[i - 1] + part;
+    index += groupLengths[i];
   }
   return result;
+}
+
+// -- Brazil (unchanged from the pre-amendment implementation) --
+function formatCpf(digits: string): string {
+  return formatGrouped(digits, [3, 3, 3, 2], ['.', '.', '-']);
 }
 
 function formatCep(digits: string): string {
-  const part1 = digits.slice(0, 5);
-  const part2 = digits.slice(5, 8);
-
-  let result = part1;
-  if (part2) {
-    result += `-${part2}`;
-  }
-  return result;
+  return formatGrouped(digits, [5, 3], ['-']);
 }
 
-function formatPhone(digits: string): string {
+function formatPhoneBr(digits: string): string {
   if (digits.length === 0) {
     return '';
   }
@@ -72,24 +61,70 @@ function formatPhone(digits: string): string {
   return result;
 }
 
-function formatByMask(mask: InputMaskType, digits: string): string {
-  switch (mask) {
-    case 'cpf':
-      return formatCpf(digits);
-    case 'cep':
-      return formatCep(digits);
-    case 'phone':
-      return formatPhone(digits);
+// -- United States --
+function formatSsn(digits: string): string {
+  return formatGrouped(digits, [3, 2, 4], ['-', '-']);
+}
+
+function formatZip(digits: string): string {
+  return digits.slice(0, 5);
+}
+
+interface MaskDefinition {
+  maxDigits: number;
+  format: (digits: string) => string;
+}
+
+// Per-`(mask, country)` concrete patterns. Any pair not listed here has no known mask (REQ-21) —
+// the directive/`formatMaskedValue` fall back to a plain, capped-nowhere passthrough of the raw
+// digits, unformatted.
+const MASK_TABLE: Partial<Record<InputMaskType, Record<string, MaskDefinition>>> = {
+  taxId: {
+    BR: { maxDigits: 11, format: formatCpf },
+    US: { maxDigits: 9, format: formatSsn },
+  },
+  postalCode: {
+    BR: { maxDigits: 8, format: formatCep },
+    US: { maxDigits: 5, format: formatZip },
+  },
+  phone: {
+    BR: { maxDigits: 11, format: formatPhoneBr },
+  },
+};
+
+function definitionFor(
+  mask: InputMaskType,
+  country: string | null | undefined,
+): MaskDefinition | null {
+  return MASK_TABLE[mask]?.[country ?? ''] ?? null;
+}
+
+function formatByMask(
+  mask: InputMaskType,
+  country: string | null | undefined,
+  rawValue: string,
+): string {
+  const definition = definitionFor(mask, country);
+
+  if (!definition) {
+    // REQ-21: no known mask for this country — plain, unmasked passthrough. The raw value is
+    // left exactly as typed (not stripped to digits-only) since this is a genuine free-text
+    // field for a country with no fixed national format.
+    return rawValue;
   }
+
+  return definition.format(onlyDigits(rawValue).slice(0, definition.maxDigits));
 }
 
 // Exported so consumers can format the *initial*/externally-driven `[value]` binding the same
 // way the directive formats user keystrokes — without this, a `[value]` bound straight to the
-// underlying unmasked signal would fight the directive's own DOM write on every input event
-// (the signal updates to the unmasked digits, then the `[value]` binding re-applies that
-// unmasked string over the directive's masked one on the same change-detection pass).
-export function formatMaskedValue(mask: InputMaskType, rawValue: string): string {
-  return formatByMask(mask, onlyDigits(rawValue).slice(0, maxDigitsFor(mask)));
+// underlying unmasked signal would fight the directive's own DOM write on every input event.
+export function formatMaskedValue(
+  mask: InputMaskType,
+  country: string | null | undefined,
+  rawValue: string,
+): string {
+  return formatByMask(mask, country, rawValue);
 }
 
 // Counts how many digit characters appear in `value` up to (and excluding) `caret`, and
@@ -119,23 +154,33 @@ function locateCaret(masked: string, digitsBeforeCaret: number): number {
 })
 export class InputMaskDirective {
   readonly appInputMask = input.required<InputMaskType>();
+  readonly appInputMaskCountry = input<string | null>(null);
   readonly appInputMaskChange = output<string>();
 
   @HostListener('input', ['$event'])
   protected onInput(event: Event): void {
     const element = event.target as HTMLInputElement;
     const rawValue = element.value;
+    const mask = this.appInputMask();
+    const country = this.appInputMaskCountry();
+    const definition = definitionFor(mask, country);
+
+    if (!definition) {
+      // REQ-21: no-op passthrough — leave the DOM value/caret untouched, emit exactly what was
+      // typed (this is a genuine free-text field for a country with no fixed national format).
+      this.appInputMaskChange.emit(rawValue);
+      return;
+    }
+
     const caret = element.selectionStart ?? rawValue.length;
     const digitsBeforeCaret = onlyDigits(rawValue.slice(0, caret)).length;
-
-    const mask = this.appInputMask();
-    const digits = onlyDigits(rawValue).slice(0, maxDigitsFor(mask));
-    const masked = formatByMask(mask, digits);
+    const masked = formatByMask(mask, country, rawValue);
 
     element.value = masked;
     const newCaret = locateCaret(masked, digitsBeforeCaret);
     element.setSelectionRange(newCaret, newCaret);
 
-    this.appInputMaskChange.emit(digits);
+    // REQ-22: emitted value is always the plain digits, regardless of the masked display.
+    this.appInputMaskChange.emit(onlyDigits(rawValue));
   }
 }

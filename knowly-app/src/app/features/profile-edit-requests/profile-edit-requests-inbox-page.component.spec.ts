@@ -16,19 +16,15 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     requesterEmail: 'jane@example.com',
     proposedFields: {
       fullName: 'Jane Doe',
-      rg: '11.111.111-1',
-      cpf: '111.111.111-11',
-      rgOrgaoEmissor: 'SSP',
-      birthDate: '1990-01-01',
+      taxId: '111.111.111-11',
+      countryCode: 'BR',
       address: {
-        cep: '01000-000',
-        logradouro: 'Main St',
-        numero: '123',
-        complemento: null,
-        bairro: 'Centro',
-        cidade: 'Sao Paulo',
-        estado: 'SP',
-        pais: 'BR',
+        addressLine1: 'Main St, 123',
+        addressLine2: 'Centro',
+        city: 'Sao Paulo',
+        stateRegion: 'SP',
+        postalCode: '01000-000',
+        countryCode: 'BR',
       },
       contacts: [],
     },
@@ -195,7 +191,7 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     fixture.nativeElement.querySelector('[data-testid="approve-request-7"]').click();
     httpMock
       .expectOne('/api/profile-edit-requests/7/approve')
-      .flush({ conflictingFields: ['cpf'] }, { status: 409, statusText: 'Conflict' });
+      .flush({ conflictingFields: ['taxId'] }, { status: 409, statusText: 'Conflict' });
     fixture.detectChanges();
 
     expect(

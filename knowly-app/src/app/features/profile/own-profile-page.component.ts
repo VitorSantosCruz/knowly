@@ -11,19 +11,15 @@ import {
 
 const EMPTY_FIELDS: ProfileFields = {
   fullName: '',
-  cpf: '',
-  rg: '',
-  rgOrgaoEmissor: '',
-  birthDate: '',
+  taxId: '',
+  countryCode: '',
   address: {
-    cep: '',
-    logradouro: '',
-    numero: '',
-    complemento: '',
-    bairro: '',
-    cidade: '',
-    estado: '',
-    pais: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    stateRegion: '',
+    postalCode: '',
+    countryCode: '',
   },
   contacts: [],
 };

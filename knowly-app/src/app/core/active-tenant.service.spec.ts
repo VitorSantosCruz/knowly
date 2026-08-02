@@ -152,7 +152,7 @@ describe('ActiveTenantService', () => {
     req.flush({ content: [], page: 1, size: 10, totalElements: 0, totalPages: 0 });
   });
 
-  it('createTenant() posts the exact CreateTenantRequest payload (company address English-named, first-user address Portuguese-named)', () => {
+  it('createTenant() posts the exact CreateTenantRequest payload (company address English-named, first-user address country-agnostic)', () => {
     const request = {
       name: 'Acme',
       legalName: 'Acme Ltda',
@@ -172,19 +172,15 @@ describe('ActiveTenantService', () => {
       adminEmail: 'admin@acme.test',
       profile: {
         fullName: 'Jane Admin',
-        birthDate: '1990-01-01',
-        cpf: '12345678900',
-        rg: '123456789',
-        rgOrgaoEmissor: 'SSP',
+        taxId: '12345678900',
+        countryCode: 'BR',
         address: {
-          cep: '01310-000',
-          logradouro: 'Av. Paulista',
-          numero: '1000',
-          complemento: null,
-          bairro: 'Bela Vista',
-          cidade: 'São Paulo',
-          estado: 'SP',
-          pais: 'Brazil',
+          addressLine1: 'Av. Paulista, 1000',
+          addressLine2: 'Bela Vista',
+          city: 'São Paulo',
+          stateRegion: 'SP',
+          postalCode: '01310-000',
+          countryCode: 'BR',
         },
         contacts: [{ type: 'EMAIL' as const, value: 'admin@acme.test' }],
       },

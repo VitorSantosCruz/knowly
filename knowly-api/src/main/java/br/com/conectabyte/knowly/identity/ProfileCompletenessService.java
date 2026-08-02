@@ -9,6 +9,13 @@ import org.springframework.stereotype.Service;
  * "derived, not persisted" decision. Reused by {@link
  * br.com.conectabyte.knowly.tenancy.ProfileCompletionFilter}, the login-outcome computation, and
  * the completion endpoint's guard.
+ *
+ * <p>{@code countryCode} is required non-null as of mandatory-complete-profile/SPEC.md's
+ * 2026-08-02 fourth amendment -- this closes an appsec-flagged gap where a null {@code
+ * countryCode} would otherwise let a Brazilian {@code taxId} skip {@link CpfChecksumValidator}'s
+ * checksum via the completeness path (the checksum only runs when {@code countryCode == "BR"}).
+ * {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed entirely, 2026-08-02, and are
+ * no longer part of this check.
  */
 @Service
 public class ProfileCompletenessService {
@@ -29,25 +36,21 @@ public class ProfileCompletenessService {
     public boolean isComplete(User user) {
         UserProfile profile = userProfileRepository.findById(user.getId()).orElse(null);
 
-        if (profile == null || isBlank(profile.getFullName()) || profile.getBirthDate() == null) {
+        if (profile == null || isBlank(profile.getFullName())) {
             return false;
         }
 
-        if (isBlank(profile.getCpf())
-                || isBlank(profile.getRg())
-                || isBlank(profile.getRgOrgaoEmissor())) {
+        if (isBlank(profile.getTaxId()) || isBlank(profile.getCountryCode())) {
             return false;
         }
 
         Address address = addressRepository.findById(user.getId()).orElse(null);
 
         if (address == null
-                || isBlank(address.getCep())
-                || isBlank(address.getLogradouro())
-                || isBlank(address.getBairro())
-                || isBlank(address.getCidade())
-                || isBlank(address.getEstado())
-                || isBlank(address.getPais())) {
+                || isBlank(address.getAddressLine1())
+                || isBlank(address.getCity())
+                || isBlank(address.getPostalCode())
+                || isBlank(address.getCountryCode())) {
             return false;
         }
 

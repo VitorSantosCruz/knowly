@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  * cpf}/{@code rg} (REQ-2), per specify/features/identity-profile-model/SPEC.md's "Resolved"
  * section. Normalization strips every non-digit character before hashing so formatted/unformatted
  * input always collides; an empty string after stripping is treated as "not provided" (REQ-2a).
- * Uses a key independent from {@link CpfRgEncryptionConverter}'s encryption key.
+ * Uses a key independent from {@link TaxIdEncryptionConverter}'s encryption key.
  */
 @Service
 public class BlindIndexService {

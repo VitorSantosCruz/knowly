@@ -31,15 +31,17 @@ export interface CreateTenantAddress {
   state: string;
 }
 
+// user-profile-v2 amendment (2026-08-02, "country-agnostic identity/address model"): mirrors
+// `MandatoryProfileFieldsDto`'s own restructuring (backend PLAN.md task 37) — same country-
+// agnostic 6-field address shape as `core/profile.service.ts`'s `Address`, `cpf` renamed
+// `taxId`, `rg`/`rgOrgaoEmissor`/`birthDate` removed entirely (RG/birth_date removal amendments).
 export interface CreateTenantMandatoryAddress {
-  cep: string;
-  logradouro: string;
-  numero: string;
-  complemento: string | null;
-  bairro: string;
-  cidade: string;
-  estado: string;
-  pais: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  stateRegion: string | null;
+  postalCode: string;
+  countryCode: string;
 }
 
 export interface CreateTenantContact {
@@ -49,10 +51,8 @@ export interface CreateTenantContact {
 
 export interface CreateTenantProfile {
   fullName: string;
-  birthDate: string;
-  cpf: string;
-  rg: string;
-  rgOrgaoEmissor: string;
+  taxId: string;
+  countryCode: string;
   address: CreateTenantMandatoryAddress;
   contacts: CreateTenantContact[];
 }

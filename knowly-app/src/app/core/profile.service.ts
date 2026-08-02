@@ -12,23 +12,23 @@ export interface Contact {
   isPrimary: boolean;
 }
 
+// user-profile-v2 amendment (2026-08-02, "country-agnostic identity/address model"): the old
+// Brazil-only 8-field shape (`cep`/`logradouro`/`numero`/`complemento`/`bairro`/`cidade`/
+// `estado`/`pais`) is replaced by this country-agnostic 6-field shape — same fields render for
+// every country, only labels/masks differ (see `country-field-config.ts`).
 export interface Address {
-  cep: string | null;
-  logradouro: string | null;
-  numero: string | null;
-  complemento: string | null;
-  bairro: string | null;
-  cidade: string | null;
-  estado: string | null;
-  pais: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  stateRegion: string | null;
+  postalCode: string | null;
+  countryCode: string | null;
 }
 
 export interface ProfileFields {
   fullName: string | null;
-  cpf: string | null;
-  rg: string | null;
-  rgOrgaoEmissor: string | null;
-  birthDate: string | null;
+  taxId: string | null;
+  countryCode: string | null;
   address: Address | null;
   contacts: Contact[];
 }
