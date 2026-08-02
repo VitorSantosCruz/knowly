@@ -427,7 +427,13 @@
         "remove": "Remover",
         "add": "Adicionar contato",
         "limitReached": "Você pode adicionar até 5 contatos.",
-        "required": "Pelo menos um contato é obrigatório."
+        "required": "Pelo menos um contato é obrigatório.",
+        "types": {
+          "PHONE": "Telefone",
+          "WHATSAPP": "WhatsApp",
+          "EMAIL": "E-mail",
+          "OTHER": "Outro"
+        }
       },
       "country": "País",
       "countryNotSpecified": "Não especificado"

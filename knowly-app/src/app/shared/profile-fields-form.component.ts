@@ -208,7 +208,9 @@ export interface ProfileFieldsFormSubmission {
                 class="rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
               >
                 @for (type of contactTypes; track type) {
-                  <option [value]="type">{{ type }}</option>
+                  <option [value]="type">
+                    {{ 'profile.fields.contacts.types.' + type | transloco }}
+                  </option>
                 }
               </select>
               @if (isPhoneContact(row.type)) {

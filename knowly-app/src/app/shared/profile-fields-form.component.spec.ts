@@ -329,6 +329,22 @@ describe('ProfileFieldsFormComponent', () => {
     });
   });
 
+  describe('contact type translation', () => {
+    it('renders translated labels for the contact type <option>s, not the raw enum', async () => {
+      await createFixture();
+
+      const select = fixture.nativeElement.querySelector(
+        '[data-testid="profile-contact-type-id-1"]',
+      ) as HTMLSelectElement;
+      const optionTexts = Array.from(select.querySelectorAll('option')).map((option) =>
+        option.textContent?.trim(),
+      );
+
+      expect(optionTexts).toEqual(['Phone', 'WhatsApp', 'Email', 'Other']);
+      expect(optionTexts).not.toContain('PHONE');
+    });
+  });
+
   describe('phone/WhatsApp contact rows', () => {
     it('shows PhoneDdiInputComponent for a PHONE/WHATSAPP row, and a plain input for EMAIL/OTHER', async () => {
       await createFixture();
