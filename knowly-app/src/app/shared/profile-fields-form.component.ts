@@ -1,4 +1,5 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { LucideCircleAlert } from '@lucide/angular';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   Address,
@@ -42,9 +43,23 @@ const BASE_INPUT_CLASS =
 
 // Inline per-field validation error style (bugfix, 2026-08-02): reuses the same rounded/padding
 // shape as `BASE_INPUT_CLASS`, only swapping the border/ring color to red, so a field named in
-// `fieldErrors` gets a visibly distinct (but layout-identical) state.
+// `fieldErrors` gets a visibly distinct (but layout-identical) state. `pr-9` (both variants, so
+// swapping between them never shifts layout) reserves room for the inline warning icon rendered
+// inside the `relative`-positioned wrapper around each input — see the template.
 const ERROR_INPUT_CLASS =
-  'rounded-xl border border-red-500 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-red-500 focus:ring-2 focus:ring-red-400/40 focus:outline-none dark:border-red-500 dark:bg-ink-800 dark:text-ink-100';
+  'rounded-xl border border-red-500 bg-white px-3 py-1.5 pr-9 text-sm text-ink-900 shadow-sm focus:border-red-500 focus:ring-2 focus:ring-red-400/40 focus:outline-none dark:border-red-500 dark:bg-ink-800 dark:text-ink-100';
+
+// Bugfix (2026-08-02, round 2): client-side required-field checks (`clientRequiredErrors`) use
+// their own field-name -> Transloco-key map, so `hasFieldError`'s generic message doesn't
+// collide with each field's specific "X is required" copy.
+const CLIENT_REQUIRED_MESSAGE_KEYS: ReadonlyMap<string, string> = new Map([
+  ['fullName', 'profile.fields.fullNameRequired'],
+  ['taxId', 'profile.fields.taxIdRequired'],
+  ['address.addressLine1', 'profile.fields.address.addressLine1Required'],
+  ['address.city', 'profile.fields.address.cityRequired'],
+  ['address.stateRegion', 'profile.fields.address.stateRegionRequired'],
+  ['address.postalCode', 'profile.fields.address.postalCodeRequired'],
+]);
 
 let rowKeySeed = 0;
 
@@ -59,52 +74,70 @@ export interface ProfileFieldsFormSubmission {
 
 @Component({
   selector: 'app-profile-fields-form',
-  imports: [TranslocoPipe, InputMaskDirective, PhoneDdiInputComponent],
+  imports: [TranslocoPipe, InputMaskDirective, PhoneDdiInputComponent, LucideCircleAlert],
   template: `
     <form data-testid="profile-fields-form" (submit)="onSubmit($event)" class="flex flex-col gap-3">
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
         {{ 'profile.fields.fullName' | transloco }}
-        <input
-          data-testid="profile-field-fullName"
-          type="text"
-          [value]="localFields().fullName"
-          [disabled]="disabled()"
-          [required]="requireAllFields()"
-          [placeholder]="'profile.fields.fullNamePlaceholder' | transloco"
-          (input)="onFieldChange('fullName', $any($event.target).value)"
-          [class]="inputClassFor('fullName')"
-        />
+        <div class="relative">
+          <input
+            data-testid="profile-field-fullName"
+            type="text"
+            [value]="localFields().fullName"
+            [disabled]="disabled()"
+            [required]="requireAllFields()"
+            [placeholder]="'profile.fields.fullNamePlaceholder' | transloco"
+            (input)="onFieldChange('fullName', $any($event.target).value)"
+            [class]="inputClassFor('fullName')"
+          />
+          @if (hasFieldError('fullName')) {
+            <svg
+              lucideCircleAlert
+              class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+              aria-hidden="true"
+            ></svg>
+          }
+        </div>
         @if (hasFieldError('fullName')) {
           <p
             data-testid="profile-field-error-fullName"
             class="text-xs text-red-600 dark:text-red-400"
           >
-            {{ 'profile.fields.fieldInvalid' | transloco }}
+            {{ fieldErrorMessageKey('fullName') | transloco }}
           </p>
         }
       </label>
 
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
         {{ 'profile.fields.country' | transloco }}
-        <select
-          data-testid="profile-field-countryCode"
-          [disabled]="disabled()"
-          [required]="requireAllFields()"
-          (change)="onCountryChange($any($event.target).value)"
-          [class]="
-            inputClassFor('address.countryCode') +
-            (countryRequiredMessage() ? ' border-red-500' : '')
-          "
-        >
-          <option value="" [selected]="!localFields().countryCode">
-            {{ 'profile.fields.countryNotSpecified' | transloco }}
-          </option>
-          @for (code of countryCodes; track code) {
-            <option [value]="code" [selected]="code === localFields().countryCode">
-              {{ 'profile.fields.countryNames.' + code | transloco }}
+        <div class="relative">
+          <select
+            data-testid="profile-field-countryCode"
+            [disabled]="disabled()"
+            [required]="requireAllFields()"
+            (change)="onCountryChange($any($event.target).value)"
+            [class]="
+              inputClassFor('address.countryCode') +
+              (countryRequiredMessage() ? ' border-red-500 pr-9' : '')
+            "
+          >
+            <option value="" [selected]="!localFields().countryCode">
+              {{ 'profile.fields.countryNotSpecified' | transloco }}
             </option>
+            @for (code of countryCodes; track code) {
+              <option [value]="code" [selected]="code === localFields().countryCode">
+                {{ 'profile.fields.countryNames.' + code | transloco }}
+              </option>
+            }
+          </select>
+          @if (hasFieldError('address.countryCode') || countryRequiredMessage()) {
+            <svg
+              lucideCircleAlert
+              class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+              aria-hidden="true"
+            ></svg>
           }
-        </select>
+        </div>
         @if (countryRequiredMessage()) {
           <p
             data-testid="profile-country-required-message"
@@ -121,21 +154,32 @@ export interface ProfileFieldsFormSubmission {
         } @else {
           {{ 'profile.fields.taxIdGeneric' | transloco }}
         }
-        <input
-          data-testid="profile-field-taxId"
-          type="text"
-          [value]="formatMaskedValue('taxId', localFields().countryCode, localFields().taxId ?? '')"
-          [disabled]="disabled()"
-          [required]="requireAllFields()"
-          [placeholder]="taxIdPlaceholder()"
-          [appInputMask]="'taxId'"
-          [appInputMaskCountry]="localFields().countryCode"
-          (appInputMaskChange)="onFieldChange('taxId', $event)"
-          [class]="inputClassFor('taxId')"
-        />
+        <div class="relative">
+          <input
+            data-testid="profile-field-taxId"
+            type="text"
+            [value]="
+              formatMaskedValue('taxId', localFields().countryCode, localFields().taxId ?? '')
+            "
+            [disabled]="disabled()"
+            [required]="requireAllFields()"
+            [placeholder]="taxIdPlaceholder()"
+            [appInputMask]="'taxId'"
+            [appInputMaskCountry]="localFields().countryCode"
+            (appInputMaskChange)="onFieldChange('taxId', $event)"
+            [class]="inputClassFor('taxId')"
+          />
+          @if (hasFieldError('taxId')) {
+            <svg
+              lucideCircleAlert
+              class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+              aria-hidden="true"
+            ></svg>
+          }
+        </div>
         @if (hasFieldError('taxId')) {
           <p data-testid="profile-field-error-taxId" class="text-xs text-red-600 dark:text-red-400">
-            {{ 'profile.fields.taxIdInvalid' | transloco }}
+            {{ fieldErrorMessageKey('taxId', 'profile.fields.taxIdInvalid') | transloco }}
           </p>
         }
       </label>
@@ -147,67 +191,94 @@ export interface ProfileFieldsFormSubmission {
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.addressLine1' | transloco }}
-          <input
-            data-testid="profile-address-field-addressLine1"
-            type="text"
-            [value]="localFields().address?.addressLine1 ?? ''"
-            [disabled]="disabled()"
-            [required]="requireAllFields()"
-            [placeholder]="'profile.fields.address.addressLine1Placeholder' | transloco"
-            [title]="'profile.fields.address.addressLine1Tooltip' | transloco"
-            (input)="onAddressFieldChange('addressLine1', $any($event.target).value)"
-            [class]="inputClassFor('address.addressLine1')"
-          />
+          <div class="relative">
+            <input
+              data-testid="profile-address-field-addressLine1"
+              type="text"
+              [value]="localFields().address?.addressLine1 ?? ''"
+              [disabled]="disabled()"
+              [required]="requireAllFields()"
+              [placeholder]="'profile.fields.address.addressLine1Placeholder' | transloco"
+              [title]="'profile.fields.address.addressLine1Tooltip' | transloco"
+              (input)="onAddressFieldChange('addressLine1', $any($event.target).value)"
+              [class]="inputClassFor('address.addressLine1')"
+            />
+            @if (hasFieldError('address.addressLine1')) {
+              <svg
+                lucideCircleAlert
+                class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+                aria-hidden="true"
+              ></svg>
+            }
+          </div>
           @if (hasFieldError('address.addressLine1')) {
             <p
               data-testid="profile-field-error-address.addressLine1"
               class="text-xs text-red-600 dark:text-red-400"
             >
-              {{ 'profile.fields.fieldInvalid' | transloco }}
+              {{ fieldErrorMessageKey('address.addressLine1') | transloco }}
             </p>
           }
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.addressLine2' | transloco }}
-          <input
-            data-testid="profile-address-field-addressLine2"
-            type="text"
-            [value]="localFields().address?.addressLine2 ?? ''"
-            [disabled]="disabled()"
-            [placeholder]="'profile.fields.address.addressLine2Placeholder' | transloco"
-            [title]="'profile.fields.address.addressLine2Tooltip' | transloco"
-            (input)="onAddressFieldChange('addressLine2', $any($event.target).value)"
-            [class]="inputClassFor('address.addressLine2')"
-          />
+          <div class="relative">
+            <input
+              data-testid="profile-address-field-addressLine2"
+              type="text"
+              [value]="localFields().address?.addressLine2 ?? ''"
+              [disabled]="disabled()"
+              [placeholder]="'profile.fields.address.addressLine2Placeholder' | transloco"
+              [title]="'profile.fields.address.addressLine2Tooltip' | transloco"
+              (input)="onAddressFieldChange('addressLine2', $any($event.target).value)"
+              [class]="inputClassFor('address.addressLine2')"
+            />
+            @if (hasFieldError('address.addressLine2')) {
+              <svg
+                lucideCircleAlert
+                class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+                aria-hidden="true"
+              ></svg>
+            }
+          </div>
           @if (hasFieldError('address.addressLine2')) {
             <p
               data-testid="profile-field-error-address.addressLine2"
               class="text-xs text-red-600 dark:text-red-400"
             >
-              {{ 'profile.fields.fieldInvalid' | transloco }}
+              {{ fieldErrorMessageKey('address.addressLine2') | transloco }}
             </p>
           }
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.city' | transloco }}
-          <input
-            data-testid="profile-address-field-city"
-            type="text"
-            [value]="localFields().address?.city ?? ''"
-            [disabled]="disabled()"
-            [required]="requireAllFields()"
-            [placeholder]="'profile.fields.address.cityPlaceholder' | transloco"
-            (input)="onAddressFieldChange('city', $any($event.target).value)"
-            [class]="inputClassFor('address.city')"
-          />
+          <div class="relative">
+            <input
+              data-testid="profile-address-field-city"
+              type="text"
+              [value]="localFields().address?.city ?? ''"
+              [disabled]="disabled()"
+              [required]="requireAllFields()"
+              [placeholder]="'profile.fields.address.cityPlaceholder' | transloco"
+              (input)="onAddressFieldChange('city', $any($event.target).value)"
+              [class]="inputClassFor('address.city')"
+            />
+            @if (hasFieldError('address.city')) {
+              <svg
+                lucideCircleAlert
+                class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+                aria-hidden="true"
+              ></svg>
+            }
+          </div>
           @if (hasFieldError('address.city')) {
             <p
               data-testid="profile-field-error-address.city"
               class="text-xs text-red-600 dark:text-red-400"
             >
-              {{ 'profile.fields.fieldInvalid' | transloco }}
+              {{ fieldErrorMessageKey('address.city') | transloco }}
             </p>
           }
         </label>
@@ -218,21 +289,30 @@ export interface ProfileFieldsFormSubmission {
           } @else {
             {{ 'profile.fields.address.stateRegion' | transloco }}
           }
-          <input
-            data-testid="profile-address-field-stateRegion"
-            type="text"
-            [value]="localFields().address?.stateRegion ?? ''"
-            [disabled]="disabled()"
-            [placeholder]="stateRegionPlaceholder()"
-            (input)="onAddressFieldChange('stateRegion', $any($event.target).value)"
-            [class]="inputClassFor('address.stateRegion')"
-          />
+          <div class="relative">
+            <input
+              data-testid="profile-address-field-stateRegion"
+              type="text"
+              [value]="localFields().address?.stateRegion ?? ''"
+              [disabled]="disabled()"
+              [placeholder]="stateRegionPlaceholder()"
+              (input)="onAddressFieldChange('stateRegion', $any($event.target).value)"
+              [class]="inputClassFor('address.stateRegion')"
+            />
+            @if (hasFieldError('address.stateRegion')) {
+              <svg
+                lucideCircleAlert
+                class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+                aria-hidden="true"
+              ></svg>
+            }
+          </div>
           @if (hasFieldError('address.stateRegion')) {
             <p
               data-testid="profile-field-error-address.stateRegion"
               class="text-xs text-red-600 dark:text-red-400"
             >
-              {{ 'profile.fields.fieldInvalid' | transloco }}
+              {{ fieldErrorMessageKey('address.stateRegion') | transloco }}
             </p>
           }
         </label>
@@ -243,31 +323,40 @@ export interface ProfileFieldsFormSubmission {
           } @else {
             {{ 'profile.fields.postalCodeGeneric' | transloco }}
           }
-          <input
-            data-testid="profile-address-field-postalCode"
-            type="text"
-            [value]="
-              formatMaskedValue(
-                'postalCode',
-                localFields().countryCode,
-                localFields().address?.postalCode ?? ''
-              )
-            "
-            [disabled]="disabled()"
-            [required]="requireAllFields()"
-            [placeholder]="postalCodePlaceholder()"
-            [title]="postalCodeTooltip()"
-            [appInputMask]="'postalCode'"
-            [appInputMaskCountry]="localFields().countryCode"
-            (appInputMaskChange)="onAddressFieldChange('postalCode', $event)"
-            [class]="inputClassFor('address.postalCode')"
-          />
+          <div class="relative">
+            <input
+              data-testid="profile-address-field-postalCode"
+              type="text"
+              [value]="
+                formatMaskedValue(
+                  'postalCode',
+                  localFields().countryCode,
+                  localFields().address?.postalCode ?? ''
+                )
+              "
+              [disabled]="disabled()"
+              [required]="requireAllFields()"
+              [placeholder]="postalCodePlaceholder()"
+              [title]="postalCodeTooltip()"
+              [appInputMask]="'postalCode'"
+              [appInputMaskCountry]="localFields().countryCode"
+              (appInputMaskChange)="onAddressFieldChange('postalCode', $event)"
+              [class]="inputClassFor('address.postalCode')"
+            />
+            @if (hasFieldError('address.postalCode')) {
+              <svg
+                lucideCircleAlert
+                class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400"
+                aria-hidden="true"
+              ></svg>
+            }
+          </div>
           @if (hasFieldError('address.postalCode')) {
             <p
               data-testid="profile-field-error-address.postalCode"
               class="text-xs text-red-600 dark:text-red-400"
             >
-              {{ 'profile.fields.fieldInvalid' | transloco }}
+              {{ fieldErrorMessageKey('address.postalCode') | transloco }}
             </p>
           }
         </label>
@@ -429,6 +518,12 @@ export class ProfileFieldsFormComponent {
   // `contactsRequiredMessage`'s pattern — blocks submission before the request ever reaches the
   // backend instead of relying solely on the server's `NotBlank` rejection of `address.countryCode`.
   protected readonly countryRequiredMessage = signal(false);
+  // Bugfix (2026-08-02, round 2): field names currently failing a client-side "required" check
+  // (evaluated on submit, only when `requireAllFields()` is true) — see `hasFieldError`/
+  // `fieldErrorMessageKey`. Distinct from `fieldErrors` (backend-driven) so a field can show its
+  // "is required" message before the request ever reaches the server, and its backend-driven
+  // invalid-format message once it does.
+  protected readonly clientRequiredErrors = signal<Set<string>>(new Set());
 
   // REQ-1a: drives the taxId/postalCode/address-line labels and mask availability live, without
   // requiring a page reload — resolves SPEC Judgment call 9 in favor of one shared control.
@@ -519,8 +614,22 @@ export class ProfileFieldsFormComponent {
   }
 
   // Bugfix (2026-08-02): inline per-field validation error state — see `fieldErrors` input doc.
+  // Extended (round 2) to also cover client-side required-field checks (`clientRequiredErrors`),
+  // so a blank mandatory field gets the same red border/icon/message treatment as a backend
+  // rejection, without waiting on a round trip.
   protected hasFieldError(name: string): boolean {
-    return this.fieldErrors().includes(name);
+    return this.fieldErrors().includes(name) || this.clientRequiredErrors().has(name);
+  }
+
+  // Resolves which Transloco key to show in a field's inline message: the client-required
+  // message when this field is currently blank per `clientRequiredErrors`, otherwise `fallback`
+  // (the backend-driven "invalid" message for that field — `profile.fields.fieldInvalid` unless
+  // the caller passes a more specific one, e.g. taxId's `taxIdInvalid`).
+  protected fieldErrorMessageKey(name: string, fallback = 'profile.fields.fieldInvalid'): string {
+    if (this.clientRequiredErrors().has(name)) {
+      return CLIENT_REQUIRED_MESSAGE_KEYS.get(name) ?? fallback;
+    }
+    return fallback;
   }
 
   protected inputClassFor(name: string): string {
@@ -621,6 +730,24 @@ export class ProfileFieldsFormComponent {
       return;
     }
     this.contactsRequiredMessage.set(false);
+
+    if (this.requireAllFields()) {
+      const missing = new Set<string>();
+      const current = this.localFields();
+      if (!current.fullName?.trim()) missing.add('fullName');
+      if (!current.taxId?.trim()) missing.add('taxId');
+      if (!current.address?.addressLine1?.trim()) missing.add('address.addressLine1');
+      if (!current.address?.city?.trim()) missing.add('address.city');
+      if (!current.address?.stateRegion?.trim()) missing.add('address.stateRegion');
+      if (!current.address?.postalCode?.trim()) missing.add('address.postalCode');
+
+      this.clientRequiredErrors.set(missing);
+      if (missing.size > 0) {
+        return;
+      }
+    } else {
+      this.clientRequiredErrors.set(new Set());
+    }
 
     this.submitted.emit({
       fields: { ...this.localFields(), contacts: this.contacts() },

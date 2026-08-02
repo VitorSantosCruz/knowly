@@ -405,6 +405,8 @@
     "fields": {
       "fullName": "Nome completo",
       "fullNamePlaceholder": "ex.: Maria da Silva",
+      "fullNameRequired": "Nome completo é obrigatório.",
+      "taxIdRequired": "CPF/CNPJ é obrigatório.",
       "save": "Salvar",
       "taxIdGeneric": "Documento fiscal",
       "taxIdGenericPlaceholder": "ex.: 123.456.789-09",
@@ -425,9 +427,13 @@
         "addressLine2": "Linha 2 do endereço (opcional)",
         "addressLine2Placeholder": "ex.: Apto 45, Bloco B",
         "addressLine2Tooltip": "Complemento: apartamento, bloco, etc. (opcional)",
+        "addressLine1Required": "Endereço é obrigatório.",
         "city": "Cidade",
         "cityPlaceholder": "ex.: São Paulo",
-        "stateRegion": "Estado / Região"
+        "cityRequired": "Cidade é obrigatória.",
+        "stateRegion": "Estado / Região",
+        "stateRegionRequired": "Estado/Região é obrigatório.",
+        "postalCodeRequired": "CEP é obrigatório."
       },
       "contacts": {
         "title": "Contatos",

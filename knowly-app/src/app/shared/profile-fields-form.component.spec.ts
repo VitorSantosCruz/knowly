@@ -355,9 +355,9 @@ describe('ProfileFieldsFormComponent', () => {
 
       // BR is the fixture's initial country.
       expect(input('profile-address-field-stateRegion')).toBeTruthy();
-      const brLabel = fixture.nativeElement.querySelector(
-        '[data-testid="profile-address-field-stateRegion"]',
-      )?.parentElement?.textContent;
+      const brLabel = fixture.nativeElement
+        .querySelector('[data-testid="profile-address-field-stateRegion"]')
+        ?.closest('label')?.textContent;
       expect(brLabel).toContain('State / Region');
 
       const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
@@ -365,9 +365,9 @@ describe('ProfileFieldsFormComponent', () => {
       select.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      const usLabel = fixture.nativeElement.querySelector(
-        '[data-testid="profile-address-field-stateRegion"]',
-      )?.parentElement?.textContent;
+      const usLabel = fixture.nativeElement
+        .querySelector('[data-testid="profile-address-field-stateRegion"]')
+        ?.closest('label')?.textContent;
       expect(usLabel).toContain('State / Region');
 
       // GB keeps its genuinely country-specific "County" label.
@@ -375,9 +375,9 @@ describe('ProfileFieldsFormComponent', () => {
       select.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      const gbLabel = fixture.nativeElement.querySelector(
-        '[data-testid="profile-address-field-stateRegion"]',
-      )?.parentElement?.textContent;
+      const gbLabel = fixture.nativeElement
+        .querySelector('[data-testid="profile-address-field-stateRegion"]')
+        ?.closest('label')?.textContent;
       expect(gbLabel).toContain('County');
     });
 
@@ -536,6 +536,59 @@ describe('ProfileFieldsFormComponent', () => {
       expect(
         fixture.nativeElement.querySelector('[data-testid="profile-contacts-required-message"]'),
       ).toBeTruthy();
+    });
+
+    // Bugfix (2026-08-02, round 2): fullName/taxId/address.addressLine1/city/stateRegion/
+    // postalCode previously had `required`/`[required]` in the markup but no client-side check
+    // actually blocking submission or showing an inline message — only the country/contacts
+    // checks did. Each of these now gets its own red border + icon + specific message on blank
+    // submit, and submission is blocked, mirroring the existing country/contacts pattern.
+    it.each([
+      ['profile-field-fullName', 'fullName', 'Full name is required.'],
+      ['profile-field-taxId', 'taxId', 'Tax ID is required.'],
+      ['profile-address-field-addressLine1', 'address.addressLine1', 'Address is required.'],
+      ['profile-address-field-city', 'address.city', 'City is required.'],
+      ['profile-address-field-stateRegion', 'address.stateRegion', 'State/Region is required.'],
+      ['profile-address-field-postalCode', 'address.postalCode', 'Postal code is required.'],
+    ])(
+      'blocks submission and shows a red border/icon/specific message when %s is blank and requireAllFields is true',
+      async (testId, fieldName, expectedMessage) => {
+        await createFixture(false, true, true);
+
+        input(testId).value = '';
+        input(testId).dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+
+        const emitted: ProfileFieldsFormSubmission[] = [];
+        fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+        submitForm();
+        fixture.detectChanges();
+
+        expect(emitted).toEqual([]);
+        expect(input(testId).className).toContain('border-red-500');
+
+        const message = fixture.nativeElement.querySelector(
+          `[data-testid="profile-field-error-${fieldName}"]`,
+        );
+        expect(message).toBeTruthy();
+        expect(message.textContent.trim()).toBe(expectedMessage);
+
+        const icon = fixture.nativeElement
+          .querySelector(`[data-testid="${testId}"]`)
+          .parentElement.querySelector('svg');
+        expect(icon).toBeTruthy();
+      },
+    );
+
+    it('falls back to the backend taxIdInvalid message (not the client-required one) when the error comes from fieldErrors and the field is non-blank', async () => {
+      await createFixture(false, true, true);
+      fixture.componentRef.setInput('fieldErrors', ['taxId']);
+      fixture.detectChanges();
+
+      const message = fixture.nativeElement.querySelector(
+        '[data-testid="profile-field-error-taxId"]',
+      );
+      expect(message.textContent.trim()).toBe('Invalid value.');
     });
 
     it('does not render required attributes and allows zero contacts when false (default)', async () => {

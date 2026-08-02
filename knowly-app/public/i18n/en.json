@@ -405,6 +405,8 @@
     "fields": {
       "fullName": "Full name",
       "fullNamePlaceholder": "e.g. Jane Doe",
+      "fullNameRequired": "Full name is required.",
+      "taxIdRequired": "Tax ID is required.",
       "save": "Save",
       "taxIdGeneric": "Tax ID",
       "taxIdGenericPlaceholder": "e.g. 123-45-6789",
@@ -425,9 +427,13 @@
         "addressLine2": "Address line 2 (optional)",
         "addressLine2Placeholder": "e.g. Apt 4B",
         "addressLine2Tooltip": "Apartment, suite, unit, etc. (optional)",
+        "addressLine1Required": "Address is required.",
         "city": "City",
         "cityPlaceholder": "e.g. New York",
-        "stateRegion": "State / Region"
+        "cityRequired": "City is required.",
+        "stateRegion": "State / Region",
+        "stateRegionRequired": "State/Region is required.",
+        "postalCodeRequired": "Postal code is required."
       },
       "contacts": {
         "title": "Contacts",
