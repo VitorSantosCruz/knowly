@@ -213,7 +213,7 @@ public class TenantController {
 
     @PostMapping
     public ResponseEntity<Void> createTenant(@Valid @RequestBody CreateTenantRequestDto request) {
-        tenantService.createTenant(currentUser(), request.name(), request.adminEmail());
+        tenantService.createTenant(currentUser(), request);
 
         return ResponseEntity.ok().build();
     }

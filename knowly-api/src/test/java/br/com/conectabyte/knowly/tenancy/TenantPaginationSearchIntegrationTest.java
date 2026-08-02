@@ -157,13 +157,13 @@ class TenantPaginationSearchIntegrationTest {
     }
 
     @Test
-    void searchMatchesByCnpjOnly() throws Exception {
-        staffAdmin("search-cnpj@example.com");
+    void searchMatchesByTaxIdOnly() throws Exception {
+        staffAdmin("search-taxid@example.com");
         String marker = "C" + (System.nanoTime() % 1_000_000_000L);
         Tenant tenant = new Tenant("Ordinary " + System.nanoTime());
-        tenant.setCnpj(marker);
+        tenant.setTaxId(marker);
         tenantRepository.saveAndFlush(tenant);
-        Cookie session = logIn("search-cnpj@example.com");
+        Cookie session = logIn("search-taxid@example.com");
 
         var response =
                 mockMvc.get()
@@ -176,13 +176,13 @@ class TenantPaginationSearchIntegrationTest {
     }
 
     @Test
-    void searchMatchesByRazaoSocialOnly() throws Exception {
-        staffAdmin("search-razao@example.com");
-        String marker = "RazaoOnly" + System.nanoTime();
+    void searchMatchesByLegalNameOnly() throws Exception {
+        staffAdmin("search-legalname@example.com");
+        String marker = "LegalNameOnly" + System.nanoTime();
         Tenant tenant = new Tenant("Ordinary " + System.nanoTime());
-        tenant.setRazaoSocial("Something " + marker);
+        tenant.setLegalName("Something " + marker);
         tenantRepository.saveAndFlush(tenant);
-        Cookie session = logIn("search-razao@example.com");
+        Cookie session = logIn("search-legalname@example.com");
 
         var response =
                 mockMvc.get()

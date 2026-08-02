@@ -26,10 +26,14 @@ class TenantSearchRepositoryTest {
 
     @Autowired private TenantRepository tenantRepository;
 
-    private Tenant tenant(String name, String cnpj, String razaoSocial) {
+    private Tenant tenant(String name, String taxId, String legalName) {
         Tenant tenant = new Tenant(name);
-        tenant.setCnpj(cnpj);
-        tenant.setRazaoSocial(razaoSocial);
+        if (taxId != null) {
+            tenant.setTaxId(taxId);
+        }
+        if (legalName != null) {
+            tenant.setLegalName(legalName);
+        }
         return tenantRepository.saveAndFlush(tenant);
     }
 
@@ -59,9 +63,9 @@ class TenantSearchRepositoryTest {
     }
 
     @Test
-    void searchMatchesOnlyByCnpjCaseInsensitively() {
-        String marker = "CNPJ" + System.nanoTime();
-        Tenant tenant = tenant("Ordinary Co " + System.nanoTime(), marker, "Some Razao Social");
+    void searchMatchesOnlyByTaxIdCaseInsensitively() {
+        String marker = "TAXID" + System.nanoTime();
+        Tenant tenant = tenant("Ordinary Co " + System.nanoTime(), marker, "Some Legal Name");
 
         Page<Tenant> page =
                 tenantRepository.search(
@@ -71,8 +75,8 @@ class TenantSearchRepositoryTest {
     }
 
     @Test
-    void searchMatchesOnlyByRazaoSocialCaseInsensitively() {
-        String marker = "RAZAO" + System.nanoTime();
+    void searchMatchesOnlyByLegalNameCaseInsensitively() {
+        String marker = "LEGALNAME" + System.nanoTime();
         Tenant tenant =
                 tenant("Ordinary Co " + System.nanoTime(), "11111111111111", "Something " + marker);
 

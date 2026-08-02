@@ -39,13 +39,10 @@ class V17MigrationTest {
     // over as the only code path for this data -- see V19MigrationTest for the current-state
     // coverage of that drop.
 
-    @Test
-    void tenantsTableHasEveryNewCompanyRecordColumn() {
-        List<String> columns =
-                List.of("cnpj", "razao_social", "nome_fantasia", "inscricao_estadual");
-
-        assertThat(columns).allMatch(column -> columnExists("tenants", column));
-    }
+    // tenantsTableHasEveryNewCompanyRecordColumn was removed here: V23
+    // (tenant-creation/TASKS.md 1) drops cnpj/razao_social/nome_fantasia/inscricao_estadual from
+    // tenants/tenants_aud in favor of the full identification column set -- see V23MigrationTest
+    // for the current-state coverage of that replacement.
 
     @Test
     void notificationsTableHasTheNewNullableFkAndTenantMembershipIdIsNowNullable() {

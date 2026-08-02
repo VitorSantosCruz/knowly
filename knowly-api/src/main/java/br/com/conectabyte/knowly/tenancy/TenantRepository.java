@@ -13,6 +13,11 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
 
     long countByCreatedAtGreaterThanEqual(Instant from);
 
+    /**
+     * REQ-4/REQ-5 (tenant-creation): proactive uniqueness check, see TenantService#createTenant.
+     */
+    boolean existsByTaxId(String taxId);
+
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant to);
 
     /**
@@ -68,17 +73,18 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     List<DailyCountProjection> countCumulativeTenantsByDay();
 
     /**
-     * specify/features/tenant-pagination-search/SPEC.md REQ-2/5/6/7/9: DB-level pagination and
-     * case-insensitive substring search across {@code name}/{@code cnpj}/{@code razaoSocial}, OR'd
-     * together. {@code search == null} short-circuits the {@code WHERE} clause to match every row.
+     * specify/features/tenant-pagination-search/SPEC.md REQ-2/5/6/7/9 (field names updated by
+     * tenant-creation/PLAN.md's reconciliation): DB-level pagination and case-insensitive substring
+     * search across {@code name}/{@code legalName}/{@code taxId}, OR'd together. {@code search ==
+     * null} short-circuits the {@code WHERE} clause to match every row.
      */
     @Query(
             """
             SELECT t FROM Tenant t
             WHERE CAST(:search AS string) IS NULL
                OR LOWER(t.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
-               OR LOWER(t.cnpj) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
-               OR LOWER(t.razaoSocial) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+               OR LOWER(t.legalName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+               OR LOWER(t.taxId) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
             """)
     Page<Tenant> search(@Param("search") String search, Pageable pageable);
 }

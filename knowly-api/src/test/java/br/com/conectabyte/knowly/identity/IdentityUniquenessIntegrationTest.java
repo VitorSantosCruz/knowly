@@ -46,48 +46,26 @@ class IdentityUniquenessIntegrationTest {
     // user_profiles (see UserProfile/CpfRgEncryptionConverter and its dedicated tests).
 
     @Test
-    void twoTenantsWithTheSameCnpjAreRejectedAtTheDatabaseLevel() {
-        Tenant first = new Tenant("Cnpj Co 1");
-        first.setCnpj("11.111.111/0001-11");
+    void twoTenantsWithTheSameTaxIdAreRejectedAtTheDatabaseLevel() {
+        String taxId = "TAXID-" + System.nanoTime();
+        Tenant first = new Tenant("Tax Co 1");
+        first.setTaxId(taxId);
         tenantRepository.saveAndFlush(first);
 
-        Tenant second = new Tenant("Cnpj Co 2");
-        second.setCnpj("11.111.111/0001-11");
+        Tenant second = new Tenant("Tax Co 2");
+        second.setTaxId(taxId);
 
         assertThatThrownBy(() -> tenantRepository.saveAndFlush(second))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void twoTenantsWithTheSameInscricaoEstadualAreRejectedAtTheDatabaseLevel() {
-        Tenant first = new Tenant("Inscricao Co 1");
-        first.setInscricaoEstadual("111222333");
-        tenantRepository.saveAndFlush(first);
-
-        Tenant second = new Tenant("Inscricao Co 2");
-        second.setInscricaoEstadual("111222333");
-
-        assertThatThrownBy(() -> tenantRepository.saveAndFlush(second))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
-
-    @Test
-    void multipleTenantsWithUnsetCnpjCoexist() {
-        tenantRepository.saveAndFlush(new Tenant("No Cnpj Co 1"));
-        tenantRepository.saveAndFlush(new Tenant("No Cnpj Co 2"));
+    void multipleTenantsWithDistinctPlaceholderTaxIdsCoexist() {
+        tenantRepository.saveAndFlush(new Tenant("No Tax Id Co 1"));
+        tenantRepository.saveAndFlush(new Tenant("No Tax Id Co 2"));
 
         assertThat(tenantRepository.findAll())
                 .extracting(Tenant::getName)
-                .contains("No Cnpj Co 1", "No Cnpj Co 2");
-    }
-
-    @Test
-    void multipleTenantsWithUnsetInscricaoEstadualCoexist() {
-        tenantRepository.saveAndFlush(new Tenant("No Inscricao Co 1"));
-        tenantRepository.saveAndFlush(new Tenant("No Inscricao Co 2"));
-
-        assertThat(tenantRepository.findAll())
-                .extracting(Tenant::getName)
-                .contains("No Inscricao Co 1", "No Inscricao Co 2");
+                .contains("No Tax Id Co 1", "No Tax Id Co 2");
     }
 }

@@ -64,4 +64,11 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new TenancyErrorResponseDto("LAST_ADMIN_REMAINING"));
     }
+
+    @ExceptionHandler(TenantAlreadyExistsException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleTenantAlreadyExists(
+            TenantAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new TenancyErrorResponseDto("TENANT_ALREADY_EXISTS"));
+    }
 }

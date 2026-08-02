@@ -102,6 +102,28 @@ class StaffRbacIntegrationTest {
         return userRepository.saveAndFlush(user);
     }
 
+    /**
+     * tenant-creation: full {@code POST /api/tenants} payload (company identification + first
+     * admin's complete mandatory profile), per specify/features/tenant-creation/PLAN.md's "API
+     * contracts" section.
+     */
+    private String createTenantPayload(String taxId, String adminEmail) {
+        return "{\"name\":\"Acme\",\"legalName\":\"Acme Ltda\",\"taxId\":\""
+                + taxId
+                + "\",\"country\":\"BR\",\"contactEmail\":\"contact@"
+                + taxId
+                + ".example.com\",\"contactPhone\":\"11999999999\","
+                + "\"address\":{\"postalCode\":\"01000-000\",\"street\":\"Rua Um\",\"number\":\"1\","
+                + "\"neighborhood\":\"Centro\",\"city\":\"Sao Paulo\",\"state\":\"SP\"},"
+                + "\"adminEmail\":\""
+                + adminEmail
+                + "\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
+                + "\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\","
+                + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\","
+                + "\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}";
+    }
+
     @Test
     void staffAdminRetainsUnconditionalTenantCreation() {
         staffAdmin("admin@example.com");
@@ -115,7 +137,9 @@ class StaffRbacIntegrationTest {
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Acme\",\"adminEmail\":\"tenant-admin@acme.com\"}")
+                        .content(
+                                createTenantPayload(
+                                        "TAXID" + System.nanoTime(), "tenant-admin@acme.com"))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -152,7 +176,10 @@ class StaffRbacIntegrationTest {
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Acme\",\"adminEmail\":\"tenant-admin@acme.com\"}")
+                        .content(
+                                createTenantPayload(
+                                        "TAXID" + System.nanoTime(),
+                                        "tenant-admin-directgrant@acme.com"))
                         .exchange();
 
         assertThat(createResponse).hasStatus(HttpStatus.OK);

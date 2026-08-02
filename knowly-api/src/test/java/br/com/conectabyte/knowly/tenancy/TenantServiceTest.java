@@ -13,10 +13,13 @@ import br.com.conectabyte.knowly.identity.ContactType;
 import br.com.conectabyte.knowly.identity.dto.ContactDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
+import br.com.conectabyte.knowly.tenancy.dto.AddressDto;
+import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -949,5 +952,122 @@ class TenantServiceTest {
                                         staffMembership.getId(),
                                         Permission.TENANT_MEMBER_MANAGE))
                 .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // tenant-creation: TenantService#createTenant unit coverage (PLAN.md's "Testing strategy").
+
+    private CreateTenantRequestDto createTenantRequest(
+            String name, String taxId, String adminEmail, MembershipRole role) {
+        return new CreateTenantRequestDto(
+                name,
+                name + " Ltda",
+                taxId,
+                "BR",
+                "contact-" + taxId + "@example.com",
+                "11999999999",
+                new AddressDto("01000-000", "Rua Um", "1", null, "Centro", "Sao Paulo", "SP"),
+                adminEmail,
+                mandatoryProfile(),
+                role);
+    }
+
+    @Test
+    void createTenantPersistsEveryNewFieldAndDefaultsRoleToMemberAdmin() {
+        User staff = staffAdmin("create-tenant-full@example.com");
+        authenticateAs("create-tenant-full@example.com");
+        String taxId = "12345678000199";
+        CreateTenantRequestDto request =
+                createTenantRequest("Full Field Co", taxId, "admin-full@example.com", null);
+
+        Tenant created = tenantService.createTenant(staff, request);
+
+        assertThat(created.getId()).isNotNull();
+        assertThat(created.getName()).isEqualTo("Full Field Co");
+        assertThat(created.getLegalName()).isEqualTo("Full Field Co Ltda");
+        assertThat(created.getTaxId()).isEqualTo(taxId);
+        assertThat(created.getCountry()).isEqualTo("BR");
+        assertThat(created.getContactEmail()).isEqualTo("contact-" + taxId + "@example.com");
+        assertThat(created.getContactPhone()).isEqualTo("11999999999");
+        assertThat(created.getPostalCode()).isEqualTo("01000-000");
+        assertThat(created.getStreet()).isEqualTo("Rua Um");
+        assertThat(created.getNumber()).isEqualTo("1");
+        assertThat(created.getNeighborhood()).isEqualTo("Centro");
+        assertThat(created.getCity()).isEqualTo("Sao Paulo");
+        assertThat(created.getState()).isEqualTo("SP");
+
+        User admin = userRepository.findByEmailIgnoreCase("admin-full@example.com").orElseThrow();
+        TenantMembership membership =
+                tenantMembershipRepository.findByUserAndActiveTrue(admin).get(0);
+        assertThat(membership.getRole()).isEqualTo(MembershipRole.MEMBER_ADMIN);
+        assertThat(membership.getTenant().getId()).isEqualTo(created.getId());
+
+        var events = auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(staff.getId());
+        assertThat(events)
+                .anySatisfy(event -> assertThat(event.getAction()).isEqualTo("tenant.create"));
+    }
+
+    @Test
+    void createTenantHonorsAnExplicitlySubmittedRole() {
+        User staff = staffAdmin("create-tenant-explicit-role@example.com");
+        String taxId = "12345678000280";
+        CreateTenantRequestDto request =
+                createTenantRequest(
+                        "Explicit Role Co",
+                        taxId,
+                        "admin-explicit@example.com",
+                        MembershipRole.MEMBER);
+
+        tenantService.createTenant(staff, request);
+
+        User admin =
+                userRepository.findByEmailIgnoreCase("admin-explicit@example.com").orElseThrow();
+        assertThat(tenantMembershipRepository.findByUserAndActiveTrue(admin).get(0).getRole())
+                .isEqualTo(MembershipRole.MEMBER);
+    }
+
+    @Test
+    void createTenantWithATaxIdCollisionThrowsAndPersistsNoRow() {
+        User staff = staffAdmin("create-tenant-collision@example.com");
+        String taxId = "12345678000371";
+        Tenant collidingTenant = new Tenant("Existing Tax Owner");
+        collidingTenant.setTaxId(taxId);
+        tenantRepository.saveAndFlush(collidingTenant);
+
+        CreateTenantRequestDto request =
+                createTenantRequest("Colliding Co", taxId, "admin-collision@example.com", null);
+
+        assertThatThrownBy(() -> tenantService.createTenant(staff, request))
+                .isInstanceOf(TenantAlreadyExistsException.class);
+
+        assertThat(userRepository.findByEmailIgnoreCase("admin-collision@example.com")).isEmpty();
+    }
+
+    @Test
+    void createTenantWithAnAlreadyExistingAdminEmailThrowsAndPersistsNoTenant() {
+        User staff = staffAdmin("create-tenant-existing-email@example.com");
+        userRepository.saveAndFlush(new User("already-exists@example.com"));
+
+        CreateTenantRequestDto request =
+                createTenantRequest(
+                        "Existing Email Co", "12345678000462", "already-exists@example.com", null);
+
+        long tenantCountBefore = tenantRepository.count();
+
+        assertThatThrownBy(() -> tenantService.createTenant(staff, request))
+                .isInstanceOf(TenantAlreadyExistsException.class);
+
+        assertThat(tenantRepository.count()).isEqualTo(tenantCountBefore);
+    }
+
+    @Test
+    void nonStaffCannotCreateATenant() {
+        User user = userRepository.saveAndFlush(new User("non-staff-create-tenant@example.com"));
+        CreateTenantRequestDto request =
+                createTenantRequest(
+                        "Forbidden Co", "12345678000553", "admin-forbidden@example.com", null);
+
+        assertThatThrownBy(() -> tenantService.createTenant(user, request))
+                .isInstanceOf(PermissionDeniedException.class);
+        assertThat(userRepository.findByEmailIgnoreCase("admin-forbidden@example.com")).isEmpty();
     }
 }

@@ -15,6 +15,7 @@ import br.com.conectabyte.knowly.identity.UserProfileService;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
+import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
@@ -23,6 +24,7 @@ import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -238,20 +240,59 @@ public class TenantService {
         return List.copyOf(permissionService.effectivePermissions(membership));
     }
 
-    /** REQ-10: only staff create tenants, always atomically with a first admin. */
+    /**
+     * REQ-10 (tenancy), REQ-1..REQ-9 (tenant-creation): only staff create tenants, and always
+     * atomically with a first admin -- full company identification plus the first admin's complete
+     * mandatory profile in the same transaction (2026-08-02 amendment, see
+     * specify/features/tenant-creation/PLAN.md's "Atomicity" section). {@code request.adminEmail()}
+     * must be brand new -- unlike {@link #addMember}, which reuses an existing account, tenant
+     * creation's first admin is rejected with {@link TenantAlreadyExistsException} (409) if the
+     * email is already taken, per this PLAN's API contract table.
+     *
+     * <p>Both {@code taxId} and {@code adminEmail} are checked proactively, before any insert --
+     * deliberately not the "insert, catch {@code DataIntegrityViolationException}" pattern {@code
+     * ProfileEditRequestService#approveEditRequest} uses (documented deviation from PLAN.md's
+     * original proposal): unlike that call site, this whole method is itself the
+     * {@code @Transactional} boundary carrying its own {@code @AuditLog}, so a failed insert here
+     * leaves the persistence context in a state Hibernate can't safely continue flushing against
+     * within the same still-open transaction (observed as a spurious {@code AssertionFailure: ...
+     * has a null identifier} when the audit write attempted its own {@code REQUIRES_NEW} flush
+     * afterward). A proactive existence check has the same small TOCTOU window {@code adminEmail}'s
+     * check already accepted, and sidesteps the corrupted-session failure entirely.
+     */
     @Transactional
     @AuditLog(action = "tenant.create", resourceType = "Tenant")
-    public Tenant createTenant(User actor, String tenantName, String adminEmail) {
+    public Tenant createTenant(User actor, CreateTenantRequestDto request) {
         requireStaff(actor, GlobalPermission.TENANT_CREATE);
 
-        Tenant tenant = tenantRepository.save(new Tenant(tenantName));
-        User admin =
-                userRepository
-                        .findByEmailIgnoreCase(adminEmail)
-                        .orElseGet(() -> createUserWithProfile(adminEmail));
+        if (userRepository.findByEmailIgnoreCase(request.adminEmail()).isPresent()) {
+            throw new TenantAlreadyExistsException();
+        }
 
-        tenantMembershipRepository.save(
-                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        if (tenantRepository.existsByTaxId(request.taxId())) {
+            throw new TenantAlreadyExistsException();
+        }
+
+        Tenant tenant =
+                new Tenant(
+                        request.name(),
+                        request.legalName(),
+                        request.taxId(),
+                        request.country(),
+                        request.contactEmail(),
+                        request.contactPhone(),
+                        request.address().postalCode(),
+                        request.address().street(),
+                        request.address().number(),
+                        request.address().complement(),
+                        request.address().neighborhood(),
+                        request.address().city(),
+                        request.address().state());
+        tenant = tenantRepository.save(tenant);
+
+        User admin = createUserWithProfile(request.adminEmail(), request.profile());
+        MembershipRole role = request.role() == null ? MembershipRole.MEMBER_ADMIN : request.role();
+        tenantMembershipRepository.save(new TenantMembership(admin, tenant, role));
 
         return tenant;
     }

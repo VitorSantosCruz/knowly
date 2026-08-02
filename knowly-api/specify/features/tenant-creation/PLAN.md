@@ -536,5 +536,65 @@ package/type introduced by this amendment beyond the two new fields on
 
 ## Deviations from this PLAN (discovered during implementation)
 
-_(none yet — update as implementation proceeds, per TASKS.md's own
-closing task.)_
+- **Migration number is `V23`, as this PLAN assumed** — confirmed against
+  `ls src/main/resources/db/migration/` before writing it (highest
+  existing was `V22`); no renumbering needed.
+- **`Tenant(String name)` is kept, not removed**, contrary to this
+  PLAN's "Package/file structure" note that it's "no longer sufficient."
+  It now delegates to the full constructor with the same
+  sentinel-placeholder values `V23`'s migration backfill uses for
+  pre-existing DB rows (`legalName = name`, `taxId =
+  "PENDING-<seq>-<nanoTime>"` for DB-level uniqueness, `country = "BR"`,
+  etc.), instead of being dropped. Rationale: ~50 test fixture files
+  across the whole codebase construct a bare `new Tenant(name)` with no
+  interest in company identification; TASKS.md's task 8 explicitly lists
+  only 6 fixture files as in-scope for updates. Making the single-arg
+  constructor still satisfy every new `NOT NULL` column (the same way
+  the SQL migration itself backfills pre-existing rows) keeps that
+  TASKS.md file list accurate without silently breaking ~44 unrelated
+  test files. Real tenant creation (`TenantService#createTenant`) always
+  uses the full 13-arg constructor instead.
+- **`@ValidTaxId` is placed at the record's type level
+  (`@ValidTaxId public record CreateTenantRequestDto(...)`), not inline
+  before the `taxId` component** as this PLAN's DTO code sample showed.
+  The sample's placement was illustrative, not literal: a
+  `ConstraintValidator<ValidTaxId, CreateTenantRequestDto>` (reading both
+  `taxId` and `country`) can only receive the *containing object* as its
+  validated value, which requires the annotation's `@Target` to be
+  `TYPE`, not a record component/field — record components would hand
+  the validator a bare `String`, not the DTO. This matches the "Open
+  decision" section's own description of the validator's generic
+  signature; only the sample's inline placement was updated.
+- **`taxId`/`adminEmail` uniqueness is enforced via a proactive
+  `existsByTaxId`/`findByEmailIgnoreCase` check before any insert, not
+  by inserting and catching `DataIntegrityViolationException`** as
+  originally proposed (mirroring `ProfileEditRequestService
+  #approveEditRequest`'s pattern). Discovered during implementation:
+  unlike that precedent (where the catch happens in a method that is
+  itself *not* the `@Transactional` boundary, so the failed insert's
+  transaction is already fully rolled back by the time anything else
+  touches the session), `createTenant` **is** its own `@Transactional`
+  + `@AuditLog` boundary — catching the violation and continuing to run
+  in the same still-open transaction/session left Hibernate's
+  persistence context holding a failed-insert entity with a null
+  identifier, which surfaced as a spurious
+  `AssertionFailure: ... has a null identifier` when the audit write's
+  own `REQUIRES_NEW` flush later touched the same corrupted session. A
+  proactive existence check (same small, accepted TOCTOU window
+  `adminEmail`'s check already has) avoids the corrupted-session failure
+  entirely and is simpler. `TenantAlreadyExistsException` itself,
+  its 409 mapping, and its "disambiguated by which check fired" shape
+  are unchanged from this PLAN.
+- **`CreationValidationAuditAdvice` gained a third case
+  (`TenantController#createTenant` → `"tenant.create.denied"`)**, not
+  called out explicitly in this PLAN's "Package/file structure" section.
+  REQ-8 requires tenant creation to be "audited... the same way every
+  other write is audited" including on rejection; a Bean Validation
+  failure on `CreateTenantRequestDto` happens before
+  `TenantService#createTenant`'s own `@AuditLog` is ever entered — the
+  exact gap this advice already exists to close for `addMember`/
+  `createStaffUser` (`mandatory-complete-profile/PLAN.md`). Adding
+  `createTenant` as a third case reuses the existing mechanism rather
+  than inventing a new one, consistent with REQ-8's "no new audit
+  mechanism is introduced."
+

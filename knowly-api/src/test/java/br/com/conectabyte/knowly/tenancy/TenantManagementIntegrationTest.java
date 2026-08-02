@@ -68,6 +68,36 @@ class TenantManagementIntegrationTest {
                 .getCookie("XSRF-TOKEN");
     }
 
+    /**
+     * tenant-creation: full {@code POST /api/tenants} payload (company identification + first
+     * admin's complete mandatory profile + optional role), per
+     * specify/features/tenant-creation/PLAN.md's "API contracts" section.
+     */
+    private String createTenantPayload(String name, String taxId, String adminEmail, String role) {
+        String roleField = role == null ? "" : ",\"role\":\"" + role + "\"";
+        return "{"
+                + "\"name\":\""
+                + name
+                + "\",\"legalName\":\""
+                + name
+                + " Ltda\",\"taxId\":\""
+                + taxId
+                + "\",\"country\":\"BR\",\"contactEmail\":\"contact@"
+                + taxId
+                + ".example.com\",\"contactPhone\":\"11999999999\","
+                + "\"address\":{\"postalCode\":\"01000-000\",\"street\":\"Rua Um\",\"number\":\"1\","
+                + "\"neighborhood\":\"Centro\",\"city\":\"Sao Paulo\",\"state\":\"SP\"},"
+                + "\"adminEmail\":\""
+                + adminEmail
+                + "\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
+                + "\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\","
+                + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\","
+                + "\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}"
+                + roleField
+                + "}";
+    }
+
     @Test
     void onlyStaffCanCreateATenant() {
         User staff = userRepository.saveAndFlush(new User("staff@example.com"));
@@ -76,6 +106,7 @@ class TenantManagementIntegrationTest {
 
         Cookie session = logIn("staff@example.com");
         Cookie csrf = obtainCsrfCookie();
+        String taxId = "TAXID" + System.nanoTime();
 
         var response =
                 mockMvc.post()
@@ -84,7 +115,7 @@ class TenantManagementIntegrationTest {
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Acme\",\"adminEmail\":\"admin@acme.com\"}")
+                        .content(createTenantPayload("Acme", taxId, "admin@acme.com", null))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -104,6 +135,7 @@ class TenantManagementIntegrationTest {
 
         Cookie session = logIn("regular@example.com");
         Cookie csrf = obtainCsrfCookie();
+        String taxId = "TAXID" + System.nanoTime();
 
         var response =
                 mockMvc.post()
@@ -112,7 +144,7 @@ class TenantManagementIntegrationTest {
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Nope\",\"adminEmail\":\"nope@example.com\"}")
+                        .content(createTenantPayload("Nope", taxId, "nope@example.com", null))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);

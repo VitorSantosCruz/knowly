@@ -72,6 +72,11 @@ public class CreationValidationAuditAdvice {
             return "tenant.member.creation.denied";
         }
 
+        if (TENANT_CONTROLLER_CLASS_NAME.equals(declaringClassName)
+                && "createTenant".equals(method.getName())) {
+            return "tenant.create.denied";
+        }
+
         return null;
     }
 
