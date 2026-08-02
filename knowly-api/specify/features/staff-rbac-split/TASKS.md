@@ -62,3 +62,30 @@
 - [x] 12. Update `PROJECT_STATUS.md` (feature table + "Next up" pointing
       at the next confirmed roadmap item — login/provisioning flow
       completion) and commit.
+
+## REQ-9 (2026-08-01 addition)
+
+- [x] 13. `OwnGlobalPermissionsDto`: add `isStaffAccount` field
+      (`OwnGlobalPermissionsDto(List<GlobalPermission> permissions,
+      boolean isStaffAccount)`). Test first: existing DTO usages/tests
+      updated to construct it with the new argument (Red until every
+      call site compiles with two args; Green once updated) — no
+      standalone DTO unit test needed beyond that, per PLAN.md's
+      "no new DTO patterns" convention.
+- [x] 14. `StaffController.ownPermissions()`: pass
+      `tenantContext.isStaff()` as the new constructor argument in both
+      the `STAFF_ADMIN` branch and the `effectivePermissions` branch.
+      Integration tests (extend the existing `GET /api/staff/permissions`
+      coverage in whichever integration test class already exercises it):
+      - `STAFF` with zero grants → `permissions: []`, `isStaffAccount:
+        true`.
+      - `STAFF_ADMIN` → full permission list, `isStaffAccount: true`.
+      - Plain tenant member (`MEMBER`/`MEMBER_ADMIN`, no `GlobalRole`)
+        calling `GET /api/staff/permissions` → `permissions: []`,
+        `isStaffAccount: false`. (Matches SPEC's three unchecked
+        acceptance criteria for REQ-9.)
+- [x] 15. Re-verify SPEC.md's three REQ-9 acceptance-criteria checkboxes
+      explicitly against the finished implementation and check them off
+      in SPEC.md.
+- [x] 16. Run `./mvnw spotless:apply && ./mvnw verify`, confirm green,
+      then commit (Conventional Commits, task-scoped).

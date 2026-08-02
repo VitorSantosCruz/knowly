@@ -51,14 +51,15 @@ public class StaffController {
     public ResponseEntity<OwnGlobalPermissionsDto> ownPermissions() {
         if (tenantContext.isStaffAdmin()) {
             return ResponseEntity.ok(
-                    new OwnGlobalPermissionsDto(List.of(GlobalPermission.values())));
+                    new OwnGlobalPermissionsDto(
+                            List.of(GlobalPermission.values()), tenantContext.isStaff()));
         }
 
         User user = currentUser();
         List<GlobalPermission> permissions =
                 List.copyOf(globalPermissionService.effectivePermissions(user));
 
-        return ResponseEntity.ok(new OwnGlobalPermissionsDto(permissions));
+        return ResponseEntity.ok(new OwnGlobalPermissionsDto(permissions, tenantContext.isStaff()));
     }
 
     @PostMapping("/users")

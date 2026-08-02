@@ -320,9 +320,15 @@ The user confirmed this order for the next several features (2026-07-25):
    SPEC) — flag if either becomes needed later.
 4. ~~Navigation menus + welcome screen~~ — done, frontend-only, see
    `knowly-app/specify/features/navigation-menu/` and
-   `knowly-app/specify/features/welcome-screen/`. No backend change was
-   needed (consumed the existing `GET /api/tenants/permissions` and
-   `staff-rbac-split`'s `GET /api/staff/permissions` as-is). Fixed
+   `knowly-app/specify/features/welcome-screen/`. Initially consumed the
+   existing `GET /api/tenants/permissions` and `staff-rbac-split`'s `GET
+   /api/staff/permissions` as-is; that surfaced a real gap (couldn't tell
+   a zero-grant `STAFF` account apart from a plain `MEMBER` from an empty
+   `permissions` list alone), closed 2026-08-01 by `staff-rbac-split`
+   SPEC REQ-9: `GET /api/staff/permissions` now also returns
+   `isStaffAccount` (`OwnGlobalPermissionsDto`, sourced from
+   `TenantContext.isStaff()`), `true` for both `STAFF` and `STAFF_ADMIN`
+   regardless of grants, `false` for a plain tenant member. Fixed
    several real bugs uncovered along the way: `staff.guard.ts` inferred
    "is staff" from `GET /api/tenants` succeeding, which broke once
    `staff-rbac-split` made staff access individually granted (a `STAFF`
@@ -943,7 +949,7 @@ the feature's own SPEC.
 | `api-documentation` | ✅ Done | OpenAPI/Swagger exposure. |
 | `tags-crud` | 📄 Reference only | **Not implemented on purpose** — exists solely as the canonical example of the SPEC/PLAN/TASKS format. Don't build it unless explicitly asked to turn it into a real feature. |
 | `staff-bootstrap-user` | ✅ Done | One migration-created staff `User` (email via required `KNOWLY_BOOTSTRAP_STAFF_EMAIL` env var, no password) so a fresh deployment has a first login via the existing login-code flow. No new mechanism, no freeze/expiry — see SPEC's "Out of scope" for why. |
-| `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. All 11 `requireStaff`/`requireAdminOfTenantOrStaff` call sites now have dedicated `StaffRbacIntegrationTest` coverage (previous known gap closed). |
+| `staff-rbac-split` | ✅ Done | `GlobalRole` splits into `STAFF_ADMIN` (unrestricted) / `STAFF` (permission-gated via `GlobalPermission`, mirrors tenant-side `Permission`/`AccessGroup` model at global scope). New `/api/staff/**` endpoints. All 11 `requireStaff`/`requireAdminOfTenantOrStaff` call sites now have dedicated `StaffRbacIntegrationTest` coverage (previous known gap closed). **2026-08-01 addition (REQ-9)**: `GET /api/staff/permissions` response gains `isStaffAccount` (`OwnGlobalPermissionsDto`), sourced from `TenantContext.isStaff()` — `true` for any `STAFF`/`STAFF_ADMIN` account regardless of grant count, `false` for a plain tenant member; closes the gap `navigation-menu` flagged (couldn't tell a zero-grant `STAFF` account apart from a plain `MEMBER`). |
 | `staff-user-provisioning` | ✅ Done | `POST /api/staff/users` lets `STAFF_ADMIN` (or a granted `STAFF`) create a new `STAFF` user, gated by its own `GlobalPermission.STAFF_USER_CREATE`; emails a one-time password via the existing mechanism. Tenant member provisioning needed no change. |
 | `dashboard-analytics` | ✅ Done (backend) | Extends `metrics` with date-bucketed time-series (`/conversations/timeseries`, `/messages/timeseries`, `/articles/timeseries`, UTC calendar-day, zero-count days included), a tenant membership active/inactive snapshot (`/members`), `period` filtering (`7d`/`30d`/`90d`/`all`, default `all`) on every metrics endpoint via a new `MetricsPeriod` enum + `InvalidPeriodException`/`MetricsExceptionHandler`, and a hand-built CSV export (`/export`, no new dependency). All still `DASHBOARD_VIEW`-gated, tenant-isolated via `TenantFilter`. Frontend consuming these is a separate SPEC (`knowly-app/specify/features/dashboard-analytics/`). See `DECISIONS.md` for the UTC-bucketing rationale. |
 | `staff-user-listing` | ✅ Done | `GET /api/staff/users` (optional `?email=` case-insensitive substring filter) lists every `STAFF`/`STAFF_ADMIN` user, gated by new `GlobalPermission.STAFF_USER_VIEW` (independent of `STAFF_USER_CREATE`/management ceiling checks). `StaffController.listStaffUsers`/`StaffService.listStaffUsers`/`StaffUserSummaryDto` implemented and tested (`StaffUserListingIntegrationTest`). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |

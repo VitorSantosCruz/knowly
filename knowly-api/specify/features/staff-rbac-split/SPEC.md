@@ -2,6 +2,19 @@
 
 > The what and the why. No technical implementation details.
 
+## Changelog
+
+- **2026-08-01**: Added REQ-9 and its acceptance criterion. Fixes a
+  consumer-reported gap surfaced while implementing `knowly-app`'s
+  `navigation-menu` feature (REQ-10/REQ-11 there): `GET
+  /api/staff/permissions` returns an empty `permissions` list identically
+  for a `STAFF` account holding zero global grants and for a plain
+  `MEMBER` — there is no field letting a caller tell "this is a staff
+  account with no grants" apart from "this is not a staff account at
+  all." REQ-1 through REQ-8, all prior acceptance criteria, and the
+  existing "Out of scope"/"Decisions" sections are unchanged — nothing
+  pre-existing was reinterpreted or removed.
+
 ## Context and motivation
 
 Today `GlobalRole` has exactly one value, `STAFF`, and it means total,
@@ -25,6 +38,17 @@ preserved exactly as-is, just renamed/split so it's an explicit choice
 rather than the only option: `STAFF_ADMIN` keeps that unconditional
 access; a new, narrower `STAFF` tier gets only what's explicitly granted.
 
+**2026-08-01 addition:** `GET /api/staff/permissions` is the endpoint
+`knowly-app`'s `navigation-menu` feature uses to decide what a staff
+session can see. That SPEC needs to tell apart a `STAFF` account with an
+atypical, real tenant membership (who still needs a "leave to staff
+area" affordance) from a plain `MEMBER` with one membership (who doesn't)
+— see `knowly-app/specify/features/navigation-menu/PLAN.md`'s flagged
+gap. Today's response (just a permission list) cannot make that
+distinction when the list is empty in both cases, since holding zero
+global grants is a normal, valid `STAFF` state (`STAFF_ADMIN` bypasses
+this entirely, per REQ-2, so it's unaffected). REQ-9 closes this gap.
+
 ## User stories
 
 - As a platform owner, I want a `STAFF_ADMIN` tier with unrestricted
@@ -36,6 +60,12 @@ access; a new, narrower `STAFF` tier gets only what's explicitly granted.
 - As a `STAFF` user, I want my access to be exactly what was granted to
   me — no more, no less — so that "I can view X" never silently implies
   "I can also edit or delete X."
+- As a frontend consuming `GET /api/staff/permissions`, I want to know
+  whether the caller is a staff account at all, independent of whether
+  they currently hold any granted global permission, so that I can show
+  staff-only UI (e.g. a "leave to staff area" action) to a staff account
+  with zero grants without misidentifying a plain tenant member the same
+  way.
 
 ## Requirements (EARS/GEARS)
 
@@ -71,6 +101,13 @@ access; a new, narrower `STAFF` tier gets only what's explicitly granted.
   user's global permissions govern *whether* they can act, never bypass
   *which tenant's data* they see once acting (same split already
   established for `STAFF_ADMIN`/today's `STAFF` in `DECISIONS.md`).
+- **REQ-9 [Ubiquitous]** `GET /api/staff/permissions`'s response shall
+  include, alongside the existing granted-permissions list, a boolean
+  field indicating whether the calling account is a staff account
+  (`GlobalRole.STAFF` or `STAFF_ADMIN`) at all — `true` for any staff
+  account regardless of how many (if any) global permissions it
+  currently holds, `false` for a caller with no `GlobalRole` (a plain
+  tenant `MEMBER`/`MEMBER_ADMIN`).
 
 ## Non-functional requirements
 
@@ -78,6 +115,11 @@ access; a new, narrower `STAFF` tier gets only what's explicitly granted.
   one — no existing behavior for what is now `STAFF_ADMIN` may regress.
 - Security: default-deny — a `STAFF` user with no grants at all can do
   nothing beyond authenticate.
+- Security: REQ-9's new field is read-only, purely informational
+  metadata about the caller's own account — it grants no capability by
+  itself and must not be treated as a permission check anywhere
+  server-side; every actual staff-gated action continues to be enforced
+  by its own `GlobalPermission` check exactly as REQ-5 already requires.
 - Observability: every permission grant/revoke and every permission
   denial must emit an audit event, per the constitution.
 
@@ -98,6 +140,15 @@ access; a new, narrower `STAFF` tier gets only what's explicitly granted.
       themselves or anyone else, even one they hold themselves.
 - [x] Existing `tenancy` tests that assume unconditional staff bypass
       continue to pass unmodified against `STAFF_ADMIN`.
+- [x] `GET /api/staff/permissions` for a `STAFF` account with zero
+      granted global permissions returns the new field as `true` and an
+      empty `permissions` list.
+- [x] `GET /api/staff/permissions` for a `STAFF_ADMIN` account returns the
+      new field as `true` (alongside the existing full-permission-list
+      behavior).
+- [x] `GET /api/staff/permissions` for a plain tenant member (`MEMBER` or
+      `MEMBER_ADMIN`, no `GlobalRole`) returns the new field as `false`
+      and an empty `permissions` list.
 
 ## Out of scope
 
@@ -106,6 +157,13 @@ access; a new, narrower `STAFF` tier gets only what's explicitly granted.
 - Any change to tenant-level permissions, `AccessGroup`, or
   `DirectPermissionGrant` — untouched by this feature; this introduces
   parallel, global-scope equivalents, not a change to the tenant ones.
+- Any change to what `GET /api/staff/permissions` returns for the
+  granted-permissions list itself, or to who may call the endpoint —
+  REQ-9 only adds one additional boolean field to the existing response
+  shape.
+- The frontend's actual use of REQ-9's new field (which UI element it
+  gates, how it's labeled) — covered entirely by the companion frontend
+  SPEC (`knowly-app/specify/features/navigation-menu/SPEC.md`).
 
 ## Decisions (confirmed 2026-07-25)
 

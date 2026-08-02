@@ -272,6 +272,51 @@ class StaffRbacIntegrationTest {
         assertThat(allowedResponse.getResponse().getContentAsString()).contains("\"word\"");
     }
 
+    @Test
+    void ownPermissionsForZeroGrantStaffReportsIsStaffAccountTrueWithEmptyPermissions()
+            throws Exception {
+        limitedStaff("zerograntperms@example.com");
+        Cookie session = logIn("zerograntperms@example.com");
+
+        var response = mockMvc.get().uri("/api/staff/permissions").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"isStaffAccount\":true")
+                .contains("\"permissions\":[]");
+    }
+
+    @Test
+    void ownPermissionsForStaffAdminReportsIsStaffAccountTrueWithFullPermissionList()
+            throws Exception {
+        staffAdmin("staffadminperms@example.com");
+        Cookie session = logIn("staffadminperms@example.com");
+
+        var response = mockMvc.get().uri("/api/staff/permissions").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"isStaffAccount\":true")
+                .contains("TENANT_CREATE");
+    }
+
+    @Test
+    void ownPermissionsForPlainTenantMemberReportsIsStaffAccountFalseWithEmptyPermissions()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Plain Member Co"));
+        User member = userRepository.saveAndFlush(new User("plainmember@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, tenant, MembershipRole.MEMBER));
+        Cookie session = logIn("plainmember@example.com");
+
+        var response = mockMvc.get().uri("/api/staff/permissions").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"isStaffAccount\":false")
+                .contains("\"permissions\":[]");
+    }
+
     private void grantGlobalPermission(User user, GlobalPermission permission) {
         directGlobalPermissionGrantRepository.saveAndFlush(
                 new DirectGlobalPermissionGrant(user, permission));
