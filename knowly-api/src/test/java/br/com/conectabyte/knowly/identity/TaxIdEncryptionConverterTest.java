@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
  * property, and tamper detection -- see specify/features/identity-profile-model/PLAN.md's "Testing
  * strategy".
  */
-class CpfRgEncryptionConverterTest {
+class TaxIdEncryptionConverterTest {
 
     private static final String ENCRYPTION_KEY =
             Base64.getEncoder()
@@ -28,8 +28,8 @@ class CpfRgEncryptionConverterTest {
                                 2, 2, 2, 2, 2, 2, 2, 2, 2
                             });
 
-    private final CpfRgEncryptionConverter converter =
-            new CpfRgEncryptionConverter(new IdentityCryptoProperties(ENCRYPTION_KEY, HMAC_KEY));
+    private final TaxIdEncryptionConverter converter =
+            new TaxIdEncryptionConverter(new IdentityCryptoProperties(ENCRYPTION_KEY, HMAC_KEY));
 
     @Test
     void roundTripReturnsTheOriginalPlaintext() {

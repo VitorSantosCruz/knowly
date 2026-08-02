@@ -33,11 +33,11 @@ class LoginPendingProfileCompletionIntegrationTest {
     private static final String BOOTSTRAP_EMAIL = "bootstrap-test@conectabyte.com";
 
     private static final String COMPLETE_PROFILE_JSON =
-            "{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
-                    + "\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\","
-                    + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\","
-                    + "\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\","
-                    + "\"pais\":\"Brasil\"},"
+            "{\"fullName\":\"Test User\","
+                    + "\"taxId\":\"52998224725\",\"countryCode\":\"BR\","
+                    + "\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\","
+                    + "\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\","
+                    + "\"countryCode\":\"BR\"},"
                     + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}";
 
     @Autowired private MockMvcTester mockMvc;

@@ -10,12 +10,12 @@ import org.springframework.stereotype.Service;
  * br.com.conectabyte.knowly.tenancy.ProfileCompletionFilter}, the login-outcome computation, and
  * the completion endpoint's guard.
  *
- * <p>{@code countryCode} is required non-null as of mandatory-complete-profile/SPEC.md's
- * 2026-08-02 fourth amendment -- this closes an appsec-flagged gap where a null {@code
- * countryCode} would otherwise let a Brazilian {@code taxId} skip {@link CpfChecksumValidator}'s
- * checksum via the completeness path (the checksum only runs when {@code countryCode == "BR"}).
- * {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed entirely, 2026-08-02, and are
- * no longer part of this check.
+ * <p>{@code countryCode} is required non-null as of mandatory-complete-profile/SPEC.md's 2026-08-02
+ * fourth amendment -- this closes an appsec-flagged gap where a null {@code countryCode} would
+ * otherwise let a Brazilian {@code taxId} skip {@link CpfChecksumValidator}'s checksum via the
+ * completeness path (the checksum only runs when {@code countryCode == "BR"}). {@code rg}/{@code
+ * rgOrgaoEmissor}/{@code birthDate} were removed entirely, 2026-08-02, and are no longer part of
+ * this check.
  */
 @Service
 public class ProfileCompletenessService {

@@ -20,7 +20,6 @@ import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
-import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -44,12 +43,10 @@ class TenantServiceTest {
     private static MandatoryProfileFieldsDto mandatoryProfile() {
         return new MandatoryProfileFieldsDto(
                 "Test User",
-                LocalDate.of(1990, 1, 1),
-                "12345678901",
-                "123456",
-                "SSP",
+                "52998224725",
+                "BR",
                 new MandatoryAddressDto(
-                        "01000-000", "Rua Um", null, null, "Centro", "Sao Paulo", "SP", "Brasil"),
+                        "Rua Um, 100", "Centro", "Sao Paulo", "SP", "01000-000", "BR"),
                 List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
     }
 

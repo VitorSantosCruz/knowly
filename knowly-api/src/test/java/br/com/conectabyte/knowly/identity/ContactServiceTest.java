@@ -99,7 +99,65 @@ class ContactServiceTest {
         Contact valid =
                 contactService.addContact(
                         user, ContactType.PHONE, "+55 (11) 99999-0000", null, false);
-        assertThat(valid.getValue()).isEqualTo("+55 (11) 99999-0000");
+        assertThat(valid.getValue()).isEqualTo("+5511999990000");
+    }
+
+    @Test
+    void addContactNormalizesAPhoneValueWithFormattingCharactersIdenticallyToAPlainOne() {
+        User formatted = user("contacts-phone-formatted@example.com");
+        User plain = user("contacts-phone-plain@example.com");
+
+        Contact formattedContact =
+                contactService.addContact(
+                        formatted, ContactType.PHONE, "+55 (11) 91234-5678", null, false);
+        Contact plainContact =
+                contactService.addContact(plain, ContactType.PHONE, "+5511912345678", null, false);
+
+        assertThat(formattedContact.getValue()).isEqualTo(plainContact.getValue());
+        assertThat(formattedContact.getValue()).isEqualTo("+5511912345678");
+    }
+
+    @Test
+    void aPhoneValueMissingItsLeadingPlusIsRejected() {
+        User user = user("contacts-phone-no-plus@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                contactService.addContact(
+                                        user, ContactType.PHONE, "11912345678", null, false))
+                .isInstanceOf(InvalidContactFormatException.class);
+    }
+
+    @Test
+    void addContactLeavesEmailAndOtherValuesUnaffectedByNormalization() {
+        User user = user("contacts-normalization-noop@example.com");
+
+        Contact email =
+                contactService.addContact(
+                        user, ContactType.EMAIL, "reachable@example.com", null, false);
+        Contact other =
+                contactService.addContact(
+                        user,
+                        ContactType.OTHER,
+                        "free-form value with - and (parens)",
+                        null,
+                        false);
+
+        assertThat(email.getValue()).isEqualTo("reachable@example.com");
+        assertThat(other.getValue()).isEqualTo("free-form value with - and (parens)");
+    }
+
+    @Test
+    void updateContactNormalizesAPhoneValueWithFormattingCharacters() {
+        User user = user("contacts-update-phone@example.com");
+        Contact contact =
+                contactService.addContact(user, ContactType.PHONE, "+5511999990000", null, false);
+
+        Contact updated =
+                contactService.updateContact(
+                        contact, ContactType.PHONE, "+55 (11) 98888-7777", null, null);
+
+        assertThat(updated.getValue()).isEqualTo("+5511988887777");
     }
 
     @Test

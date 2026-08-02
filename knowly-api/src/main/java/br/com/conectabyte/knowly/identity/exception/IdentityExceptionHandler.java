@@ -76,4 +76,10 @@ public class IdentityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new TenancyErrorResponseDto("PROFILE_ALREADY_COMPLETE"));
     }
+
+    @ExceptionHandler(InvalidCpfException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidCpf(InvalidCpfException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_CPF"));
+    }
 }

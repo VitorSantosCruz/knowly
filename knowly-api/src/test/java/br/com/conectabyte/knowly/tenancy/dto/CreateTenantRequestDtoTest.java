@@ -10,7 +10,6 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterAll;
@@ -37,12 +36,10 @@ class CreateTenantRequestDtoTest {
     private static MandatoryProfileFieldsDto validProfile() {
         return new MandatoryProfileFieldsDto(
                 "Test User",
-                LocalDate.of(1990, 1, 1),
-                "12345678901",
-                "123456",
-                "SSP",
+                "52998224725",
+                "BR",
                 new MandatoryAddressDto(
-                        "01000-000", "Rua Um", null, null, "Centro", "Sao Paulo", "SP", "Brasil"),
+                        "Rua Um, 100", "Centro", "Sao Paulo", "SP", "01000-000", "BR"),
                 List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
     }
 

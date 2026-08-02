@@ -49,8 +49,8 @@ class UserProfileControllerIntegrationTest {
     @MockitoBean private JavaMailSender mailSender;
 
     private static final String FIELDS_JSON =
-            "{\"fullName\":\"%s\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,"
-                    + "\"birthDate\":null,\"address\":null,\"contacts\":null}";
+            "{\"fullName\":\"%s\",\"taxId\":null,\"countryCode\":null,"
+                    + "\"address\":null,\"contacts\":null}";
 
     private static final String DIRECT_EDIT_BODY =
             "{\"fields\":" + FIELDS_JSON + ",\"contactChanges\":[]}";
@@ -209,12 +209,12 @@ class UserProfileControllerIntegrationTest {
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"fields\":{\"fullName\":\"Address Requester\",\"cpf\":null,"
-                                        + "\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,"
-                                        + "\"address\":{\"cep\":\"01310-000\",\"logradouro\":\"Av"
-                                        + " Paulista\",\"numero\":\"1000\",\"complemento\":null,"
-                                        + "\"bairro\":\"Bela Vista\",\"cidade\":\"São"
-                                        + " Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                                "{\"fields\":{\"fullName\":\"Address Requester\",\"taxId\":null,"
+                                        + "\"countryCode\":null,"
+                                        + "\"address\":{\"addressLine1\":\"Av Paulista, 1000\","
+                                        + "\"addressLine2\":\"Bela Vista\",\"city\":\"São"
+                                        + " Paulo\",\"stateRegion\":\"SP\","
+                                        + "\"postalCode\":\"01310-000\",\"countryCode\":\"BR\"},"
                                         + "\"contacts\":null},\"contactChanges\":[]}")
                         .exchange();
 

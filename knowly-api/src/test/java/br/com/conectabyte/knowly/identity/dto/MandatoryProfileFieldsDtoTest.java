@@ -6,7 +6,6 @@ import br.com.conectabyte.knowly.identity.ContactType;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -14,7 +13,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Bean Validation on {@link MandatoryProfileFieldsDto}/{@link MandatoryAddressDto} per
  * specify/features/mandatory-complete-profile/PLAN.md's "one shared mandatory profile fields DTO
- * shape" decision.
+ * shape" decision. Updated 2026-08-02 for the country-agnostic identity/address model amendment:
+ * {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} removed entirely; {@code cpf} renamed {@code
+ * taxId}; {@code countryCode} added, required.
  */
 class MandatoryProfileFieldsDtoTest {
 
@@ -22,16 +23,14 @@ class MandatoryProfileFieldsDtoTest {
 
     private MandatoryAddressDto completeAddress() {
         return new MandatoryAddressDto(
-                "01000-000", "Rua Um", null, null, "Centro", "Sao Paulo", "SP", "Brasil");
+                "Rua Um, 100", "Centro", "Sao Paulo", "SP", "01000-000", "BR");
     }
 
     private MandatoryProfileFieldsDto completeFields() {
         return new MandatoryProfileFieldsDto(
                 "Jane Doe",
-                LocalDate.of(1990, 1, 1),
-                "12345678901",
-                "123456",
-                "SSP",
+                "52998224725",
+                "BR",
                 completeAddress(),
                 List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
     }
@@ -42,10 +41,9 @@ class MandatoryProfileFieldsDtoTest {
     }
 
     @Test
-    void numeroAndComplementoMayBeOmittedOnTheAddress() {
+    void addressLine2AndStateRegionMayBeOmittedOnTheAddress() {
         MandatoryAddressDto address =
-                new MandatoryAddressDto(
-                        "01000-000", "Rua Um", null, null, "Centro", "Sao Paulo", "SP", "Brasil");
+                new MandatoryAddressDto("Rua Um, 100", null, "Sao Paulo", null, "01000-000", "BR");
 
         assertThat(validator.validate(address)).isEmpty();
     }
@@ -55,10 +53,8 @@ class MandatoryProfileFieldsDtoTest {
         MandatoryProfileFieldsDto fields =
                 new MandatoryProfileFieldsDto(
                         null,
-                        LocalDate.of(1990, 1, 1),
-                        "12345678901",
-                        "123456",
-                        "SSP",
+                        "52998224725",
+                        "BR",
                         completeAddress(),
                         List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
 
@@ -66,14 +62,12 @@ class MandatoryProfileFieldsDtoTest {
     }
 
     @Test
-    void missingBirthDateIsRejected() {
+    void missingTaxIdIsRejected() {
         MandatoryProfileFieldsDto fields =
                 new MandatoryProfileFieldsDto(
                         "Jane Doe",
                         null,
-                        "12345678901",
-                        "123456",
-                        "SSP",
+                        "BR",
                         completeAddress(),
                         List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
 
@@ -81,43 +75,11 @@ class MandatoryProfileFieldsDtoTest {
     }
 
     @Test
-    void missingCpfIsRejected() {
+    void missingCountryCodeIsRejected() {
         MandatoryProfileFieldsDto fields =
                 new MandatoryProfileFieldsDto(
                         "Jane Doe",
-                        LocalDate.of(1990, 1, 1),
-                        null,
-                        "123456",
-                        "SSP",
-                        completeAddress(),
-                        List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
-
-        assertThat(validator.validate(fields)).isNotEmpty();
-    }
-
-    @Test
-    void missingRgIsRejected() {
-        MandatoryProfileFieldsDto fields =
-                new MandatoryProfileFieldsDto(
-                        "Jane Doe",
-                        LocalDate.of(1990, 1, 1),
-                        "12345678901",
-                        null,
-                        "SSP",
-                        completeAddress(),
-                        List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
-
-        assertThat(validator.validate(fields)).isNotEmpty();
-    }
-
-    @Test
-    void missingRgOrgaoEmissorIsRejected() {
-        MandatoryProfileFieldsDto fields =
-                new MandatoryProfileFieldsDto(
-                        "Jane Doe",
-                        LocalDate.of(1990, 1, 1),
-                        "12345678901",
-                        "123456",
+                        "52998224725",
                         null,
                         completeAddress(),
                         List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
@@ -130,10 +92,8 @@ class MandatoryProfileFieldsDtoTest {
         MandatoryProfileFieldsDto fields =
                 new MandatoryProfileFieldsDto(
                         "Jane Doe",
-                        LocalDate.of(1990, 1, 1),
-                        "12345678901",
-                        "123456",
-                        "SSP",
+                        "52998224725",
+                        "BR",
                         null,
                         List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
 
@@ -144,22 +104,15 @@ class MandatoryProfileFieldsDtoTest {
     void emptyContactsIsRejected() {
         MandatoryProfileFieldsDto fields =
                 new MandatoryProfileFieldsDto(
-                        "Jane Doe",
-                        LocalDate.of(1990, 1, 1),
-                        "12345678901",
-                        "123456",
-                        "SSP",
-                        completeAddress(),
-                        List.of());
+                        "Jane Doe", "52998224725", "BR", completeAddress(), List.of());
 
         assertThat(validator.validate(fields)).isNotEmpty();
     }
 
     @Test
-    void addressMissingCepIsRejected() {
+    void addressMissingPostalCodeIsRejected() {
         MandatoryAddressDto address =
-                new MandatoryAddressDto(
-                        null, "Rua Um", null, null, "Centro", "Sao Paulo", "SP", "Brasil");
+                new MandatoryAddressDto("Rua Um, 100", "Centro", "Sao Paulo", "SP", null, "BR");
 
         Set<ConstraintViolation<MandatoryAddressDto>> violations = validator.validate(address);
 

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
-import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,7 +13,12 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * REQ-2/REQ-6's completeness definition, per
- * specify/features/mandatory-complete-profile/SPEC.md/PLAN.md.
+ * specify/features/mandatory-complete-profile/SPEC.md/PLAN.md. Updated 2026-08-02 for the
+ * country-agnostic identity/address model amendment: {@code rg}/{@code rgOrgaoEmissor}/{@code
+ * birthDate} are gone; {@code cpf} renamed {@code taxId}; {@code countryCode} (non-null) is now a
+ * required completeness condition (mandatory-complete-profile/SPEC.md's fourth 2026-08-02 amendment
+ * -- closes the appsec-flagged gap where a null {@code countryCode} would otherwise let a Brazilian
+ * {@code taxId} skip checksum validation via this path).
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -34,23 +38,20 @@ class ProfileCompletenessServiceTest {
     private UserProfile completeProfile(User user) {
         UserProfile profile = new UserProfile(user);
         profile.setFullName("Jane Doe");
-        profile.setBirthDate(LocalDate.of(1990, 1, 1));
-        profile.setCpf("12345678901");
-        profile.setCpfBlindIndex("cpf-blind-index");
-        profile.setRg("123456");
-        profile.setRgBlindIndex("rg-blind-index");
-        profile.setRgOrgaoEmissor("SSP");
+        profile.setTaxId("52998224725");
+        profile.setTaxIdBlindIndex("tax-id-blind-index");
+        profile.setCountryCode("BR");
         return userProfileRepository.saveAndFlush(profile);
     }
 
     private Address completeAddress(User user) {
         Address address = new Address(user);
-        address.setCep("01000-000");
-        address.setLogradouro("Rua Um");
-        address.setBairro("Centro");
-        address.setCidade("Sao Paulo");
-        address.setEstado("SP");
-        address.setPais("Brasil");
+        address.setAddressLine1("Rua Um, 100");
+        address.setAddressLine2("Centro");
+        address.setCity("Sao Paulo");
+        address.setStateRegion("SP");
+        address.setPostalCode("01000000");
+        address.setCountryCode("BR");
         return addressRepository.saveAndFlush(address);
     }
 
@@ -81,10 +82,11 @@ class ProfileCompletenessServiceTest {
     }
 
     @Test
-    void missingBirthDateIsIncomplete() {
-        User user = user("missing-birthdate@example.com");
+    void missingTaxIdIsIncomplete() {
+        User user = user("missing-taxid@example.com");
         UserProfile profile = completeProfile(user);
-        profile.setBirthDate(null);
+        profile.setTaxId(null);
+        profile.setTaxIdBlindIndex(null);
         userProfileRepository.saveAndFlush(profile);
         completeAddress(user);
         oneContact(user);
@@ -93,36 +95,10 @@ class ProfileCompletenessServiceTest {
     }
 
     @Test
-    void missingCpfIsIncomplete() {
-        User user = user("missing-cpf@example.com");
+    void missingCountryCodeIsIncomplete() {
+        User user = user("missing-country-code@example.com");
         UserProfile profile = completeProfile(user);
-        profile.setCpf(null);
-        profile.setCpfBlindIndex(null);
-        userProfileRepository.saveAndFlush(profile);
-        completeAddress(user);
-        oneContact(user);
-
-        assertThat(profileCompletenessService.isComplete(user)).isFalse();
-    }
-
-    @Test
-    void missingRgIsIncomplete() {
-        User user = user("missing-rg@example.com");
-        UserProfile profile = completeProfile(user);
-        profile.setRg(null);
-        profile.setRgBlindIndex(null);
-        userProfileRepository.saveAndFlush(profile);
-        completeAddress(user);
-        oneContact(user);
-
-        assertThat(profileCompletenessService.isComplete(user)).isFalse();
-    }
-
-    @Test
-    void missingRgOrgaoEmissorIsIncomplete() {
-        User user = user("missing-rg-orgao@example.com");
-        UserProfile profile = completeProfile(user);
-        profile.setRgOrgaoEmissor(null);
+        profile.setCountryCode(null);
         userProfileRepository.saveAndFlush(profile);
         completeAddress(user);
         oneContact(user);
@@ -144,7 +120,7 @@ class ProfileCompletenessServiceTest {
         User user = user("address-missing-column@example.com");
         completeProfile(user);
         Address address = completeAddress(user);
-        address.setBairro("  ");
+        address.setCity("  ");
         addressRepository.saveAndFlush(address);
         oneContact(user);
 

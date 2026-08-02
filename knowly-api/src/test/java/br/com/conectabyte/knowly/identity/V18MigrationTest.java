@@ -38,36 +38,40 @@ class V18MigrationTest {
 
     @Test
     void userProfilesTableExistsWithExpectedColumns() {
+        // Asserted against the current (post-V26/V27) column names/set, since this test runs
+        // against the full migration chain, not just V18's original shape: rg/rg_orgao_emissor/
+        // rg_blind_index/birth_date are dropped entirely (V26); cpf/cpf_blind_index are renamed
+        // tax_id/tax_id_blind_index and country_code is added (V27).
         List<String> columns =
                 List.of(
                         "user_id",
                         "full_name",
-                        "cpf",
-                        "cpf_blind_index",
-                        "rg",
-                        "rg_orgao_emissor",
-                        "rg_blind_index",
-                        "birth_date",
+                        "tax_id",
+                        "tax_id_blind_index",
+                        "country_code",
                         "avatar_url");
 
         assertThat(columns).allMatch(column -> columnExists("user_profiles", column));
+        assertThat(columnExists("user_profiles", "rg")).isFalse();
+        assertThat(columnExists("user_profiles", "cpf")).isFalse();
     }
 
     @Test
     void addressesTableExistsWithExpectedColumns() {
+        // Asserted against the current (post-V27) country-agnostic column set, since this test
+        // runs against the full migration chain, not just V18's original Brazil-only shape.
         List<String> columns =
                 List.of(
                         "user_id",
-                        "cep",
-                        "logradouro",
-                        "numero",
-                        "complemento",
-                        "bairro",
-                        "cidade",
-                        "estado",
-                        "pais");
+                        "address_line1",
+                        "address_line2",
+                        "city",
+                        "state_region",
+                        "postal_code",
+                        "country_code");
 
         assertThat(columns).allMatch(column -> columnExists("addresses", column));
+        assertThat(columnExists("addresses", "cep")).isFalse();
     }
 
     @Test
@@ -96,21 +100,25 @@ class V18MigrationTest {
 
     @Test
     void profileEditRequestsGainedNewProposedColumnsAndSelfApprovalCheck() {
+        // Asserted against the current (post-V26/V27) proposed_* column set: proposed_rg_orgao_
+        // emissor/proposed_birth_date are dropped entirely (V26); the Brazil-only proposed address
+        // columns are replaced by the country-agnostic set, and proposed_cpf is renamed
+        // proposed_tax_id (V27) -- see V17MigrationTest for that rename's own coverage.
         List<String> columns =
                 List.of(
-                        "proposed_rg_orgao_emissor",
-                        "proposed_birth_date",
-                        "proposed_cep",
-                        "proposed_logradouro",
-                        "proposed_numero",
-                        "proposed_complemento",
-                        "proposed_bairro",
-                        "proposed_cidade",
-                        "proposed_estado",
-                        "proposed_pais");
+                        "proposed_address_line1",
+                        "proposed_address_line2",
+                        "proposed_city",
+                        "proposed_state_region",
+                        "proposed_postal_code",
+                        "proposed_country_code");
 
         assertThat(columns).allMatch(column -> columnExists("profile_edit_requests", column));
         assertThat(columnExists("profile_edit_requests", "proposed_address")).isFalse();
+        assertThat(columnExists("profile_edit_requests", "proposed_rg")).isFalse();
+        assertThat(columnExists("profile_edit_requests", "proposed_rg_orgao_emissor")).isFalse();
+        assertThat(columnExists("profile_edit_requests", "proposed_birth_date")).isFalse();
+        assertThat(columnExists("profile_edit_requests", "proposed_cep")).isFalse();
     }
 
     @Test

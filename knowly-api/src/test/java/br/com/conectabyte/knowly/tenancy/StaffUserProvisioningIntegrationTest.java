@@ -96,7 +96,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"new-staff@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"new-staff@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);
@@ -128,7 +128,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie1.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(rejected).hasStatus(HttpStatus.FORBIDDEN);
     }
@@ -149,7 +149,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie1.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(rejected).hasStatus(HttpStatus.FORBIDDEN);
 
@@ -167,7 +167,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie2.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(allowed).hasStatus(HttpStatus.CREATED);
     }
@@ -188,7 +188,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"someone-else@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"someone-else@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -209,7 +209,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"existing@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"existing@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CONFLICT);
@@ -233,7 +233,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"newbie@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"newbie@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(createResponse).hasStatus(HttpStatus.CREATED);
 
@@ -277,7 +277,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"audited@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"audited@example.com\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(response).hasStatus(HttpStatus.CREATED);
 
@@ -306,7 +306,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"new-staffadmin-e2e@example.com\",\"role\":\"STAFF_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"new-staffadmin-e2e@example.com\",\"role\":\"STAFF_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);
@@ -342,7 +342,7 @@ class StaffUserProvisioningIntegrationTest {
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"rejected-staffadmin-e2e@example.com\",\"role\":\"STAFF_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"rejected-staffadmin-e2e@example.com\",\"role\":\"STAFF_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);

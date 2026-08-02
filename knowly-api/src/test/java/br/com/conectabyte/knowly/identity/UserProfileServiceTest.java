@@ -6,8 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.dto.AddressDto;
 import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
+import br.com.conectabyte.knowly.identity.dto.ContactDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
+import br.com.conectabyte.knowly.identity.exception.InvalidCpfException;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrant;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrantRepository;
 import br.com.conectabyte.knowly.tenancy.DirectPermissionGrant;
@@ -45,9 +50,12 @@ class UserProfileServiceTest {
     @Autowired private DirectPermissionGrantRepository directPermissionGrantRepository;
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
     @Autowired private UserProfileService userProfileService;
+    @Autowired private UserProfileRepository userProfileRepository;
+    @Autowired private AddressRepository addressRepository;
+    @Autowired private BlindIndexService blindIndexService;
 
     private static final ProfileFieldsDto FIELDS =
-            new ProfileFieldsDto("Jane Doe", null, null, null, null, null, null);
+            new ProfileFieldsDto("Jane Doe", null, null, null, null);
 
     private User user(String email) {
         return userRepository.saveAndFlush(new User(email));
@@ -237,5 +245,142 @@ class UserProfileServiceTest {
                 new MockMultipartFile("file", "avatar.png", "image/png", "fake-bytes".getBytes());
 
         assertThat(userProfileService.updateOwnAvatar(user, file).avatarUrl()).isNotBlank();
+    }
+
+    // ---- REQ-4a/country-agnostic amendment: normalization + BR-conditional tax-id checksum ----
+
+    @Test
+    void directEditNormalizesAMaskedTaxIdAndPostalCode() {
+        User staffAdmin = user("normalize-direct-edit@example.com");
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        User masked = user("normalize-direct-edit-masked@example.com");
+        userProfileService.directEdit(
+                staffAdmin,
+                masked.getId(),
+                new ProfileFieldsDto("Jane Doe", null, "BR", null, null));
+
+        ProfileFieldsDto maskedFields =
+                new ProfileFieldsDto(
+                        "Jane Doe",
+                        "529.982.247-25",
+                        "BR",
+                        new AddressDto(
+                                "Rua Um, 100", "Centro", "Sao Paulo", "SP", "12345-678", "BR"),
+                        null);
+
+        userProfileService.directEdit(staffAdmin, masked.getId(), maskedFields);
+
+        UserProfile maskedProfile = userProfileRepository.findById(masked.getId()).orElseThrow();
+        assertThat(maskedProfile.getTaxId()).isEqualTo("52998224725");
+        assertThat(maskedProfile.getTaxIdBlindIndex())
+                .isEqualTo(blindIndexService.hmac("52998224725"));
+        assertThat(addressRepository.findById(masked.getId()).orElseThrow().getPostalCode())
+                .isEqualTo("12345678");
+    }
+
+    @Test
+    void aMaskedAndAnAlreadyPlainTaxIdProduceTheIdenticalNormalizedResultAndBlindIndex() {
+        User staffAdmin = user("normalize-equiv-direct-edit@example.com");
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        User masked = user("normalize-equiv-masked@example.com");
+        User plain = user("normalize-equiv-plain@example.com");
+        AddressDto address =
+                new AddressDto("Rua Um, 100", "Centro", "Sao Paulo", "SP", "12345678", "BR");
+
+        userProfileService.directEdit(
+                staffAdmin,
+                masked.getId(),
+                new ProfileFieldsDto("Jane Doe", "529.982.247-25", "BR", address, null));
+        userProfileService.directEdit(
+                staffAdmin,
+                plain.getId(),
+                new ProfileFieldsDto("Jane Doe", "11144477735", "BR", address, null));
+
+        UserProfile maskedProfile = userProfileRepository.findById(masked.getId()).orElseThrow();
+        UserProfile plainProfile = userProfileRepository.findById(plain.getId()).orElseThrow();
+        assertThat(maskedProfile.getTaxId()).isEqualTo("52998224725");
+        assertThat(plainProfile.getTaxId()).isEqualTo("11144477735");
+    }
+
+    @Test
+    void directEditRejectsAChecksumInvalidTaxIdWhenCountryCodeIsBrBeforeAnyPersistence() {
+        User staffAdmin = user("invalid-taxid-direct-edit@example.com");
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        User target = user("invalid-taxid-direct-edit-target@example.com");
+        userProfileService.directEdit(
+                staffAdmin, target.getId(), new ProfileFieldsDto(null, null, "BR", null, null));
+        ProfileFieldsDto invalidFields =
+                new ProfileFieldsDto("Jane Doe", "111.111.111-11", "BR", null, null);
+
+        assertThatThrownBy(
+                        () ->
+                                userProfileService.directEdit(
+                                        staffAdmin, target.getId(), invalidFields))
+                .isInstanceOf(InvalidCpfException.class);
+
+        assertThat(
+                        userProfileRepository
+                                .findById(target.getId())
+                                .map(UserProfile::getTaxId)
+                                .orElse(null))
+                .isNull();
+    }
+
+    @Test
+    void directEditAcceptsAnyShapeTaxIdWhenCountryCodeIsNotBr() {
+        User staffAdmin = user("nonbr-taxid-direct-edit@example.com");
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        User target = user("nonbr-taxid-direct-edit-target@example.com");
+        userProfileService.directEdit(
+                staffAdmin, target.getId(), new ProfileFieldsDto(null, null, "US", null, null));
+
+        userProfileService.directEdit(
+                staffAdmin,
+                target.getId(),
+                new ProfileFieldsDto("Jane Doe", "111-11-1111", "US", null, null));
+
+        assertThat(userProfileRepository.findById(target.getId()).orElseThrow().getTaxId())
+                .isEqualTo("111111111");
+    }
+
+    // ---- REQ-4a/country-agnostic amendment: applyMandatoryProfile (bootstrap completion) ----
+
+    private static MandatoryProfileFieldsDto mandatoryFieldsWithTaxId(String taxId) {
+        return new MandatoryProfileFieldsDto(
+                "Jane Doe",
+                taxId,
+                "BR",
+                new MandatoryAddressDto(
+                        "Rua Um, 100", "Centro", "Sao Paulo", "SP", "12345-678", "BR"),
+                List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
+    }
+
+    @Test
+    void completeOwnProfileNormalizesAMaskedTaxIdAndPostalCodeBeforePersistence() {
+        User caller = user("normalize-mandatory@example.com");
+
+        userProfileService.completeOwnProfile(caller, mandatoryFieldsWithTaxId("529.982.247-25"));
+
+        UserProfile profile = userProfileRepository.findById(caller.getId()).orElseThrow();
+        assertThat(profile.getTaxId()).isEqualTo("52998224725");
+        assertThat(addressRepository.findById(caller.getId()).orElseThrow().getPostalCode())
+                .isEqualTo("12345678");
+    }
+
+    @Test
+    void completeOwnProfileRejectsAChecksumInvalidTaxIdBeforeAnyRowIsWritten() {
+        User caller = user("invalid-taxid-mandatory@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                userProfileService.completeOwnProfile(
+                                        caller, mandatoryFieldsWithTaxId("111.111.111-11")))
+                .isInstanceOf(InvalidCpfException.class);
+
+        assertThat(addressRepository.findById(caller.getId())).isEmpty();
     }
 }

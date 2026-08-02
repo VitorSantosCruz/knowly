@@ -73,13 +73,13 @@ class IdentityAuditLogTest {
         userProfileService.directEdit(
                 staffAdmin,
                 target.getId(),
-                new ProfileFieldsDto("Audited Name", "12345678900", null, null, null, null, null));
+                new ProfileFieldsDto("Audited Name", "52998224725", "BR", null, null));
 
         var events =
                 auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(staffAdmin.getId());
         assertThat(events).extracting(AuditEvent::getAction).contains("identity.profile.edit");
         assertThat(events)
-                .allSatisfy(event -> assertThat(safeMetadata(event)).doesNotContain("12345678900"));
+                .allSatisfy(event -> assertThat(safeMetadata(event)).doesNotContain("52998224725"));
     }
 
     @Test
@@ -97,8 +97,7 @@ class IdentityAuditLogTest {
                 profileEditRequestService.submitEditRequest(
                         requester,
                         new ProfileEditRequestFieldsDto(
-                                new ProfileFieldsDto(
-                                        "Audited Request", null, null, null, null, null, null),
+                                new ProfileFieldsDto("Audited Request", null, null, null, null),
                                 List.of()));
         authenticateAs("audit-admin@example.com");
         profileEditRequestService.approveEditRequest(admin, submitted.getId());
@@ -111,8 +110,7 @@ class IdentityAuditLogTest {
                 profileEditRequestService.submitEditRequest(
                         secondRequesterUser,
                         new ProfileEditRequestFieldsDto(
-                                new ProfileFieldsDto("Second", null, null, null, null, null, null),
-                                List.of()));
+                                new ProfileFieldsDto("Second", null, null, null, null), List.of()));
         authenticateAs("audit-admin@example.com");
         profileEditRequestService.rejectEditRequest(admin, secondRequest.getId());
 

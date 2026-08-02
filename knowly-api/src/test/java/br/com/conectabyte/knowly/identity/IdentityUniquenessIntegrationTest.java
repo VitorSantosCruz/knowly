@@ -43,7 +43,7 @@ class IdentityUniquenessIntegrationTest {
 
     // cpfAndRgAreStoredNonPlaintextAtTheRawColumnLevel was removed here for the same reason as
     // the other User-level tests above -- cpf/rg encryption-at-rest is now exercised on
-    // user_profiles (see UserProfile/CpfRgEncryptionConverter and its dedicated tests).
+    // user_profiles (see UserProfile/TaxIdEncryptionConverter and its dedicated tests).
 
     @Test
     void twoTenantsWithTheSameTaxIdAreRejectedAtTheDatabaseLevel() {

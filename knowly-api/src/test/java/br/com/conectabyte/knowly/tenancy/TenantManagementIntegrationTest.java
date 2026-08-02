@@ -89,10 +89,11 @@ class TenantManagementIntegrationTest {
                 + "\"neighborhood\":\"Centro\",\"city\":\"Sao Paulo\",\"state\":\"SP\"},"
                 + "\"adminEmail\":\""
                 + adminEmail
-                + "\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
-                + "\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\","
-                + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\","
-                + "\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                + "\",\"profile\":{\"fullName\":\"Test User\","
+                + "\"taxId\":\"52998224725\",\"countryCode\":\"BR\","
+                + "\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\","
+                + "\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\","
+                + "\"countryCode\":\"BR\"},"
                 + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}"
                 + roleField
                 + "}";
@@ -168,7 +169,7 @@ class TenantManagementIntegrationTest {
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"newbie@own.com\",\"role\":\"MEMBER\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"newbie@own.com\",\"role\":\"MEMBER\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(addResponse).hasStatus(HttpStatus.OK);
@@ -213,7 +214,7 @@ class TenantManagementIntegrationTest {
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"outsider@tenantB.com\",\"role\":\"MEMBER\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"outsider@tenantB.com\",\"role\":\"MEMBER\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -481,7 +482,7 @@ class TenantManagementIntegrationTest {
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"new-memberadmin-staff@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"new-memberadmin-staff@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -520,7 +521,7 @@ class TenantManagementIntegrationTest {
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"new-memberadmin-tenant@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"new-memberadmin-tenant@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -551,7 +552,7 @@ class TenantManagementIntegrationTest {
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"email\":\"rejected-memberadmin@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                                "{\"email\":\"rejected-memberadmin@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"taxId\":\"52998224725\",\"countryCode\":\"BR\",\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\",\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\",\"countryCode\":\"BR\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);

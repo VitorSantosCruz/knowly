@@ -22,11 +22,11 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 1:1 with {@link User}, created only once an address is first submitted (REQ-2a), per
- * specify/features/identity-profile-model-v2/PLAN.md's 2026-08-02 country-agnostic
- * identity/address model amendment. Country-agnostic shape ({@code addressLine1}/{@code
- * addressLine2}/{@code city}/{@code stateRegion}/{@code postalCode}/{@code countryCode}) replaces
- * the Brazil-only {@code cep}/{@code logradouro}/{@code numero}/{@code complemento}/{@code
- * bairro}/{@code cidade}/{@code estado}/{@code pais} shape (see V27 migration).
+ * specify/features/identity-profile-model-v2/PLAN.md's 2026-08-02 country-agnostic identity/address
+ * model amendment. Country-agnostic shape ({@code addressLine1}/{@code addressLine2}/{@code
+ * city}/{@code stateRegion}/{@code postalCode}/{@code countryCode}) replaces the Brazil-only {@code
+ * cep}/{@code logradouro}/{@code numero}/{@code complemento}/{@code bairro}/{@code cidade}/{@code
+ * estado}/{@code pais} shape (see V27 migration).
  */
 @Entity
 @Table(name = "addresses")

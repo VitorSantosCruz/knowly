@@ -49,19 +49,19 @@ class MandatoryCompleteProfileCreationIntegrationTest {
     @MockitoBean private JavaMailSender mailSender;
 
     private static final String COMPLETE_PROFILE_JSON =
-            "\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
-                    + "\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\","
-                    + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\","
-                    + "\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\","
-                    + "\"pais\":\"Brasil\"},"
+            "\"profile\":{\"fullName\":\"Test User\","
+                    + "\"taxId\":\"52998224725\",\"countryCode\":\"BR\","
+                    + "\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\","
+                    + "\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\","
+                    + "\"countryCode\":\"BR\"},"
                     + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}";
 
     private static final String INCOMPLETE_PROFILE_JSON =
-            "\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\","
-                    + "\"cpf\":\"12345678901\",\"rg\":\"123456\","
-                    + "\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\","
-                    + "\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\","
-                    + "\"pais\":\"Brasil\"},"
+            "\"profile\":{\"fullName\":\"Test User\","
+                    + "\"taxId\":\"52998224725\","
+                    + "\"address\":{\"addressLine1\":\"Rua Um, 100\",\"addressLine2\":\"Centro\","
+                    + "\"city\":\"Sao Paulo\",\"stateRegion\":\"SP\",\"postalCode\":\"01000-000\","
+                    + "\"countryCode\":\"BR\"},"
                     + "\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}";
 
     private Cookie logIn(String email) {

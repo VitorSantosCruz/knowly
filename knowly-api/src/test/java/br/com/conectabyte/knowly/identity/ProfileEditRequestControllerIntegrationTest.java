@@ -78,7 +78,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"Listed Name\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                        "{\"fields\":{\"fullName\":\"Listed Name\",\"taxId\":null,\"countryCode\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
 
         Cookie adminSession = logIn("list-requests-admin@example.com");
@@ -105,12 +105,12 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"Address Listed\",\"cpf\":null,\"rg\":null,"
-                                + "\"rgOrgaoEmissor\":null,\"birthDate\":null,"
-                                + "\"address\":{\"cep\":\"01310-000\",\"logradouro\":\"Av"
-                                + " Paulista\",\"numero\":\"1000\",\"complemento\":null,"
-                                + "\"bairro\":\"Bela Vista\",\"cidade\":\"São"
-                                + " Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},"
+                        "{\"fields\":{\"fullName\":\"Address Listed\",\"taxId\":null,"
+                                + "\"countryCode\":null,"
+                                + "\"address\":{\"addressLine1\":\"Av Paulista, 1000\","
+                                + "\"addressLine2\":\"Bela Vista\",\"city\":\"São Paulo\","
+                                + "\"stateRegion\":\"SP\",\"postalCode\":\"01310-000\","
+                                + "\"countryCode\":\"BR\"},"
                                 + "\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
 
@@ -138,7 +138,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"Approve Me\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                        "{\"fields\":{\"fullName\":\"Approve Me\",\"taxId\":null,\"countryCode\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
         Long requestId =
                 profileEditRequestRepository
@@ -174,7 +174,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"Reject Me\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                        "{\"fields\":{\"fullName\":\"Reject Me\",\"taxId\":null,\"countryCode\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
         Long requestId =
                 profileEditRequestRepository
@@ -205,7 +205,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"No Right\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                        "{\"fields\":{\"fullName\":\"No Right\",\"taxId\":null,\"countryCode\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
         Long requestId =
                 profileEditRequestRepository
@@ -246,7 +246,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"New Name\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                        "{\"fields\":{\"fullName\":\"New Name\",\"taxId\":null,\"countryCode\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
 
         Cookie adminSession = logIn("requester-identity-admin@example.com");
@@ -276,7 +276,7 @@ class ProfileEditRequestControllerIntegrationTest {
                 .cookie(requesterSession)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                        "{\"fields\":{\"fullName\":\"New Name\",\"cpf\":null,\"rg\":null,\"rgOrgaoEmissor\":null,\"birthDate\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
+                        "{\"fields\":{\"fullName\":\"New Name\",\"taxId\":null,\"countryCode\":null,\"address\":null,\"contacts\":null},\"contactChanges\":[]}")
                 .exchange();
 
         Cookie adminSession = logIn("no-name-admin@example.com");

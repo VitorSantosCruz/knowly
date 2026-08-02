@@ -60,12 +60,15 @@ class V17MigrationTest {
     void profileEditRequestsTableExistsWithItsExpectedColumns() {
         // proposed_address is deliberately excluded here -- V18 (identity-profile-model-v2) drops
         // it in favor of the structured proposed_cep/logradouro/... columns, see V18MigrationTest.
+        // proposed_rg is excluded -- V26 drops it entirely (RG removed from the data model).
+        // proposed_cpf is asserted here under its current name, proposed_tax_id -- V27 renames it
+        // (country-agnostic identity/address model amendment), and this test runs against the full
+        // migration chain, not just V17's original shape.
         List<String> columns =
                 List.of(
                         "requester_user_id",
                         "proposed_full_name",
-                        "proposed_rg",
-                        "proposed_cpf",
+                        "proposed_tax_id",
                         "proposed_phone",
                         "status",
                         "resolved_by_user_id",

@@ -26,9 +26,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  * specify/features/identity-profile-model-v2/PLAN.md. {@code taxId} reuses {@link
  * TaxIdEncryptionConverter}/{@link BlindIndexService} unchanged, just relocated from {@code
  * User.cpf}/renamed from {@code UserProfile.cpf} (country-agnostic identity/address model
- * amendment, 2026-08-02). {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed
- * entirely per the same day's LGPD data-minimization amendments (see V26 migration). No {@code
- * @Filter} -- user-owned, not tenant-owned, same as {@link User} itself.
+ * amendment, 2026-08-02). {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed entirely
+ * per the same day's LGPD data-minimization amendments (see V26 migration). No {@code @Filter} --
+ * user-owned, not tenant-owned, same as {@link User} itself.
  */
 @Entity
 @Table(name = "user_profiles")

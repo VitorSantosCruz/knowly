@@ -51,11 +51,11 @@ class ProfileEditRequestServiceTest {
     }
 
     private static ProfileFieldsDto fields(String fullName) {
-        return new ProfileFieldsDto(fullName, null, null, null, null, null, null);
+        return new ProfileFieldsDto(fullName, null, null, null, null);
     }
 
-    private static ProfileFieldsDto fieldsWithCpf(String cpf) {
-        return new ProfileFieldsDto(null, cpf, null, null, null, null, null);
+    private static ProfileFieldsDto fieldsWithTaxId(String taxId) {
+        return new ProfileFieldsDto(null, taxId, "BR", null, null);
     }
 
     @Test
@@ -225,7 +225,8 @@ class ProfileEditRequestServiceTest {
     }
 
     @Test
-    void approvingARequestWhoseProposedCpfCollidesWithAnotherUsersFailsCleanlyWithNoPartialWrite() {
+    void
+            approvingARequestWhoseProposedTaxIdCollidesWithAnotherUsersFailsCleanlyWithNoPartialWrite() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Conflict Co"));
         User requester = user("conflict-requester@example.com");
         User admin = user("conflict-admin@example.com");
@@ -236,24 +237,84 @@ class ProfileEditRequestServiceTest {
 
         User other = user("conflict-other@example.com");
         UserProfile otherProfile = userProfileService.requireUserProfile(other);
-        otherProfile.setCpf("11122233344");
-        otherProfile.setCpfBlindIndex(blindIndexService.hmac("11122233344"));
+        otherProfile.setTaxId("52998224725");
+        otherProfile.setTaxIdBlindIndex(blindIndexService.hmac("52998224725"));
         userProfileRepository.saveAndFlush(otherProfile);
 
         ProfileEditRequest request =
                 profileEditRequestService.submitEditRequest(
                         requester,
-                        new ProfileEditRequestFieldsDto(fieldsWithCpf("11122233344"), List.of()));
+                        new ProfileEditRequestFieldsDto(fieldsWithTaxId("52998224725"), List.of()));
 
         assertThatThrownBy(
                         () -> profileEditRequestService.approveEditRequest(admin, request.getId()))
                 .isInstanceOf(ProfileFieldConflictException.class);
 
-        assertThat(userProfileRepository.findById(requester.getId()).map(UserProfile::getCpf))
-                .isNotEqualTo(java.util.Optional.of("11122233344"));
+        assertThat(userProfileRepository.findById(requester.getId()).map(UserProfile::getTaxId))
+                .isNotEqualTo(java.util.Optional.of("52998224725"));
         ProfileEditRequest reloadedRequest =
                 profileEditRequestRepository.findById(request.getId()).orElseThrow();
         assertThat(reloadedRequest.getStatus()).isEqualTo(ProfileEditRequestStatus.PENDING);
+    }
+
+    // ---- REQ-4a/country-agnostic amendment: normalization + BR-conditional tax-id checksum ----
+
+    @Test
+    void submittingNormalizesAMaskedTaxIdInTheProposedRow() {
+        User requester = user("submit-normalize-requester@example.com");
+
+        ProfileEditRequest request =
+                profileEditRequestService.submitEditRequest(
+                        requester,
+                        new ProfileEditRequestFieldsDto(
+                                fieldsWithTaxId("529.982.247-25"), List.of()));
+
+        ProfileEditRequest reloaded =
+                profileEditRequestRepository.findById(request.getId()).orElseThrow();
+        assertThat(reloaded.getProposedTaxId()).isEqualTo("52998224725");
+    }
+
+    @Test
+    void submittingAChecksumInvalidTaxIdWithBrCountryIsRejectedAndNeverCreatesAPendingRequest() {
+        User requester = user("submit-invalid-taxid-requester@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                profileEditRequestService.submitEditRequest(
+                                        requester,
+                                        new ProfileEditRequestFieldsDto(
+                                                fieldsWithTaxId("111.111.111-11"), List.of())))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.identity.exception.InvalidCpfException.class);
+
+        assertThat(
+                        profileEditRequestRepository.findByRequesterAndStatus(
+                                requester, ProfileEditRequestStatus.PENDING))
+                .isEmpty();
+    }
+
+    @Test
+    void approvingReValidatesAnAlreadyStoredProposedTaxIdEvenIfItBypassedSubmission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Defense Co"));
+        User requester = user("defense-requester@example.com");
+        User admin = user("defense-admin@example.com");
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(requester, tenant, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        ProfileEditRequest request =
+                profileEditRequestService.submitEditRequest(
+                        requester, new ProfileEditRequestFieldsDto(fields("Name"), List.of()));
+        // Simulate a future code path storing a proposed value without going through
+        // submitEditRequest's normalization/checksum guard.
+        request.setProposedTaxId("111.111.111-11");
+        request.setProposedCountryCode("BR");
+        profileEditRequestRepository.saveAndFlush(request);
+
+        assertThatThrownBy(
+                        () -> profileEditRequestService.approveEditRequest(admin, request.getId()))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.identity.exception.InvalidCpfException.class);
     }
 
     @Test

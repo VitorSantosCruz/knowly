@@ -11,8 +11,8 @@ import java.util.List;
  * creation, {@code addMember}, and the bootstrap completion endpoint -- per
  * specify/features/mandatory-complete-profile/PLAN.md's "one shared mandatory profile fields DTO
  * shape" decision. {@code avatar_url} is deliberately absent (SPEC: excluded from completeness).
- * {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed entirely, 2026-08-02;
- * {@code cpf} renamed {@code taxId}, {@code countryCode} added (mandatory for completeness, per
+ * {@code rg}/{@code rgOrgaoEmissor}/{@code birthDate} were removed entirely, 2026-08-02; {@code
+ * cpf} renamed {@code taxId}, {@code countryCode} added (mandatory for completeness, per
  * mandatory-complete-profile/SPEC.md's 2026-08-02 fourth amendment).
  */
 public record MandatoryProfileFieldsDto(

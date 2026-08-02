@@ -84,18 +84,20 @@ class V18MigrationBackfillTest {
     }
 
     @Test
-    void backfillsFullNameCpfRgFromUsersIntoUserProfiles() throws Exception {
+    void backfillsFullNameAndTaxIdFromUsersIntoUserProfiles() throws Exception {
+        // NOTE: this test's second migrate() call above runs the *full* migration chain (through
+        // the latest migration, not just V18) -- V26 drops rg/rg_blind_index entirely and V27
+        // renames cpf/cpf_blind_index to tax_id/tax_id_blind_index, so this asserts against the
+        // post-V27 column names, not V18's original ones.
         try (PreparedStatement statement =
                 connection.prepareStatement(
-                        "SELECT full_name, cpf, cpf_blind_index, rg, rg_blind_index FROM"
+                        "SELECT full_name, tax_id, tax_id_blind_index FROM"
                                 + " user_profiles WHERE user_id = 9001")) {
             ResultSet rs = statement.executeQuery();
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString("full_name")).isEqualTo("Seeded Full Name");
-            assertThat(rs.getString("cpf")).isEqualTo("cpf-ciphertext");
-            assertThat(rs.getString("cpf_blind_index")).isEqualTo("cpf-blind-index");
-            assertThat(rs.getString("rg")).isEqualTo("rg-ciphertext");
-            assertThat(rs.getString("rg_blind_index")).isEqualTo("rg-blind-index");
+            assertThat(rs.getString("tax_id")).isEqualTo("cpf-ciphertext");
+            assertThat(rs.getString("tax_id_blind_index")).isEqualTo("cpf-blind-index");
         }
     }
 

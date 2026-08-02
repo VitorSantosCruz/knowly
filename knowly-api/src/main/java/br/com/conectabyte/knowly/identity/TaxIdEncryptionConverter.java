@@ -13,13 +13,13 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Component;
 
 /**
- * REQ-3: encrypts {@code UserProfile.taxId} (and {@code
- * ProfileEditRequest.proposedTaxId}) at rest via AES-256-GCM, a random 96-bit IV
- * per write, {@code Base64(iv || ciphertext || tag)} in one opaque column -- see
- * specify/features/identity-profile-model/PLAN.md. Never used for equality/uniqueness -- see {@link
- * BlindIndexService} for that. Spring-managed ({@code @Component}) so Hibernate's
- * Spring-bean-container wiring injects {@link IdentityCryptoProperties}; {@code autoApply = false}
- * since it's applied explicitly via {@code @Convert} on each field.
+ * REQ-3: encrypts {@code UserProfile.taxId} (and {@code ProfileEditRequest.proposedTaxId}) at rest
+ * via AES-256-GCM, a random 96-bit IV per write, {@code Base64(iv || ciphertext || tag)} in one
+ * opaque column -- see specify/features/identity-profile-model/PLAN.md. Never used for
+ * equality/uniqueness -- see {@link BlindIndexService} for that. Spring-managed
+ * ({@code @Component}) so Hibernate's Spring-bean-container wiring injects {@link
+ * IdentityCryptoProperties}; {@code autoApply = false} since it's applied explicitly via
+ * {@code @Convert} on each field.
  */
 @Converter(autoApply = false)
 @Component

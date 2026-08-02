@@ -231,10 +231,10 @@ public class UserProfileService {
 
     /**
      * The single choke point every direct-edit/approve call site routes through: plain fields are
-     * set directly on {@link UserProfile}/{@link Address}, {@code taxId} is additionally
-     * routed through {@link BlindIndexService} in the same call, and every {@code contactChanges}
-     * entry is applied via {@link ContactService} -- all inside the same transactional boundary as
-     * the caller (REQ-17's atomicity). Package-private so {@link ProfileEditRequestService} (same
+     * set directly on {@link UserProfile}/{@link Address}, {@code taxId} is additionally routed
+     * through {@link BlindIndexService} in the same call, and every {@code contactChanges} entry is
+     * applied via {@link ContactService} -- all inside the same transactional boundary as the
+     * caller (REQ-17's atomicity). Package-private so {@link ProfileEditRequestService} (same
      * package) reuses it for approvals rather than duplicating the write.
      */
     @Transactional
