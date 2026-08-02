@@ -31,10 +31,10 @@ into **every** existing delete endpoint in the system:
 - `TenantController`
   `DELETE /api/tenants/{tenantId}/members/{membershipId}/access-groups/{accessGroupId}`
   (per-tenant access-group unassignment).
-- `StaffController` `DELETE /api/users/{userId}/permissions/{permission}`
+- `StaffController` `DELETE /api/staff/users/{userId}/permissions/{permission}`
   (global/staff permission revocation).
 - `StaffController`
-  `DELETE /api/users/{userId}/access-groups/{accessGroupId}` (global/staff
+  `DELETE /api/staff/users/{userId}/access-groups/{accessGroupId}` (global/staff
   access-group unassignment).
 
 Each of the five non-article endpoints gets its own sibling
@@ -262,14 +262,14 @@ SPEC's.
   confirmation token for a (membership, access group) pair, then the
   system shall reject the request (403) and generate no token.
 - **REQ-25 [Event-Driven]** When `DELETE
-  /api/users/{userId}/permissions/{permission}` is called, the system
+  /api/staff/users/{userId}/permissions/{permission}` is called, the system
   shall require and validate a deletion confirmation token scoped to that
   specific (user, permission) revocation instance and the calling user,
   per REQ-5 through REQ-11, before revoking the permission.
 - **REQ-26 [Event-Driven]** When a caller with the permission that
   already guards staff permission revocation requests a deletion
   confirmation token for a specific (user, permission) pair (`POST
-  /api/users/{userId}/permissions/{permission}/deletion-confirmation-token`
+  /api/staff/users/{userId}/permissions/{permission}/deletion-confirmation-token`
   or equivalent), the system shall generate and return the token per
   REQ-2, scoped to that user and permission instance.
 - **REQ-27 [Unwanted Behavior]** If a caller without the permission that
@@ -277,7 +277,7 @@ SPEC's.
   token for a (user, permission) pair, then the system shall reject the
   request (403) and generate no token.
 - **REQ-28 [Event-Driven]** When `DELETE
-  /api/users/{userId}/access-groups/{accessGroupId}` is called, the
+  /api/staff/users/{userId}/access-groups/{accessGroupId}` is called, the
   system shall require and validate a deletion confirmation token scoped
   to that specific (user, access group) unassignment instance and the
   calling user, per REQ-5 through REQ-11, before unassigning the access
@@ -285,7 +285,7 @@ SPEC's.
 - **REQ-29 [Event-Driven]** When a caller with the permission that
   already guards staff access-group unassignment requests a deletion
   confirmation token for a specific (user, access group) pair (`POST
-  /api/users/{userId}/access-groups/{accessGroupId}/deletion-confirmation-token`
+  /api/staff/users/{userId}/access-groups/{accessGroupId}/deletion-confirmation-token`
   or equivalent), the system shall generate and return the token per
   REQ-2, scoped to that user and access-group instance.
 - **REQ-30 [Unwanted Behavior]** If a caller without the permission that
@@ -419,12 +419,12 @@ SPEC's.
       access group) pair and caller, and rejects the unassignment without
       one; a sibling generation endpoint exists, gated by the same
       permission as tenant access-group unassignment.
-- [x] `DELETE /api/users/{userId}/permissions/{permission}` requires a
+- [x] `DELETE /api/staff/users/{userId}/permissions/{permission}` requires a
       valid confirmation token scoped to that (user, permission) pair and
       caller, and rejects the revocation without one; a sibling
       generation endpoint exists, gated by the same permission as staff
       permission revocation.
-- [x] `DELETE /api/users/{userId}/access-groups/{accessGroupId}`
+- [x] `DELETE /api/staff/users/{userId}/access-groups/{accessGroupId}`
       requires a valid confirmation token scoped to that (user, access
       group) pair and caller, and rejects the unassignment without one; a
       sibling generation endpoint exists, gated by the same permission as
