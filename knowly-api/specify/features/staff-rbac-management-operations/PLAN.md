@@ -338,4 +338,43 @@ TDAD, red-then-green, integration tests (`@SpringBootTest`, Testcontainers) mirr
   read as last). Also asserts the new `countByTenantIdAndRoleAndActiveTrue`
   query only counts active memberships of the given role/tenant, not all
   active members.
+
+## Implementation notes (2026-08-02, post-implementation)
+
+- **`STAFF_USER_DELETE`/`TENANT_MEMBER_DELETE`/`TENANT_PERMISSION_GRANT_CREATE`
+  don't exist yet.** `permission-granularity-model` (referenced above for
+  these three gates) hadn't landed as of this feature's implementation —
+  those `GlobalPermission`/`Permission` constants aren't in the enums.
+  Conservative fallback, to be revisited once that feature ships:
+  `deleteStaffUser`/`batchUpdatePermissions` (staff) keep
+  `@RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)`;
+  `hardDeleteMember`'s non-admin-target branch and
+  `batchUpdatePermissions` (tenant) keep
+  `TENANT_MEMBER_MANAGE_ANY`/`TENANT_PERMISSION_GRANT_MANAGE_ANY` via
+  `requireAdminOfTenantOrStaff` — i.e. exactly the gates each method
+  already had before this feature, unchanged.
+- **The single-threaded "demote/delete the last admin via a third-party
+  caller" 409 case is unreachable by construction**, discovered during
+  test-writing: `requireCallerIsStaffAdmin()`/`requireCallerIsAdminOfTenant()`
+  require the caller to themselves currently be an admin of that type, so
+  the locked read always finds at least the caller as "another admin"
+  unless the caller targets themselves — which is independently and
+  unconditionally blocked by the self-target guard first. The floor
+  check's only real trigger is the concurrency race (two admins
+  demoting/deleting each other simultaneously), which is exactly what the
+  pessimistic lock exists to close — both `*RbacManagementOperationsTest`
+  classes cover this with an actual two-thread race instead of a
+  single-threaded 409 assertion. Not a bug: the lock still does its job
+  the moment two callers actually race.
+- **Test-class-shared-database caveat**: `StaffRbacManagementOperationsTest`
+  shares its Spring context/Testcontainers Postgres with the rest of the
+  suite (no per-class schema reset), so `STAFF_ADMIN` rows from earlier
+  test classes persist into it. The two tests asserting an *exact* global
+  `STAFF_ADMIN` count (`concurrentDemoteAgainst...`,
+  `staffUserDetailReportsIsLastAdminOfTypeCorrectly`) call a
+  `resetAllStaffAdminsToStaff()` helper first (downgrades every existing
+  `STAFF_ADMIN` row to `STAFF` rather than deleting, to avoid an FK
+  violation against any prior admin's `AuditEvent` rows). Tenant-scope
+  counts don't have this problem since each test creates its own
+  dedicated `Tenant`.
 </content>
