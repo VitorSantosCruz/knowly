@@ -84,23 +84,48 @@ public class AuditLogAspect {
                         auditLog.resourceType().isEmpty() ? null : auditLog.resourceType(),
                         resourceId,
                         outcome);
-        event.setMetadata(resolveMetadata(auditLog));
+        event.setMetadata(resolveMetadata(joinPoint, auditLog));
 
         auditEventWriter.write(event);
     }
 
-    private String resolveMetadata(AuditLog auditLog) {
-        if (!auditLog.captureSourceIp()) {
+    private String resolveMetadata(ProceedingJoinPoint joinPoint, AuditLog auditLog) {
+        String sourceIpEntry = null;
+        if (auditLog.captureSourceIp()) {
+            String sourceIp = resolveSourceIp();
+            if (sourceIp != null) {
+                String maskedIp = PiiMasker.maskIp(sourceIp);
+                if (!maskedIp.isEmpty()) {
+                    sourceIpEntry = "\"sourceIp\": \"" + maskedIp + "\"";
+                }
+            }
+        }
+
+        String roleEntry = null;
+        if (!auditLog.metadataExpression().isEmpty()) {
+            Object value = evaluateExpression(joinPoint, auditLog.metadataExpression());
+            if (value != null) {
+                roleEntry = "\"role\": \"" + value + "\"";
+            }
+        }
+
+        if (sourceIpEntry == null && roleEntry == null) {
             return null;
         }
 
-        String sourceIp = resolveSourceIp();
-        if (sourceIp == null) {
-            return null;
+        StringBuilder json = new StringBuilder("{");
+        if (sourceIpEntry != null) {
+            json.append(sourceIpEntry);
         }
+        if (roleEntry != null) {
+            if (sourceIpEntry != null) {
+                json.append(", ");
+            }
+            json.append(roleEntry);
+        }
+        json.append("}");
 
-        String maskedIp = PiiMasker.maskIp(sourceIp);
-        return maskedIp.isEmpty() ? null : "{\"sourceIp\": \"" + maskedIp + "\"}";
+        return json.toString();
     }
 
     private String resolveSourceIp() {
@@ -131,6 +156,12 @@ public class AuditLogAspect {
             return null;
         }
 
+        Object value = evaluateExpression(joinPoint, auditLog.resourceIdExpression());
+
+        return value == null ? null : value.toString();
+    }
+
+    private Object evaluateExpression(ProceedingJoinPoint joinPoint, String spelExpression) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         String[] parameterNames =
                 PARAMETER_NAME_DISCOVERER.getParameterNames(signature.getMethod());
@@ -143,9 +174,7 @@ public class AuditLogAspect {
             }
         }
 
-        Expression expression = EXPRESSION_PARSER.parseExpression(auditLog.resourceIdExpression());
-        Object value = expression.getValue(context);
-
-        return value == null ? null : value.toString();
+        Expression expression = EXPRESSION_PARSER.parseExpression(spelExpression);
+        return expression.getValue(context);
     }
 }

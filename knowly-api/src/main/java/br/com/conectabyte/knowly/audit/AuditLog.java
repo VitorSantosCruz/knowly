@@ -28,4 +28,11 @@ public @interface AuditLog {
      * sites that need it (authentication events) rather than every {@code @AuditLog} consumer.
      */
     boolean captureSourceIp() default false;
+
+    /**
+     * Opt-in only: SpEL expression evaluated against the method's arguments (e.g. {@code "#role"});
+     * when non-empty, the result is recorded in {@code metadata.role}. Merged with {@code
+     * captureSourceIp}'s {@code metadata.sourceIp} when both are set on the same method.
+     */
+    String metadataExpression() default "";
 }

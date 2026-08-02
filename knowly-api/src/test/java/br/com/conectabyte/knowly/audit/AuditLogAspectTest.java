@@ -157,6 +157,30 @@ class AuditLogAspectTest {
     }
 
     @Test
+    void capturesTheMetadataExpressionResultIntoMetadataWhenSet() {
+        User user = authenticateAs("metadata-expression@example.com");
+
+        auditedService.doSomethingWithMetadataExpression("STAFF_ADMIN");
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getMetadata()).contains("\"role\"").contains("STAFF_ADMIN");
+    }
+
+    @Test
+    void leavesMetadataAtDefaultWhenMetadataExpressionIsNotSet() {
+        User user = authenticateAs("no-metadata-expression@example.com");
+
+        auditedService.doSomething("1");
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getMetadata()).isNull();
+    }
+
+    @Test
     void writesAnAuditEventForAReadOnlyMethodWithNoStateChange() {
         User user = authenticateAs("reader@example.com");
 
@@ -201,6 +225,13 @@ class AuditLogAspectTest {
         @AuditLog(action = "test.do-something-with-source-ip-capture", captureSourceIp = true)
         String doSomethingWithSourceIpCapture(String id) {
             return "ok:" + id;
+        }
+
+        @AuditLog(
+                action = "test.do-something-with-metadata-expression",
+                metadataExpression = "#role")
+        String doSomethingWithMetadataExpression(String role) {
+            return "ok:" + role;
         }
     }
 
