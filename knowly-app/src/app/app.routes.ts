@@ -14,6 +14,7 @@ import { AccessGroupManagementPageComponent } from './features/access-groups/acc
 import { rootRedirectGuard } from './core/root-redirect.guard';
 import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
 import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
+import { CompleteProfilePageComponent } from './features/complete-profile/complete-profile-page.component';
 import { ProfileEditRequestsInboxPageComponent } from './features/profile-edit-requests/profile-edit-requests-inbox-page.component';
 import { ChatPageComponent } from './features/chat/chat-page.component';
 import { ConversationDetailComponent } from './features/chat/conversation-detail.component';
@@ -27,6 +28,11 @@ export const routes: Routes = [
   // (SPEC judgment call 2/3) — an unauthenticated visit degrades to the existing
   // generic network-error UI on the first API call, exactly like elsewhere in this app.
   { path: 'profile', component: OwnProfilePageComponent },
+  // No guard (PLAN.md's AppSec review, bootstrap-profile-completion): enforcement lives
+  // server-side — an unauthenticated caller 401s on the one call this screen makes, and an
+  // already-complete account 409 PROFILE_ALREADY_COMPLETE's, which the component treats as
+  // success (REQ-9) rather than exposing any other account's data.
+  { path: 'complete-profile', component: CompleteProfilePageComponent },
   // No guard: GET /api/profile-edit-requests never 403s, it returns an empty list for a
   // caller with no applicable right — same reasoning already established for staffGuard
   // not being needed on /api/staff/permissions callers.

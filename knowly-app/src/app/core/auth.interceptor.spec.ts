@@ -51,7 +51,7 @@ describe('authInterceptor', () => {
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('redirects to /profile on a 409 PROFILE_COMPLETION_REQUIRED response', () => {
+  it('redirects to /complete-profile on a 409 PROFILE_COMPLETION_REQUIRED response', () => {
     const router = TestBed.inject(Router);
     vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     const request = new HttpRequest('GET', '/api/tenants/active');
@@ -73,7 +73,7 @@ describe('authInterceptor', () => {
       });
     });
 
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/profile');
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/complete-profile');
   });
 
   it('does not redirect on a 409 response with a different code', () => {

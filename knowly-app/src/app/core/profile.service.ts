@@ -55,6 +55,12 @@ export interface ContactChange {
   isPrimary: boolean | null;
 }
 
+// bootstrap-profile-completion: structurally identical to `ProfileFields` but every contact is
+// new by construction (no prior state to diff against), so `contacts` never carries an `id`.
+export interface MandatoryProfileFields extends Omit<ProfileFields, 'contacts'> {
+  contacts: Omit<Contact, 'id'>[];
+}
+
 export type ProfileEditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export interface ProfileEditRequest {
@@ -118,5 +124,11 @@ export class ProfileService {
 
   rejectEditRequest(id: number): Observable<void> {
     return this.http.post<void>(`/api/profile-edit-requests/${id}/reject`, {});
+  }
+
+  // bootstrap-profile-completion (REQ-6): one-time, no-approval self-completion for a
+  // pending-profile-completion session — see mandatory-complete-profile's backend SPEC.
+  completeOwnProfile(dto: MandatoryProfileFields): Observable<UserProfile> {
+    return this.http.post<UserProfile>('/api/users/me/profile/complete', dto);
   }
 }

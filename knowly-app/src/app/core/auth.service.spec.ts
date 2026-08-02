@@ -70,6 +70,26 @@ describe('AuthService', () => {
       expect(resolved).toBe(true);
     });
 
+    it('resolves with pendingProfileCompletion read from the response body (true)', () => {
+      let result: { pendingProfileCompletion: boolean } | undefined;
+      service.verifyCode('user@example.com', '123456').subscribe((value) => (result = value));
+
+      httpMock.expectOne('/api/auth/login-code/verify').flush({ pendingProfileCompletion: true });
+
+      expect(result).toEqual({ pendingProfileCompletion: true });
+      expect(service.isLoggedIn()).toBe(true);
+    });
+
+    it('resolves with pendingProfileCompletion read from the response body (false)', () => {
+      let result: { pendingProfileCompletion: boolean } | undefined;
+      service.verifyCode('user@example.com', '123456').subscribe((value) => (result = value));
+
+      httpMock.expectOne('/api/auth/login-code/verify').flush({ pendingProfileCompletion: false });
+
+      expect(result).toEqual({ pendingProfileCompletion: false });
+      expect(service.isLoggedIn()).toBe(true);
+    });
+
     it('propagates INVALID_CREDENTIALS', () => {
       let errorCode: string | undefined;
       service.verifyCode('user@example.com', '000000').subscribe({
@@ -110,6 +130,34 @@ describe('AuthService', () => {
       req.flush({});
 
       expect(resolved).toBe(true);
+    });
+
+    it('resolves with pendingProfileCompletion read from the response body (true)', () => {
+      let result: { pendingProfileCompletion: boolean } | undefined;
+      service
+        .verifyPassword('user@example.com', 'abc123456789')
+        .subscribe((value) => (result = value));
+
+      httpMock
+        .expectOne('/api/auth/login-password/verify')
+        .flush({ pendingProfileCompletion: true });
+
+      expect(result).toEqual({ pendingProfileCompletion: true });
+      expect(service.isLoggedIn()).toBe(true);
+    });
+
+    it('resolves with pendingProfileCompletion read from the response body (false)', () => {
+      let result: { pendingProfileCompletion: boolean } | undefined;
+      service
+        .verifyPassword('user@example.com', 'abc123456789')
+        .subscribe((value) => (result = value));
+
+      httpMock
+        .expectOne('/api/auth/login-password/verify')
+        .flush({ pendingProfileCompletion: false });
+
+      expect(result).toEqual({ pendingProfileCompletion: false });
+      expect(service.isLoggedIn()).toBe(true);
     });
 
     it('propagates INVALID_CREDENTIALS', () => {

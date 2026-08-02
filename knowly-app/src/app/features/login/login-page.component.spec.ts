@@ -192,7 +192,7 @@ describe('LoginPageComponent', () => {
       goToCredentialStep(fixture);
       const authService = TestBed.inject(AuthService);
       const router = TestBed.inject(Router);
-      vi.spyOn(authService, 'verifyCode').mockReturnValue(of(undefined));
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(of({ pendingProfileCompletion: false }));
       vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
       fillOtpBoxes(fixture, '123456');
@@ -207,12 +207,33 @@ describe('LoginPageComponent', () => {
       expect(router.navigateByUrl).toHaveBeenCalledWith('/welcome');
     });
 
+    it('navigates to /complete-profile when the code verify response has pendingProfileCompletion: true', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      const router = TestBed.inject(Router);
+      vi.spyOn(authService, 'verifyCode').mockReturnValue(of({ pendingProfileCompletion: true }));
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+      fillOtpBoxes(fixture, '123456');
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/complete-profile');
+    });
+
     it('logs the user in when the password is correct', () => {
       const fixture = setup();
       goToCredentialStep(fixture);
       const authService = TestBed.inject(AuthService);
       const router = TestBed.inject(Router);
-      vi.spyOn(authService, 'verifyPassword').mockReturnValue(of(undefined));
+      vi.spyOn(authService, 'verifyPassword').mockReturnValue(
+        of({ pendingProfileCompletion: false }),
+      );
       vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
       const tabs: NodeListOf<HTMLButtonElement> =
@@ -238,6 +259,36 @@ describe('LoginPageComponent', () => {
         undefined,
       );
       expect(router.navigateByUrl).toHaveBeenCalledWith('/welcome');
+    });
+
+    it('navigates to /complete-profile when the password verify response has pendingProfileCompletion: true', () => {
+      const fixture = setup();
+      goToCredentialStep(fixture);
+      const authService = TestBed.inject(AuthService);
+      const router = TestBed.inject(Router);
+      vi.spyOn(authService, 'verifyPassword').mockReturnValue(
+        of({ pendingProfileCompletion: true }),
+      );
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+      const tabs: NodeListOf<HTMLButtonElement> =
+        fixture.nativeElement.querySelectorAll('[role="tab"]');
+      tabs[1].click();
+      fixture.detectChanges();
+
+      const passwordInput: HTMLInputElement =
+        fixture.nativeElement.querySelector('input[name="password"]');
+      passwordInput.value = 'abc123456789';
+      passwordInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const form: HTMLFormElement = fixture.nativeElement.querySelector(
+        '[data-testid="credential-step"] form',
+      );
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/complete-profile');
     });
 
     it('shows an invalid-credentials tooltip without clearing the code input', () => {
@@ -455,7 +506,9 @@ describe('LoginPageComponent', () => {
         const fixture = setup();
         goToCredentialStep(fixture);
         const authService = TestBed.inject(AuthService);
-        vi.spyOn(authService, 'verifyCode').mockReturnValue(of(undefined));
+        vi.spyOn(authService, 'verifyCode').mockReturnValue(
+          of({ pendingProfileCompletion: false }),
+        );
 
         fillOtpBoxes(fixture, '12345');
 

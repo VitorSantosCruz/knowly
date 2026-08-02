@@ -1,7 +1,12 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ProfileService, ProfileFields, ContactChange } from './profile.service';
+import {
+  ProfileService,
+  ProfileFields,
+  ContactChange,
+  MandatoryProfileFields,
+} from './profile.service';
 
 describe('ProfileService', () => {
   let service: ProfileService;
@@ -129,5 +134,18 @@ describe('ProfileService', () => {
     const req = httpMock.expectOne('/api/profile-edit-requests/7/reject');
     expect(req.request.method).toBe('POST');
     req.flush(null);
+  });
+
+  it('completeOwnProfile(dto) calls POST /api/users/me/profile/complete with the given body', () => {
+    const dto: MandatoryProfileFields = {
+      ...fields,
+      contacts: [{ type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
+    };
+    service.completeOwnProfile(dto).subscribe();
+
+    const req = httpMock.expectOne('/api/users/me/profile/complete');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(dto);
+    req.flush({ userId: 1, email: 'jane@example.com', fields, avatarUrl: null });
   });
 });

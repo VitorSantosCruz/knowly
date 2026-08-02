@@ -318,9 +318,9 @@ export class LoginPageComponent implements OnDestroy {
     this.errorCode.set(undefined);
 
     this.authService.verifyCode(this.email(), this.code(), this.captchaToken()).subscribe({
-      next: () => {
+      next: ({ pendingProfileCompletion }) => {
         this.submitting.set(false);
-        this.router.navigateByUrl('/welcome');
+        this.router.navigateByUrl(pendingProfileCompletion ? '/complete-profile' : '/welcome');
       },
       error: (err: { error?: { code?: AuthErrorCode } }) => {
         this.submitting.set(false);
@@ -335,9 +335,9 @@ export class LoginPageComponent implements OnDestroy {
     this.errorCode.set(undefined);
 
     this.authService.verifyPassword(this.email(), this.password(), this.captchaToken()).subscribe({
-      next: () => {
+      next: ({ pendingProfileCompletion }) => {
         this.submitting.set(false);
-        this.router.navigateByUrl('/welcome');
+        this.router.navigateByUrl(pendingProfileCompletion ? '/complete-profile' : '/welcome');
       },
       error: (err: { error?: { code?: AuthErrorCode } }) => {
         this.submitting.set(false);

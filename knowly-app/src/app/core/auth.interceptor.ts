@@ -17,7 +17,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
         error.status === 409 &&
         error.error?.code === 'PROFILE_COMPLETION_REQUIRED'
       ) {
-        router.navigateByUrl('/profile');
+        router.navigateByUrl('/complete-profile');
       }
 
       return throwError(() => error);

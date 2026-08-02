@@ -19,16 +19,42 @@ export class AuthService {
     return this.http.post<void>('/api/auth/login-request', { email, captchaToken });
   }
 
-  verifyCode(email: string, code: string, captchaToken?: string): Observable<void> {
+  verifyCode(
+    email: string,
+    code: string,
+    captchaToken?: string,
+  ): Observable<{ pendingProfileCompletion: boolean }> {
     return this.http
-      .post<void>('/api/auth/login-code/verify', { email, code, captchaToken })
-      .pipe(tap(() => this.loggedIn.set(true)));
+      .post<{ pendingProfileCompletion?: boolean }>('/api/auth/login-code/verify', {
+        email,
+        code,
+        captchaToken,
+      })
+      .pipe(
+        tap(() => this.loggedIn.set(true)),
+        map((response) => ({
+          pendingProfileCompletion: response.pendingProfileCompletion ?? false,
+        })),
+      );
   }
 
-  verifyPassword(email: string, password: string, captchaToken?: string): Observable<void> {
+  verifyPassword(
+    email: string,
+    password: string,
+    captchaToken?: string,
+  ): Observable<{ pendingProfileCompletion: boolean }> {
     return this.http
-      .post<void>('/api/auth/login-password/verify', { email, password, captchaToken })
-      .pipe(tap(() => this.loggedIn.set(true)));
+      .post<{ pendingProfileCompletion?: boolean }>('/api/auth/login-password/verify', {
+        email,
+        password,
+        captchaToken,
+      })
+      .pipe(
+        tap(() => this.loggedIn.set(true)),
+        map((response) => ({
+          pendingProfileCompletion: response.pendingProfileCompletion ?? false,
+        })),
+      );
   }
 
   logout(): Observable<void> {

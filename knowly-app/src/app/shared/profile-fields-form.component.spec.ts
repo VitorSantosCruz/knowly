@@ -29,7 +29,11 @@ describe('ProfileFieldsFormComponent', () => {
     contacts: [{ id: 1, type: 'PHONE', value: '+15550000', label: null, isPrimary: true }],
   };
 
-  async function createFixture(disabled = false, showContacts = true): Promise<void> {
+  async function createFixture(
+    disabled = false,
+    showContacts = true,
+    requireAllFields = false,
+  ): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [ProfileFieldsFormComponent],
       providers: [
@@ -44,6 +48,7 @@ describe('ProfileFieldsFormComponent', () => {
     fixture.componentRef.setInput('fields', fields);
     fixture.componentRef.setInput('disabled', disabled);
     fixture.componentRef.setInput('showContacts', showContacts);
+    fixture.componentRef.setInput('requireAllFields', requireAllFields);
     fixture.detectChanges();
   }
 
@@ -281,5 +286,61 @@ describe('ProfileFieldsFormComponent', () => {
 
     expect(emitted.length).toBe(1);
     expect(emitted[0].fields.cpf).toBe('123');
+  });
+
+  describe('requireAllFields', () => {
+    it('renders required on every mandatory input except numero/complemento when true', async () => {
+      await createFixture(false, true, true);
+
+      expect(input('profile-field-fullName').required).toBe(true);
+      expect(input('profile-field-rg').required).toBe(true);
+      expect(input('profile-field-rgOrgaoEmissor').required).toBe(true);
+      expect(input('profile-field-cpf').required).toBe(true);
+      expect(input('profile-field-birthDate').required).toBe(true);
+      expect(input('profile-address-field-cep').required).toBe(true);
+      expect(input('profile-address-field-logradouro').required).toBe(true);
+      expect(input('profile-address-field-bairro').required).toBe(true);
+      expect(input('profile-address-field-cidade').required).toBe(true);
+      expect(input('profile-address-field-estado').required).toBe(true);
+      expect(input('profile-address-field-pais').required).toBe(true);
+      expect(input('profile-address-field-numero').required).toBe(false);
+      expect(input('profile-address-field-complemento').required).toBe(false);
+    });
+
+    it('blocks submission with zero contacts and shows contactsRequiredMessage when true', async () => {
+      await createFixture(false, true, true);
+
+      input('profile-contact-remove-id-1').click();
+      fixture.detectChanges();
+
+      const emitted: ProfileFieldsFormSubmission[] = [];
+      fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+      submitForm();
+      fixture.detectChanges();
+
+      expect(emitted).toEqual([]);
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-contacts-required-message"]'),
+      ).toBeTruthy();
+    });
+
+    it('does not render required attributes and allows zero contacts when false (default)', async () => {
+      await createFixture(false, true, false);
+
+      expect(input('profile-field-fullName').required).toBe(false);
+      expect(input('profile-address-field-numero').required).toBe(false);
+
+      input('profile-contact-remove-id-1').click();
+      fixture.detectChanges();
+
+      const emitted: ProfileFieldsFormSubmission[] = [];
+      fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+      submitForm();
+
+      expect(emitted.length).toBe(1);
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-contacts-required-message"]'),
+      ).toBeNull();
+    });
   });
 });

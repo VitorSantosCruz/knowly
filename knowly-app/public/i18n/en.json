@@ -425,7 +425,8 @@
         "primary": "Primary",
         "remove": "Remove",
         "add": "Add contact",
-        "limitReached": "You can add up to 5 contacts."
+        "limitReached": "You can add up to 5 contacts.",
+        "required": "At least one contact is required."
       }
     },
     "pending": "Your profile change is pending approval.",
@@ -441,6 +442,13 @@
       "change": "Change avatar",
       "error": "Could not update your avatar. Please try a different image."
     }
+  },
+  "completeProfile": {
+    "title": "Complete your profile",
+    "intro": "Before you continue, please fill in your full profile. This is a one-time, self-completed step — no approval is required.",
+    "email": "Email",
+    "networkError": "Something went wrong submitting your profile. Please try again.",
+    "fieldErrorsIntro": "Please fix the following field(s):"
   },
   "profileEditRequests": {
     "navLabel": "Profile edit requests",

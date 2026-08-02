@@ -62,6 +62,7 @@ export interface ProfileFieldsFormSubmission {
           type="text"
           [value]="localFields().fullName"
           [disabled]="disabled()"
+          [required]="requireAllFields()"
           (input)="onFieldChange('fullName', $any($event.target).value)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
@@ -73,6 +74,7 @@ export interface ProfileFieldsFormSubmission {
           type="text"
           [value]="localFields().rg"
           [disabled]="disabled()"
+          [required]="requireAllFields()"
           (input)="onFieldChange('rg', $any($event.target).value)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
@@ -84,6 +86,7 @@ export interface ProfileFieldsFormSubmission {
           type="text"
           [value]="localFields().rgOrgaoEmissor"
           [disabled]="disabled()"
+          [required]="requireAllFields()"
           (input)="onFieldChange('rgOrgaoEmissor', $any($event.target).value)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
@@ -95,6 +98,7 @@ export interface ProfileFieldsFormSubmission {
           type="text"
           [value]="formatMaskedValue('cpf', localFields().cpf ?? '')"
           [disabled]="disabled()"
+          [required]="requireAllFields()"
           [appInputMask]="'cpf'"
           (appInputMaskChange)="onFieldChange('cpf', $event)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
@@ -107,6 +111,7 @@ export interface ProfileFieldsFormSubmission {
           type="date"
           [value]="localFields().birthDate"
           [disabled]="disabled()"
+          [required]="requireAllFields()"
           (input)="onFieldChange('birthDate', $any($event.target).value)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
@@ -125,6 +130,7 @@ export interface ProfileFieldsFormSubmission {
                 type="text"
                 [value]="formatMaskedValue('cep', localFields().address?.[field] ?? '')"
                 [disabled]="disabled()"
+                [required]="requireAllFields()"
                 [appInputMask]="'cep'"
                 (appInputMaskChange)="onAddressFieldChange(field, $event)"
                 class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
@@ -138,6 +144,7 @@ export interface ProfileFieldsFormSubmission {
                 type="text"
                 [value]="localFields().address?.[field] ?? ''"
                 [disabled]="disabled()"
+                [required]="requireAllFields() && field !== 'numero' && field !== 'complemento'"
                 (input)="onAddressFieldChange(field, $any($event.target).value)"
                 class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
               />
@@ -231,6 +238,15 @@ export interface ProfileFieldsFormSubmission {
             </p>
           }
 
+          @if (contactsRequiredMessage()) {
+            <p
+              data-testid="profile-contacts-required-message"
+              class="text-sm text-red-600 dark:text-red-400"
+            >
+              {{ 'profile.fields.contacts.required' | transloco }}
+            </p>
+          }
+
           <button
             type="button"
             data-testid="profile-contact-add"
@@ -263,6 +279,11 @@ export class ProfileFieldsFormComponent {
   // *other* user hides this fieldset entirely — showing controls that silently no-op would be
   // misleading. Defaults to `true` (own-profile edit-request flow, which does support contacts).
   readonly showContacts = input(true);
+  // REQ-3/5/14 (bootstrap-profile-completion): when `true`, every mandatory input renders
+  // `required` and submission is blocked client-side if `contacts().length === 0`. Defaults to
+  // `false` so every existing call site (`OwnProfilePageComponent`/`ProfileSectionComponent`)
+  // stays behaviorally unchanged.
+  readonly requireAllFields = input(false);
   readonly submitted = output<ProfileFieldsFormSubmission>();
 
   protected readonly contactTypes = CONTACT_TYPES;
@@ -286,6 +307,7 @@ export class ProfileFieldsFormComponent {
   protected readonly localFields = signal<ProfileFields>(EMPTY_FIELDS);
   protected readonly contacts = signal<ContactRow[]>([]);
   protected readonly contactLimitMessage = signal(false);
+  protected readonly contactsRequiredMessage = signal(false);
 
   // The array this component was initialized/re-synced with, keyed by id, used to diff at
   // submit time (PLAN.md's "diff-on-submit, not a running change-log" judgment call).
@@ -386,6 +408,12 @@ export class ProfileFieldsFormComponent {
     if (this.disabled()) {
       return;
     }
+
+    if (this.requireAllFields() && this.contacts().length === 0) {
+      this.contactsRequiredMessage.set(true);
+      return;
+    }
+    this.contactsRequiredMessage.set(false);
 
     this.submitted.emit({
       fields: { ...this.localFields(), contacts: this.contacts() },

@@ -425,7 +425,8 @@
         "primary": "Principal",
         "remove": "Remover",
         "add": "Adicionar contato",
-        "limitReached": "Voce pode adicionar ate 5 contatos."
+        "limitReached": "Voce pode adicionar ate 5 contatos.",
+        "required": "Pelo menos um contato e obrigatorio."
       }
     },
     "pending": "Sua alteração de perfil está aguardando aprovação.",
@@ -441,6 +442,13 @@
       "change": "Alterar avatar",
       "error": "Nao foi possivel atualizar seu avatar. Tente outra imagem."
     }
+  },
+  "completeProfile": {
+    "title": "Complete seu perfil",
+    "intro": "Antes de continuar, preencha seu perfil completo. Esta e uma etapa unica e autopreenchida — nenhuma aprovacao e necessaria.",
+    "email": "Email",
+    "networkError": "Algo deu errado ao enviar seu perfil. Tente novamente.",
+    "fieldErrorsIntro": "Corrija o(s) seguinte(s) campo(s):"
   },
   "profileEditRequests": {
     "navLabel": "Solicitações de alteração de perfil",
