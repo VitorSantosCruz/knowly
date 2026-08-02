@@ -148,8 +148,8 @@ export interface ProfileFieldsFormSubmission {
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-          @if (hasCountrySpecificLabels()) {
-            {{ activeCountryConfig().stateRegionLabel }}
+          @if (activeCountryConfig().stateRegionLabel; as stateRegionLabel) {
+            {{ stateRegionLabel }}
           } @else {
             {{ 'profile.fields.address.stateRegion' | transloco }}
           }
@@ -343,11 +343,14 @@ export class ProfileFieldsFormComponent {
     getCountryFieldConfig(this.localFields().countryCode),
   );
 
-  // Bugfix (2026-08-02): only BR/US/GB have a genuinely country-specific taxId/postalCode/
-  // stateRegion label (CPF/CEP, SSN/ZIP Code, NINO/Postcode+County) — those stay hardcoded,
-  // untranslated proper nouns/acronyms regardless of UI locale, by design. Any other/unset
-  // country falls back to `COUNTRY_FIELD_CONFIG`'s `DEFAULT` entry, whose labels are plain
-  // English words that must go through Transloco instead of always rendering in English.
+  // Bugfix (2026-08-02): only BR/US/GB have a genuinely country-specific taxId/postalCode
+  // label (CPF/CEP, SSN/ZIP Code, NINO/Postcode) — those stay hardcoded, untranslated proper
+  // nouns/acronyms regardless of UI locale, by design. Any other/unset country falls back to
+  // `COUNTRY_FIELD_CONFIG`'s `DEFAULT` entry, whose labels are plain English words that must go
+  // through Transloco instead of always rendering in English.
+  // `stateRegionLabel` is handled separately (see the template above) since it's a generic field
+  // name, not a country-specific document/form name — only GB (`County`) has a genuinely distinct
+  // term; BR/US/DEFAULT omit it entirely so they fall back to the Transloco-driven generic label.
   protected readonly hasCountrySpecificLabels = computed(() =>
     COUNTRY_FIELD_CONFIG.has(this.localFields().countryCode ?? ''),
   );

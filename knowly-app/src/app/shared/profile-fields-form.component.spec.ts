@@ -317,6 +317,40 @@ describe('ProfileFieldsFormComponent', () => {
       expect(fixture.nativeElement.textContent).toContain('City');
     });
 
+    // Bugfix (2026-08-02): unlike taxId/postalCode (CPF/CEP), stateRegion is a generic field
+    // name, not a country-specific document/form name — BR/US must not hardcode an English
+    // "State" literal, they should fall back to the Transloco-driven generic label instead.
+    it('renders the Transloco-driven generic stateRegion label for BR/US, not a hardcoded "State"', async () => {
+      await createFixture();
+
+      // BR is the fixture's initial country.
+      expect(input('profile-address-field-stateRegion')).toBeTruthy();
+      const brLabel = fixture.nativeElement.querySelector(
+        '[data-testid="profile-address-field-stateRegion"]',
+      )?.parentElement?.textContent;
+      expect(brLabel).toContain('State / Region');
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      select.value = 'US';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const usLabel = fixture.nativeElement.querySelector(
+        '[data-testid="profile-address-field-stateRegion"]',
+      )?.parentElement?.textContent;
+      expect(usLabel).toContain('State / Region');
+
+      // GB keeps its genuinely country-specific "County" label.
+      select.value = 'GB';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const gbLabel = fixture.nativeElement.querySelector(
+        '[data-testid="profile-address-field-stateRegion"]',
+      )?.parentElement?.textContent;
+      expect(gbLabel).toContain('County');
+    });
+
     it('localizes the country <select> option text while keeping the alpha-2 code as the value', async () => {
       await createFixture();
 

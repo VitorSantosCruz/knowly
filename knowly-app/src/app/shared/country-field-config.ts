@@ -8,7 +8,11 @@ export interface CountryFieldConfig {
   postalCodeLabel: string;
   addressLine1Label: string;
   cityLabel: string;
-  stateRegionLabel: string;
+  /** Omitted for countries where "state/region" isn't a genuinely country-specific document/form
+   * name (e.g. BR/US) — those fall back to the Transloco-driven generic label instead of a
+   * hardcoded English literal. Only set this when the country has its own distinct term (e.g.
+   * GB's "County"). */
+  stateRegionLabel?: string;
   /** Whether `InputMaskDirective` has a concrete mask pattern for this field in this country. */
   hasTaxIdMask: boolean;
   hasPostalCodeMask: boolean;
@@ -28,7 +32,6 @@ export const COUNTRY_FIELD_CONFIG = new Map<string, CountryFieldConfig>([
       postalCodeLabel: 'CEP',
       addressLine1Label: 'Address line 1',
       cityLabel: 'City',
-      stateRegionLabel: 'State',
       hasTaxIdMask: true,
       hasPostalCodeMask: true,
       hasPhoneMask: true,
@@ -41,7 +44,6 @@ export const COUNTRY_FIELD_CONFIG = new Map<string, CountryFieldConfig>([
       postalCodeLabel: 'ZIP Code',
       addressLine1Label: 'Address line 1',
       cityLabel: 'City',
-      stateRegionLabel: 'State',
       hasTaxIdMask: true,
       hasPostalCodeMask: true,
       hasPhoneMask: false,
@@ -67,7 +69,6 @@ export const COUNTRY_FIELD_CONFIG = new Map<string, CountryFieldConfig>([
       postalCodeLabel: 'Postal Code',
       addressLine1Label: 'Address line 1',
       cityLabel: 'City',
-      stateRegionLabel: 'State/Region',
       hasTaxIdMask: false,
       hasPostalCodeMask: false,
       hasPhoneMask: false,
