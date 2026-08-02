@@ -1,5 +1,8 @@
 package br.com.conectabyte.knowly.config;
 
+import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.identity.ProfileCompletenessService;
+import br.com.conectabyte.knowly.tenancy.ProfileCompletionFilter;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantContextFilter;
 import jakarta.servlet.FilterChain;
@@ -7,6 +10,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -52,7 +56,13 @@ public class SecurityConfig {
      * by the real session-aware mechanism once there are protected endpoints to guard.
      */
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, TenantContext tenantContext)
+    SecurityFilterChain filterChain(
+            HttpSecurity http,
+            TenantContext tenantContext,
+            UserRepository userRepository,
+            ProfileCompletenessService profileCompletenessService,
+            @Value("${spring.flyway.placeholders.bootstrap-staff-email}")
+                    String bootstrapStaffEmail)
             throws Exception {
         http.authorizeHttpRequests(
                         auth ->
@@ -98,6 +108,16 @@ public class SecurityConfig {
                                 ex.authenticationEntryPoint(
                                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .addFilterAfter(new CsrfCookieFilter(), UsernamePasswordAuthenticationFilter.class)
+                // Must be registered before TenantContextFilter below -- Spring Security resolves
+                // relative order between filters anchored at the same class by call order, not by
+                // declaration order in any comment/PLAN.md prose (see
+                // specify/features/mandatory-complete-profile/PLAN.md's AppSec review note). A
+                // pending bootstrap account has no tenant concept at all, so this gate must
+                // short-circuit before TenantContextFilter's own tenant-selection logic ever runs.
+                .addFilterAfter(
+                        new ProfileCompletionFilter(
+                                userRepository, profileCompletenessService, bootstrapStaffEmail),
+                        UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(
                         new TenantContextFilter(tenantContext),
                         UsernamePasswordAuthenticationFilter.class);
