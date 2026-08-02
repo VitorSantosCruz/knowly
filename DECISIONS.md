@@ -1732,6 +1732,51 @@ gate at the point of use over widening a shared endpoint's contract —
 reserve endpoint-contract changes for cases where multiple call sites
 would otherwise need the same duplicated role-check logic.
 
+## `member-admin-tenant-bypass` (backend consistency fix, 2026-08-01): supersedes the frontend-only OR-check above — make `GET /api/tenants/permissions` itself return the full permission set for `MEMBER_ADMIN`, mirroring `STAFF_ADMIN`
+
+**Reverses the Tier 2 decision immediately above.** The user explicitly
+flagged the asymmetry between the two "unrestricted role" bypasses:
+`StaffController.ownPermissions` already special-cases `STAFF_ADMIN` to
+return `List.of(GlobalPermission.values())` instead of computing
+explicit grants, but `TenantController.ownPermissions` (via
+`TenantService.ownEffectivePermissions`) had no analogous `MEMBER_ADMIN`
+special-case, even though `PermissionAspect.checkPermission` (the
+tenant-scoped equivalent of `GlobalPermissionAspect`) already
+unconditionally bypasses for `MEMBER_ADMIN` in their active tenant.
+**Decision:** `ownEffectivePermissions` should return
+`List.of(Permission.values())` for a `MEMBER_ADMIN` of the active
+tenant, exactly the shape of the pre-existing `staffAdmin` branch in the
+same method. **Note on how this landed:** by the time this was picked
+up, the concurrent `deletion-confirmation-token` feature's commit
+`de2742d` had already touched this exact method and happened to include
+the identical `MEMBER_ADMIN` branch as a side effect of its own
+`TenantService.java` edits — so the source change shipped in `de2742d`,
+not in a dedicated commit for this decision. This entry only added the
+regression test
+(`ownPermissionsReturnsTheFullPermissionSetForMemberAdminWithNoExplicitGrants`
+in `TenantSessionIntegrationTest.java`) confirming the behavior, plus
+this record of the decision and reasoning behind it. **Why the
+reversal:** the previous entry's stated reason
+for avoiding a backend change — "any other caller of that endpoint
+(present or future) would silently inherit a different contract" — is
+precisely what the user wants here: `STAFF_ADMIN` and `MEMBER_ADMIN` are
+both "unrestricted role" bypasses and must resolve permissions through
+the *same* mechanism (endpoint-level full-set special-case), not two
+different mechanisms (one at the endpoint, one bolted onto a single
+frontend component). Per explicit user instruction, consistency between
+the two roles' permission-resolution mechanism outweighs the narrower
+blast-radius argument. **Follow-up:** `nav-menu.component.ts`'s OR-check
+(commit `18e505d`) is now redundant — the endpoint itself returns the
+full set, so `.has(...)` alone is sufficient again — and is slated for
+removal in a separate frontend follow-up (not done as part of this
+backend fix). **Applies to new decisions:** when two roles are meant to
+be symmetric "unrestricted" bypasses (one global, one tenant-scoped),
+prefer keeping their permission-resolution *mechanism* identical across
+both, even if that means a smaller, more targeted endpoint change than
+the general "avoid widening a shared endpoint's contract" guidance would
+otherwise suggest — symmetry between deliberately-parallel roles is a
+stronger signal than the generic blast-radius concern.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

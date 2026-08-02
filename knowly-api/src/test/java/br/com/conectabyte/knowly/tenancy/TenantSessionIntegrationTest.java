@@ -175,6 +175,25 @@ class TenantSessionIntegrationTest {
     }
 
     @Test
+    void ownPermissionsReturnsTheFullPermissionSetForMemberAdminWithNoExplicitGrants()
+            throws Exception {
+        User user = userRepository.saveAndFlush(new User("memberadmin-perms@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Member Admin Perm Tenant"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER_ADMIN));
+
+        Cookie session = logIn("memberadmin-perms@example.com");
+
+        var response = mockMvc.get().uri("/api/tenants/permissions").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        for (Permission permission : Permission.values()) {
+            assertThat(body).contains(permission.name());
+        }
+    }
+
+    @Test
     void anyTenantPermissionCheckReturnsTrueWhenAnyMembershipGrantsIt() throws Exception {
         User user = userRepository.saveAndFlush(new User("anytenant-granted@example.com"));
         Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Any Tenant A"));

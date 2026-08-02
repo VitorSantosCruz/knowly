@@ -221,6 +221,27 @@ change to global/staff-scope gating, no backend change. New test in
 grants sees Dashboard/Articles/Conversations/Members. 476/476 frontend
 tests green, `format:check`/`build`/`lint` clean.
 
+**Backend consistency fix (2026-08-01): done.** The frontend workaround
+above was a stopgap — `GET /api/tenants/permissions`
+(`TenantController.ownPermissions` →
+`TenantService.ownEffectivePermissions`) was still only returning a
+`MEMBER_ADMIN`'s explicit grants, inconsistent with `PermissionAspect`
+already bypassing the check for them. Should mirror
+`StaffController.ownPermissions`'s `STAFF_ADMIN` special-case exactly:
+`ownEffectivePermissions` returning `List.of(Permission.values())`
+when the caller's active-tenant membership role is `MEMBER_ADMIN`, same
+shape as the `staffAdmin` branch immediately above it. That exact
+source change turned out to already be shipped as a side effect of the
+concurrent `deletion-confirmation-token` feature's commit `de2742d`
+(its own `TenantService.java` edits happened to include the identical
+`MEMBER_ADMIN` branch), so this item's remaining contribution is the
+regression test
+`ownPermissionsReturnsTheFullPermissionSetForMemberAdminWithNoExplicitGrants`
+in `TenantSessionIntegrationTest.java` confirming the behavior. **Follow-up:** `nav-menu.component.ts`'s
+OR-check (commit `18e505d`) is now redundant now that the backend is the
+single source of truth again — slated for removal in a separate
+follow-up, not done here (out of scope for a backend-only task).
+
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
 `primeng-removal` (2026-07-26) — the owner reverted the PrimeNG
