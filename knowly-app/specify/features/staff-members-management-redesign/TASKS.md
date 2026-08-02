@@ -18,37 +18,37 @@
 
 ## 1. `SharedListComponent` core
 
-- [ ] 1.1. Write `shared-list.component.spec.ts`: renders header
+- [x] 1.1. Write `shared-list.component.spec.ts`: renders header
       (title + "showing X-Y of Z"), column headers, and rows from
       `columns`/`rows` inputs (Red).
-- [ ] 1.2. Implement minimal `SharedListComponent` template/inputs to
+- [x] 1.2. Implement minimal `SharedListComponent` template/inputs to
       pass 1.1 (Green).
-- [ ] 1.3. Write tests for checkbox selection (row + select-all +
+- [x] 1.3. Write tests for checkbox selection (row + select-all +
       indeterminate state) and `selectionChange` output (Red).
-- [ ] 1.4. Implement selection logic (Green).
-- [ ] 1.5. Write tests for sortable column header click cycling
+- [x] 1.4. Implement selection logic (Green).
+- [x] 1.5. Write tests for sortable column header click cycling
       `none → asc → desc → none`, `aria-sort` attribute, `sortChange`
       output (Red).
-- [ ] 1.6. Implement sorting (Green).
-- [ ] 1.7. Write tests for search input filtering rows client-side
+- [x] 1.6. Implement sorting (Green).
+- [x] 1.7. Write tests for search input filtering rows client-side
       (Red).
-- [ ] 1.8. Implement search filtering (Green).
-- [ ] 1.9. Write tests for loading (skeleton rows), empty, no-results
+- [x] 1.8. Implement search filtering (Green).
+- [x] 1.9. Write tests for loading (skeleton rows), empty, no-results
       (with "clear filters"), and error (`ErrorStateComponent`/
       `NoAccessStateComponent`) states (Red).
-- [ ] 1.10. Implement the four states (Green).
-- [ ] 1.11. Write tests for row-actions rendering (icon buttons,
+- [x] 1.10. Implement the four states (Green).
+- [x] 1.11. Write tests for row-actions rendering (icon buttons,
       `disabled`/`title` when a `disabled(row)` function returns true)
       (Red).
-- [ ] 1.12. Implement row-actions column (Green).
-- [ ] 1.13. Write tests for responsive column collapse
+- [x] 1.12. Implement row-actions column (Green).
+- [x] 1.13. Write tests for responsive column collapse
       (`hidden sm:table-cell` presence on non-essential columns) and
       focus-visible ring classes on interactive elements (Red).
-- [ ] 1.14. Implement responsive/a11y classes (Green).
-- [ ] 1.15. Add `sharedList.*` i18n keys to `en.json`/`pt-BR.json` per
+- [x] 1.14. Implement responsive/a11y classes (Green).
+- [x] 1.15. Add `sharedList.*` i18n keys to `en.json`/`pt-BR.json` per
       SPEC's "i18n keys to add" list.
-- [ ] 1.16. Run full verification; commit
-      `feat(shared-list): add reusable list/table component`.
+- [x] 1.16. Run full verification; commit
+      `feat(shared-list): add reusable list/table component` (`7718bc5`).
 
 ## 2. Staff directory migration
 
@@ -71,23 +71,25 @@
 
 ## 4. Permission label + audit-trail translation maps
 
-- [ ] 4.1. Grep `knowly-api/src/main/java` for every audit action-string
+- [x] 4.1. Grep `knowly-api/src/main/java` for every audit action-string
       literal (`@AuditLog`/`AuditService`/`AuditEventPublisher` call
       sites) and list them (working note, not committed as a file).
-- [ ] 4.2. Write `permission-labels.spec.ts` (known value → translated
+- [x] 4.2. Write `permission-labels.spec.ts` (known value → translated
       label; unknown value → raw fallback) (Red).
-- [ ] 4.3. Implement `permission-labels.ts` + `permissions.*` i18n keys
+- [x] 4.3. Implement `permission-labels.ts` + `permissions.*` i18n keys
       for every `Permission`/`GlobalPermission` enum value per
       `permission-granularity-model/PLAN.md` (Green).
-- [ ] 4.4. Write `audit-trail-labels.spec.ts` (known action/action+outcome
+- [x] 4.4. Write `audit-trail-labels.spec.ts` (known action/action+outcome
       → translated phrase; unknown → raw fallback) (Red).
-- [ ] 4.5. Implement `audit-trail-labels.ts` covering every action found
+- [x] 4.5. Implement `audit-trail-labels.ts` covering every action found
       in 4.1, plus i18n keys (Green).
-- [ ] 4.6. Write `audit-timestamp.spec.ts` (ISO input → local compact
+- [x] 4.6. Write `audit-timestamp.spec.ts` (ISO input → local compact
       format) (Red).
-- [ ] 4.7. Implement `audit-timestamp.ts` (Green).
-- [ ] 4.8. Run verification; commit
-      `feat(i18n): add permission and audit-trail translation maps`.
+- [x] 4.7. Implement `audit-timestamp.ts` (Green).
+- [x] 4.8. Run verification; commit
+      `feat(i18n): add permission and audit-trail translation maps`
+      (`a9fb74d`; wired into the staff/member detail panels and audit
+      trail table via `bfb6223`).
 
 ## 5. Staff user detail panel reorg
 
@@ -189,14 +191,23 @@
 
 ## 8. Final pass
 
-- [ ] 8.1. Full-repo search for any remaining raw permission-enum or raw
+- [x] 8.1. Full-repo search for any remaining raw permission-enum or raw
       audit-action rendering outside the new translation maps; fix any
-      found.
-- [ ] 8.2. Run `npm run format`, then
+      found. No raw renders found — every permission/audit-action
+      interpolation goes through `translatePermissionLabel`/
+      `translateAuditAction`.
+- [x] 8.2. Run `npm run format`, then
       `npm run format:check && npm test && npm run build && npm run lint`
-      across the whole subproject.
-- [ ] 8.3. Update `PLAN.md`/this file if any decision changed during
-      implementation.
-- [ ] 8.4. Update `PROJECT_STATUS.md` with what shipped (both gaps from
+      across the whole subproject. All green (590/590 tests; 3 unrelated
+      pre-existing `Unhandled Rejection` router warnings in
+      `tenant-create-page.component.spec.ts`, not part of this feature).
+- [x] 8.3. Update `PLAN.md`/this file if any decision changed during
+      implementation. Recorded the promote/demote plain-confirm
+      (not `ConfirmDialogComponent`) deviation and the access-group
+      member-listing N+1/`forkJoin` deviation directly in PLAN.md (both
+      were previously only in commit messages/TASKS.md notes); confirmed
+      the `identity` `SharedListCellValue` variant is already documented
+      in `shared-list.model.ts` itself.
+- [x] 8.4. Update `PROJECT_STATUS.md` with what shipped (both gaps from
       task 0 — promotion UI and `isLastAdminOfType` — are resolved as of
       this amendment, not open follow-ups).

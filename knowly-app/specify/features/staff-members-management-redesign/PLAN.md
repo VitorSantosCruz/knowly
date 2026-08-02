@@ -132,11 +132,17 @@ backend work needed.
     switches-batch permission UI, gated by REQ-7a/REQ-7c's viewer-role
     rule, never disabled on a last-admin basis (REQ-7d — no `isLastAdmin`
     check applies to promote). For a `MEMBER` target: same shape,
-    "Promover a MEMBER_ADMIN". Confirmed via the existing
-    `ConfirmDialogComponent` (a plain confirm, no security-phrase gate —
-    REQ-18's security-phrase requirement is scoped to the permission
-    batch-save flow only, and neither SPEC nor the backend PLAN's promote
-    endpoint requires a deletion-confirmation token). On confirm, calls
+    "Promover a MEMBER_ADMIN". **Deviation from this PLAN's original
+    text (confirmed during Task 5/6 implementation):** promote/demote are
+    confirmed via a plain inline two-button confirm step, **not**
+    `ConfirmDialogComponent` — the promote/demote endpoints have no
+    deletion-confirmation-token endpoint (confirmed against
+    `StaffController.java`/`TenantController.java`), so there is no
+    `fetchToken` for `ConfirmDialogComponent` to call.
+    `ConfirmDialogComponent` remains reserved for the four flows that do
+    have a token endpoint (delete, batch-save, permission-revoke,
+    group-unassign). REQ-18's security-phrase requirement stays scoped to
+    the permission batch-save flow only. On confirm, calls
     `POST .../promote` (staff) or `POST .../{membershipId}/promote`
     (tenant member) and refreshes the detail view (REQ-7e).
   - For `STAFF`/`MEMBER`: the checkbox section is replaced by the new
@@ -206,6 +212,18 @@ backend work needed.
   `StaffUserService.list()`'s results by `globalRole !== 'STAFF_ADMIN'`
   client-side (no new backend filter needed; the existing list endpoint
   already returns `globalRole` per `StaffUserSummary`).
+  **Deviation from this PLAN (confirmed during Task 7 implementation):**
+  no `GET`-a-group's-members backend endpoint exists (confirmed against
+  `StaffController.java`/`StaffService.java` — only create/list/
+  grant-permission/assign/unassign per user). Group membership for the
+  expand/view-members UI is therefore derived client-side once a group
+  is selected: every non-`STAFF_ADMIN` candidate's own detail
+  (`GET /api/staff/users/{id}/permissions`, which already returns
+  `accessGroups`) is fetched via `forkJoin` and filtered locally — an N+1
+  request pattern, accepted as the only option without adding a new
+  backend endpoint (out of this PLAN's scope). Tenant-scope access
+  groups explicitly stay out of scope per the note below, so only the
+  global/staff screen exercises this pattern.
 - **Tenant-scope access groups**: SPEC's REQ-20-24 is written generically
   ("access group") but the SPEC's "Amends prior SPECs" section only
   cites `user-management-screens` REQ-9 (global/staff scope). Tenant-
