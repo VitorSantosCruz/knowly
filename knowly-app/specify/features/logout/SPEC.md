@@ -16,9 +16,12 @@ end their session from the UI. This feature adds that entry point.
 
 ## Requirements (EARS/GEARS)
 
-- **REQ-1 [Ubiquitous]** The system shall display a logout control in the
-  app shell's fixed corner icon cluster, visible only while the user is
-  logged in.
+- **REQ-1 [Ubiquitous]** The system shall display a logout control,
+  visible only while the user is logged in. As of the `profile-avatar-menu`
+  feature, this control lives as an entry inside the user avatar's
+  dropdown menu in the app shell's header (see
+  `specify/features/profile-avatar-menu/SPEC.md`, REQ-5/REQ-7/REQ-9),
+  rather than as a standalone icon button in the fixed corner cluster.
 - **REQ-2 [Event-Driven]** When the user activates the logout control, the
   system shall call `POST /api/auth/logout` and, regardless of the
   response, navigate to `/login` and clear any local logged-in state.
