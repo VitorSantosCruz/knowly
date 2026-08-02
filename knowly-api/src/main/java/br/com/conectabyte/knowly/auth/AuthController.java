@@ -6,6 +6,7 @@ import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.dto.LoginRequestDto;
 import br.com.conectabyte.knowly.auth.dto.VerifyCodeRequestDto;
+import br.com.conectabyte.knowly.auth.dto.VerifyCodeResponseDto;
 import br.com.conectabyte.knowly.auth.dto.VerifyPasswordRequestDto;
 import br.com.conectabyte.knowly.auth.exception.AccountLockedException;
 import br.com.conectabyte.knowly.auth.exception.CaptchaRequiredException;
@@ -121,7 +122,7 @@ public class AuthController {
                     "T(br.com.conectabyte.knowly.observability.PiiMasker).maskEmail(#request.email())",
             captureSourceIp = true)
     @PostMapping("/login-code/verify")
-    public ResponseEntity<Void> verifyCode(
+    public ResponseEntity<VerifyCodeResponseDto> verifyCode(
             @Valid @RequestBody VerifyCodeRequestDto request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
@@ -169,12 +170,16 @@ public class AuthController {
                             }
                         });
 
-        establishSession(request.email(), httpRequest, httpResponse);
+        TenantSessionOutcome outcome = establishSession(request.email(), httpRequest, httpResponse);
         log.info(
                 "auth.login_code_verify email={} outcome=success",
                 PiiMasker.maskEmail(request.email()));
 
-        return ResponseEntity.ok().build();
+        boolean pendingProfileCompletion =
+                outcome instanceof TenantSessionOutcome.Staff staff
+                        && staff.pendingProfileCompletion();
+
+        return ResponseEntity.ok(new VerifyCodeResponseDto(pendingProfileCompletion));
     }
 
     @AuditLog(
@@ -271,7 +276,7 @@ public class AuthController {
         return maskedIp.isEmpty() ? null : "{\"sourceIp\": \"" + maskedIp + "\"}";
     }
 
-    private void establishSession(
+    private TenantSessionOutcome establishSession(
             String email, HttpServletRequest request, HttpServletResponse response) {
         if (request.getSession(false) != null) {
             request.changeSessionId();
@@ -320,5 +325,7 @@ public class AuthController {
         } else {
             session.setAttribute(TenantSessionKeys.SELECTION_PENDING, true);
         }
+
+        return outcome;
     }
 }

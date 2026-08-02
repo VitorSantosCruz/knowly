@@ -6,7 +6,13 @@ package br.com.conectabyte.knowly.tenancy;
  */
 public sealed interface TenantSessionOutcome {
 
-    record Staff() implements TenantSessionOutcome {}
+    /**
+     * {@code pendingProfileCompletion} (REQ-5): computed once at login time via {@code
+     * ProfileCompletenessService.isComplete(user)}, at the same point {@code isAnyStaff(user)} is
+     * already checked -- mirrors {@code staff-rbac-split}'s {@code isStaffAccount} precedent
+     * (compute once at the point of truth, pass straight through).
+     */
+    record Staff(boolean pendingProfileCompletion) implements TenantSessionOutcome {}
 
     record AutoSelected(Long tenantId) implements TenantSessionOutcome {}
 

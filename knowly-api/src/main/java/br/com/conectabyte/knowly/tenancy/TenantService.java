@@ -5,6 +5,7 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
+import br.com.conectabyte.knowly.identity.ProfileCompletenessService;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.identity.UserProfileService;
@@ -41,6 +42,7 @@ public class TenantService {
     private final NotificationRepository notificationRepository;
     private final UserProfileRepository userProfileRepository;
     private final UserProfileService userProfileService;
+    private final ProfileCompletenessService profileCompletenessService;
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
 
     private static final String MEMBER_RESOURCE_TYPE = "tenant-member";
@@ -60,6 +62,7 @@ public class TenantService {
             NotificationRepository notificationRepository,
             UserProfileRepository userProfileRepository,
             UserProfileService userProfileService,
+            ProfileCompletenessService profileCompletenessService,
             DeletionConfirmationTokenService deletionConfirmationTokenService) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
@@ -73,6 +76,7 @@ public class TenantService {
         this.notificationRepository = notificationRepository;
         this.userProfileRepository = userProfileRepository;
         this.userProfileService = userProfileService;
+        this.profileCompletenessService = profileCompletenessService;
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
     }
 
@@ -106,7 +110,7 @@ public class TenantService {
      */
     public TenantSessionOutcome resolveSessionOutcome(User user) {
         if (isAnyStaff(user)) {
-            return new TenantSessionOutcome.Staff();
+            return new TenantSessionOutcome.Staff(!profileCompletenessService.isComplete(user));
         }
 
         List<TenantMembership> memberships =
