@@ -1,5 +1,5 @@
-import { Component, computed, effect, input, output, signal } from '@angular/core';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   Address,
   Contact,
@@ -61,6 +61,7 @@ export interface ProfileFieldsFormSubmission {
           [value]="localFields().fullName"
           [disabled]="disabled()"
           [required]="requireAllFields()"
+          [placeholder]="'profile.fields.fullNamePlaceholder' | transloco"
           (input)="onFieldChange('fullName', $any($event.target).value)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
@@ -97,6 +98,7 @@ export interface ProfileFieldsFormSubmission {
           [value]="formatMaskedValue('taxId', localFields().countryCode, localFields().taxId ?? '')"
           [disabled]="disabled()"
           [required]="requireAllFields()"
+          [placeholder]="taxIdPlaceholder()"
           [appInputMask]="'taxId'"
           [appInputMaskCountry]="localFields().countryCode"
           (appInputMaskChange)="onFieldChange('taxId', $event)"
@@ -117,6 +119,8 @@ export interface ProfileFieldsFormSubmission {
             [value]="localFields().address?.addressLine1 ?? ''"
             [disabled]="disabled()"
             [required]="requireAllFields()"
+            [placeholder]="'profile.fields.address.addressLine1Placeholder' | transloco"
+            [title]="'profile.fields.address.addressLine1Tooltip' | transloco"
             (input)="onAddressFieldChange('addressLine1', $any($event.target).value)"
             class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
           />
@@ -129,6 +133,8 @@ export interface ProfileFieldsFormSubmission {
             type="text"
             [value]="localFields().address?.addressLine2 ?? ''"
             [disabled]="disabled()"
+            [placeholder]="'profile.fields.address.addressLine2Placeholder' | transloco"
+            [title]="'profile.fields.address.addressLine2Tooltip' | transloco"
             (input)="onAddressFieldChange('addressLine2', $any($event.target).value)"
             class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
           />
@@ -142,6 +148,7 @@ export interface ProfileFieldsFormSubmission {
             [value]="localFields().address?.city ?? ''"
             [disabled]="disabled()"
             [required]="requireAllFields()"
+            [placeholder]="'profile.fields.address.cityPlaceholder' | transloco"
             (input)="onAddressFieldChange('city', $any($event.target).value)"
             class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
           />
@@ -158,6 +165,7 @@ export interface ProfileFieldsFormSubmission {
             type="text"
             [value]="localFields().address?.stateRegion ?? ''"
             [disabled]="disabled()"
+            [placeholder]="stateRegionPlaceholder()"
             (input)="onAddressFieldChange('stateRegion', $any($event.target).value)"
             class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
           />
@@ -181,6 +189,8 @@ export interface ProfileFieldsFormSubmission {
             "
             [disabled]="disabled()"
             [required]="requireAllFields()"
+            [placeholder]="postalCodePlaceholder()"
+            [title]="postalCodeTooltip()"
             [appInputMask]="'postalCode'"
             [appInputMaskCountry]="localFields().countryCode"
             (appInputMaskChange)="onAddressFieldChange('postalCode', $event)"
@@ -354,6 +364,35 @@ export class ProfileFieldsFormComponent {
   protected readonly hasCountrySpecificLabels = computed(() =>
     COUNTRY_FIELD_CONFIG.has(this.localFields().countryCode ?? ''),
   );
+
+  private readonly transloco = inject(TranslocoService);
+
+  // Placeholder/tooltip UX polish (2026-08-02): example values so users know the expected
+  // shape of ambiguous fields ("Address line 1" alone doesn't say street vs. street+number).
+  // Country-specific formats (taxId, state/region, postal code) mirror the existing
+  // `hasCountrySpecificLabels()`/`activeCountryConfig()` convention — a hardcoded, untranslated
+  // literal per country when one exists, falling back to a Transloco-driven generic example
+  // otherwise (address line 1/2 and city aren't country-specific, so those stay plain Transloco
+  // keys directly in the template).
+  protected readonly taxIdPlaceholder = computed(() => {
+    const override = this.activeCountryConfig().taxIdPlaceholder;
+    return override ?? this.transloco.translate('profile.fields.taxIdGenericPlaceholder');
+  });
+
+  protected readonly stateRegionPlaceholder = computed(() => {
+    const override = this.activeCountryConfig().stateRegionPlaceholder;
+    return override ?? this.transloco.translate('profile.fields.stateRegionGenericPlaceholder');
+  });
+
+  protected readonly postalCodePlaceholder = computed(() => {
+    const override = this.activeCountryConfig().postalCodePlaceholder;
+    return override ?? this.transloco.translate('profile.fields.postalCodeGenericPlaceholder');
+  });
+
+  protected readonly postalCodeTooltip = computed(() => {
+    const override = this.activeCountryConfig().postalCodeTooltip;
+    return override ?? this.transloco.translate('profile.fields.postalCodeGenericTooltip');
+  });
 
   // The array this component was initialized/re-synced with, keyed by id, used to diff at
   // submit time (PLAN.md's "diff-on-submit, not a running change-log" judgment call).

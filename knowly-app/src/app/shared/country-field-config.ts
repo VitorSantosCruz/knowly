@@ -17,6 +17,18 @@ export interface CountryFieldConfig {
   hasTaxIdMask: boolean;
   hasPostalCodeMask: boolean;
   hasPhoneMask: boolean;
+  /** Example values shown as input `placeholder`s — like `taxIdLabel`/`postalCodeLabel`, these are
+   * country-specific concrete formats (e.g. a real CPF/CEP shape) and stay hardcoded, untranslated
+   * literals by design; omitted for countries without a genuinely distinct format, which fall back
+   * to the Transloco-driven generic placeholder instead. */
+  taxIdPlaceholder?: string;
+  stateRegionPlaceholder?: string;
+  postalCodePlaceholder?: string;
+  /** Same reasoning as `postalCodePlaceholder` — a short, untranslated hint of what the
+   * country-specific postal code format/name means (e.g. BR's "CEP"), shown as a `title` tooltip
+   * next to the field's `postalCodeLabel`. Omitted for countries without one, falling back to the
+   * Transloco-driven generic tooltip. */
+  postalCodeTooltip?: string;
 }
 
 export const DEFAULT_COUNTRY_CODE = 'DEFAULT';
@@ -35,6 +47,10 @@ export const COUNTRY_FIELD_CONFIG = new Map<string, CountryFieldConfig>([
       hasTaxIdMask: true,
       hasPostalCodeMask: true,
       hasPhoneMask: true,
+      taxIdPlaceholder: '123.456.789-09',
+      stateRegionPlaceholder: 'SP',
+      postalCodePlaceholder: '01310-100',
+      postalCodeTooltip: 'CEP (postal code)',
     },
   ],
   [
@@ -47,6 +63,10 @@ export const COUNTRY_FIELD_CONFIG = new Map<string, CountryFieldConfig>([
       hasTaxIdMask: true,
       hasPostalCodeMask: true,
       hasPhoneMask: false,
+      taxIdPlaceholder: '123-45-6789',
+      stateRegionPlaceholder: 'NY',
+      postalCodePlaceholder: '10001',
+      postalCodeTooltip: 'ZIP code',
     },
   ],
   [
@@ -60,6 +80,9 @@ export const COUNTRY_FIELD_CONFIG = new Map<string, CountryFieldConfig>([
       hasTaxIdMask: false,
       hasPostalCodeMask: false,
       hasPhoneMask: false,
+      stateRegionPlaceholder: 'Greater London',
+      postalCodePlaceholder: 'SW1A 1AA',
+      postalCodeTooltip: 'Postcode',
     },
   ],
   [

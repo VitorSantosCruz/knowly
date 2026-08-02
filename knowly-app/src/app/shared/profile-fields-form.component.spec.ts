@@ -135,6 +135,36 @@ describe('ProfileFieldsFormComponent', () => {
     ).toBeNull();
   });
 
+  it('renders locale-appropriate placeholders and tooltips on the address fields, plus fullName/taxId', async () => {
+    await createFixture();
+
+    expect(input('profile-field-fullName').placeholder).toBe('e.g. Jane Doe');
+    // BR is selected in the `fields` fixture — taxId/state/postal-code use the country-specific,
+    // untranslated literal override (same convention as `taxIdLabel`/`postalCodeLabel`).
+    expect(input('profile-field-taxId').placeholder).toBe('123.456.789-09');
+    expect(input('profile-address-field-addressLine1').placeholder).toBe('e.g. 123 Main St');
+    expect(input('profile-address-field-addressLine1').title).toBe('Street name and number');
+    expect(input('profile-address-field-addressLine2').placeholder).toBe('e.g. Apt 4B');
+    expect(input('profile-address-field-addressLine2').title).toBe(
+      'Apartment, suite, unit, etc. (optional)',
+    );
+    expect(input('profile-address-field-city').placeholder).toBe('e.g. New York');
+    expect(input('profile-address-field-stateRegion').placeholder).toBe('SP');
+    expect(input('profile-address-field-postalCode').placeholder).toBe('01310-100');
+    expect(input('profile-address-field-postalCode').title).toBe('CEP (postal code)');
+  });
+
+  it('falls back to generic state/postal-code placeholders for a country without a specific one', async () => {
+    await createFixture();
+
+    input('profile-field-countryCode').value = '';
+    input('profile-field-countryCode').dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(input('profile-address-field-stateRegion').placeholder).toBe('e.g. California');
+    expect(input('profile-address-field-postalCode').placeholder).toBe('e.g. 10001');
+  });
+
   it('setting a contact primary clears other primaries of the same type', async () => {
     await createFixture();
 

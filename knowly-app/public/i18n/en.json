@@ -404,9 +404,14 @@
     "email": "Email",
     "fields": {
       "fullName": "Full name",
+      "fullNamePlaceholder": "e.g. Jane Doe",
       "save": "Save",
       "taxIdGeneric": "Tax ID",
+      "taxIdGenericPlaceholder": "e.g. 123-45-6789",
       "postalCodeGeneric": "Postal Code",
+      "postalCodeGenericPlaceholder": "e.g. 10001",
+      "postalCodeGenericTooltip": "ZIP/postal code",
+      "stateRegionGenericPlaceholder": "e.g. California",
       "countryNames": {
         "BR": "Brazil",
         "US": "United States",
@@ -415,8 +420,13 @@
       "address": {
         "title": "Address",
         "addressLine1": "Address line 1",
+        "addressLine1Placeholder": "e.g. 123 Main St",
+        "addressLine1Tooltip": "Street name and number",
         "addressLine2": "Address line 2 (optional)",
+        "addressLine2Placeholder": "e.g. Apt 4B",
+        "addressLine2Tooltip": "Apartment, suite, unit, etc. (optional)",
         "city": "City",
+        "cityPlaceholder": "e.g. New York",
         "stateRegion": "State / Region"
       },
       "contacts": {

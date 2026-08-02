@@ -404,9 +404,14 @@
     "email": "E-mail",
     "fields": {
       "fullName": "Nome completo",
+      "fullNamePlaceholder": "ex.: Maria da Silva",
       "save": "Salvar",
       "taxIdGeneric": "Documento fiscal",
+      "taxIdGenericPlaceholder": "ex.: 123.456.789-09",
       "postalCodeGeneric": "Código postal",
+      "postalCodeGenericPlaceholder": "ex.: 01310-100",
+      "postalCodeGenericTooltip": "CEP (código postal)",
+      "stateRegionGenericPlaceholder": "ex.: SP",
       "countryNames": {
         "BR": "Brasil",
         "US": "Estados Unidos",
@@ -415,8 +420,13 @@
       "address": {
         "title": "Endereço",
         "addressLine1": "Linha 1 do endereço",
+        "addressLine1Placeholder": "ex.: Rua das Flores, 123",
+        "addressLine1Tooltip": "Nome da rua e número",
         "addressLine2": "Linha 2 do endereço (opcional)",
+        "addressLine2Placeholder": "ex.: Apto 45, Bloco B",
+        "addressLine2Tooltip": "Complemento: apartamento, bloco, etc. (opcional)",
         "city": "Cidade",
+        "cityPlaceholder": "ex.: São Paulo",
         "stateRegion": "Estado / Região"
       },
       "contacts": {
