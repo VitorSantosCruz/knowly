@@ -150,4 +150,67 @@ describe('MemberService', () => {
 
     expect(result).toBe('correct-horse');
   });
+
+  it('demote() posts to the demote endpoint', () => {
+    service.demote(1, 2).subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/members/2/demote');
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
+  it('promote() posts to the promote endpoint', () => {
+    service.promote(1, 2).subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/members/2/promote');
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
+  it('generateHardDeleteToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateHardDeleteToken(1, 2).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/tenants/1/members/2/hard-delete/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
+  });
+
+  it('hardDelete() deletes the member with the confirmation word', () => {
+    service.hardDelete(1, 2, 'correct-horse').subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/members/2/hard-delete');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
+    req.flush({});
+  });
+
+  it('generateBatchPermissionUpdateToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateBatchPermissionUpdateToken(1, 2).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/tenants/1/members/2/permissions/batch/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
+  });
+
+  it('batchUpdatePermissions() puts the full permission set with the confirmation word', () => {
+    service.batchUpdatePermissions(1, 2, ['ARTICLE_CREATE'], 'correct-horse').subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/members/2/permissions/batch');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      permissions: ['ARTICLE_CREATE'],
+      word: 'correct-horse',
+    });
+    req.flush({});
+  });
 });

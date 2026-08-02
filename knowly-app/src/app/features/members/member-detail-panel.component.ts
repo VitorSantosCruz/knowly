@@ -1,13 +1,15 @@
 import { Component, OnChanges, computed, inject, input, signal } from '@angular/core';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { ALL_PERMISSIONS, Permission } from '../../core/permission';
 import { PermissionsService } from '../../core/permissions.service';
 import { ProfileService } from '../../core/profile.service';
 import { AccessGroup, MemberDetail, MemberService } from '../../core/member.service';
+import { buttonClass } from '../../shared/button-classes';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
+import { translatePermissionLabel } from '../../shared/permission-labels';
 import { ProfileSectionComponent } from '../user-management/profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
@@ -31,29 +33,163 @@ type DetailError = 'network' | 'permission-denied' | null;
         data-testid="member-detail-panel"
         class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-6 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
       >
-        <h2 class="mb-4 font-semibold text-ink-900 dark:text-white">{{ detail.email }}</h2>
+        <header class="mb-6 flex items-center justify-between">
+          <h2 class="font-semibold text-ink-900 dark:text-white">{{ detail.email }}</h2>
 
-        <section data-testid="direct-permissions" class="mb-5">
-          <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'members.directPermissions' | transloco }}
-          </h3>
-          @for (permission of allPermissions; track permission) {
-            <label
-              class="mr-3 inline-flex items-center gap-1.5 text-sm text-ink-700 dark:text-ink-300"
+          @if (showEditProfileButton()) {
+            <button
+              type="button"
+              data-testid="member-edit-profile-button"
+              [class]="secondaryButtonClass"
+              (click)="editProfileTrigger.set(editProfileTrigger() + 1)"
             >
-              <input
-                type="checkbox"
-                [attr.data-testid]="'permission-toggle-' + permission"
-                [checked]="detail.directPermissions.includes(permission)"
-                (click)="
-                  onTogglePermission(permission, detail.directPermissions.includes(permission))
-                "
-                class="accent-signal-500"
-              />
-              {{ permission }}
-            </label>
+              {{ 'members.editProfile' | transloco }}
+            </button>
           }
-        </section>
+        </header>
+
+        @if (detail.role === 'MEMBER_ADMIN') {
+          <section data-testid="member-admin-tier-actions" class="mb-5">
+            @if (viewerIsMemberAdminOfThisTenant()) {
+              @if (pendingDemote()) {
+                <div class="flex items-center gap-2">
+                  <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                    'members.demoteConfirm' | transloco: { email: detail.email }
+                  }}</span>
+                  <button
+                    type="button"
+                    data-testid="member-demote-confirm"
+                    [class]="dangerButtonClass"
+                    (click)="confirmDemote()"
+                  >
+                    {{ 'common.confirm' | transloco }}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="member-demote-cancel"
+                    [class]="secondaryButtonClass"
+                    (click)="pendingDemote.set(false)"
+                  >
+                    {{ 'common.cancel' | transloco }}
+                  </button>
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  data-testid="member-demote-button"
+                  [class]="secondaryButtonClass"
+                  [disabled]="detail.isLastAdminOfType"
+                  [attr.title]="
+                    detail.isLastAdminOfType
+                      ? ('members.demoteDisabledLastAdmin' | transloco)
+                      : null
+                  "
+                  [attr.aria-describedby]="
+                    detail.isLastAdminOfType ? 'member-demote-disabled-reason' : null
+                  "
+                  (click)="pendingDemote.set(true)"
+                >
+                  {{ 'members.demote' | transloco }}
+                </button>
+                @if (detail.isLastAdminOfType) {
+                  <p
+                    id="member-demote-disabled-reason"
+                    data-testid="member-demote-disabled-reason"
+                    class="mt-1 text-xs text-ink-500 dark:text-ink-400"
+                  >
+                    {{ 'members.demoteDisabledLastAdmin' | transloco }}
+                  </p>
+                }
+              }
+            }
+          </section>
+        } @else {
+          <section data-testid="direct-permissions" class="mb-5">
+            <div class="mb-2 flex items-center justify-between">
+              <h3 class="text-sm font-medium text-ink-700 dark:text-ink-300">
+                {{ 'members.directPermissions' | transloco }}
+              </h3>
+              @if (viewerIsMemberAdminOfThisTenant()) {
+                @if (pendingPromote()) {
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                      'members.promoteConfirm' | transloco: { email: detail.email }
+                    }}</span>
+                    <button
+                      type="button"
+                      data-testid="member-promote-confirm"
+                      [class]="secondaryButtonClass"
+                      (click)="confirmPromote()"
+                    >
+                      {{ 'common.confirm' | transloco }}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="member-promote-cancel"
+                      [class]="secondaryButtonClass"
+                      (click)="pendingPromote.set(false)"
+                    >
+                      {{ 'common.cancel' | transloco }}
+                    </button>
+                  </div>
+                } @else {
+                  <button
+                    type="button"
+                    data-testid="member-promote-button"
+                    [class]="secondaryButtonClass"
+                    (click)="pendingPromote.set(true)"
+                  >
+                    {{ 'members.promote' | transloco }}
+                  </button>
+                }
+              }
+            </div>
+
+            @for (permission of allPermissions; track permission) {
+              <span
+                class="mr-3 mb-1 inline-flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300"
+              >
+                <button
+                  type="button"
+                  role="switch"
+                  [attr.aria-checked]="pendingPermissions().has(permission)"
+                  [attr.aria-label]="permissionLabel(permission)"
+                  [attr.data-testid]="'permission-toggle-' + permission"
+                  [disabled]="!viewerIsMemberAdminOfThisTenant()"
+                  (click)="onTogglePermission(permission)"
+                  [class]="
+                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
+                    (pendingPermissions().has(permission)
+                      ? 'bg-signal-600'
+                      : 'bg-ink-300 dark:bg-ink-700')
+                  "
+                >
+                  <span
+                    [class]="
+                      'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-fast ease-fluid ' +
+                      (pendingPermissions().has(permission) ? 'translate-x-4' : 'translate-x-1')
+                    "
+                  ></span>
+                </button>
+                {{ permissionLabel(permission) }}
+              </span>
+            }
+
+            @if (hasPendingPermissionChanges()) {
+              <div class="mt-3">
+                <button
+                  type="button"
+                  data-testid="member-save-permissions-button"
+                  [class]="buttonClassPrimary"
+                  [disabled]="!viewerIsMemberAdminOfThisTenant()"
+                  (click)="onSaveBatchPermissions()"
+                >
+                  {{ 'members.save' | transloco }}
+                </button>
+              </div>
+            }
+          </section>
+        }
 
         <section data-testid="access-groups" class="mb-5">
           <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
@@ -90,26 +226,6 @@ type DetailError = 'network' | 'permission-denied' | null;
               </li>
             }
           </ul>
-
-          <form
-            data-testid="new-access-group-form"
-            class="mt-3 flex gap-2"
-            (submit)="onCreateAccessGroup($event)"
-          >
-            <input
-              data-testid="new-access-group-name"
-              type="text"
-              [value]="newAccessGroupName()"
-              (input)="newAccessGroupName.set($any($event.target).value)"
-              class="flex-1 rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-            />
-            <button
-              type="submit"
-              class="rounded-xl bg-ink-800 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
-            >
-              {{ 'members.createGroup' | transloco }}
-            </button>
-          </form>
         </section>
 
         <section data-testid="effective-permissions">
@@ -117,7 +233,7 @@ type DetailError = 'network' | 'permission-denied' | null;
             {{ 'members.effectivePermissions' | transloco }}
           </h3>
           <p class="text-sm text-ink-600 dark:text-ink-400">
-            {{ detail.effectivePermissions.join(', ') }}
+            {{ effectivePermissionLabels(detail) }}
           </p>
         </section>
 
@@ -125,7 +241,38 @@ type DetailError = 'network' | 'permission-denied' | null;
           [userId]="detail.userId"
           [canEdit]="canEdit()"
           [ownUserId]="ownUserId()"
+          [hideEditToggle]="true"
+          [editTrigger]="editProfileTrigger()"
         />
+
+        @if (viewerCanDelete(detail)) {
+          <div class="mt-6 border-t border-ink-100 pt-4 dark:border-ink-800/50">
+            <button
+              type="button"
+              data-testid="member-delete-button"
+              [class]="dangerButtonClass"
+              [disabled]="detail.isLastAdminOfType"
+              [attr.title]="
+                detail.isLastAdminOfType ? ('members.deleteDisabledLastAdmin' | transloco) : null
+              "
+              [attr.aria-describedby]="
+                detail.isLastAdminOfType ? 'member-delete-disabled-reason' : null
+              "
+              (click)="pendingDelete.set(true)"
+            >
+              {{ 'members.delete' | transloco }}
+            </button>
+            @if (detail.isLastAdminOfType) {
+              <p
+                id="member-delete-disabled-reason"
+                data-testid="member-delete-disabled-reason"
+                class="mt-1 text-xs text-ink-500 dark:text-ink-400"
+              >
+                {{ 'members.deleteDisabledLastAdmin' | transloco }}
+              </p>
+            }
+          </div>
+        }
       </div>
 
       @if (pendingPermissionRevoke(); as permission) {
@@ -153,6 +300,28 @@ type DetailError = 'network' | 'permission-denied' | null;
           (dismissed)="cancelGroupUnassign()"
         />
       }
+
+      @if (pendingDelete()) {
+        <app-confirm-dialog
+          [open]="true"
+          [message]="'members.confirmDelete' | transloco: { email: detail.email }"
+          [fetchToken]="deletionTokenFetcher()"
+          [retryToken]="deleteRetryToken()"
+          (confirm)="confirmDelete($event)"
+          (dismissed)="cancelDelete()"
+        />
+      }
+
+      @if (pendingBatchSave()) {
+        <app-confirm-dialog
+          [open]="true"
+          [message]="'members.confirmBatchSave' | transloco: { email: detail.email }"
+          [fetchToken]="batchTokenFetcher()"
+          [retryToken]="batchRetryToken()"
+          (confirm)="confirmBatchSave($event)"
+          (dismissed)="cancelBatchSave()"
+        />
+      }
     }
   `,
 })
@@ -160,18 +329,28 @@ export class MemberDetailPanelComponent implements OnChanges {
   private readonly memberService = inject(MemberService);
   private readonly permissionsService = inject(PermissionsService);
   private readonly profileService = inject(ProfileService);
+  private readonly transloco = inject(TranslocoService);
 
   readonly tenantId = input.required<number>();
   readonly membershipId = input.required<number>();
   readonly viewerIsMemberAdminOfThisTenant = input.required<boolean>();
 
+  protected readonly secondaryButtonClass = buttonClass('secondary');
+  protected readonly dangerButtonClass = buttonClass('danger');
+  protected readonly buttonClassPrimary = buttonClass('primary');
+
   protected readonly canEdit = computed(
     () => this.viewerIsMemberAdminOfThisTenant() || this.permissionsService.has('PROFILE_EDIT'),
   );
 
+  // REQ-11 (identity-profile-model-v2): self-edit is removed entirely, not merely disabled — the
+  // header "Editar perfil" trigger mirrors `ProfileSectionComponent#showEditToggle`'s own rule.
+  protected readonly showEditProfileButton = computed(
+    () => this.canEdit() && this.detail()?.userId !== this.ownUserId(),
+  );
+
   protected readonly detail = signal<MemberDetail | null>(null);
   protected readonly availableAccessGroups = signal<AccessGroup[]>([]);
-  protected readonly newAccessGroupName = signal('');
   protected readonly allPermissions = ALL_PERMISSIONS;
   protected readonly error = signal<DetailError>(null);
 
@@ -180,9 +359,37 @@ export class MemberDetailPanelComponent implements OnChanges {
   protected readonly pendingGroupUnassign = signal<AccessGroup | null>(null);
   protected readonly groupUnassignRetryToken = signal(0);
 
+  protected readonly pendingDemote = signal(false);
+  protected readonly pendingPromote = signal(false);
+  protected readonly pendingDelete = signal(false);
+  protected readonly deleteRetryToken = signal(0);
+
+  protected readonly pendingPermissions = signal<Set<Permission>>(new Set());
+  protected readonly initialPermissions = signal<Set<Permission>>(new Set());
+  protected readonly pendingBatchSave = signal(false);
+  protected readonly batchRetryToken = signal(0);
+
+  protected readonly hasPendingPermissionChanges = computed(() => {
+    const pending = this.pendingPermissions();
+    const initial = this.initialPermissions();
+
+    if (pending.size !== initial.size) {
+      return true;
+    }
+
+    for (const permission of pending) {
+      if (!initial.has(permission)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
   // REQ-12/SPEC judgment call 5: sourced once per panel-open, threaded down to
   // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
   protected readonly ownUserId = signal<number | null>(null);
+  protected readonly editProfileTrigger = signal(0);
 
   ngOnChanges(): void {
     this.loadDetail();
@@ -206,6 +413,28 @@ export class MemberDetailPanelComponent implements OnChanges {
     return this.availableAccessGroups().filter((group) => !assignedIds.has(group.id));
   }
 
+  protected permissionLabel(permission: Permission): string {
+    return translatePermissionLabel(permission, this.transloco);
+  }
+
+  protected effectivePermissionLabels(detail: MemberDetail): string {
+    return detail.effectivePermissions
+      .map((permission) => this.permissionLabel(permission))
+      .join(', ');
+  }
+
+  // REQ-7a/REQ-12a: an admin-tier target's demote/delete actions are only shown to a viewer who
+  // is themselves that tenant's MEMBER_ADMIN.
+  protected viewerCanDelete(detail: MemberDetail): boolean {
+    if (detail.role === 'MEMBER_ADMIN') {
+      return this.viewerIsMemberAdminOfThisTenant();
+    }
+
+    return (
+      this.viewerIsMemberAdminOfThisTenant() || this.permissionsService.has('TENANT_MEMBER_MANAGE')
+    );
+  }
+
   private reportError(err: { status: number }): void {
     this.error.set(err.status === 403 ? 'permission-denied' : 'network');
   }
@@ -222,6 +451,9 @@ export class MemberDetailPanelComponent implements OnChanges {
       .subscribe((detail) => {
         if (detail !== null) {
           this.detail.set(detail);
+          const direct = new Set(detail.directPermissions);
+          this.pendingPermissions.set(new Set(direct));
+          this.initialPermissions.set(new Set(direct));
         }
       });
   }
@@ -242,25 +474,22 @@ export class MemberDetailPanelComponent implements OnChanges {
       });
   }
 
-  protected onTogglePermission(permission: Permission, isGranted: boolean): void {
-    if (isGranted) {
-      this.pendingPermissionRevoke.set(permission);
+  protected onTogglePermission(permission: Permission): void {
+    if (!this.viewerIsMemberAdminOfThisTenant()) {
       return;
     }
 
-    this.memberService
-      .grantPermission(this.tenantId(), this.membershipId(), permission)
-      .pipe(
-        catchError((err) => {
-          this.reportError(err);
-          return of(null);
-        }),
-      )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.loadDetail();
-        }
-      });
+    this.pendingPermissions.update((current) => {
+      const next = new Set(current);
+
+      if (next.has(permission)) {
+        next.delete(permission);
+      } else {
+        next.add(permission);
+      }
+
+      return next;
+    });
   }
 
   protected permissionRevocationTokenFetcher(permission: Permission): () => Observable<string> {
@@ -373,27 +602,111 @@ export class MemberDetailPanelComponent implements OnChanges {
     this.groupUnassignRetryToken.set(0);
   }
 
-  protected onCreateAccessGroup(event: Event): void {
-    event.preventDefault();
-    const name = this.newAccessGroupName();
-
-    if (!name) {
-      return;
-    }
+  // REQ-7: demote — no security-phrase token endpoint exists for this action (backend PLAN),
+  // so this uses a plain inline confirm step rather than `ConfirmDialogComponent`.
+  protected confirmDemote(): void {
+    this.pendingDemote.set(false);
 
     this.memberService
-      .createAccessGroup(this.tenantId(), name)
+      .demote(this.tenantId(), this.membershipId())
       .pipe(
         catchError((err) => {
           this.reportError(err);
-          return of(null);
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.newAccessGroupName.set('');
-          this.loadAccessGroups();
-        }
+      .subscribe(() => this.loadDetail());
+  }
+
+  // REQ-7e: promote — same plain-confirm shape as demote, never disabled on a last-admin basis.
+  protected confirmPromote(): void {
+    this.pendingPromote.set(false);
+
+    this.memberService
+      .promote(this.tenantId(), this.membershipId())
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => this.loadDetail());
+  }
+
+  protected deletionTokenFetcher(): () => Observable<string> {
+    return () => this.memberService.generateHardDeleteToken(this.tenantId(), this.membershipId());
+  }
+
+  protected confirmDelete(word: string): void {
+    this.memberService
+      .hardDelete(this.tenantId(), this.membershipId(), word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.deleteRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingDelete.set(false);
+            this.deleteRetryToken.set(0);
+            this.reportError(err);
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingDelete.set(false);
+        this.deleteRetryToken.set(0);
+        this.loadDetail();
       });
+  }
+
+  protected cancelDelete(): void {
+    this.pendingDelete.set(false);
+    this.deleteRetryToken.set(0);
+  }
+
+  // REQ-17/18/19: single confirmation for the whole batch, submitting the full pending set.
+  protected onSaveBatchPermissions(): void {
+    if (!this.hasPendingPermissionChanges()) {
+      return;
+    }
+
+    this.pendingBatchSave.set(true);
+  }
+
+  protected batchTokenFetcher(): () => Observable<string> {
+    return () =>
+      this.memberService.generateBatchPermissionUpdateToken(this.tenantId(), this.membershipId());
+  }
+
+  protected confirmBatchSave(word: string): void {
+    this.memberService
+      .batchUpdatePermissions(
+        this.tenantId(),
+        this.membershipId(),
+        Array.from(this.pendingPermissions()),
+        word,
+      )
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.batchRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingBatchSave.set(false);
+            this.batchRetryToken.set(0);
+            this.reportError(err);
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingBatchSave.set(false);
+        this.batchRetryToken.set(0);
+        this.loadDetail();
+      });
+  }
+
+  protected cancelBatchSave(): void {
+    this.pendingBatchSave.set(false);
+    this.batchRetryToken.set(0);
   }
 }

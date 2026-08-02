@@ -19,6 +19,7 @@ export interface MemberDetail extends Member {
   directPermissions: Permission[];
   accessGroups: AccessGroup[];
   effectivePermissions: Permission[];
+  isLastAdminOfType: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -129,5 +130,49 @@ export class MemberService {
         {},
       )
       .pipe(map((res) => res.word));
+  }
+
+  demote(tenantId: number, membershipId: number): Observable<void> {
+    return this.http.post<void>(`/api/tenants/${tenantId}/members/${membershipId}/demote`, {});
+  }
+
+  promote(tenantId: number, membershipId: number): Observable<void> {
+    return this.http.post<void>(`/api/tenants/${tenantId}/members/${membershipId}/promote`, {});
+  }
+
+  generateHardDeleteToken(tenantId: number, membershipId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/tenants/${tenantId}/members/${membershipId}/hard-delete/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
+  }
+
+  hardDelete(tenantId: number, membershipId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/tenants/${tenantId}/members/${membershipId}/hard-delete`, {
+      body: { word },
+    });
+  }
+
+  generateBatchPermissionUpdateToken(tenantId: number, membershipId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/tenants/${tenantId}/members/${membershipId}/permissions/batch/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
+  }
+
+  batchUpdatePermissions(
+    tenantId: number,
+    membershipId: number,
+    permissions: Permission[],
+    word: string,
+  ): Observable<void> {
+    return this.http.put<void>(
+      `/api/tenants/${tenantId}/members/${membershipId}/permissions/batch`,
+      { permissions, word },
+    );
   }
 }
