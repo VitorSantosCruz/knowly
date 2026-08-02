@@ -261,7 +261,10 @@ public class TenantService {
      * users).
      */
     @Transactional
-    @AuditLog(action = "tenant.member.add", resourceType = "TenantMembership")
+    @AuditLog(
+            action = "tenant.member.add",
+            resourceType = "TenantMembership",
+            metadataExpression = "#role")
     public TenantMembership addMember(
             User actor,
             Long tenantId,
@@ -269,6 +272,11 @@ public class TenantService {
             MembershipRole role,
             MandatoryProfileFieldsDto profile) {
         requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        MembershipRole resolvedRole = role == null ? MembershipRole.MEMBER : role;
+
+        if (resolvedRole == MembershipRole.MEMBER_ADMIN) {
+            requireCallerIsAdminOfTenant(actor, tenantId);
+        }
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
@@ -280,8 +288,8 @@ public class TenantService {
         TenantMembership membership =
                 tenantMembershipRepository
                         .findByUserAndTenant(user, tenant)
-                        .orElseGet(() -> new TenantMembership(user, tenant, role));
-        membership.setRole(role);
+                        .orElseGet(() -> new TenantMembership(user, tenant, resolvedRole));
+        membership.setRole(resolvedRole);
 
         if (userAlreadyExisted) {
             membership.setStatus(MembershipStatus.PENDING);
@@ -610,6 +618,34 @@ public class TenantService {
         }
 
         throw new PermissionDeniedException();
+    }
+
+    /**
+     * REQ-7/REQ-8 (user-role-selection-at-creation): only a {@code STAFF_ADMIN} or that same
+     * tenant's active {@code MEMBER_ADMIN} may create a new {@code MEMBER_ADMIN} membership -- no
+     * permission-grant substitution, unlike {@link #requireAdminOfTenantOrStaff}, which also lets a
+     * granted {@code STAFF}/{@code MEMBER} through and is deliberately not reused here. Reused
+     * verbatim by {@code staff-rbac-management-operations}'s demotion/deletion/promotion paths, per
+     * PLAN.md.
+     */
+    private void requireCallerIsAdminOfTenant(User actor, Long tenantId) {
+        if (actor.getGlobalRole() == GlobalRole.STAFF_ADMIN) {
+            return;
+        }
+
+        Tenant tenant = new Tenant();
+        tenant.setId(tenantId);
+
+        boolean isAdminOfTenant =
+                tenantMembershipRepository
+                        .findByUserAndTenant(actor, tenant)
+                        .filter(TenantMembership::isActive)
+                        .filter(membership -> membership.getRole() == MembershipRole.MEMBER_ADMIN)
+                        .isPresent();
+
+        if (!isAdminOfTenant) {
+            throw new PermissionDeniedException();
+        }
     }
 
     /**

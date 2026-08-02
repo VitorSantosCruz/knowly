@@ -60,6 +60,7 @@ class TenantServiceTest {
     @Autowired private UserAccessGroupRepository userAccessGroupRepository;
     @Autowired private AuditEventRepository auditEventRepository;
     @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
+    @Autowired private DirectPermissionGrantRepository directPermissionGrantRepository;
 
     private String memberRemovalWord(User actor, Long membershipId) {
         return deletionConfirmationTokenService.generate(
@@ -775,6 +776,158 @@ class TenantServiceTest {
 
     // EXPANDED COVERAGE: Regression — STAFF_ADMIN can still perform self-target in these methods
     // (Different from MEMBER_ADMIN which is now blocked by requireNotSelfTarget)
+
+    // user-role-selection-at-creation: REQ-7/REQ-8/REQ-9/REQ-10 — addMember's MEMBER_ADMIN-target
+    // role selection.
+
+    @Test
+    void addMemberWithRoleMemberAdminSucceedsForAStaffAdminCaller() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Staff Admin Co"));
+        User staff = staffAdmin("role-select-staffadmin@example.com");
+
+        TenantMembership membership =
+                tenantService.addMember(
+                        staff,
+                        tenant.getId(),
+                        "new-memberadmin-by-staff@example.com",
+                        MembershipRole.MEMBER_ADMIN,
+                        mandatoryProfile());
+
+        assertThat(membership.getRole()).isEqualTo(MembershipRole.MEMBER_ADMIN);
+    }
+
+    @Test
+    void addMemberWithRoleMemberAdminSucceedsForThatTenantsMemberAdminCaller() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Tenant Admin Co"));
+        TenantMembership admin = adminMembership("role-select-tenantadmin@example.com", tenant);
+
+        TenantMembership membership =
+                tenantService.addMember(
+                        admin.getUser(),
+                        tenant.getId(),
+                        "new-memberadmin-by-tenant-admin@example.com",
+                        MembershipRole.MEMBER_ADMIN,
+                        mandatoryProfile());
+
+        assertThat(membership.getRole()).isEqualTo(MembershipRole.MEMBER_ADMIN);
+    }
+
+    @Test
+    void addMemberWithRoleMemberAdminRejectsAPlainMemberCaller() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Plain Member Co"));
+        User plainMember = userRepository.saveAndFlush(new User("role-select-plain@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.addMember(
+                                        plainMember,
+                                        tenant.getId(),
+                                        "rejected-memberadmin@example.com",
+                                        MembershipRole.MEMBER_ADMIN,
+                                        mandatoryProfile()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        assertThat(userRepository.findByEmailIgnoreCase("rejected-memberadmin@example.com"))
+                .isEmpty();
+    }
+
+    @Test
+    void addMemberWithRoleMemberAdminRejectsAPlainMemberCallerEvenWithAGrantedPermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Granted Member Co"));
+        User plainMember = userRepository.saveAndFlush(new User("role-select-granted@example.com"));
+        TenantMembership plainMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(plainMembership, Permission.TENANT_MEMBER_MANAGE));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.addMember(
+                                        plainMember,
+                                        tenant.getId(),
+                                        "rejected-memberadmin-granted@example.com",
+                                        MembershipRole.MEMBER_ADMIN,
+                                        mandatoryProfile()))
+                .isInstanceOf(PermissionDeniedException.class);
+
+        assertThat(userRepository.findByEmailIgnoreCase("rejected-memberadmin-granted@example.com"))
+                .isEmpty();
+    }
+
+    @Test
+    void addMemberWithRoleMemberAdminRejectsAMemberAdminOfADifferentTenant() {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Role Select Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Role Select Tenant B"));
+        TenantMembership adminOfA =
+                adminMembership("role-select-cross-tenant@example.com", tenantA);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.addMember(
+                                        adminOfA.getUser(),
+                                        tenantB.getId(),
+                                        "rejected-cross-tenant-memberadmin@example.com",
+                                        MembershipRole.MEMBER_ADMIN,
+                                        mandatoryProfile()))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void addMemberWithRoleMemberSucceedsUnchanged() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Default Co"));
+        TenantMembership admin = adminMembership("role-select-default@example.com", tenant);
+
+        TenantMembership membership =
+                tenantService.addMember(
+                        admin.getUser(),
+                        tenant.getId(),
+                        "new-plain-member@example.com",
+                        MembershipRole.MEMBER,
+                        mandatoryProfile());
+
+        assertThat(membership.getRole()).isEqualTo(MembershipRole.MEMBER);
+    }
+
+    @Test
+    void addMemberWithNullRoleDefaultsToMember() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Null Co"));
+        TenantMembership admin = adminMembership("role-select-null@example.com", tenant);
+
+        TenantMembership membership =
+                tenantService.addMember(
+                        admin.getUser(),
+                        tenant.getId(),
+                        "new-null-role-member@example.com",
+                        null,
+                        mandatoryProfile());
+
+        assertThat(membership.getRole()).isEqualTo(MembershipRole.MEMBER);
+    }
+
+    @Test
+    void addMemberWithRoleMemberAdminSucceedsWithManyExistingMemberAdminsInTheTenant() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Many Admins Co"));
+        TenantMembership admin = adminMembership("role-select-many-1@example.com", tenant);
+        User otherAdmin1 = userRepository.saveAndFlush(new User("role-select-many-2@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(otherAdmin1, tenant, MembershipRole.MEMBER_ADMIN));
+        User otherAdmin2 = userRepository.saveAndFlush(new User("role-select-many-3@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(otherAdmin2, tenant, MembershipRole.MEMBER_ADMIN));
+
+        TenantMembership membership =
+                tenantService.addMember(
+                        admin.getUser(),
+                        tenant.getId(),
+                        "another-memberadmin@example.com",
+                        MembershipRole.MEMBER_ADMIN,
+                        mandatoryProfile());
+
+        assertThat(membership.getRole()).isEqualTo(MembershipRole.MEMBER_ADMIN);
+    }
 
     @Test
     void staffAdminCanGrantPermissionToThemselves() {
