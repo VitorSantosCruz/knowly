@@ -168,3 +168,57 @@
 - [x] 32. Update `PROJECT_STATUS.md` marking both rough edges closed;
       update this PLAN.md's follow-up section noting frontend
       consumption is done.
+
+## Amendment (2026-08-02) — REQ-21/22/23 masked input
+
+- [x] 33. Write `input-mask.directive.spec.ts` (new): given
+      `[appInputMask]="'cpf'"` on a bare `<input>`, typing
+      `12345678900` reformats the displayed value to
+      `123.456.789-00` as each digit is typed (Red); implement the
+      minimum `InputMaskDirective` (`shared/input-mask.directive.ts`)
+      CPF formatting for task 33's test to pass (Green).
+- [x] 34. Extend the spec: `'cep'` mask formats `01310100` to
+      `01310-100`; `'phone'` mask formats an 11-digit sequence to
+      `(00) 00000-0000` and a 10-digit sequence to `(00) 0000-0000`
+      (Red); implement both patterns (Green).
+- [x] 35. Extend the spec: the directive emits `(appInputMaskChange)`
+      with the **unmasked, digits-only** value on every keystroke,
+      regardless of the masked display string (Red — asserts the
+      emitted value, not the DOM value); implement the output (Green).
+- [x] 36. Extend the spec: deleting a character mid-string (not at the
+      end) keeps the caret at the edited position after the mask is
+      reapplied, not jumped to the end (Red); implement the
+      caret-offset fix-up via `setSelectionRange` (Green). Covers
+      SPEC.md's masking-accessibility non-functional requirement.
+- [x] 37. Update `profile-fields-form.component.spec.ts`: existing
+      render/selector assertions for `profile-field-cpf`,
+      `profile-address-field-cep`, and `profile-contact-value-*`
+      (type `PHONE`/`WHATSAPP`) must still pass **unmodified in
+      selector/DOM shape** (regression guard — confirm before wiring
+      the directive in, then re-confirm green after); add new cases:
+      typing an unmasked digit string into the `cpf`/`cep`/phone-type
+      contact-value inputs displays the masked string, but
+      `localFields()`/`contacts()` (read at submit) stay plain/unmasked
+      (REQ-22) (Red); wire `[appInputMask]` onto the `cpf`, `cep`, and
+      conditionally-per-row phone-type contact-value inputs in
+      `shared/profile-fields-form.component.ts`'s template, replacing
+      their `(input)` handler with `(appInputMaskChange)` (Green). `rg`
+      and `rgOrgaoEmissor` inputs are explicitly confirmed unchanged
+      (no mask applied), per PLAN.md's amendment.
+- [x] 38. Extend the spec: switching a contact row's `type` from
+      `PHONE` to `EMAIL` via the `<select>` stops reformatting further
+      keystrokes in that row's value input (mask only applies while
+      `type` is `PHONE`/`WHATSAPP`) (Red); confirm the conditional
+      `[appInputMask]` binding handles this without extra code, or
+      adjust if it doesn't (Green).
+- [x] 39. Confirm no client-side format/checksum validation is
+      introduced — submitting a mask-incomplete value (e.g. a CPF
+      typed only halfway) is not blocked and shows no validation error
+      (REQ-23); add a regression test if none already covers this.
+- [x] 40. Run `npm run format:check && npm test && npm run build && npm run lint`
+      and confirm everything is green, including every pre-existing
+      `profile-fields-form.component.spec.ts` case passing unmodified.
+- [x] 41. Update `PLAN.md`'s amendment section if any decision changed
+      during implementation; update `PROJECT_STATUS.md` noting
+      REQ-21/22/23 shipped and that `bootstrap-profile-completion`
+      inherits this masking automatically via the shared component.

@@ -7,6 +7,7 @@ import {
   ContactType,
   ProfileFields,
 } from '../core/profile.service';
+import { formatMaskedValue, InputMaskDirective } from './input-mask.directive';
 
 const CONTACT_TYPES: ContactType[] = ['PHONE', 'WHATSAPP', 'EMAIL', 'OTHER'];
 const MAX_CONTACTS = 5;
@@ -51,7 +52,7 @@ export interface ProfileFieldsFormSubmission {
 
 @Component({
   selector: 'app-profile-fields-form',
-  imports: [TranslocoPipe],
+  imports: [TranslocoPipe, InputMaskDirective],
   template: `
     <form data-testid="profile-fields-form" (submit)="onSubmit($event)" class="flex flex-col gap-3">
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -92,9 +93,10 @@ export interface ProfileFieldsFormSubmission {
         <input
           data-testid="profile-field-cpf"
           type="text"
-          [value]="localFields().cpf"
+          [value]="formatMaskedValue('cpf', localFields().cpf ?? '')"
           [disabled]="disabled()"
-          (input)="onFieldChange('cpf', $any($event.target).value)"
+          [appInputMask]="'cpf'"
+          (appInputMaskChange)="onFieldChange('cpf', $event)"
           class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
         />
       </label>
@@ -115,17 +117,32 @@ export interface ProfileFieldsFormSubmission {
           {{ 'profile.fields.address.title' | transloco }}
         </legend>
         @for (field of addressFieldNames; track field) {
-          <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-            {{ 'profile.fields.address.' + field | transloco }}
-            <input
-              [attr.data-testid]="'profile-address-field-' + field"
-              type="text"
-              [value]="localFields().address?.[field] ?? ''"
-              [disabled]="disabled()"
-              (input)="onAddressFieldChange(field, $any($event.target).value)"
-              class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-            />
-          </label>
+          @if (field === 'cep') {
+            <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+              {{ 'profile.fields.address.' + field | transloco }}
+              <input
+                [attr.data-testid]="'profile-address-field-' + field"
+                type="text"
+                [value]="formatMaskedValue('cep', localFields().address?.[field] ?? '')"
+                [disabled]="disabled()"
+                [appInputMask]="'cep'"
+                (appInputMaskChange)="onAddressFieldChange(field, $event)"
+                class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+              />
+            </label>
+          } @else {
+            <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
+              {{ 'profile.fields.address.' + field | transloco }}
+              <input
+                [attr.data-testid]="'profile-address-field-' + field"
+                type="text"
+                [value]="localFields().address?.[field] ?? ''"
+                [disabled]="disabled()"
+                (input)="onAddressFieldChange(field, $any($event.target).value)"
+                class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+              />
+            </label>
+          }
         }
       </fieldset>
 
@@ -151,15 +168,28 @@ export interface ProfileFieldsFormSubmission {
                   <option [value]="type">{{ type }}</option>
                 }
               </select>
-              <input
-                [attr.data-testid]="'profile-contact-value-' + row.rowKey"
-                type="text"
-                [value]="row.value"
-                [disabled]="disabled()"
-                (input)="onContactFieldChange(row.rowKey, 'value', $any($event.target).value)"
-                [placeholder]="'profile.fields.contacts.value' | transloco"
-                class="min-w-0 flex-1 rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-              />
+              @if (isPhoneContact(row.type)) {
+                <input
+                  [attr.data-testid]="'profile-contact-value-' + row.rowKey"
+                  type="text"
+                  [value]="formatMaskedValue('phone', row.value)"
+                  [disabled]="disabled()"
+                  [appInputMask]="'phone'"
+                  (appInputMaskChange)="onContactFieldChange(row.rowKey, 'value', $event)"
+                  [placeholder]="'profile.fields.contacts.value' | transloco"
+                  class="min-w-0 flex-1 rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+                />
+              } @else {
+                <input
+                  [attr.data-testid]="'profile-contact-value-' + row.rowKey"
+                  type="text"
+                  [value]="row.value"
+                  [disabled]="disabled()"
+                  (input)="onContactFieldChange(row.rowKey, 'value', $any($event.target).value)"
+                  [placeholder]="'profile.fields.contacts.value' | transloco"
+                  class="min-w-0 flex-1 rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+                />
+              }
               <input
                 [attr.data-testid]="'profile-contact-label-' + row.rowKey"
                 type="text"
@@ -248,6 +278,11 @@ export class ProfileFieldsFormComponent {
     'pais',
   ];
 
+  // Exposed for the template's `[value]` bindings on masked fields — see `input-mask.directive.ts`
+  // for why the initial/externally-driven display must be formatted the same way the directive
+  // formats keystrokes.
+  protected readonly formatMaskedValue = formatMaskedValue;
+
   protected readonly localFields = signal<ProfileFields>(EMPTY_FIELDS);
   protected readonly contacts = signal<ContactRow[]>([]);
   protected readonly contactLimitMessage = signal(false);
@@ -275,6 +310,12 @@ export class ProfileFieldsFormComponent {
       );
       this.contactLimitMessage.set(false);
     });
+  }
+
+  // REQ-21: mask-as-you-type only applies while a contact row's type is a phone-shaped one;
+  // switching to EMAIL/OTHER via the `<select>` reverts to a plain, unmasked input.
+  protected isPhoneContact(type: ContactType): boolean {
+    return type === 'PHONE' || type === 'WHATSAPP';
   }
 
   protected onFieldChange(

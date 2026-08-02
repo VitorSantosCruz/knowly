@@ -153,12 +153,21 @@ describe('ProfileFieldsFormComponent', () => {
     fixture.detectChanges();
     const rows = fixture.nativeElement.querySelectorAll('[data-testid^="profile-contact-row-"]');
     const newRowKey = rows[1].getAttribute('data-testid').replace('profile-contact-row-', '');
+    // New rows default to PHONE (masked); switch this one to EMAIL so an arbitrary email
+    // string is a realistic value and stays unmasked, per REQ-21.
+    const select = fixture.nativeElement.querySelector(
+      `[data-testid="profile-contact-type-${newRowKey}"]`,
+    ) as HTMLSelectElement;
+    select.value = 'EMAIL';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
     input(`profile-contact-value-${newRowKey}`).value = 'jane@example.com';
     input(`profile-contact-value-${newRowKey}`).dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    // edit the existing contact
-    input('profile-contact-value-id-1').value = '+15551234';
+    // edit the existing PHONE contact — masked-as-you-type, but the diff carries the
+    // unmasked digits-only value (REQ-22), never the punctuated display string.
+    input('profile-contact-value-id-1').value = '+1 (555) 123-4';
     input('profile-contact-value-id-1').dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
@@ -169,7 +178,7 @@ describe('ProfileFieldsFormComponent', () => {
     const changes = emitted[0].contactChanges;
     expect(changes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ action: 'UPDATE', contactId: 1, value: '+15551234' }),
+        expect.objectContaining({ action: 'UPDATE', contactId: 1, value: '15551234' }),
         expect.objectContaining({ action: 'ADD', contactId: null, value: 'jane@example.com' }),
       ]),
     );
@@ -197,5 +206,80 @@ describe('ProfileFieldsFormComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="profile-contacts-fieldset"]'),
     ).toBeNull();
+  });
+
+  it('masks CPF as-you-type but submits the unmasked digits (REQ-21/22)', async () => {
+    await createFixture();
+
+    input('profile-field-cpf').value = '12345678900';
+    input('profile-field-cpf').dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(input('profile-field-cpf').value).toBe('123.456.789-00');
+
+    const emitted: ProfileFieldsFormSubmission[] = [];
+    fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+    submitForm();
+
+    expect(emitted[0].fields.cpf).toBe('12345678900');
+  });
+
+  it('masks CEP as-you-type but submits the unmasked digits (REQ-21/22)', async () => {
+    await createFixture();
+
+    input('profile-address-field-cep').value = '01310100';
+    input('profile-address-field-cep').dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(input('profile-address-field-cep').value).toBe('01310-100');
+
+    const emitted: ProfileFieldsFormSubmission[] = [];
+    fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+    submitForm();
+
+    expect(emitted[0].fields.address?.cep).toBe('01310100');
+  });
+
+  it('masks a PHONE/WHATSAPP contact value as-you-type but stops once switched to EMAIL/OTHER', async () => {
+    await createFixture();
+
+    // id-1 is PHONE — typing digits reformats the display.
+    input('profile-contact-value-id-1').value = '11987654321';
+    input('profile-contact-value-id-1').dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(input('profile-contact-value-id-1').value).toBe('(11) 98765-4321');
+
+    // Switching the row's type to EMAIL stops reformatting further keystrokes.
+    const select = fixture.nativeElement.querySelector(
+      '[data-testid="profile-contact-type-id-1"]',
+    ) as HTMLSelectElement;
+    select.value = 'EMAIL';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    input('profile-contact-value-id-1').value = 'jane@example.com';
+    input('profile-contact-value-id-1').dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(input('profile-contact-value-id-1').value).toBe('jane@example.com');
+  });
+
+  it('does not block submission of a mask-incomplete CPF (REQ-23, no client-side format validation)', async () => {
+    await createFixture();
+
+    input('profile-field-cpf').value = '123';
+    input('profile-field-cpf').dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(input('profile-field-cpf').value).toBe('123');
+    expect(input('profile-field-cpf').getAttribute('aria-invalid')).toBeNull();
+
+    const emitted: ProfileFieldsFormSubmission[] = [];
+    fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+    submitForm();
+
+    expect(emitted.length).toBe(1);
+    expect(emitted[0].fields.cpf).toBe('123');
   });
 });

@@ -400,6 +400,97 @@ side of both is `identity-profile-model-v2/PLAN.md`'s matching "Follow-up
     not "in the active tenant"), so this check must not be short-circuited
     by "no active tenant" the way tenant-scoped routes are.
 
+## Amendment — REQ-21/22/23 masked input (2026-08-02)
+
+- **New `InputMaskDirective`** (`shared/input-mask.directive.ts`, standalone,
+  selector `[appInputMask]`) is the masking mechanism, not a `ControlValueAccessor`/
+  Reactive Forms adapter and not a pipe. *Why*: `ProfileFieldsFormComponent`'s
+  existing fields are bound the "plain signal" way this codebase already uses
+  everywhere (`[value]="localFields().cpf"` + `(input)="onFieldChange('cpf', $any($event.target).value)"`),
+  not `ngModel`/`formControlName` — there is no `NgControl` for a CVA to attach to,
+  and a display-only pipe can't intercept keystrokes to reformat as the user types.
+  A small host-listening directive that sits directly on the existing `<input>` is
+  the shape that fits this binding style without introducing Reactive Forms into
+  this component (a real, separate Tier 2 call this PLAN is *not* making — unlike
+  `tenant-creation`'s form, see `DECISIONS.md`, this component's fields stay flat
+  enough that the plain-signal convention remains the right default here).
+  - **Contract**: `[appInputMask]="'cpf' | 'rg' | 'cep' | 'phone'"` input. The
+    directive listens to the native `input` event (`HostListener`), derives the
+    digits-only (or otherwise mask-relevant) raw value from `event.target.value`,
+    computes the masked display string for the given pattern (CPF
+    `000.000.000-00`, CEP `00000-000`, phone `(00) 00000-0000`/`(00) 0000-0000`
+    depending on digit count, `rg` left as free-format digits/dashes per
+    existing backend normalization — no rigid mask beyond grouping, since RG
+    formats vary by issuing state and the SPEC doesn't fix one), writes the
+    masked string back into the host element's `.value` (with a caret-position
+    fix-up so typing/deleting mid-string doesn't jump the cursor to the end),
+    and emits the **unmasked** (digits-only) value via a `(appInputMaskChange)`
+    output — the component's existing `(input)` handler is replaced with
+    `(appInputMaskChange)="onFieldChange('cpf', $event)"` for masked fields only;
+    every other field (`fullName`, `rgOrgaoEmissor`, `birthDate`, non-phone
+    contacts, non-`cep` address fields) is untouched.
+  - **Submitted value stays unmasked, by construction, not by a strip-before-submit
+    step**: because the directive's output already carries the digits-only value,
+    `localFields()`/`contacts()` — the same signals `onSubmit` already reads
+    verbatim — never contain masked characters in the first place. REQ-22 is
+    satisfied without adding any "strip mask" logic at submit time.
+  - **`rg` needs no masking pattern of its own beyond REQ-21's literal field list**:
+    re-reading REQ-21, only `cpf`, `cep`, and phone-type contacts get a fixed
+    punctuation mask; `rg` is listed in REQ-21 as a plain field with no format
+    given (Brazilian RG has no single national format) — so `[appInputMask]="'rg'"`
+    is **not** applied; `rg`'s `<input>` is unchanged from before this amendment.
+    Flagged here explicitly since REQ-21's wording groups `rg` with the other
+    three at a glance; this PLAN reads it as scoped to the fields the SPEC gives
+    a concrete pattern for.
+  - **Contact rows**: `[appInputMask]` is applied conditionally in the template
+    based on `row.type` (`'PHONE' | 'WHATSAPP'` → `'phone'`, else no directive) —
+    since `type` can change via the `<select>`, the directive re-evaluates its
+    `mask` input reactively (Angular re-binds `[appInputMask]` whenever the
+    template expression's value changes, no manual re-subscription needed) and
+    simply stops reformatting once `type` moves to `EMAIL`/`OTHER`.
+  - **No DOM/selector change**: the directive attaches to the same `<input>`
+    elements with their existing `data-testid`s — it adds behavior via
+    `HostListener`, not a wrapping element, so every existing test that queries
+    `[data-testid="profile-field-cpf"]` etc. keeps working unmodified in shape;
+    only the *value* asserted after simulating keystrokes changes for masked
+    fields.
+  - **Accessibility (SPEC's non-functional requirement)**: caret position is
+    explicitly preserved by computing the caret offset delta (masked length
+    before vs. after the edit) and calling `setSelectionRange` after writing the
+    new value back, rather than always parking the caret at the end — this is
+    the one piece of real complexity in the directive and is called out as its
+    own TDAD task below rather than assumed to fall out "for free."
+- **Lives in `knowly-app/src/app/shared/`**, alongside `ProfileFieldsFormComponent`
+  itself — not `core/`, since it has no service/HTTP concern, matching this
+  folder's existing "presentational, reusable, no side effects" convention.
+- **No new dependency** — hand-rolled directive, ~80–120 lines, no third-party
+  input-mask library. Confirmed against `package.json`: nothing added.
+
+### Implemented (2026-08-02) — one deviation found during TDAD (Tier 2, not a scope change)
+
+Shipped exactly as described above (`InputMaskDirective`, `HostListener`-based,
+`cpf`/`cep`/`phone` only, `rg` untouched), with one implementation-detail fix
+discovered while writing `profile-fields-form.component.spec.ts`'s wiring
+tests (task 37): binding a masked `<input>`'s `[value]` straight to the
+underlying (unmasked, per REQ-22) signal — e.g. `[value]="localFields().cpf"`
+— fights the directive on every keystroke. Sequence: the directive writes the
+masked string into `element.value` synchronously inside its own `input`
+handler, then emits the unmasked digits via `(appInputMaskChange)`, which the
+component's handler stores back into the plain signal (unmasked, by design);
+on the very next change-detection pass the *component's own* `[value]`
+binding re-reads that now-unmasked signal and overwrites the directive's
+masked DOM value right back to plain digits — so nothing ever stayed
+formatted. Fixed by exporting a small `formatMaskedValue(mask, rawValue):
+string` helper alongside the directive (same `formatByMask` internals the
+directive itself uses) and using it in the template's `[value]` binding for
+each of the three masked inputs — e.g. `[value]="formatMaskedValue('cpf',
+localFields().cpf ?? '')"` — so the externally-driven display formats
+identically to what the directive itself would produce, and the two bindings
+agree on every change-detection pass instead of fighting. `rg`/`rgOrgaoEmissor`
+and all non-phone contact/address inputs are unaffected (still bound directly
+to the raw signal, no `formatMaskedValue` call). No test/selector/DOM shape
+changed as a result — only the source of the bound expression's value.
+
 ### API contract consumed (added, see backend PLAN.md for the authoritative shape)
 
 | Method | Path                                              | Response (200)          |
