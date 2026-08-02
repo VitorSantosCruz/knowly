@@ -98,6 +98,45 @@ class ProfileCompletionGateIntegrationTest {
     }
 
     @Test
+    void tenantMembershipsRemainsReachableForThePendingBootstrapAccount() {
+        // Frontend's tenant-selection guard calls this right after login, before the pending
+        // bootstrap account can ever reach the profile-completion screen -- must not be gated.
+        Cookie session = logIn(BOOTSTRAP_EMAIL);
+
+        var response = mockMvc.get().uri("/api/tenants/memberships").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void tenantActiveGetRemainsReachableForThePendingBootstrapAccount() {
+        // Same tenant-selection guard also calls this read-only endpoint before profile completion.
+        Cookie session = logIn(BOOTSTRAP_EMAIL);
+
+        var response = mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void tenantActivePostRemainsBlockedForThePendingBootstrapAccount() throws Exception {
+        // The tenant-switch mutation must NOT be allowlisted -- only the two read-only GETs are.
+        Cookie session = logIn(BOOTSTRAP_EMAIL);
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CONFLICT);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("PROFILE_COMPLETION_REQUIRED");
+    }
+
+    @Test
     void anUnrelatedIncompleteAccountIsNeverGatedByThisFeature() {
         // REQ-10: the gate is scoped to the single bootstrap row by identity, not by a bare
         // "is this profile incomplete" check -- a pre-existing, unrelated incomplete account (the

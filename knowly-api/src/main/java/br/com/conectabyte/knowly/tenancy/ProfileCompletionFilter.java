@@ -35,6 +35,15 @@ public class ProfileCompletionFilter extends OncePerRequestFilter {
     private static final List<String> ALLOWLISTED_EXACT_PATHS =
             List.of("/api/users/me/profile", "/api/users/me/profile/complete");
 
+    /**
+     * Read-only endpoints the frontend's tenant-selection guard calls right after login -- before
+     * the pending bootstrap account can ever reach the profile-completion screen -- so they must
+     * remain reachable while gated. Deliberately GET-only: {@code POST /api/tenants/active} (the
+     * tenant-switch mutation) is never allowlisted.
+     */
+    private static final List<String> ALLOWLISTED_GET_EXACT_PATHS =
+            List.of("/api/tenants/memberships", "/api/tenants/active");
+
     private final UserRepository userRepository;
     private final ProfileCompletenessService profileCompletenessService;
     private final String bootstrapStaffEmail;
@@ -59,7 +68,9 @@ public class ProfileCompletionFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (ALLOWLISTED_EXACT_PATHS.contains(requestUri)) {
+        if (ALLOWLISTED_EXACT_PATHS.contains(requestUri)
+                || ("GET".equalsIgnoreCase(request.getMethod())
+                        && ALLOWLISTED_GET_EXACT_PATHS.contains(requestUri))) {
             filterChain.doFilter(request, response);
             return;
         }
