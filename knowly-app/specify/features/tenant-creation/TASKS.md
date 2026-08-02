@@ -48,67 +48,67 @@
       differently despite rendering identically. PLAN.md's "Coordination
       checkpoint — resolved" and "Consumed API contracts" sections are
       updated accordingly.
-- [ ] 14. Write `address-fields.component.spec.ts`: renders the 8 fields
+- [x] 14. Write `address-fields.component.spec.ts`: renders the 8 fields
       bound to a `FormGroup`'s current value; shows a field-level error
       for an invalid+touched control; two independent component
       instances with two different `FormGroup`s never share state — Red.
-- [ ] 15. Implement `AddressFieldsComponent` — Green.
-- [ ] 16. Write `contacts-list-editor.component.spec.ts`: starts with one
+- [x] 15. Implement `AddressFieldsComponent` — Green.
+- [x] 16. Write `contacts-list-editor.component.spec.ts`: starts with one
       empty row (REQ-13); add-row appends a control pair; remove-row
       removes a row; submitting with zero rows surfaces a
       "must have at least one" error state (REQ-14) — Red.
-- [ ] 17. Implement `ContactsListEditorComponent` — Green.
-- [ ] 18. Convert `TenantCreatePageComponent` to Reactive Forms
+- [x] 17. Implement `ContactsListEditorComponent` — Green.
+- [x] 18. Convert `TenantCreatePageComponent` to Reactive Forms
       (`FormBuilder.group`, nested `companyAddress`/`userAddress`
       `FormGroup`s, `contacts` `FormArray`, `role` control defaulting to
       `'MEMBER_ADMIN'`) — update `tenant-create-page.component.spec.ts`
       for the new field set and section headings (REQ-20, REQ-21); keep
       existing REQ-1/REQ-4/REQ-5 cases passing under the new form shape
       — Red then Green.
-- [ ] 19. Write new `tenant-create-page.component.spec.ts` cases:
+- [x] 19. Write new `tenant-create-page.component.spec.ts` cases:
       missing-required-company-field blocks submit with field-level
       errors, no API call (REQ-8, REQ-9); malformed `contactEmail` blocks
       submit (REQ-9) — Red.
-- [ ] 20. Implement the company-identification section's validators —
+- [x] 20. Implement the company-identification section's validators —
       Green.
-- [ ] 21. Write cases: missing-required-first-user-field or zero
+- [x] 21. Write cases: missing-required-first-user-field or zero
       contacts blocks submit with field-level errors, no API call
       (REQ-13, REQ-14) — Red.
-- [ ] 22. Implement the first-user-profile section's validators
+- [x] 22. Implement the first-user-profile section's validators
       (including wiring `ContactsListEditorComponent`'s `FormArray`) —
       Green.
-- [ ] 23. Write cases: Brazil `country` + non-14-digit `taxId` (with/
+- [x] 23. Write cases: Brazil `country` + non-14-digit `taxId` (with/
       without punctuation) blocks submit with a field-level `taxId`
       error; non-Brazil `country` + any non-empty `taxId` does not block
       submit (REQ-10) — Red.
-- [ ] 24. Implement the conditional CNPJ-shape validator on `taxId`,
+- [x] 24. Implement the conditional CNPJ-shape validator on `taxId`,
       re-evaluated when `country` changes — Green.
-- [ ] 25. Write cases: role selector defaults to `MEMBER_ADMIN`; switching
+- [x] 25. Write cases: role selector defaults to `MEMBER_ADMIN`; switching
       to `MEMBER` and submitting sends `role: 'MEMBER'` (REQ-17–19) — Red.
-- [ ] 26. Implement the role `<select>` control — Green.
-- [ ] 27. Write `active-tenant.service.spec.ts` case: `createTenant()`
+- [x] 26. Implement the role `<select>` control — Green.
+- [x] 27. Write `active-tenant.service.spec.ts` case: `createTenant()`
       posts the exact `CreateTenantRequest` payload (confirmed per task
       13 — company address English-named, first-user address
       Portuguese-named) to `/api/tenants` — Red.
-- [ ] 28. Update `createTenant()`'s signature/body in
+- [x] 28. Update `createTenant()`'s signature/body in
       `active-tenant.service.ts` — Green.
-- [ ] 29. Write cases: a 409 response identifying a `taxId` conflict sets
+- [x] 29. Write cases: a 409 response identifying a `taxId` conflict sets
       the `taxId` control's error and preserves all other entered values
       (REQ-11); a 400 response identifying incomplete first-user-profile
       field(s) maps onto the matching control(s), falling back to the
       generic banner when the response doesn't identify a field (REQ-15);
       any other error shows the generic banner and preserves entered
       values (REQ-5) — Red.
-- [ ] 30. Implement the submit-error-to-field-error mapping — Green.
-- [ ] 31. Write case: company-address and user-address sections accept
+- [x] 30. Implement the submit-error-to-field-error mapping — Green.
+- [x] 31. Write case: company-address and user-address sections accept
       independent values — filling one `AddressFieldsComponent` instance
       does not affect the other's bound `FormGroup` (REQ-16) — Red (this
       should already pass by construction once tasks 14–22 are done;
       write it explicitly as a regression guard rather than skipping it).
-- [ ] 32. Run `npm run format:check && npm test && npm run build && npm run lint`
+- [x] 32. Run `npm run format:check && npm test && npm run build && npm run lint`
        and confirm everything is green.
-- [ ] 33. Update `PLAN.md`'s "Deviations from this PLAN" section if any
+- [x] 33. Update `PLAN.md`'s "Deviations from this PLAN" section if any
        decision changed during implementation (in particular, task 13's
        resolved API contract); update `PROJECT_STATUS.md`'s feature
        table.
-- [ ] 34. Commit.
+- [x] 34. Commit.

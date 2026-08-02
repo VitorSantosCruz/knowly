@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { FormArray, FormControl, FormGroup } from '@angular/forms';
+import { FormArray, FormGroup } from '@angular/forms';
 import { provideTransloco } from '@jsverse/transloco';
 import { ContactsListEditorComponent, createContactGroup } from './contacts-list-editor.component';
 import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
@@ -27,9 +27,7 @@ describe('ContactsListEditorComponent', () => {
 
   it('starts with one empty row', () => {
     expect(formArray.length).toBe(1);
-    expect(
-      fixture.nativeElement.querySelectorAll('[data-testid^="contacts-row-"]').length,
-    ).toBe(1);
+    expect(fixture.nativeElement.querySelectorAll('[data-testid^="contacts-row-"]').length).toBe(1);
   });
 
   it('appends a control pair when add-row is clicked', () => {

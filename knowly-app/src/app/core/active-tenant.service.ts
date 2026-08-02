@@ -21,6 +21,61 @@ export interface TenantSummary {
   name: string;
 }
 
+export interface CreateTenantAddress {
+  postalCode: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+}
+
+export interface CreateTenantMandatoryAddress {
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string | null;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  pais: string;
+}
+
+export interface CreateTenantContact {
+  type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER';
+  value: string;
+}
+
+export interface CreateTenantProfile {
+  fullName: string;
+  birthDate: string;
+  cpf: string;
+  rg: string;
+  rgOrgaoEmissor: string;
+  address: CreateTenantMandatoryAddress;
+  contacts: CreateTenantContact[];
+}
+
+/**
+ * Matches backend `CreateTenantRequestDto` field for field (see
+ * knowly-api/specify/features/tenant-creation/PLAN.md's "Consumed API contracts") — the company
+ * address uses AddressDto's English names, the first user's address uses
+ * MandatoryAddressDto's Portuguese names; these genuinely differ, not a typo.
+ */
+export interface CreateTenantRequest {
+  name: string;
+  legalName: string;
+  taxId: string;
+  country: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: CreateTenantAddress;
+  adminEmail: string;
+  profile: CreateTenantProfile;
+  role: 'MEMBER' | 'MEMBER_ADMIN';
+}
+
 export interface PageResponse<T> {
   content: T[];
   page: number;
@@ -100,8 +155,8 @@ export class ActiveTenantService {
     return this.http.get<PageResponse<TenantSummary>>('/api/tenants', { params });
   }
 
-  createTenant(name: string, adminEmail: string): Observable<void> {
-    return this.http.post<void>('/api/tenants', { name, adminEmail });
+  createTenant(request: CreateTenantRequest): Observable<void> {
+    return this.http.post<void>('/api/tenants', request);
   }
 
   leaveTenant(): Observable<void> {

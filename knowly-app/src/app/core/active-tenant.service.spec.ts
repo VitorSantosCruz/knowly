@@ -152,13 +152,51 @@ describe('ActiveTenantService', () => {
     req.flush({ content: [], page: 1, size: 10, totalElements: 0, totalPages: 0 });
   });
 
-  it('createTenant() posts the name and admin email', () => {
+  it('createTenant() posts the exact CreateTenantRequest payload (company address English-named, first-user address Portuguese-named)', () => {
+    const request = {
+      name: 'Acme',
+      legalName: 'Acme Ltda',
+      taxId: '12345678000199',
+      country: 'Brazil',
+      contactEmail: 'contact@acme.test',
+      contactPhone: '+55 11 90000-0000',
+      address: {
+        postalCode: '01310-000',
+        street: 'Av. Paulista',
+        number: '1000',
+        complement: null,
+        neighborhood: 'Bela Vista',
+        city: 'São Paulo',
+        state: 'SP',
+      },
+      adminEmail: 'admin@acme.test',
+      profile: {
+        fullName: 'Jane Admin',
+        birthDate: '1990-01-01',
+        cpf: '12345678900',
+        rg: '123456789',
+        rgOrgaoEmissor: 'SSP',
+        address: {
+          cep: '01310-000',
+          logradouro: 'Av. Paulista',
+          numero: '1000',
+          complemento: null,
+          bairro: 'Bela Vista',
+          cidade: 'São Paulo',
+          estado: 'SP',
+          pais: 'Brazil',
+        },
+        contacts: [{ type: 'EMAIL' as const, value: 'admin@acme.test' }],
+      },
+      role: 'MEMBER_ADMIN' as const,
+    };
+
     let completed = false;
-    service.createTenant('Acme', 'admin@acme.test').subscribe(() => (completed = true));
+    service.createTenant(request).subscribe(() => (completed = true));
 
     const req = httpMock.expectOne('/api/tenants');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ name: 'Acme', adminEmail: 'admin@acme.test' });
+    expect(req.request.body).toEqual(request);
     req.flush({});
 
     expect(completed).toBe(true);

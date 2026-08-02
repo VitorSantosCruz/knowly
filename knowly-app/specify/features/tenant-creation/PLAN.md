@@ -263,6 +263,27 @@ added/updated:
 
 ## Deviations from this PLAN (discovered during implementation)
 
-_(none yet — update as implementation proceeds, per TASKS.md's own
-closing task.)_
+- **`country` is a free-text input, not a `<select>`** — this PLAN never
+  specified a control type for `country`; REQ-10's Brazil detection
+  (`isBrazil()`) matches case-insensitively against `'brazil'`,
+  `'brasil'`, `'br'`. Conservative, documented-in-code decision (not a
+  product ambiguity PLAN/SPEC needed to resolve) since neither SPEC nor
+  PLAN mandates a closed country list here.
+- **409/400 error-body field mapping is best-effort, not backend-
+  confirmed line-for-line.** `TenancyExceptionHandler` (backend,
+  `knowly-api/src/main/java/br/com/conectabyte/knowly/tenancy/exception/TenancyExceptionHandler.java`)
+  returns `TenancyErrorResponseDto(code)` for `TenantAlreadyExistsException`
+  as `409 TENANT_ALREADY_EXISTS` for **both** `taxId` and `adminEmail`
+  collisions — the response body carries no field discriminator. Per
+  REQ-11's explicit "taxId conflict → taxId field error" requirement,
+  `TENANT_ALREADY_EXISTS` is mapped unconditionally to the `taxId`
+  control (conservative choice, documented in code); an `adminEmail`
+  collision will incorrectly surface on `taxId` until/unless the backend
+  disambiguates the code. For 400s, no dedicated `MethodArgumentNotValidException`
+  handler was found in `tenancy`'s exception package, so the mapping
+  assumes an `errors: [{ field }]` array shape (`field` optionally
+  prefixed `profile.`) and falls back to the generic banner (REQ-15's own
+  documented fallback) whenever that shape isn't present — this is the
+  conservative, spec-compliant default given the shape wasn't nailed down
+  by either PLAN.
 </content>
