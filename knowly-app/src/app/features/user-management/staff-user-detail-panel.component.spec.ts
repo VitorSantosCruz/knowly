@@ -5,6 +5,7 @@ import { provideTransloco } from '@jsverse/transloco';
 import { StaffUserDetailPanelComponent } from './staff-user-detail-panel.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import { GlobalPermission } from '../../core/global-permission';
+import { formatAuditTimestamp } from '../../shared/audit-timestamp';
 
 describe('StaffUserDetailPanelComponent', () => {
   let fixture: ComponentFixture<StaffUserDetailPanelComponent>;
@@ -403,7 +404,7 @@ describe('StaffUserDetailPanelComponent', () => {
     flushAuditTrail([
       {
         occurredAt: '2026-07-20T10:00:00Z',
-        action: 'GRANT_PERMISSION',
+        action: 'staff.user.demote',
         resourceType: 'STAFF_PERMISSION',
         resourceId: 'STAFF_USER_CREATE',
         tenantId: null,
@@ -419,7 +420,37 @@ describe('StaffUserDetailPanelComponent', () => {
     const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
     const rows = section.querySelectorAll('tbody tr');
     expect(rows.length).toBe(1);
-    expect(rows[0].textContent).toContain('GRANT_PERMISSION');
+    expect(rows[0].textContent).toContain('Demoted a staff user');
+    expect(rows[0].textContent).not.toContain('staff.user.demote');
+    expect(rows[0].textContent).toContain(formatAuditTimestamp('2026-07-20T10:00:00Z'));
+    expect(rows[0].textContent).not.toContain('2026-07-20T10:00:00Z');
+  });
+
+  it('falls back to the raw action string for an unknown audit action', async () => {
+    await createFixture(true);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
+    httpMock.expectOne('/api/staff/access-groups').flush([]);
+    flushAuditTrail([
+      {
+        occurredAt: '2026-07-20T10:00:00Z',
+        action: 'some.unknown.action',
+        resourceType: 'STAFF_PERMISSION',
+        resourceId: 'STAFF_USER_CREATE',
+        tenantId: null,
+        outcome: 'SUCCESS',
+        metadata: {},
+      },
+    ]);
+    fixture.detectChanges();
+    flushProfile();
+    flushOwnProfile();
+    fixture.detectChanges();
+
+    const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
+    const rows = section.querySelectorAll('tbody tr');
+    expect(rows[0].textContent).toContain('some.unknown.action');
   });
 
   it('renders a permission-denied state only inside the audit-trail section on a 403', async () => {

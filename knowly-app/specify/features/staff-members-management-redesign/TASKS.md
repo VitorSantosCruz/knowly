@@ -127,10 +127,12 @@
       `PUT /api/staff/users/{userId}/permissions/batch`.
 - [x] 5.11–5.12. Permission names (switches + effective-permissions
       section) rendered via `translatePermissionLabel` (REQ-13/14).
-- [ ] 5.13–5.14. **Deferred to Task 4** (audit-trail translation
-      map/timestamp formatting) — not in this pass's scope; audit trail
-      still renders raw `action`/`outcome`/ISO timestamp, unchanged from
-      before this task.
+- [x] 5.13–5.14. Audit-trail table now renders `formatAuditTimestamp`
+      for `occurredAt` and `translateAuditAction` for `action`
+      (REQ-25/26/27/27a/27b); `outcome`/`resourceType`/`resourceId`
+      remain raw — no translation map entry exists for those, and
+      no action's meaning currently differs by outcome per the 4.1
+      inventory, so a combined action+outcome key wasn't needed yet.
 - [x] 5.15–5.16. Inline access-group creation form removed from this
       panel entirely (REQ-24) — no `newAccessGroupName`/`onCreateAccessGroup`
       remain; group creation is deferred to Task 7's standalone screen.

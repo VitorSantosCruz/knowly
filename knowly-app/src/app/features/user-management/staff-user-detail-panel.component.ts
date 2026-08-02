@@ -15,6 +15,8 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { translatePermissionLabel } from '../../shared/permission-labels';
+import { translateAuditAction } from '../../shared/audit-trail-labels';
+import { formatAuditTimestamp } from '../../shared/audit-timestamp';
 import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
@@ -283,8 +285,8 @@ type DetailError = 'network' | 'permission-denied' | null;
                 <tbody>
                   @for (event of events; track $index) {
                     <tr>
-                      <td class="py-1 pr-2">{{ event.occurredAt }}</td>
-                      <td class="py-1 pr-2">{{ event.action }}</td>
+                      <td class="py-1 pr-2">{{ formatAuditTimestamp(event.occurredAt) }}</td>
+                      <td class="py-1 pr-2">{{ translateAuditAction(event.action) }}</td>
                       <td class="py-1 pr-2">{{ event.resourceType }}</td>
                       <td class="py-1 pr-2">{{ event.resourceId }}</td>
                       <td class="py-1 pr-2">
@@ -489,6 +491,14 @@ export class StaffUserDetailPanelComponent implements OnChanges {
 
   protected permissionLabel(permission: GlobalPermission): string {
     return translatePermissionLabel(permission, this.transloco);
+  }
+
+  protected formatAuditTimestamp(occurredAt: string): string {
+    return formatAuditTimestamp(occurredAt);
+  }
+
+  protected translateAuditAction(action: string): string {
+    return translateAuditAction(action, this.transloco);
   }
 
   protected effectivePermissionLabels(detail: StaffUserDetail): string {
