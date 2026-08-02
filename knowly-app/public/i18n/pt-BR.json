@@ -446,7 +446,9 @@
         }
       },
       "country": "País",
-      "countryNotSpecified": "Não especificado"
+      "countryNotSpecified": "Não especificado",
+      "taxIdInvalid": "Valor inválido.",
+      "fieldInvalid": "Valor inválido."
     },
     "pending": "Sua alteração de perfil está aguardando aprovação.",
     "alreadyPending": "Já existe uma solicitação de alteração de perfil pendente.",

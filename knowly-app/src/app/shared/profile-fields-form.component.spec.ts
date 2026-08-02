@@ -479,4 +479,48 @@ describe('ProfileFieldsFormComponent', () => {
       ).toBeNull();
     });
   });
+
+  describe('fieldErrors (inline per-field validation state)', () => {
+    it('renders no red border/message on any field when fieldErrors is empty (default)', async () => {
+      await createFixture();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-field-error-taxId"]'),
+      ).toBeNull();
+      expect(input('profile-field-taxId').className).not.toContain('border-red-500');
+    });
+
+    it('marks the named field with a red border and a translated inline message', async () => {
+      await createFixture();
+      fixture.componentRef.setInput('fieldErrors', ['taxId']);
+      fixture.detectChanges();
+
+      expect(input('profile-field-taxId').className).toContain('border-red-500');
+      const message = fixture.nativeElement.querySelector(
+        '[data-testid="profile-field-error-taxId"]',
+      );
+      expect(message).toBeTruthy();
+      expect(message.textContent.trim().length).toBeGreaterThan(0);
+
+      // Unrelated fields stay unaffected.
+      expect(input('profile-field-fullName').className).not.toContain('border-red-500');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-field-error-fullName"]'),
+      ).toBeNull();
+    });
+
+    it('clears the inline error once fieldErrors no longer names the field', async () => {
+      await createFixture();
+      fixture.componentRef.setInput('fieldErrors', ['taxId']);
+      fixture.detectChanges();
+
+      fixture.componentRef.setInput('fieldErrors', []);
+      fixture.detectChanges();
+
+      expect(input('profile-field-taxId').className).not.toContain('border-red-500');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-field-error-taxId"]'),
+      ).toBeNull();
+    });
+  });
 });

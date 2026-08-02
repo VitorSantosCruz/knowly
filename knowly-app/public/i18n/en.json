@@ -446,7 +446,9 @@
         }
       },
       "country": "Country",
-      "countryNotSpecified": "Not specified"
+      "countryNotSpecified": "Not specified",
+      "taxIdInvalid": "Invalid value.",
+      "fieldInvalid": "Invalid value."
     },
     "pending": "Your profile change is pending approval.",
     "alreadyPending": "A profile change request is already pending approval.",

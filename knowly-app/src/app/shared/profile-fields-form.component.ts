@@ -37,6 +37,15 @@ interface ContactRow extends Contact {
   rowKey: string;
 }
 
+const BASE_INPUT_CLASS =
+  'rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100';
+
+// Inline per-field validation error style (bugfix, 2026-08-02): reuses the same rounded/padding
+// shape as `BASE_INPUT_CLASS`, only swapping the border/ring color to red, so a field named in
+// `fieldErrors` gets a visibly distinct (but layout-identical) state.
+const ERROR_INPUT_CLASS =
+  'rounded-xl border border-red-500 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-red-500 focus:ring-2 focus:ring-red-400/40 focus:outline-none dark:border-red-500 dark:bg-ink-800 dark:text-ink-100';
+
 let rowKeySeed = 0;
 
 function toRow(contact: Contact): ContactRow {
@@ -63,8 +72,16 @@ export interface ProfileFieldsFormSubmission {
           [required]="requireAllFields()"
           [placeholder]="'profile.fields.fullNamePlaceholder' | transloco"
           (input)="onFieldChange('fullName', $any($event.target).value)"
-          class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          [class]="inputClassFor('fullName')"
         />
+        @if (hasFieldError('fullName')) {
+          <p
+            data-testid="profile-field-error-fullName"
+            class="text-xs text-red-600 dark:text-red-400"
+          >
+            {{ 'profile.fields.fieldInvalid' | transloco }}
+          </p>
+        }
       </label>
 
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -102,8 +119,13 @@ export interface ProfileFieldsFormSubmission {
           [appInputMask]="'taxId'"
           [appInputMaskCountry]="localFields().countryCode"
           (appInputMaskChange)="onFieldChange('taxId', $event)"
-          class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          [class]="inputClassFor('taxId')"
         />
+        @if (hasFieldError('taxId')) {
+          <p data-testid="profile-field-error-taxId" class="text-xs text-red-600 dark:text-red-400">
+            {{ 'profile.fields.taxIdInvalid' | transloco }}
+          </p>
+        }
       </label>
 
       <fieldset data-testid="profile-address-fieldset" class="flex flex-col gap-2">
@@ -122,8 +144,16 @@ export interface ProfileFieldsFormSubmission {
             [placeholder]="'profile.fields.address.addressLine1Placeholder' | transloco"
             [title]="'profile.fields.address.addressLine1Tooltip' | transloco"
             (input)="onAddressFieldChange('addressLine1', $any($event.target).value)"
-            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            [class]="inputClassFor('address.addressLine1')"
           />
+          @if (hasFieldError('address.addressLine1')) {
+            <p
+              data-testid="profile-field-error-address.addressLine1"
+              class="text-xs text-red-600 dark:text-red-400"
+            >
+              {{ 'profile.fields.fieldInvalid' | transloco }}
+            </p>
+          }
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -136,8 +166,16 @@ export interface ProfileFieldsFormSubmission {
             [placeholder]="'profile.fields.address.addressLine2Placeholder' | transloco"
             [title]="'profile.fields.address.addressLine2Tooltip' | transloco"
             (input)="onAddressFieldChange('addressLine2', $any($event.target).value)"
-            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            [class]="inputClassFor('address.addressLine2')"
           />
+          @if (hasFieldError('address.addressLine2')) {
+            <p
+              data-testid="profile-field-error-address.addressLine2"
+              class="text-xs text-red-600 dark:text-red-400"
+            >
+              {{ 'profile.fields.fieldInvalid' | transloco }}
+            </p>
+          }
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -150,8 +188,16 @@ export interface ProfileFieldsFormSubmission {
             [required]="requireAllFields()"
             [placeholder]="'profile.fields.address.cityPlaceholder' | transloco"
             (input)="onAddressFieldChange('city', $any($event.target).value)"
-            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            [class]="inputClassFor('address.city')"
           />
+          @if (hasFieldError('address.city')) {
+            <p
+              data-testid="profile-field-error-address.city"
+              class="text-xs text-red-600 dark:text-red-400"
+            >
+              {{ 'profile.fields.fieldInvalid' | transloco }}
+            </p>
+          }
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -167,8 +213,16 @@ export interface ProfileFieldsFormSubmission {
             [disabled]="disabled()"
             [placeholder]="stateRegionPlaceholder()"
             (input)="onAddressFieldChange('stateRegion', $any($event.target).value)"
-            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            [class]="inputClassFor('address.stateRegion')"
           />
+          @if (hasFieldError('address.stateRegion')) {
+            <p
+              data-testid="profile-field-error-address.stateRegion"
+              class="text-xs text-red-600 dark:text-red-400"
+            >
+              {{ 'profile.fields.fieldInvalid' | transloco }}
+            </p>
+          }
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -194,8 +248,16 @@ export interface ProfileFieldsFormSubmission {
             [appInputMask]="'postalCode'"
             [appInputMaskCountry]="localFields().countryCode"
             (appInputMaskChange)="onAddressFieldChange('postalCode', $event)"
-            class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+            [class]="inputClassFor('address.postalCode')"
           />
+          @if (hasFieldError('address.postalCode')) {
+            <p
+              data-testid="profile-field-error-address.postalCode"
+              class="text-xs text-red-600 dark:text-red-400"
+            >
+              {{ 'profile.fields.fieldInvalid' | transloco }}
+            </p>
+          }
         </label>
       </fieldset>
 
@@ -329,6 +391,11 @@ export class ProfileFieldsFormComponent {
   // `false` so every existing call site (`OwnProfilePageComponent`/`ProfileSectionComponent`)
   // stays behaviorally unchanged.
   readonly requireAllFields = input(false);
+  // Bugfix (2026-08-02): field names the caller (backend error response, mapped by the parent
+  // page) says are currently invalid — e.g. `['taxId']` or `['address.city']`. Purely presentational
+  // here: this component doesn't validate anything itself, it just renders a red border + inline
+  // message for whichever of its own known field names appear in this list.
+  readonly fieldErrors = input<string[]>([]);
   readonly submitted = output<ProfileFieldsFormSubmission>();
 
   protected readonly contactTypes = CONTACT_TYPES;
@@ -423,6 +490,15 @@ export class ProfileFieldsFormComponent {
   // switching to EMAIL/OTHER via the `<select>` reverts to a plain, unmasked input.
   protected isPhoneContact(type: ContactType): boolean {
     return type === 'PHONE' || type === 'WHATSAPP';
+  }
+
+  // Bugfix (2026-08-02): inline per-field validation error state — see `fieldErrors` input doc.
+  protected hasFieldError(name: string): boolean {
+    return this.fieldErrors().includes(name);
+  }
+
+  protected inputClassFor(name: string): string {
+    return this.hasFieldError(name) ? ERROR_INPUT_CLASS : BASE_INPUT_CLASS;
   }
 
   protected onFieldChange(
