@@ -287,4 +287,66 @@ class StaffUserProvisioningIntegrationTest {
         assertThat(events.get(0).getAction()).isEqualTo("staff.user.create");
         assertThat(events.get(0).getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
     }
+
+    // user-role-selection-at-creation: REQ-2/REQ-3/REQ-5 end-to-end.
+
+    @Test
+    void staffAdminCreatesANewStaffUserWithRoleStaffAdminAndEmitsAuditEventWithTheRole() {
+        User admin = staffAdmin("admin-role-select@example.com");
+        Cookie session = logIn("admin-role-select@example.com");
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+        Cookie csrfCookie = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/staff/users")
+                        .cookie(session)
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"new-staffadmin-e2e@example.com\",\"role\":\"STAFF_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CREATED);
+
+        User created =
+                userRepository
+                        .findByEmailIgnoreCase("new-staffadmin-e2e@example.com")
+                        .orElseThrow();
+        assertThat(created.getGlobalRole()).isEqualTo(GlobalRole.STAFF_ADMIN);
+
+        List<br.com.conectabyte.knowly.audit.AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(admin.getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction()).isEqualTo("staff.user.create");
+                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.SUCCESS);
+                            assertThat(event.getMetadata()).contains("STAFF_ADMIN");
+                        });
+    }
+
+    @Test
+    void aStaffCallerRequestingRoleStaffAdminIsRejectedAndCreatesNoUser() {
+        limitedStaff("staff-role-select@example.com");
+        Cookie session = logIn("staff-role-select@example.com");
+        Cookie csrfCookie = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/staff/users")
+                        .cookie(session)
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"rejected-staffadmin-e2e@example.com\",\"role\":\"STAFF_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(userRepository.findByEmailIgnoreCase("rejected-staffadmin-e2e@example.com"))
+                .isEmpty();
+    }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
@@ -36,6 +37,7 @@ class TenantManagementIntegrationTest {
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
+    @Autowired private AuditEventRepository auditEventRepository;
     @MockitoBean private JavaMailSender mailSender;
 
     private Cookie logIn(String email) {
@@ -424,5 +426,104 @@ class TenantManagementIntegrationTest {
                         .exchange();
 
         assertThat(unassignResponse).hasStatus(HttpStatus.OK);
+    }
+
+    // user-role-selection-at-creation: REQ-7/REQ-8 end-to-end.
+
+    @Test
+    void aStaffAdminCanAddAMemberWithRoleMemberAdminAndTheAuditEventRecordsTheRole() {
+        User staffAdmin =
+                userRepository.saveAndFlush(new User("staffadmin-role-select@example.com"));
+        staffAdmin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staffAdmin);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Staff Admin Co"));
+
+        Cookie session = logIn("staffadmin-role-select@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"new-memberadmin-staff@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        User newMember =
+                userRepository
+                        .findByEmailIgnoreCase("new-memberadmin-staff@example.com")
+                        .orElseThrow();
+        assertThat(tenantMembershipRepository.findByUserAndActiveTrue(newMember).get(0).getRole())
+                .isEqualTo(MembershipRole.MEMBER_ADMIN);
+
+        var events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(staffAdmin.getId());
+        assertThat(events)
+                .anySatisfy(
+                        event -> {
+                            assertThat(event.getAction()).isEqualTo("tenant.member.add");
+                            assertThat(event.getMetadata()).contains("MEMBER_ADMIN");
+                        });
+    }
+
+    @Test
+    void aTenantsMemberAdminCanAddAMemberWithRoleMemberAdmin() {
+        User admin = userRepository.saveAndFlush(new User("tenantadmin-role-select@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Tenant Admin Co"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+
+        Cookie session = logIn("tenantadmin-role-select@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"new-memberadmin-tenant@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        User newMember =
+                userRepository
+                        .findByEmailIgnoreCase("new-memberadmin-tenant@example.com")
+                        .orElseThrow();
+        assertThat(tenantMembershipRepository.findByUserAndActiveTrue(newMember).get(0).getRole())
+                .isEqualTo(MembershipRole.MEMBER_ADMIN);
+    }
+
+    @Test
+    void aPlainMemberRequestingRoleMemberAdminIsRejectedAndCreatesNoMembership() {
+        User plainMember =
+                userRepository.saveAndFlush(new User("plainmember-role-select@example.com"));
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Role Select Plain Member Co"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("plainmember-role-select@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/members")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"rejected-memberadmin@example.com\",\"role\":\"MEMBER_ADMIN\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+        assertThat(userRepository.findByEmailIgnoreCase("rejected-memberadmin@example.com"))
+                .isEmpty();
     }
 }
