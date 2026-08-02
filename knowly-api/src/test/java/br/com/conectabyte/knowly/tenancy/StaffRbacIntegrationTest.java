@@ -103,6 +103,30 @@ class StaffRbacIntegrationTest {
     }
 
     /**
+     * CNPJ-amendment (2026-08-02): generates a checksum-valid, effectively-unique CNPJ per call
+     * (12-digit base derived from {@code System.nanoTime()}, check digits computed with the same
+     * mod-11 weights as {@code CnpjChecksumValidator}) -- a placeholder like {@code "TAXID" +
+     * System.nanoTime()} no longer passes shape validation now that REQ-6b/REQ-6c enforce a real
+     * 14-character CNPJ shape and checksum, not just "14 digits somewhere in the string."
+     */
+    private static String validCnpj() {
+        String base12 = Long.toString(System.nanoTime()).replaceAll("\\D", "");
+        base12 = (base12 + "000000000000").substring(0, 12);
+        int d1 = checkDigit(base12, new int[] {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2});
+        int d2 = checkDigit(base12 + d1, new int[] {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2});
+        return base12 + d1 + d2;
+    }
+
+    private static int checkDigit(String base, int[] weights) {
+        int sum = 0;
+        for (int i = 0; i < base.length(); i++) {
+            sum += (base.charAt(i) - '0') * weights[i];
+        }
+        int remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
+    }
+
+    /**
      * tenant-creation: full {@code POST /api/tenants} payload (company identification + first
      * admin's complete mandatory profile), per specify/features/tenant-creation/PLAN.md's "API
      * contracts" section.
@@ -138,9 +162,7 @@ class StaffRbacIntegrationTest {
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                                createTenantPayload(
-                                        "TAXID" + System.nanoTime(), "tenant-admin@acme.com"))
+                        .content(createTenantPayload(validCnpj(), "tenant-admin@acme.com"))
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
@@ -179,8 +201,7 @@ class StaffRbacIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 createTenantPayload(
-                                        "TAXID" + System.nanoTime(),
-                                        "tenant-admin-directgrant@acme.com"))
+                                        validCnpj(), "tenant-admin-directgrant@acme.com"))
                         .exchange();
 
         assertThat(createResponse).hasStatus(HttpStatus.OK);

@@ -40,4 +40,15 @@ class TaxIdValidatorTest {
         assertThat(TaxIdValidator.isValid(" br ", "12345678000199")).isTrue();
         assertThat(TaxIdValidator.isValid("bR", "not-14-digits")).isFalse();
     }
+
+    @Test
+    void brazilWithAlphanumericBasePasses() {
+        // REQ-6b: letters allowed in the first 12 characters, digits-only in the last 2.
+        assertThat(TaxIdValidator.isValid("BR", "12ABC34501DE35")).isTrue();
+    }
+
+    @Test
+    void brazilWithLetterInCheckDigitsFails() {
+        assertThat(TaxIdValidator.isValid("BR", "1234567800019A")).isFalse();
+    }
 }

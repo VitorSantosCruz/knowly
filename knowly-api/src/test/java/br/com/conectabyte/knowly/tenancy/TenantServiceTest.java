@@ -973,7 +973,7 @@ class TenantServiceTest {
     void createTenantPersistsEveryNewFieldAndDefaultsRoleToMemberAdmin() {
         User staff = staffAdmin("create-tenant-full@example.com");
         authenticateAs("create-tenant-full@example.com");
-        String taxId = "12345678000199";
+        String taxId = "12345678000195";
         CreateTenantRequestDto request =
                 createTenantRequest("Full Field Co", taxId, "admin-full@example.com", null);
 
@@ -1007,7 +1007,7 @@ class TenantServiceTest {
     @Test
     void createTenantHonorsAnExplicitlySubmittedRole() {
         User staff = staffAdmin("create-tenant-explicit-role@example.com");
-        String taxId = "12345678000280";
+        String taxId = "12345678000276";
         CreateTenantRequestDto request =
                 createTenantRequest(
                         "Explicit Role Co",
@@ -1026,7 +1026,7 @@ class TenantServiceTest {
     @Test
     void createTenantWithATaxIdCollisionThrowsAndPersistsNoRow() {
         User staff = staffAdmin("create-tenant-collision@example.com");
-        String taxId = "12345678000371";
+        String taxId = "12345678000357";
         Tenant collidingTenant = new Tenant("Existing Tax Owner");
         collidingTenant.setTaxId(taxId);
         tenantRepository.saveAndFlush(collidingTenant);
@@ -1041,13 +1041,43 @@ class TenantServiceTest {
     }
 
     @Test
+    void createTenantWithABrazilChecksumInvalidTaxIdThrowsAndPersistsNoRow() {
+        User staff = staffAdmin("create-tenant-invalid-checksum@example.com");
+        String invalidTaxId = "12345678000198"; // right shape, wrong check digits
+        CreateTenantRequestDto request =
+                createTenantRequest(
+                        "Bad Checksum Co", invalidTaxId, "admin-bad-checksum@example.com", null);
+
+        assertThatThrownBy(() -> tenantService.createTenant(staff, request))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.InvalidTaxIdException.class);
+
+        assertThat(userRepository.findByEmailIgnoreCase("admin-bad-checksum@example.com"))
+                .isEmpty();
+        assertThat(tenantRepository.existsByTaxIdAndDeletedAtIsNull(invalidTaxId)).isFalse();
+    }
+
+    @Test
+    void createTenantWithAPunctuatedValidCnpjPersistsTheNormalizedValue() {
+        User staff = staffAdmin("create-tenant-punctuated@example.com");
+        String punctuated = "12.345.678/0010-86";
+        CreateTenantRequestDto request =
+                createTenantRequest(
+                        "Punctuated Co", punctuated, "admin-punctuated@example.com", null);
+
+        Tenant created = tenantService.createTenant(staff, request);
+
+        assertThat(created.getTaxId()).isEqualTo("12345678001086");
+    }
+
+    @Test
     void createTenantWithAnAlreadyExistingAdminEmailThrowsAndPersistsNoTenant() {
         User staff = staffAdmin("create-tenant-existing-email@example.com");
         userRepository.saveAndFlush(new User("already-exists@example.com"));
 
         CreateTenantRequestDto request =
                 createTenantRequest(
-                        "Existing Email Co", "12345678000462", "already-exists@example.com", null);
+                        "Existing Email Co", "12345678000519", "already-exists@example.com", null);
 
         long tenantCountBefore = tenantRepository.count();
 
@@ -1446,7 +1476,7 @@ class TenantServiceTest {
         User user = userRepository.saveAndFlush(new User("non-staff-create-tenant@example.com"));
         CreateTenantRequestDto request =
                 createTenantRequest(
-                        "Forbidden Co", "12345678000553", "admin-forbidden@example.com", null);
+                        "Forbidden Co", "12345678000608", "admin-forbidden@example.com", null);
 
         assertThatThrownBy(() -> tenantService.createTenant(user, request))
                 .isInstanceOf(PermissionDeniedException.class);

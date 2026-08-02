@@ -17,35 +17,44 @@ fixed in this recreation from the start).
 **New components (`br.com.conectabyte.knowly.tenancy.validation`,
 alongside the existing `TaxIdValidator`/`ValidTaxId`):**
 
-- **`TaxIdNormalizer`** (new, package-private, tenancy-module-scoped) —
+- **`TaxIdNormalizer`** (new, **public**, tenancy-module-scoped) —
   a single static method, `normalize(String taxId)`, that strips `.`,
-  `-`, and `/` characters (REQ-6a). Deliberately **not** shared with
-  `identity` module's own CPF-normalization logic (which does the
-  same character-stripping for `cpf`) — this is a small, intentional
-  duplication across a module boundary the codebase already treats as
-  a hard seam (`identity` vs. `tenancy`), rather than introducing a
-  new shared "common validation" module for two four-line methods.
-  Called before any other `taxId` processing.
-- **`CnpjChecksumValidator`** (new, package-private) — `boolean
-  isValid(String normalizedTaxId)`, applied only when `country`
-  denotes Brazil and only after REQ-6's shape check
-  (`TaxIdValidator.isValid`) already passed on the *normalized* value
-  (REQ-6b: shape check is now "14 characters," digits-or-letters in
-  the first 12, digits in the last 2). Algorithm (REQ-6c, exact
-  weights already appsec-verified):
+  `-`, and `/` characters (REQ-6a). Public rather than package-private
+  because `TenantService` lives in the parent `tenancy` package, not
+  `tenancy.validation`, and needs to call it directly for the REQ-6d
+  ordering fix. Deliberately **not** shared with `identity` module's
+  own CPF-normalization logic (which does the same character-stripping
+  for `cpf`) — this is a small, intentional duplication across a module
+  boundary the codebase already treats as a hard seam (`identity` vs.
+  `tenancy`), rather than introducing a new shared "common validation"
+  module for two four-line methods. Called before any other `taxId`
+  processing.
+- **`CnpjChecksumValidator`** (new, **public**, same cross-package
+  reason as `TaxIdNormalizer`) — `boolean isValid(String
+  normalizedTaxId)`, applied only when `country` denotes Brazil and
+  only after REQ-6's shape check (`TaxIdValidator.isValid`) already
+  passed on the *normalized* value (REQ-6b: shape check is now "14
+  characters," digits-or-letters in the first 12, digits in the last
+  2). Algorithm (REQ-6c):
   1. Each character's numeric value: `Character.toUpperCase(c) - 48`
      (ASCII '0' is 48; for digits this is the digit's value, for
      uppercase letters `A`–`Z` this yields 17–42, per Receita
      Federal's alphanumeric-CNPJ convention — same "alphanumeric-
      adjusted" adjustment named in SPEC REQ-6c).
   2. First check digit: weighted sum of the first 12 characters'
-     values against weights `6,5,4,3,2,9,8,7,6,5,4,3` (index-aligned,
-     leftmost character × 6); `remainder = sum % 11`; expected digit =
+     values against weights `5,4,3,2,9,8,7,6,5,4,3,2` (index-aligned,
+     leftmost character × 5); `remainder = sum % 11`; expected digit =
      `remainder < 2 ? 0 : 11 - remainder`. Compare against character
-     13.
+     13. **(Corrected during implementation — see "Deviations from
+     this PLAN": the weight sequence first recorded here,
+     `6,5,4,3,2,9,8,7,6,5,4,3`, did not reproduce the real/published
+     CNPJ fixtures below; these are the standard Receita Federal
+     weights, verified against all three numeric fixtures.)**
   3. Second check digit: same rule over the first 13 characters
      (original 12 + the now-known-correct check digit 1) against
-     weights `7,6,5,4,3,2,9,8,7,6,5,4,3`. Compare against character 14.
+     weights `6,5,4,3,2,9,8,7,6,5,4,3,2`. Compare against character 14.
+     **(Corrected alongside the first — was
+     `7,6,5,4,3,2,9,8,7,6,5,4,3`.)**
   4. Valid only if both computed digits match the submitted ones.
 - **`InvalidTaxIdException`** (new,
   `br.com.conectabyte.knowly.tenancy.exception`, mirrors
@@ -648,6 +657,28 @@ package/type introduced by this amendment beyond the two new fields on
 
 ## Deviations from this PLAN (discovered during implementation)
 
+- **CNPJ checksum weight sequences corrected (2026-08-02, CNPJ
+  amendment).** This PLAN's first draft of the "Changelog / Amends
+  (CNPJ normalization + checksum)" section recorded weights
+  `6,5,4,3,2,9,8,7,6,5,4,3` (first digit) / `7,6,5,4,3,2,9,8,7,6,5,4,3`
+  (second digit). Implementing `CnpjChecksumValidatorTest` against the
+  three real/published CNPJ fixtures in that same section's table
+  (`11222333000181`, `11444777000161`, `01838723000127`) showed those
+  weights do not reproduce any of the three known-valid values.
+  Recomputed and verified: the standard Receita Federal mod-11 weight
+  sequences, `5,4,3,2,9,8,7,6,5,4,3,2` (first digit, 12 weights) and
+  `6,5,4,3,2,9,8,7,6,5,4,3,2` (second digit, 13 weights), reproduce all
+  three fixtures exactly. `CnpjChecksumValidator` and this PLAN's
+  algorithm description above use the corrected sequences; the
+  alphanumeric fixture (`12ABC34501DE35`) was computed against the
+  corrected weights, not the original ones.
+- **`TaxIdNormalizer`/`CnpjChecksumValidator` are `public`, not
+  package-private as this PLAN's first draft stated** — `TenantService`
+  lives in the parent `tenancy` package, a different Java package than
+  `tenancy.validation`, so package-private visibility would not compile
+  across that boundary. Both classes stay `final` with a private
+  constructor (pure static-method utility classes), just not
+  package-private.
 - **Migration number is `V23`, as this PLAN assumed** — confirmed against
   `ls src/main/resources/db/migration/` before writing it (highest
   existing was `V22`); no renumbering needed.

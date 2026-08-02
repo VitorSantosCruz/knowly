@@ -84,21 +84,23 @@
 
 ## Amendment: CNPJ normalization + checksum (2026-08-02)
 
-- [ ] 12. `TaxIdNormalizer` (new,
-      `br.com.conectabyte.knowly.tenancy.validation`, package-private):
-      `normalize(String)` strips `.`/`-`/`/`. Test
+- [x] 12. `TaxIdNormalizer` (new,
+      `br.com.conectabyte.knowly.tenancy.validation`, public -- not
+      package-private as originally planned, see PLAN.md's
+      "Deviations"): `normalize(String)` strips `.`/`-`/`/`. Test
       (`TaxIdNormalizerTest`, unit): punctuated CNPJ normalizes to
       digits/letters-only; already-normalized input is unchanged; `null`/
       blank handled without throwing (Red first, then implement).
-- [ ] 13. `CnpjChecksumValidator` (new, same package, package-private):
-      `isValid(String normalizedTaxId)` implementing the two-check-digit
-      mod-11 algorithm (PLAN.md's exact weight sequences and
-      alphanumeric-value adjustment). Test
+- [x] 13. `CnpjChecksumValidator` (new, same package, public for the
+      same reason): `isValid(String normalizedTaxId)` implementing the
+      two-check-digit mod-11 algorithm (PLAN.md's weight sequences,
+      corrected during implementation -- see PLAN.md's "Deviations" --
+      and alphanumeric-value adjustment). Test
       (`CnpjChecksumValidatorTest`, unit): all six fixture pairs from
       PLAN.md's table (three valid, three invalid — one wrong digit
       each) plus one valid alphanumeric-format CNPJ; wrong-length input
       is rejected without throwing (Red first, then implement).
-- [ ] 14. `TaxIdValidator.isValid` updated to call
+- [x] 14. `TaxIdValidator.isValid` updated to call
       `TaxIdNormalizer.normalize` before the length/shape check, and to
       accept 14-character alphanumeric bases (REQ-6b: digits-or-letters
       in the first 12 characters, digits only in the last 2) instead of
@@ -107,13 +109,13 @@
       passed); the alphanumeric fixture passes shape validation; a
       14-character value with a letter in one of the last two positions
       fails shape validation.
-- [ ] 15. `InvalidTaxIdException` (new,
+- [x] 15. `InvalidTaxIdException` (new,
       `br.com.conectabyte.knowly.tenancy.exception`, mirrors
       `InvalidCpfException`'s shape) + `TenancyExceptionHandler
       #handleInvalidTaxId` → 400 `INVALID_TAX_ID`. Test: handler unit
       test asserting the exact status/code, mirroring the existing
       `InvalidCpfException` handler test's shape.
-- [ ] 16. `TenantService#createTenant` rewritten per PLAN.md's corrected
+- [x] 16. `TenantService#createTenant` rewritten per PLAN.md's corrected
       ordering: normalize `taxId` first, run
       `CnpjChecksumValidator.isValid` (Brazil only) and throw
       `InvalidTaxIdException` on failure, **then** run the existing
@@ -126,7 +128,7 @@
       the checksum throw); Brazil + valid punctuated `taxId` persists
       the normalized (unpunctuated) value; non-Brazil `taxId` skips
       checksum validation entirely.
-- [ ] 17. Integration regression test (new focused test class or an
+- [x] 17. Integration regression test (new focused test class or an
       addition to `TenantManagementIntegrationTest`): two sequential
       `POST /api/tenants` calls with `11222333000181` then
       `11.222.333/0001-81` (different admin emails, otherwise identical
@@ -136,10 +138,27 @@
       Brazil `taxId` (e.g. `11222333000180`) is rejected 400
       `INVALID_TAX_ID` and creates no row; a single `POST /api/tenants`
       with the alphanumeric-format fixture succeeds.
-- [ ] 18. Full acceptance-criteria pass: re-verify every new checkbox
+- [x] 18. Full acceptance-criteria pass: re-verify every new checkbox
       added to SPEC.md's "Acceptance criteria" (2026-08-02 additions)
       against the finished implementation; update PLAN.md's "Deviations
       from this PLAN" section with anything that changed during
       implementation.
-- [ ] 19. Run `./mvnw spotless:apply && ./mvnw verify` and confirm the
+
+      **Deviation found during this pass:** the stricter REQ-6b shape
+      check (exactly 14 characters total, not "contains 14 digits
+      somewhere") broke two pre-existing, unrelated test fixtures that
+      used a placeholder `"TAXID" + System.nanoTime()` value —
+      `StaffRbacIntegrationTest` and `TenantManagementIntegrationTest`.
+      The old, looser `TaxIdValidator` stripped *all* non-digit
+      characters and only checked the resulting digit *count* (`== 14`),
+      so a string like `"TAXID68619882341307"` (5 letters + 14 digits =
+      19 characters) passed by accident. The new shape check correctly
+      rejects it (19 characters total, not 14). Both files gained a
+      `validCnpj()`/`checkDigit(...)` test helper (mirrors
+      `CnpjChecksumValidator`'s algorithm, generates a checksum-valid,
+      effectively-unique CNPJ per call from `System.nanoTime()`) to
+      replace the placeholder — not a scope change, a fix to test
+      fixtures that were exploiting a bug in the code this amendment
+      corrects.
+- [x] 19. Run `./mvnw spotless:apply && ./mvnw verify` and confirm the
       full suite is green before committing.

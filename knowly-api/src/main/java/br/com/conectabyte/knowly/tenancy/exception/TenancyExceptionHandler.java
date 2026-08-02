@@ -85,4 +85,10 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new TenancyErrorResponseDto("INVALID_TENANT_EDIT"));
     }
+
+    @ExceptionHandler(InvalidTaxIdException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidTaxId(InvalidTaxIdException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_TAX_ID"));
+    }
 }

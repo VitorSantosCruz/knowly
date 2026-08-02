@@ -15,14 +15,19 @@ public class TaxIdValidator implements ConstraintValidator<ValidTaxId, CreateTen
      * every case directly without instantiating the full {@link CreateTenantRequestDto} or a
      * validator context.
      */
+    private static final java.util.regex.Pattern BRAZIL_TAX_ID_SHAPE =
+            java.util.regex.Pattern.compile("^[0-9A-Za-z]{12}[0-9]{2}$");
+
     static boolean isValid(String country, String taxId) {
         if (taxId == null || taxId.isBlank()) {
             return false;
         }
 
         if (country != null && BRAZIL_LITERALS.contains(country.trim().toLowerCase())) {
-            String digitsOnly = taxId.replaceAll("\\D", "");
-            return digitsOnly.length() == 14;
+            // REQ-6a/REQ-6b: normalize before checking shape, and accept the newer alphanumeric
+            // CNPJ format (letters in the first 12 characters, digits only in the last 2).
+            String normalized = TaxIdNormalizer.normalize(taxId);
+            return BRAZIL_TAX_ID_SHAPE.matcher(normalized).matches();
         }
 
         return true;

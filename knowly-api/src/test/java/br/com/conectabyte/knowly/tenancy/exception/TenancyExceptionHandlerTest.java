@@ -29,4 +29,13 @@ class TenancyExceptionHandlerTest {
         assertThat(response.getBody())
                 .isEqualTo(new TenancyErrorResponseDto("TENANT_ALREADY_EXISTS"));
     }
+
+    @Test
+    void invalidTaxIdExceptionMapsTo400WithInvalidTaxIdCode() {
+        ResponseEntity<TenancyErrorResponseDto> response =
+                handler.handleInvalidTaxId(new InvalidTaxIdException());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isEqualTo(new TenancyErrorResponseDto("INVALID_TAX_ID"));
+    }
 }

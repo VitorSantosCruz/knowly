@@ -23,12 +23,15 @@ import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidTaxIdException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidTenantEditException;
 import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException;
+import br.com.conectabyte.knowly.tenancy.validation.CnpjChecksumValidator;
+import br.com.conectabyte.knowly.tenancy.validation.TaxIdNormalizer;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -317,7 +320,17 @@ public class TenantService {
             throw new TenantAlreadyExistsException();
         }
 
-        if (tenantRepository.existsByTaxIdAndDeletedAtIsNull(request.taxId())) {
+        // REQ-6a/REQ-6d: normalize (and, for Brazil, checksum-validate) `taxId` BEFORE the
+        // duplicate check below, and use the normalized value for that check and for persistence --
+        // otherwise two submissions of the same CNPJ differing only in punctuation would both look
+        // like distinct values to `existsByTaxIdAndDeletedAtIsNull` and only collide at the DB's
+        // unique index.
+        String normalizedTaxId = TaxIdNormalizer.normalize(request.taxId());
+        if (isBrazil(request.country()) && !CnpjChecksumValidator.isValid(normalizedTaxId)) {
+            throw new InvalidTaxIdException();
+        }
+
+        if (tenantRepository.existsByTaxIdAndDeletedAtIsNull(normalizedTaxId)) {
             throw new TenantAlreadyExistsException();
         }
 
@@ -325,7 +338,7 @@ public class TenantService {
                 new Tenant(
                         request.name(),
                         request.legalName(),
-                        request.taxId(),
+                        normalizedTaxId,
                         request.country(),
                         request.contactEmail(),
                         request.contactPhone(),
@@ -1061,6 +1074,13 @@ public class TenantService {
         }
 
         throw new PermissionDeniedException();
+    }
+
+    private static final Set<String> BRAZIL_COUNTRY_LITERALS = Set.of("br", "brazil", "brasil");
+
+    /** REQ-6/REQ-6c: matches {@code TaxIdValidator}'s own Brazil-literal detection. */
+    private static boolean isBrazil(String country) {
+        return country != null && BRAZIL_COUNTRY_LITERALS.contains(country.trim().toLowerCase());
     }
 
     /**

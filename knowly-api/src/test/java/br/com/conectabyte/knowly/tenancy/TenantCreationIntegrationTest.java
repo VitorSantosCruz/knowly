@@ -110,7 +110,7 @@ class TenantCreationIntegrationTest {
         User staff = staffAdmin("full-valid@example.com");
         Cookie session = logIn("full-valid@example.com");
         Cookie csrf = obtainCsrfCookie();
-        String taxId = "12345678000199";
+        String taxId = "12345678001167";
 
         var response =
                 mockMvc.post()
@@ -226,7 +226,7 @@ class TenantCreationIntegrationTest {
         staffAdmin("dup-taxid@example.com");
         Cookie session = logIn("dup-taxid@example.com");
         Cookie csrf = obtainCsrfCookie();
-        String taxId = "12345678000462";
+        String taxId = "12345678001248";
         Tenant existing = new Tenant("Existing Tax Owner Dup");
         existing.setTaxId(taxId);
         tenantRepository.saveAndFlush(existing);
@@ -403,5 +403,116 @@ class TenantCreationIntegrationTest {
 
         assertThat(response).hasStatus(HttpStatus.CONFLICT);
         assertThat(tenantRepository.findAll()).noneMatch(t -> t.getTaxId().equals(taxId));
+    }
+
+    @Test
+    void brazilChecksumInvalidTaxIdIsRejectedWith400InvalidTaxId() throws Exception {
+        staffAdmin("bad-checksum@example.com");
+        Cookie session = logIn("bad-checksum@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                basePayload(
+                                        "Bad Checksum Co",
+                                        "Bad Checksum Ltda",
+                                        "12345678000198",
+                                        "BR",
+                                        "contact@badchecksum.com",
+                                        "admin-badchecksum@example.com"))
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("INVALID_TAX_ID");
+        assertThat(userRepository.findByEmailIgnoreCase("admin-badchecksum@example.com")).isEmpty();
+        assertThat(tenantRepository.findAll())
+                .noneMatch(t -> "12345678000198".equals(t.getTaxId()));
+    }
+
+    @Test
+    void brazilAlphanumericChecksumValidTaxIdSucceeds() {
+        staffAdmin("alphanumeric-cnpj@example.com");
+        Cookie session = logIn("alphanumeric-cnpj@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                basePayload(
+                                        "Alphanumeric Co",
+                                        "Alphanumeric Ltda",
+                                        "12ABC34501DE35",
+                                        "BR",
+                                        "contact@alphanumeric.com",
+                                        "admin-alphanumeric@example.com"))
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(tenantRepository.findAll()).anyMatch(t -> "12ABC34501DE35".equals(t.getTaxId()));
+    }
+
+    @Test
+    void sameCnpjWithDifferentPunctuationIsRejectedAsDuplicateNotAConstraintViolation()
+            throws Exception {
+        staffAdmin("punct-dup@example.com");
+        Cookie session = logIn("punct-dup@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var firstResponse =
+                mockMvc.post()
+                        .uri("/api/tenants")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                basePayload(
+                                        "Punct Dup Co",
+                                        "Punct Dup Ltda",
+                                        "11222333000181",
+                                        "BR",
+                                        "contact@punctdup.com",
+                                        "admin-punctdup-1@example.com"))
+                        .exchange();
+        assertThat(firstResponse).hasStatus(HttpStatus.OK);
+
+        Cookie csrf2 = obtainCsrfCookie();
+        var secondResponse =
+                mockMvc.post()
+                        .uri("/api/tenants")
+                        .cookie(session)
+                        .cookie(csrf2)
+                        .header("X-XSRF-TOKEN", csrf2.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                basePayload(
+                                        "Punct Dup Co Two",
+                                        "Punct Dup Ltda Two",
+                                        "11.222.333/0001-81",
+                                        "BR",
+                                        "contact2@punctdup.com",
+                                        "admin-punctdup-2@example.com"))
+                        .exchange();
+
+        assertThat(secondResponse).hasStatus(HttpStatus.CONFLICT);
+        assertThat(secondResponse.getResponse().getContentAsString())
+                .contains("TENANT_ALREADY_EXISTS");
+        assertThat(userRepository.findByEmailIgnoreCase("admin-punctdup-2@example.com")).isEmpty();
+        assertThat(
+                        tenantRepository.findAll().stream()
+                                .filter(t -> "11222333000181".equals(t.getTaxId()))
+                                .count())
+                .isEqualTo(1);
     }
 }
