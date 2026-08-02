@@ -5,6 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { NavMenuComponent } from './nav-menu.component';
 import { ActiveTenantService } from '../core/active-tenant.service';
+import { ALL_PERMISSIONS } from '../core/permission';
 import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
 
 describe('NavMenuComponent', () => {
@@ -212,11 +213,11 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeFalsy();
   });
 
-  it('shows Dashboard/Articles/Conversations/Members for a MEMBER_ADMIN with zero explicit permission grants (member-admin-tenant-bypass frontend follow-up)', () => {
+  it('shows Dashboard/Articles/Conversations/Members for a MEMBER_ADMIN, whose /api/tenants/permissions response now includes the full permission set (member-admin-tenant-bypass, backend fix)', () => {
     fixture.detectChanges();
     flush({
       memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
-      tenantPermissions: [],
+      tenantPermissions: ALL_PERMISSIONS,
     });
     fixture.detectChanges();
 

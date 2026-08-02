@@ -253,22 +253,10 @@ export class NavMenuComponent implements OnInit {
       this.viewerIsStaffAdmin(),
   );
 
-  // member-admin-tenant-bypass (backend, 2026-07-29): PermissionAspect unconditionally passes
-  // every tenant-scoped permission check for a MEMBER_ADMIN in their active tenant, but nothing
-  // client-side reflected that — a MEMBER_ADMIN with no explicit AccessGroup/direct grants saw
-  // almost no nav items. Mirrors canSeeProfileEditRequests()'s existing role-check pattern:
-  // MEMBER_ADMIN short-circuits every tenant-scoped nav item to visible, regardless of
-  // permissionsService.has(...). Tenant-scoped only (activeTenantRole(), not a global check) —
-  // staff/global-scope items are untouched.
-  private readonly viewerIsActiveTenantMemberAdmin = computed(
-    () => this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN',
-  );
-
   protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
     const groups: NavMenuGroup[] = [];
 
     if (
-      this.viewerIsActiveTenantMemberAdmin() ||
       this.permissionsService.has('DASHBOARD_VIEW') ||
       this.globalPermissionsService.has('DASHBOARD_VIEW_GLOBAL')
     ) {
@@ -286,7 +274,7 @@ export class NavMenuComponent implements OnInit {
     }
 
     const knowledgeItems: NavMenuItem[] = [];
-    if (this.viewerIsActiveTenantMemberAdmin() || this.permissionsService.has('ARTICLE_VIEW')) {
+    if (this.permissionsService.has('ARTICLE_VIEW')) {
       knowledgeItems.push({
         labelKey: 'nav.articles',
         testId: 'nav-articles',
@@ -295,7 +283,7 @@ export class NavMenuComponent implements OnInit {
         routerLink: '/articles',
       });
     }
-    if (this.viewerIsActiveTenantMemberAdmin() || this.permissionsService.has('CONVERSATION_USE')) {
+    if (this.permissionsService.has('CONVERSATION_USE')) {
       knowledgeItems.push({
         labelKey: 'nav.conversations',
         testId: 'nav-conversations',
@@ -309,7 +297,6 @@ export class NavMenuComponent implements OnInit {
 
     const teamItems: NavMenuItem[] = [];
     if (
-      this.viewerIsActiveTenantMemberAdmin() ||
       this.permissionsService.has('TENANT_MEMBER_MANAGE') ||
       this.globalPermissionsService.has('STAFF_USER_VIEW')
     ) {

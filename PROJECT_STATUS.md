@@ -242,6 +242,26 @@ OR-check (commit `18e505d`) is now redundant now that the backend is the
 single source of truth again — slated for removal in a separate
 follow-up, not done here (out of scope for a backend-only task).
 
+**Frontend stopgap removed (2026-08-01): done.** Now that
+`TenantService.ownEffectivePermissions` returns the full `Permission` set
+for a `MEMBER_ADMIN` (see above), `nav-menu.component.ts`'s
+`viewerIsActiveTenantMemberAdmin` computed (added in `18e505d`) is gone,
+along with every OR-check it fed into (Dashboard, Articles,
+Conversations, Members) — each now depends purely on
+`permissionsService.has(x)` again, exactly mirroring how the equivalent
+staff-scoped items rely purely on `globalPermissionsService.has(x)` with
+no role-check OR'd in. `canSeeProfileEditRequests()`'s
+`membership.role === 'MEMBER_ADMIN'` check is untouched (REQ-19,
+"anywhere" visibility across every membership, not just the active
+tenant — a different rationale, not a stopgap). The
+`nav-menu.component.spec.ts` test from `18e505d` (MEMBER_ADMIN with
+`tenantPermissions: []` still visible) is replaced by one asserting a
+MEMBER_ADMIN whose `tenantPermissions` fixture is the full
+`ALL_PERMISSIONS` set (matching what the backend now actually returns)
+sees the nav items — testing the real contract, not the old workaround's
+mechanism. 494/494 frontend tests green, `format:check`/`build`/`lint`
+clean. This closes the loop opened above.
+
 **Also queued, independent of the item-5 priority order below:**
 `primeng-migration` (2026-07-25) was fully replaced one day later by
 `primeng-removal` (2026-07-26) — the owner reverted the PrimeNG
@@ -933,7 +953,7 @@ the feature's own SPEC.
 | `global-staff-dashboard-metrics` | ✅ Done | `GET /api/staff/metrics/global` (`GlobalMetricsController`/`GlobalMetricsService`/`GlobalMetricsDto`) exposes global counts for `STAFF_ADMIN` or a `STAFF` caller holding `GlobalPermission.DASHBOARD_VIEW_GLOBAL`, including a "new tenants this month" UTC-calendar-month boundary case (tightened during QA review to assert the exact millisecond boundary, not just a ±1-day margin). Full-suite `./mvnw verify` green (339/339), `qa-test-automation`/`appsec` reviewed with no blocking findings. |
 | `tenant-pagination-search` | ✅ Done (backend) | `GET /api/tenants` breaking-changed from an unbounded `List<TenantSummaryDto>` to a paginated `PageResponseDto<TenantSummaryDto>` envelope (`content`/`page`/`size`/`totalElements`/`totalPages`). New `page`/`size` query params (defaults `0`/`20`, `size` clamped to `100`, negative `page` or `size<=0` rejected with `400 INVALID_PAGINATION` via new `InvalidPaginationException`), plus an optional `search` param matching `Tenant.name`/`cnpj`/`razaoSocial` case-insensitively (OR'd) via a new DB-level `TenantRepository.search(String, Pageable)` `@Query`, sorted server-side by `name` ascending only (no client-supplied sort). Authorization unchanged (`requireStaff`/`GlobalPermission.TENANT_ACT_AS_ANY`). This is the first page/size pagination contract in this codebase — see `DECISIONS.md` for the `@Query`-over-`Specification`/fixed-sort/`PageResponseDto`-placement judgment calls, intended as the default template for future paginated endpoints. Full-suite `./mvnw verify` green (377/377, ~21 min real elapsed — the ~12 min figure previously in this file was stale). Companion frontend (`/select-tenant`'s consumption of the new envelope shape) is now also done — see that row in the frontend feature table above; both sides fully closed. |
 | `staff-audit-trail-view` | ✅ Done | `GET /api/staff/users/{userId}/audit-trail` (`StaffController.auditTrail`/`StaffService.getAuditTrail`/`AuditEventDto`) returns a target user's full audit history — deliberately **cross-tenant, `TenantFilter`-bypassing by design** (`AuditEvent` isn't a `TenantAwareEntity`, so no special plumbing was needed) — capped at the 500 most recent rows via a new `AuditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc` (DB-enforced `LIMIT`, backed by the pre-existing `ix_audit_events_actor_time` composite index, no new migration). Gated by new `GlobalPermission.AUDIT_TRAIL_VIEW`, ceiling-independent (REQ-9: viewing a `STAFF`/`STAFF_ADMIN` target's trail is unaffected by the `role-model-refinement` management ceiling). The call itself is audited (`staff.audit_trail.view`). Full-suite `./mvnw verify` green; `qa-test-automation` independently confirmed every REQ/acceptance criterion (including the cross-tenant, 500-cap, ceiling-independence, and self-audit cases) is covered by a real passing test; `appsec` re-reviewed the implementation against the SPEC's confirmed REQ-4 exposure and found no new issue — verdict "ship it," no blocking findings. |
-| `member-admin-tenant-bypass` | ✅ Done | `MembershipRole.MEMBER_ADMIN` now gets an unconditional `PermissionAspect.checkPermission` bypass in their own active tenant (mirrors `STAFF_ADMIN`'s global bypass), scoped via the existing `requireActiveMembership()` lookup — no new DB round trip, no client-supplied tenant id. New `TenantService.requireNotSelfTarget` guard blocks any caller (role-agnostic) from targeting their own account via `addMember`/`grantPermission`/`revokePermission`/`assignAccessGroup`/`unassignAccessGroup`; denial is a `DENIED` audit event via the pre-existing `AuditLogAspect`, no new audit code. Full-suite `./mvnw verify` green (416/416). Follow-up (2026-07-30): `removeMember` now also covered by the same guard — see above. Frontend follow-up (2026-08-01): `nav-menu.component.ts` now shows Dashboard/Articles/Conversations/Members for a `MEMBER_ADMIN` regardless of explicit permission grants, mirroring `canSeeProfileEditRequests()`'s role-check pattern — see above. |
+| `member-admin-tenant-bypass` | ✅ Done | `MembershipRole.MEMBER_ADMIN` now gets an unconditional `PermissionAspect.checkPermission` bypass in their own active tenant (mirrors `STAFF_ADMIN`'s global bypass), scoped via the existing `requireActiveMembership()` lookup — no new DB round trip, no client-supplied tenant id. New `TenantService.requireNotSelfTarget` guard blocks any caller (role-agnostic) from targeting their own account via `addMember`/`grantPermission`/`revokePermission`/`assignAccessGroup`/`unassignAccessGroup`; denial is a `DENIED` audit event via the pre-existing `AuditLogAspect`, no new audit code. Full-suite `./mvnw verify` green (416/416). Follow-up (2026-07-30): `removeMember` now also covered by the same guard — see above. Frontend follow-up (2026-08-01): `nav-menu.component.ts` initially added a role-check OR-workaround, since removed now that `ownEffectivePermissions` returns the full permission set for `MEMBER_ADMIN` server-side — the component's nav-item visibility is purely `permissionsService.has(x)`-driven again, no frontend special-casing left — see above. |
 
 ## Feature status — frontend (`knowly-app/`)
 
