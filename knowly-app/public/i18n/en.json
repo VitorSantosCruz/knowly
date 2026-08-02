@@ -362,6 +362,8 @@
     "legalName": "Legal name",
     "taxId": "Tax ID",
     "taxIdCnpjShape": "Enter a 14-digit CNPJ, with or without punctuation.",
+    "taxIdCnpjChecksum": "This CNPJ's check digits don't match. Please double-check the number.",
+    "taxIdInvalid": "This CNPJ is not valid. Please double-check the number.",
     "country": "Country",
     "contactEmail": "Contact email",
     "contactPhone": "Contact phone",

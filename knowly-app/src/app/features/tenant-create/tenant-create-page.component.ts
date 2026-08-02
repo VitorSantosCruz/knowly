@@ -55,6 +55,40 @@ function isBrazil(country: string | null | undefined): boolean {
   return BRAZIL_NAMES.includes((country ?? '').trim().toLowerCase());
 }
 
+// REQ-22-24: pure, non-authoritative mirror of backend CnpjChecksumValidator -- exact same weight
+// sequences and alphanumeric-value adjustment, for early UX feedback only. The backend always
+// re-validates regardless of what this accepts (REQ-24); this mirror is deliberately not shared
+// code with the backend (different language, no cross-subproject sharing mechanism) and is allowed
+// to be tested/maintained independently.
+function isValidCnpj(value: string): boolean {
+  const chars = value.toUpperCase();
+  if (chars.length !== 14) {
+    return false;
+  }
+
+  const charValue = (c: string) => c.charCodeAt(0) - 48;
+  const weightedSum = (base: string, weights: number[]) =>
+    base
+      .split('')
+      .map(charValue)
+      .reduce((sum, value, i) => sum + value * (weights.at(i) ?? 0), 0);
+  const expectedDigit = (sum: number) => {
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+
+  const base12 = chars.slice(0, 12);
+  const digit1 = expectedDigit(weightedSum(base12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]));
+  if (digit1 !== charValue(chars[12])) {
+    return false;
+  }
+
+  const digit2 = expectedDigit(
+    weightedSum(base12 + digit1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]),
+  );
+  return digit2 === charValue(chars[13]);
+}
+
 function taxIdValidator(control: AbstractControl): ValidationErrors | null {
   const value = (control.value ?? '').toString().trim();
   if (!value) {
@@ -66,6 +100,11 @@ function taxIdValidator(control: AbstractControl): ValidationErrors | null {
     const digits = value.replace(/\D/g, '');
     if (digits.length !== 14) {
       return { cnpjShape: true };
+    }
+
+    const stripped = value.replace(/[.\-/]/g, '');
+    if (!isValidCnpj(stripped)) {
+      return { cnpjChecksum: true };
     }
   }
 
@@ -347,6 +386,12 @@ export class TenantCreatePageComponent {
     if (name === 'taxId' && control?.errors?.['cnpjShape']) {
       return 'tenantCreate.taxIdCnpjShape';
     }
+    if (name === 'taxId' && control?.errors?.['cnpjChecksum']) {
+      return 'tenantCreate.taxIdCnpjChecksum';
+    }
+    if (name === 'taxId' && control?.errors?.['invalidTaxId']) {
+      return 'tenantCreate.taxIdInvalid';
+    }
     return 'shared.fieldRequired';
   }
 
@@ -429,6 +474,12 @@ export class TenantCreatePageComponent {
 
     if (error.status === 409 && code === 'TENANT_ALREADY_EXISTS') {
       this.form.get('taxId')?.setErrors({ conflict: true });
+      this.form.get('taxId')?.markAsTouched();
+      return;
+    }
+
+    if (error.status === 400 && code === 'INVALID_TAX_ID') {
+      this.form.get('taxId')?.setErrors({ invalidTaxId: true });
       this.form.get('taxId')?.markAsTouched();
       return;
     }

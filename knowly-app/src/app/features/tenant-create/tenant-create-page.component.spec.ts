@@ -50,7 +50,7 @@ describe('TenantCreatePageComponent', () => {
     const values: Record<string, string> = {
       name: 'Acme',
       legalName: 'Acme Ltda',
-      taxId: '12345678000199',
+      taxId: '12345678000195',
       country: 'Brazil',
       contactEmail: 'contact@acme.test',
       contactPhone: '+55 11 90000-0000',
@@ -199,7 +199,42 @@ describe('TenantCreatePageComponent', () => {
   it('allows a punctuated 14-digit CNPJ for Brazil (REQ-10)', () => {
     fixture.detectChanges();
     fillValidForm();
-    setValue('tenant-create-taxId', '12.345.678/0001-99');
+    setValue('tenant-create-taxId', '12.345.678/0001-95');
+
+    submit();
+
+    httpMock.expectOne('/api/tenants').flush({});
+  });
+
+  it('blocks submit for Brazil with a right-shape but checksum-invalid CNPJ (REQ-22-24)', () => {
+    fixture.detectChanges();
+    fillValidForm();
+    setValue('tenant-create-taxId', '12345678000199');
+
+    submit();
+    fixture.detectChanges();
+
+    httpMock.expectNone('/api/tenants');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="tenant-create-error-taxId"]'),
+    ).toBeTruthy();
+  });
+
+  it('allows submit for Brazil with a checksum-valid, unpunctuated CNPJ (REQ-22-24)', () => {
+    fixture.detectChanges();
+    fillValidForm();
+    setValue('tenant-create-taxId', '11222333000181');
+
+    submit();
+
+    httpMock.expectOne('/api/tenants').flush({});
+  });
+
+  it('does not run the checksum check for a non-Brazil country (REQ-24)', () => {
+    fixture.detectChanges();
+    fillValidForm();
+    setValue('tenant-create-country', 'United States');
+    setValue('tenant-create-taxId', '12345678901234');
 
     submit();
 
@@ -240,7 +275,7 @@ describe('TenantCreatePageComponent', () => {
     expect(req.request.body).toEqual({
       name: 'Acme',
       legalName: 'Acme Ltda',
-      taxId: '12345678000199',
+      taxId: '12345678000195',
       country: 'Brazil',
       contactEmail: 'contact@acme.test',
       contactPhone: '+55 11 90000-0000',
@@ -283,6 +318,24 @@ describe('TenantCreatePageComponent', () => {
 
     const req = httpMock.expectOne('/api/tenants');
     req.flush({ code: 'TENANT_ALREADY_EXISTS' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="tenant-create-error-taxId"]'),
+    ).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="tenant-create-name"]').value).toBe(
+      'Acme',
+    );
+  });
+
+  it('sets a field-level error on taxId and preserves other values for a 400 INVALID_TAX_ID response (REQ-26)', () => {
+    fixture.detectChanges();
+    fillValidForm();
+
+    submit();
+
+    const req = httpMock.expectOne('/api/tenants');
+    req.flush({ code: 'INVALID_TAX_ID' }, { status: 400, statusText: 'Bad Request' });
     fixture.detectChanges();
 
     expect(

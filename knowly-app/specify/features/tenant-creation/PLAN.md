@@ -365,6 +365,24 @@ added/updated:
 
 ## Deviations from this PLAN (discovered during implementation)
 
+- **`isValidCnpj` is exercised indirectly through `tenant-create-page
+  .component.spec.ts`'s form-level tests, not a standalone
+  `isValidCnpj.spec.ts` with all six backend fixture values.** TASKS.md's
+  task 35 named a standalone unit-test option; the checksum-valid/
+  invalid/non-Brazil-skip cases added instead cover the same branches
+  (correct-shape-wrong-digit, checksum-valid punctuated/unpunctuated,
+  non-Brazil skip) through the component's public submit behavior,
+  consistent with this file's existing testing strategy (no separate
+  unit-test file exists for `taxIdValidator`/`isBrazil` either — they're
+  covered the same way, through the component).
+- **Weight sequences match the corrected ones in the backend PLAN**
+  (`5,4,3,2,9,8,7,6,5,4,3,2` / `6,5,4,3,2,9,8,7,6,5,4,3,2`), not the
+  sequences originally drafted in this PLAN's own "Changelog" section
+  before backend implementation caught the discrepancy against real
+  CNPJ fixtures — see `knowly-api/specify/features/tenant-creation
+  /PLAN.md`'s own "Deviations" entry for the full account; this file's
+  "Changelog" section already reflects the corrected weights since it
+  was written after that correction.
 - **`country` is a free-text input, not a `<select>`** — this PLAN never
   specified a control type for `country`; REQ-10's Brazil detection
   (`isBrazil()`) matches case-insensitively against `'brazil'`,

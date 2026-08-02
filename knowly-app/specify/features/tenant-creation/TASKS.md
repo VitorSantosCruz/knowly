@@ -115,35 +115,35 @@
 
 ## Amendment for REQ-22–REQ-26 (CNPJ checksum mirror, 2026-08-02)
 
-- [ ] 35. Write test cases in
+- [x] 35. Write test cases in
       `tenant-create-page.component.spec.ts` (or a new
       `isValidCnpj.spec.ts` if extracted): `isValidCnpj` returns `true`
       for the six fixture values from backend PLAN.md's table (three
       valid, three invalid) plus one alphanumeric-format fixture — Red.
-- [ ] 36. Implement `isValidCnpj` and wire it into `taxIdValidator`'s
+- [x] 36. Implement `isValidCnpj` and wire it into `taxIdValidator`'s
       Brazil branch (checked only after the existing shape check
       passes) — Green.
-- [ ] 37. Write cases: a Brazil `taxId` with correct 14-character shape
+- [x] 37. Write cases: a Brazil `taxId` with correct 14-character shape
       but a wrong check digit shows the checksum-specific field error
       and blocks submit (REQ-23); a checksum-correct `taxId`, punctuated
       or not, allows submit; non-Brazil country never runs the checksum
       check regardless of `taxId` content (REQ-24) — Red.
-- [ ] 38. Implement the checksum-specific error message lookup branch
+- [x] 38. Implement the checksum-specific error message lookup branch
       (`taxIdCnpjChecksum`) and add its i18n key — Green.
-- [ ] 39. Write case: a submit response shaped `{ status: 400, code:
+- [x] 39. Write case: a submit response shaped `{ status: 400, code:
       'INVALID_TAX_ID' }` sets the `taxId` control's error and preserves
       all other entered values (REQ-26) — Red.
-- [ ] 40. Implement the `INVALID_TAX_ID` branch in the submit-error
+- [x] 40. Implement the `INVALID_TAX_ID` branch in the submit-error
       mapping, alongside the existing `TENANT_ALREADY_EXISTS` branch —
       Green.
-- [ ] 41. Confirm no client-side normalization is applied to `taxId`
+- [x] 41. Confirm no client-side normalization is applied to `taxId`
       before submit — write a regression test asserting the exact
       punctuated string the user typed is what gets sent to
       `createTenant()` (REQ-25) — should already pass by construction;
       write it explicitly as a guard rather than skipping it.
-- [ ] 42. Run `npm run format:check && npm test && npm run build && npm run lint`
+- [x] 42. Run `npm run format:check && npm test && npm run build && npm run lint`
       and confirm everything is green.
-- [ ] 43. Update `PLAN.md`'s changelog with any deviation discovered
+- [x] 43. Update `PLAN.md`'s changelog with any deviation discovered
       during implementation; update `PROJECT_STATUS.md`'s feature table
       if relevant.
-- [ ] 44. Commit.
+- [x] 44. Commit.

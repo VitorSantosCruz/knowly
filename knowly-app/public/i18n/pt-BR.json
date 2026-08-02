@@ -362,6 +362,8 @@
     "legalName": "Razão social",
     "taxId": "CNPJ/Tax ID",
     "taxIdCnpjShape": "Informe um CNPJ com 14 dígitos, com ou sem pontuação.",
+    "taxIdCnpjChecksum": "Os dígitos verificadores deste CNPJ não conferem. Verifique o número.",
+    "taxIdInvalid": "Este CNPJ não é válido. Verifique o número.",
     "country": "País",
     "contactEmail": "Email de contato",
     "contactPhone": "Telefone de contato",
