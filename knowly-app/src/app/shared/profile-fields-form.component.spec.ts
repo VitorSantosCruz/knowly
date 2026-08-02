@@ -442,6 +442,33 @@ describe('ProfileFieldsFormComponent', () => {
       const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
       expect(select.className).toContain('border-red-500');
     });
+
+    // Bugfix (2026-08-02, round 2): a returning/pre-populated profile can arrive with a
+    // top-level `countryCode` set (which is what visually pre-selects the "País" <select>,
+    // e.g. "Brasil") but a stale/empty `address.countryCode` — mirroring what
+    // `getOwnProfile()` can actually return. Because the user never touches an already-correct-
+    // looking dropdown, `onCountryChange()` never fires, so the previous fix (which only synced
+    // `address.countryCode` from the `(change)` event) never kicks in and the submitted payload
+    // still carries a blank `address.countryCode`. The sync must happen whenever `fields` is
+    // (re)assigned, not only on a user-driven `(change)` event.
+    it('submitting without touching an already-populated country select still sends a non-blank address.countryCode', async () => {
+      await createFixture(false, true, false);
+      fixture.componentRef.setInput('fields', {
+        ...fields,
+        countryCode: 'BR',
+        address: { ...fields.address, countryCode: '' },
+      });
+      fixture.detectChanges();
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      expect(select.value).toBe('BR');
+
+      const emitted: ProfileFieldsFormSubmission[] = [];
+      fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+      submitForm();
+
+      expect(emitted[0].fields.address?.countryCode).toBe('BR');
+    });
   });
 
   describe('contact type translation', () => {

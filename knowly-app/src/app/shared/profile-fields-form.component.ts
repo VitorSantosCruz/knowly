@@ -488,9 +488,19 @@ export class ProfileFieldsFormComponent {
     // "own the signal, react to input changes via effect" pattern.
     effect(() => {
       const incoming = this.fields();
+      const incomingAddress = incoming.address ?? { ...EMPTY_ADDRESS };
+      // Bugfix (2026-08-02, round 2): the "País" <select>'s visible selection is driven by the
+      // top-level `countryCode`, not `address.countryCode` — see the template's `[selected]`
+      // binding. A returning/pre-populated profile can arrive with a top-level `countryCode` set
+      // but a stale/empty `address.countryCode` (the two are independent fields server-side), so
+      // the dropdown renders an already-correct-looking value the user never touches, and
+      // `onCountryChange()` (which only runs on a user-driven `(change)` event) never fires to
+      // sync it. Keeping both in lockstep here — the same way `onCountryChange` does for the
+      // user-driven path — means whatever the select visibly shows is always what gets submitted,
+      // regardless of whether a `(change)` event ever fired.
       this.localFields.set({
         ...incoming,
-        address: incoming.address ?? { ...EMPTY_ADDRESS },
+        address: { ...incomingAddress, countryCode: incoming.countryCode },
       });
 
       const rows = incoming.contacts.map(toRow);
