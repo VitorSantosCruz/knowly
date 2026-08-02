@@ -52,22 +52,22 @@
 
 ## 2. Staff directory migration
 
-- [ ] 2.1. Write updated `staff-directory-page.component.spec.ts`
+- [x] 2.1. Write updated `staff-directory-page.component.spec.ts`
       assertions expecting `app-shared-list` with the staff-directory
       column/row-action config (Red).
-- [ ] 2.2. Rewrite `StaffDirectoryPageComponent` to consume
+- [x] 2.2. Rewrite `StaffDirectoryPageComponent` to consume
       `SharedListComponent` (Green).
-- [ ] 2.3. Run verification; commit
-      `refactor(staff-directory): migrate to SharedListComponent`.
+- [x] 2.3. Run verification; commit
+      `refactor(staff-directory,members): migrate to SharedListComponent`
+      (`374a7ae`, combined with Task 3 — small, identical migration).
 
 ## 3. Tenant members migration
 
-- [ ] 3.1. Write updated `members-page.component.spec.ts` assertions for
+- [x] 3.1. Write updated `members-page.component.spec.ts` assertions for
       `app-shared-list` usage (Red).
-- [ ] 3.2. Rewrite `MembersPageComponent` to consume `SharedListComponent`
+- [x] 3.2. Rewrite `MembersPageComponent` to consume `SharedListComponent`
       (Green).
-- [ ] 3.3. Run verification; commit
-      `refactor(members): migrate to SharedListComponent`.
+- [x] 3.3. Run verification; commit (see 2.3 — same commit `374a7ae`).
 
 ## 4. Permission label + audit-trail translation maps
 
