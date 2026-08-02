@@ -89,8 +89,12 @@ export interface ProfileFieldsFormSubmission {
         <select
           data-testid="profile-field-countryCode"
           [disabled]="disabled()"
-          (change)="onFieldChange('countryCode', $any($event.target).value)"
-          class="rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
+          [required]="requireAllFields()"
+          (change)="onCountryChange($any($event.target).value)"
+          [class]="
+            inputClassFor('address.countryCode') +
+            (countryRequiredMessage() ? ' border-red-500' : '')
+          "
         >
           <option value="" [selected]="!localFields().countryCode">
             {{ 'profile.fields.countryNotSpecified' | transloco }}
@@ -101,6 +105,14 @@ export interface ProfileFieldsFormSubmission {
             </option>
           }
         </select>
+        @if (countryRequiredMessage()) {
+          <p
+            data-testid="profile-country-required-message"
+            class="text-xs text-red-600 dark:text-red-400"
+          >
+            {{ 'profile.fields.countryRequired' | transloco }}
+          </p>
+        }
       </label>
 
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
@@ -413,6 +425,10 @@ export class ProfileFieldsFormComponent {
   protected readonly contacts = signal<ContactRow[]>([]);
   protected readonly contactLimitMessage = signal(false);
   protected readonly contactsRequiredMessage = signal(false);
+  // Bugfix (2026-08-02): client-side guard for the country selector, mirroring
+  // `contactsRequiredMessage`'s pattern — blocks submission before the request ever reaches the
+  // backend instead of relying solely on the server's `NotBlank` rejection of `address.countryCode`.
+  protected readonly countryRequiredMessage = signal(false);
 
   // REQ-1a: drives the taxId/postalCode/address-line labels and mask availability live, without
   // requiring a page reload — resolves SPEC Judgment call 9 in favor of one shared control.
@@ -508,6 +524,20 @@ export class ProfileFieldsFormComponent {
     this.localFields.update((current) => ({ ...current, [field]: value }));
   }
 
+  // Bugfix (2026-08-02): the "País" <select> previously only updated the top-level `countryCode`
+  // (which drives taxId/postalCode/stateRegion labels and masks) and never touched
+  // `address.countryCode` — a separate field the backend's `MandatoryProfileFieldsDto` actually
+  // validates as `@NotBlank`. That left the submitted payload's `address.countryCode` blank/stale
+  // even when a country was visibly selected, so the backend always rejected the request. Both
+  // fields are driven by the same single dropdown, so both must be kept in sync from it.
+  protected onCountryChange(value: string): void {
+    this.localFields.update((current) => ({
+      ...current,
+      countryCode: value,
+      address: { ...(current.address ?? EMPTY_ADDRESS), countryCode: value },
+    }));
+  }
+
   protected onAddressFieldChange(field: keyof Address, value: string): void {
     this.localFields.update((current) => ({
       ...current,
@@ -569,6 +599,12 @@ export class ProfileFieldsFormComponent {
     if (this.disabled()) {
       return;
     }
+
+    if (this.requireAllFields() && !this.localFields().countryCode) {
+      this.countryRequiredMessage.set(true);
+      return;
+    }
+    this.countryRequiredMessage.set(false);
 
     if (this.requireAllFields() && this.contacts().length === 0) {
       this.contactsRequiredMessage.set(true);

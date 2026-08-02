@@ -447,6 +447,7 @@
       },
       "country": "Country",
       "countryNotSpecified": "Not specified",
+      "countryRequired": "Country is required.",
       "taxIdInvalid": "Invalid value.",
       "fieldInvalid": "Invalid value."
     },

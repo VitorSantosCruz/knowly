@@ -393,6 +393,57 @@ describe('ProfileFieldsFormComponent', () => {
     });
   });
 
+  describe('country selection also drives address.countryCode (bugfix)', () => {
+    // Bugfix (2026-08-02): the "País" <select> only ever updated the top-level `countryCode`
+    // (used to drive taxId/postalCode labels/masks) and never synced `address.countryCode`,
+    // so the submitted payload's `address.countryCode` stayed stale/empty and the backend
+    // rejected it with a `NotBlank` violation even though a country was visibly selected.
+    it('selecting a country updates both countryCode and address.countryCode on submit', async () => {
+      await createFixture();
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      select.value = 'GB';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const emitted: ProfileFieldsFormSubmission[] = [];
+      fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+      submitForm();
+
+      expect(emitted[0].fields.countryCode).toBe('GB');
+      expect(emitted[0].fields.address?.countryCode).toBe('GB');
+    });
+
+    it('blocks submission and shows an inline required message when requireAllFields is true and no country is selected', async () => {
+      await createFixture(false, true, true);
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      select.value = '';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const emitted: ProfileFieldsFormSubmission[] = [];
+      fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+      submitForm();
+      fixture.detectChanges();
+
+      expect(emitted).toEqual([]);
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-country-required-message"]'),
+      ).toBeTruthy();
+      expect(select.className).toContain('border-red-500');
+    });
+
+    it('marks the country select via fieldErrors naming address.countryCode', async () => {
+      await createFixture();
+      fixture.componentRef.setInput('fieldErrors', ['address.countryCode']);
+      fixture.detectChanges();
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      expect(select.className).toContain('border-red-500');
+    });
+  });
+
   describe('contact type translation', () => {
     it('renders translated labels for the contact type <option>s, not the raw enum', async () => {
       await createFixture();

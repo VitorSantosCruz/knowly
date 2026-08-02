@@ -160,6 +160,32 @@ describe('CompleteProfilePageComponent', () => {
     ).toBeTruthy();
   });
 
+  it('maps a 400 address.countryCode NotBlank error onto the human-readable "Country" label', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    flushOwnProfile();
+    fixture.detectChanges();
+
+    submit();
+
+    httpMock
+      .expectOne('/api/users/me/profile/complete')
+      .flush(
+        { errors: [{ field: 'address.countryCode', message: 'must not be blank' }] },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    fixture.detectChanges();
+
+    const errorEl = fixture.nativeElement.querySelector(
+      '[data-testid="complete-profile-field-errors"]',
+    );
+    expect(errorEl).toBeTruthy();
+    expect(errorEl.textContent).toContain('Country');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-field-countryCode"]').className,
+    ).toContain('border-red-500');
+  });
+
   it('never passes the raw error/body to any console.* call on a 400 response', async () => {
     await createFixture();
     fixture.detectChanges();

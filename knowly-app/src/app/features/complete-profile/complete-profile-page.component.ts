@@ -24,6 +24,10 @@ const FIELD_LABEL_KEYS = new Map<string, string>([
   ['address.city', 'profile.fields.address.city'],
   ['address.stateRegion', 'profile.fields.address.stateRegion'],
   ['address.postalCode', 'profile.fields.postalCodeGeneric'],
+  // Bugfix (2026-08-02): the "País" dropdown drives `address.countryCode`, which the backend
+  // validates as `@NotBlank` — this maps that backend field name onto the same label the form
+  // renders for it, instead of falling through to the raw `'address.countryCode'` key.
+  ['address.countryCode', 'profile.fields.country'],
 ]);
 
 // Same local shape `OwnProfilePageComponent` already defines — duplicated per that component's
