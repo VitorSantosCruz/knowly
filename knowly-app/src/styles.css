@@ -56,6 +56,21 @@
     font-family: var(--font-sans);
   }
 
+  /*
+   * Tailwind's preflight resets `cursor: default` on <button>/<select>,
+   * which drops the pointer cursor every native button in the app relies
+   * on for its "this is clickable" affordance. Restores it app-wide,
+   * including for role="button"/[tabindex] elements standing in for a
+   * button, rather than patching cursor-pointer onto every component.
+   */
+  button:not(:disabled),
+  select,
+  [role='button'],
+  [role='menuitem'],
+  [role='tab'] {
+    cursor: pointer;
+  }
+
   .font-display {
     font-family: var(--font-display);
     font-feature-settings: 'ss01' 1;
