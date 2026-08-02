@@ -13,6 +13,108 @@
 
 ## Changelog
 
+- **2026-08-02 — Amendment for REQ-22–REQ-26 (CNPJ checksum mirror).**
+  Adds a pure `isValidCnpj` function and wires it into the existing
+  `taxIdValidator` (already conditional on `isBrazil(country)`, see the
+  component's current code), plus a new `INVALID_TAX_ID` branch in the
+  existing submit-error-mapping `if` chain, alongside the current
+  `TENANT_ALREADY_EXISTS` → `taxId` mapping.
+
+### `isValidCnpj` (new, pure function, same file as `isBrazil`/`taxIdValidator`)
+
+```ts
+function isValidCnpj(value: string): boolean {
+  const chars = value.toUpperCase();
+  if (chars.length !== 14) return false;
+
+  const charValue = (c: string) => c.charCodeAt(0) - 48;
+  const weightedSum = (base: string, weights: number[]) =>
+    base
+      .split('')
+      .reduce((sum, c, i) => sum + charValue(c) * weights[i], 0);
+  const expectedDigit = (sum: number) => {
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+
+  const base12 = chars.slice(0, 12);
+  const digit1 = expectedDigit(
+    weightedSum(base12, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3]),
+  );
+  if (digit1 !== charValue(chars[12])) return false;
+
+  const digit2 = expectedDigit(
+    weightedSum(base12 + digit1, [7, 6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3]),
+  );
+  return digit2 === charValue(chars[13]);
+}
+```
+
+Exact mirror of backend `CnpjChecksumValidator` (same weight arrays,
+same `charCodeAt(0) - 48` alphanumeric adjustment as
+`Character.toUpperCase(c) - 48`, same `remainder < 2 ? 0 : 11 -
+remainder` rule) — **not test-shared with the backend** (different
+language, no code-sharing mechanism between the two subprojects exists
+or is being introduced here); test fixtures are the same six values
+from backend PLAN.md's table, duplicated into this file's own test,
+which is an accepted, deliberate duplication (small, pure,
+side-effect-free function; REQ-24 already establishes this mirror is
+non-authoritative, so the two implementations are allowed to drift and
+be independently tested without a shared-source-of-truth mechanism).
+
+`taxIdValidator` (existing function) gains one more branch, only
+reached once REQ-10's shape check already passed:
+
+```ts
+if (isBrazil(country)) {
+  const digits = value.replace(/\D/g, ''); // existing shape check unchanged
+  if (digits.length !== 14) {
+    return { cnpjShape: true };
+  }
+  if (!isValidCnpj(value.replace(/[.\-/]/g, ''))) {
+    return { cnpjChecksum: true };
+  }
+}
+```
+
+Note: the existing shape check still operates on `digits` (numeric-only
+count), unaffected by REQ-22; `isValidCnpj` receives the
+punctuation-stripped-but-still-alphanumeric value (letters preserved)
+so it can validate the newer alphanumeric CNPJ format too, matching
+backend REQ-6b/REQ-6c's own "strip punctuation, keep letters" handling.
+No normalization is applied to what's actually submitted (REQ-25) —
+`isValidCnpj`'s stripped copy is a local variable used only for the
+checksum call, never written back to the form control's value.
+
+`showFlatError`/error-message-lookup (existing function around line
+347) gains one more branch:
+
+```ts
+if (name === 'taxId' && control?.errors?.['cnpjChecksum']) {
+  return 'tenantCreate.taxIdCnpjChecksum';
+}
+```
+
+### Submit-error mapping (existing `if` chain around line 430)
+
+```ts
+if (error.status === 409 && code === 'TENANT_ALREADY_EXISTS') {
+  this.form.get('taxId')?.setErrors({ conflict: true });
+  this.form.get('taxId')?.markAsTouched();
+  // ...existing code, unchanged
+}
+if (error.status === 400 && code === 'INVALID_TAX_ID') {
+  this.form.get('taxId')?.setErrors({ invalidTaxId: true });
+  this.form.get('taxId')?.markAsTouched();
+  // falls through to generic banner suppression the same way the
+  // existing 409 branch already does — no new pattern introduced
+}
+```
+
+A new `taxIdCnpjChecksum` and `taxIdInvalid` (or equivalent) i18n key
+pair is added alongside the existing `taxIdCnpjShape` key, same
+translation file, same pattern.
+
 - **2026-08-02 — Amendment for REQ-7–REQ-21.** The original PLAN
   (component/route/guard/service shape) shipped and is unchanged in its
   mechanics. This amendment grows the form's field set, the request

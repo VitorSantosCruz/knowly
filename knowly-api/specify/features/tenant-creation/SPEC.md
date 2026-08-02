@@ -4,6 +4,22 @@
 
 ## Changelog
 
+- **2026-08-02 — Amendment: CNPJ normalization and checksum validation
+  for Brazil (recovered after a working-tree reset lost the first
+  draft of this amendment — recreated faithfully, same design, same
+  appsec review outcome).** REQ-6's Brazil branch only checked
+  `taxId`'s 14-digit *shape*; the product owner and appsec both flagged
+  that this accepts obviously-fake CNPJs (any 14 digits) and punctuated
+  duplicates could double-insert-race the unique index (see REQ-6c
+  below and the corresponding `PLAN.md`/`TASKS.md` ordering fix). New
+  REQ-6a–REQ-6d below add, for `country` denoting Brazil only: input
+  normalization (strip `.`/`-`/`/`), support for the newer alphanumeric
+  CNPJ format, and real mod-11 checksum validation on both check
+  digits. Non-Brazil `taxId` is untouched (REQ-6's second clause still
+  applies verbatim). This reverses this SPEC's own prior "Out of
+  scope" line ruling out checksum validation — that line is struck
+  through below and superseded. No other requirement changes.
+
 - **2026-08-02 — Amendment: single-call atomic creation, explicit.**
   Per `knowly-app`'s `tenant-creation/SPEC.md` REQ-4/REQ-5 (approved
   the same day), `POST /api/tenants` must accept the company's
@@ -136,6 +152,36 @@ the product owner asked for.
   a non-empty string, with no country-specific format enforced (no
   other country's fiscal-document convention is known to this system
   yet — see "Out of scope").
+- **REQ-6a [Ubiquitous]** *(New 2026-08-02.)* Where `country` denotes
+  Brazil, the system shall normalize `taxId` before any further
+  validation or persistence by stripping the punctuation characters
+  `.`, `-`, and `/` — a value submitted as `11.222.333/0001-81` and one
+  submitted as `11222333000181` are the same document and shall be
+  treated identically for validation, duplicate-detection, and storage.
+- **REQ-6b [Ubiquitous]** *(New 2026-08-02.)* Where `country` denotes
+  Brazil, `taxId`'s 14-character base (post-normalization, REQ-6a)
+  shall accept both the legacy all-numeric CNPJ format and the newer
+  alphanumeric format (letters permitted in the first 12 characters,
+  per Receita Federal's alphanumeric CNPJ convention) — REQ-6's
+  "14-digit shape" language is superseded by "14-character shape" for
+  Brazil specifically; the two trailing check-digit characters remain
+  numeric per REQ-6c.
+- **REQ-6c [Unwanted Behavior]** *(New 2026-08-02.)* Where `country`
+  denotes Brazil, if the normalized `taxId`'s two check digits fail the
+  CNPJ mod-11 checksum (computed over the alphanumeric-adjusted
+  14-character value), then the system shall reject `POST
+  /api/tenants` with 400 and shall create no row — this applies in
+  addition to, not instead of, REQ-6's shape check and REQ-4/REQ-5's
+  uniqueness check.
+- **REQ-6d [Ubiquitous]** *(New 2026-08-02 — the ordering fix appsec
+  required.)* Normalization (REQ-6a) and, for Brazil, checksum
+  validation (REQ-6c) shall both complete, and the value used for all
+  subsequent processing shall be the normalized one, **before** the
+  system checks `taxId` for a duplicate (REQ-4/REQ-5) — two submissions
+  of the same CNPJ differing only in punctuation shall both be
+  recognized as the same `taxId` by the duplicate check, never treated
+  as distinct values that then collide only at the database's unique
+  index.
 - **REQ-7 [Ubiquitous]** `tenancy` SPEC's REQ-10 (staff-only creation,
   first-admin-in-the-same-action, no self-service signup) is unchanged
   and continues to apply unmodified — this SPEC adds fields to the
@@ -193,6 +239,21 @@ the product owner asked for.
       not matching CNPJ's 14-digit shape is rejected with 400.
 - [ ] `POST /api/tenants` with `country` denoting a non-Brazil value and
       any non-empty `taxId` succeeds (no CNPJ-specific check applied).
+- [ ] *(New 2026-08-02.)* `POST /api/tenants` with `country` denoting
+      Brazil and a `taxId` submitted with `.`/`-`/`/` punctuation around
+      a valid CNPJ (checksum-correct) succeeds, storing the normalized
+      (punctuation-stripped) value.
+- [ ] *(New 2026-08-02.)* `POST /api/tenants` with `country` denoting
+      Brazil and a `taxId` that is the right shape but fails the mod-11
+      checksum on either check digit is rejected with 400 (`INVALID_TAX_ID`)
+      and creates no row.
+- [ ] *(New 2026-08-02.)* `POST /api/tenants` with `country` denoting
+      Brazil and a valid alphanumeric-format CNPJ (letters in the first
+      12 characters) succeeds.
+- [ ] *(New 2026-08-02.)* Two sequential `POST /api/tenants` calls with
+      the same CNPJ submitted with different punctuation are rejected
+      as a duplicate (`TenantAlreadyExistsException`, 409) on the
+      second call — never a raw database constraint violation.
 - [ ] Tenant creation continues to require a staff caller and a
       first-admin designation exactly as `tenancy` REQ-10 already
       specifies — unchanged.
@@ -220,10 +281,12 @@ the product owner asked for.
   which a single required field already satisfies; a future need for
   multiple tenant-level contacts (e.g. billing contact vs. technical
   contact) is a new, separate decision, not pre-built here.
-- **CNPJ checksum validation.** REQ-6 only checks the 14-digit shape,
+- ~~**CNPJ checksum validation.** REQ-6 only checks the 14-digit shape,
   not the actual CNPJ check-digit algorithm — mirrors
   `identity-profile-model-v2`'s own accepted scope cut for CPF/RG
-  ("no format/checksum validation").
+  ("no format/checksum validation").~~ **(superseded 2026-08-02 — see
+  Changelog: REQ-6a–REQ-6d add real mod-11 checksum validation,
+  normalization, and alphanumeric-format support for Brazil.)**
 - **Non-Brazilian fiscal-document conventions** (e.g. an EIN/VAT
   number's own format rules) — REQ-6 only defines Brazil's CNPJ
   convention; any other country's format validation is new scope for

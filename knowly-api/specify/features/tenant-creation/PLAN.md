@@ -7,6 +7,118 @@
 > canonical source for those names; `tenant-crud/PLAN.md` must match it
 > verbatim, not re-derive it).
 
+## Changelog / Amends (2026-08-02, CNPJ normalization + checksum)
+
+Implements SPEC's REQ-6a–REQ-6d (recovered/recreated after a
+working-tree reset — same design, already appsec-reviewed twice: once
+initially, once after appsec caught the ordering bug described below,
+fixed in this recreation from the start).
+
+**New components (`br.com.conectabyte.knowly.tenancy.validation`,
+alongside the existing `TaxIdValidator`/`ValidTaxId`):**
+
+- **`TaxIdNormalizer`** (new, package-private, tenancy-module-scoped) —
+  a single static method, `normalize(String taxId)`, that strips `.`,
+  `-`, and `/` characters (REQ-6a). Deliberately **not** shared with
+  `identity` module's own CPF-normalization logic (which does the
+  same character-stripping for `cpf`) — this is a small, intentional
+  duplication across a module boundary the codebase already treats as
+  a hard seam (`identity` vs. `tenancy`), rather than introducing a
+  new shared "common validation" module for two four-line methods.
+  Called before any other `taxId` processing.
+- **`CnpjChecksumValidator`** (new, package-private) — `boolean
+  isValid(String normalizedTaxId)`, applied only when `country`
+  denotes Brazil and only after REQ-6's shape check
+  (`TaxIdValidator.isValid`) already passed on the *normalized* value
+  (REQ-6b: shape check is now "14 characters," digits-or-letters in
+  the first 12, digits in the last 2). Algorithm (REQ-6c, exact
+  weights already appsec-verified):
+  1. Each character's numeric value: `Character.toUpperCase(c) - 48`
+     (ASCII '0' is 48; for digits this is the digit's value, for
+     uppercase letters `A`–`Z` this yields 17–42, per Receita
+     Federal's alphanumeric-CNPJ convention — same "alphanumeric-
+     adjusted" adjustment named in SPEC REQ-6c).
+  2. First check digit: weighted sum of the first 12 characters'
+     values against weights `6,5,4,3,2,9,8,7,6,5,4,3` (index-aligned,
+     leftmost character × 6); `remainder = sum % 11`; expected digit =
+     `remainder < 2 ? 0 : 11 - remainder`. Compare against character
+     13.
+  3. Second check digit: same rule over the first 13 characters
+     (original 12 + the now-known-correct check digit 1) against
+     weights `7,6,5,4,3,2,9,8,7,6,5,4,3`. Compare against character 14.
+  4. Valid only if both computed digits match the submitted ones.
+- **`InvalidTaxIdException`** (new,
+  `br.com.conectabyte.knowly.tenancy.exception`, mirrors
+  `identity.exception.InvalidCpfException`'s shape exactly: a bare
+  `RuntimeException`, no fields, so the fixed `INVALID_TAX_ID` code is
+  the only thing ever returned — never the submitted value) → new
+  `TenancyExceptionHandler#handleInvalidTaxId` → 400 +
+  `TenancyErrorResponseDto("INVALID_TAX_ID")`, same pattern as every
+  other handler in that class.
+
+**`TenantService#createTenant` ordering fix (REQ-6d — the bug appsec
+caught the first time, built correctly from the start this time):**
+
+Today (pre-amendment) `createTenant` calls
+`tenantRepository.existsByTaxIdAndDeletedAtIsNull(request.taxId())`
+directly on the raw submitted value, before any normalization. The
+corrected sequence, all inside the existing `@Transactional` method,
+**before** the `Tenant` entity is constructed:
+
+```java
+String normalizedTaxId = TaxIdNormalizer.normalize(request.taxId());
+if (isBrazil(request.country()) && !CnpjChecksumValidator.isValid(normalizedTaxId)) {
+    throw new InvalidTaxIdException();
+}
+if (tenantRepository.existsByTaxIdAndDeletedAtIsNull(normalizedTaxId)) {
+    throw new TenantAlreadyExistsException();
+}
+// ... Tenant is built using normalizedTaxId, not request.taxId()
+```
+
+Shape validation (`@ValidTaxId`/`TaxIdValidator`, REQ-6/REQ-6b) still
+runs earlier, at the Bean Validation boundary (`@Valid` on the
+controller parameter) — but `TaxIdValidator.isValid` itself is updated
+to normalize internally before checking length/shape, since Bean
+Validation runs against the raw request body and REQ-6a requires
+normalization for the shape check too, not only for checksum/duplicate
+checks. This means `TaxIdNormalizer.normalize` is called twice on the
+same request (once inside `TaxIdValidator`, once in `createTenant`) —
+accepted duplication of a pure, side-effect-free four-line string
+operation, not worth threading through the DTO as a second field.
+
+**Why this exact ordering matters (REQ-6d):** normalizing before the
+duplicate check means `11.222.333/0001-81` and `11222333000181`
+resolve to the identical string `11222333000181` before either
+comparison against existing rows — closing the race SPEC's REQ-6d
+describes (two submissions differing only in punctuation, both
+`existsBy...` calls seeing what looks like a distinct value, both
+passing, both hitting the DB unique index and one throwing a raw
+`DataIntegrityViolationException` — the existing
+`TenantAlreadyExistsException` translation on that exception, task 7's
+migration-era addition, still catches this as a last-resort safety
+net, but the ordering fix means it should no longer be the *primary*
+mechanism a punctuation-only duplicate relies on).
+
+**Test fixtures (already appsec-approved, from real/published CNPJs):**
+
+| CNPJ (unpunctuated) | Valid? |
+|---|---|
+| `11222333000181` | valid |
+| `11222333000180` | invalid (last check digit wrong) |
+| `11444777000161` | valid |
+| `11444777000160` | invalid |
+| `01838723000127` | valid |
+| `01838723000100` | invalid |
+
+Plus one alphanumeric-format fixture (a real published example of the
+newer Receita Federal alphanumeric CNPJ, with letters in the base and
+numeric, checksum-correct check digits) to exercise REQ-6b end to end,
+and a duplicate-detection-across-punctuation regression test: two
+`createTenant` calls with `11222333000181` and `11.222.333/0001-81`
+respectively — second call must raise `TenantAlreadyExistsException`,
+never a raw constraint violation.
+
 ## Changelog / Amends (2026-08-02, reconciliation)
 
 **Contradiction found and resolved.** This PLAN originally had

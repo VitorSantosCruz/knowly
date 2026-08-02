@@ -4,6 +4,25 @@
 
 ## Changelog
 
+- **2026-08-02 — Amendment: CNPJ checksum mirror + `INVALID_TAX_ID`
+  mapping (recovered after a working-tree reset lost the first draft
+  of this amendment — recreated faithfully, same design, same appsec
+  review outcome).** Per the backend `tenant-creation/SPEC.md`
+  amendment adding REQ-6a–REQ-6d (real CNPJ normalization + mod-11
+  checksum, Brazil only), this SPEC adds REQ-22–REQ-26 below: a pure,
+  non-authoritative TypeScript mirror of the checksum for earlier UX
+  feedback than a round trip to the backend, and mapping of the new
+  `INVALID_TAX_ID` backend error code onto the `taxId` field, same
+  pattern as the existing `TENANT_ALREADY_EXISTS` mapping (REQ-11).
+  This does **not** add any client-side normalization before submit —
+  `taxId` stays exactly what the backend already documents accepting
+  punctuated: submitted as typed, normalized server-side only (backend
+  REQ-6a). This reverses this SPEC's own prior "Out of scope" line
+  ruling out CNPJ check-digit validation for the client mirror
+  specifically — that line is struck through below and superseded (the
+  backend's own real validation is unaffected either way; that line was
+  always describing client-side scope only).
+
 - **2026-08-02 — Amendment: full company identification, first-admin
   complete profile, and role selection.** Three backend SPECs landed
   this session that the `/tenants/new` form must now reflect, per the
@@ -188,6 +207,40 @@ or the whole thing is rejected.
   `TenantService.addMember`'s `role` parameter per backend
   `user-role-selection-at-creation` REQ-6.
 
+### CNPJ checksum mirror (mirrors backend `tenant-creation` REQ-6a–REQ-6d)
+
+- **REQ-22 [Optional Feature]** *(New 2026-08-02.)* Where the selected
+  company country denotes Brazil, in addition to REQ-10's 14-character
+  shape check, the system shall run a pure, client-side `isValidCnpj`
+  check (mod-11 checksum on both check digits, alphanumeric-adjusted,
+  same rule as backend REQ-6c) against the entered `taxId` before
+  allowing submission — this is early UX feedback only, not a security
+  boundary; the backend re-validates unconditionally regardless of what
+  the client accepts (REQ-24).
+- **REQ-23 [Event-Driven]** When `taxId`'s shape passes REQ-10 but its
+  checksum fails REQ-22's client-side check, the system shall show a
+  field-level error next to `taxId` distinguishing "wrong checksum"
+  from "wrong shape" (distinct message keys) and shall not call the
+  API.
+- **REQ-24 [Ubiquitous]** `isValidCnpj` is a **non-authoritative UX
+  aid**: it does not replace, weaken, or gate out backend REQ-6c's
+  validation, and its output is never sent to the backend or otherwise
+  trusted as proof of validity — a client that bypasses or disables
+  this check (e.g. a modified request) is still rejected by the
+  backend's own checksum validation.
+- **REQ-25 [Ubiquitous]** `taxId` remains a single unmasked text input
+  with **no client-side normalization applied before submit** — the
+  value the user typed (punctuated or not) is sent as-is; backend REQ-6a
+  performs normalization server-side. This SPEC does not introduce an
+  input mask, consistent with `identity-profile-model-v2`'s existing
+  "no format/checksum validation beyond what's specified" scope
+  discipline for other document fields on this form.
+- **REQ-26 [Unwanted Behavior]** *(New 2026-08-02.)* If `POST
+  /api/tenants` rejects the request with 400 and the response code
+  `INVALID_TAX_ID`, then the system shall show that error next to the
+  `taxId` field specifically, the same pattern REQ-11 already uses for
+  the `taxId`-conflict (409 `TENANT_ALREADY_EXISTS`) case.
+
 ### Form structure decision
 
 - **REQ-20 [Ubiquitous]** The form shall remain a **single scrollable
@@ -251,6 +304,13 @@ or the whole thing is rejected.
       first-user profile) on submit shows an inline error — field-level
       where the response identifies the field, generic otherwise — and
       preserves the entered values.
+- [ ] *(New 2026-08-02.)* A Brazil-country `taxId` with correct shape
+      but a wrong check digit shows a checksum-specific field-level
+      error on `taxId` and does not call the API; a checksum-correct
+      (with or without punctuation) `taxId` allows submission.
+- [ ] *(New 2026-08-02.)* A backend 400 response with code
+      `INVALID_TAX_ID` shows a field-level error on `taxId` and
+      preserves all other entered values.
 - [ ] The company address sub-section and the first user's address
       sub-section accept independent values (filling one does not
       prefill or constrain the other).
@@ -268,8 +328,11 @@ or the whole thing is rejected.
   elsewhere in the app — this form applies no new client-side CPF/RG
   format check, since none is specified by `mandatory-complete-profile`
   or `identity-profile-model-v2` (required-non-blank only).
-- CNPJ check-digit validation — REQ-10 only checks the 14-digit shape,
-  mirroring backend REQ-6's own scope cut.
+- ~~CNPJ check-digit validation — REQ-10 only checks the 14-digit shape,
+  mirroring backend REQ-6's own scope cut.~~ **(superseded 2026-08-02 —
+  see Changelog: REQ-22–REQ-26 add a non-authoritative client-side
+  `isValidCnpj` checksum mirror; backend REQ-6c now performs the real,
+  authoritative check regardless.)**
 - Promotion of an existing member to `MEMBER_ADMIN` after creation — out
   of scope per backend `staff-rbac-management-operations`, unaffected by
   REQ-17–REQ-19 (those cover only the moment of first-user creation).
