@@ -289,6 +289,44 @@ describe('ProfileFieldsFormComponent', () => {
 
       expect(input('profile-address-field-postalCode').value).toBe('EC1A 1BB');
     });
+
+    // Bugfix (2026-08-02): with no country selected (or a country outside the BR/US/GB
+    // country-specific set), taxId/postalCode/stateRegion must fall back to the generic,
+    // Transloco-driven label — never a bare, always-English literal.
+    it('falls back to the generic Transloco-driven taxId/postalCode/stateRegion labels when no country is selected', async () => {
+      await createFixture();
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      select.value = '';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Tax ID');
+      expect(fixture.nativeElement.textContent).toContain('Postal Code');
+      expect(fixture.nativeElement.textContent).not.toContain('CPF');
+      expect(fixture.nativeElement.textContent).not.toContain('CEP');
+    });
+
+    // Bugfix (2026-08-02): addressLine1/city are identical across every country entry, so they
+    // must always be Transloco-driven — never the always-English `CountryFieldConfig` literal
+    // (this was the root cause of "Address line 1" never localizing in pt-BR).
+    it('renders the addressLine1/city labels from Transloco, not a hardcoded English literal', async () => {
+      await createFixture();
+
+      expect(fixture.nativeElement.textContent).toContain('Address line 1');
+      expect(fixture.nativeElement.textContent).toContain('City');
+    });
+
+    it('localizes the country <select> option text while keeping the alpha-2 code as the value', async () => {
+      await createFixture();
+
+      const select = input('profile-field-countryCode') as unknown as HTMLSelectElement;
+      const options = Array.from(select.querySelectorAll('option'));
+      const brOption = options.find((option) => option.value === 'BR') as HTMLOptionElement;
+
+      expect(brOption.value).toBe('BR');
+      expect(brOption.textContent?.trim()).toBe('Brazil');
+    });
   });
 
   describe('phone/WhatsApp contact rows', () => {

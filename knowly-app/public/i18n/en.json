@@ -405,9 +405,19 @@
     "fields": {
       "fullName": "Full name",
       "save": "Save",
+      "taxIdGeneric": "Tax ID",
+      "postalCodeGeneric": "Postal Code",
+      "countryNames": {
+        "BR": "Brazil",
+        "US": "United States",
+        "GB": "United Kingdom"
+      },
       "address": {
         "title": "Address",
-        "addressLine2": "Address line 2"
+        "addressLine1": "Address line 1",
+        "addressLine2": "Address line 2 (optional)",
+        "city": "City",
+        "stateRegion": "State / Region"
       },
       "contacts": {
         "title": "Contacts",
@@ -438,7 +448,7 @@
   },
   "completeProfile": {
     "title": "Complete your profile",
-    "intro": "Before you continue, please fill in your full profile. This is a one-time, self-completed step — no approval is required.",
+    "intro": "Before you continue, please fill in your full profile. This is a one-time step and requires no approval.",
     "email": "Email",
     "networkError": "Something went wrong submitting your profile. Please try again.",
     "fieldErrorsIntro": "Please fix the following field(s):"

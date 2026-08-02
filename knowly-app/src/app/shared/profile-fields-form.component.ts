@@ -79,14 +79,18 @@ export interface ProfileFieldsFormSubmission {
           </option>
           @for (code of countryCodes; track code) {
             <option [value]="code" [selected]="code === localFields().countryCode">
-              {{ code }}
+              {{ 'profile.fields.countryNames.' + code | transloco }}
             </option>
           }
         </select>
       </label>
 
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-        {{ activeCountryConfig().taxIdLabel }}
+        @if (hasCountrySpecificLabels()) {
+          {{ activeCountryConfig().taxIdLabel }}
+        } @else {
+          {{ 'profile.fields.taxIdGeneric' | transloco }}
+        }
         <input
           data-testid="profile-field-taxId"
           type="text"
@@ -106,7 +110,7 @@ export interface ProfileFieldsFormSubmission {
         </legend>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-          {{ activeCountryConfig().addressLine1Label }}
+          {{ 'profile.fields.address.addressLine1' | transloco }}
           <input
             data-testid="profile-address-field-addressLine1"
             type="text"
@@ -131,7 +135,7 @@ export interface ProfileFieldsFormSubmission {
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-          {{ activeCountryConfig().cityLabel }}
+          {{ 'profile.fields.address.city' | transloco }}
           <input
             data-testid="profile-address-field-city"
             type="text"
@@ -144,7 +148,11 @@ export interface ProfileFieldsFormSubmission {
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-          {{ activeCountryConfig().stateRegionLabel }}
+          @if (hasCountrySpecificLabels()) {
+            {{ activeCountryConfig().stateRegionLabel }}
+          } @else {
+            {{ 'profile.fields.address.stateRegion' | transloco }}
+          }
           <input
             data-testid="profile-address-field-stateRegion"
             type="text"
@@ -156,7 +164,11 @@ export interface ProfileFieldsFormSubmission {
         </label>
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
-          {{ activeCountryConfig().postalCodeLabel }}
+          @if (hasCountrySpecificLabels()) {
+            {{ activeCountryConfig().postalCodeLabel }}
+          } @else {
+            {{ 'profile.fields.postalCodeGeneric' | transloco }}
+          }
           <input
             data-testid="profile-address-field-postalCode"
             type="text"
@@ -327,6 +339,15 @@ export class ProfileFieldsFormComponent {
   // requiring a page reload — resolves SPEC Judgment call 9 in favor of one shared control.
   protected readonly activeCountryConfig = computed(() =>
     getCountryFieldConfig(this.localFields().countryCode),
+  );
+
+  // Bugfix (2026-08-02): only BR/US/GB have a genuinely country-specific taxId/postalCode/
+  // stateRegion label (CPF/CEP, SSN/ZIP Code, NINO/Postcode+County) — those stay hardcoded,
+  // untranslated proper nouns/acronyms regardless of UI locale, by design. Any other/unset
+  // country falls back to `COUNTRY_FIELD_CONFIG`'s `DEFAULT` entry, whose labels are plain
+  // English words that must go through Transloco instead of always rendering in English.
+  protected readonly hasCountrySpecificLabels = computed(() =>
+    COUNTRY_FIELD_CONFIG.has(this.localFields().countryCode ?? ''),
   );
 
   // The array this component was initialized/re-synced with, keyed by id, used to diff at

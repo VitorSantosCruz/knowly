@@ -405,19 +405,29 @@
     "fields": {
       "fullName": "Nome completo",
       "save": "Salvar",
+      "taxIdGeneric": "Documento fiscal",
+      "postalCodeGeneric": "Código postal",
+      "countryNames": {
+        "BR": "Brasil",
+        "US": "Estados Unidos",
+        "GB": "Reino Unido"
+      },
       "address": {
-        "title": "Endereco",
-        "addressLine2": "Endereço linha 2"
+        "title": "Endereço",
+        "addressLine1": "Linha 1 do endereço",
+        "addressLine2": "Linha 2 do endereço (opcional)",
+        "city": "Cidade",
+        "stateRegion": "Estado / Região"
       },
       "contacts": {
         "title": "Contatos",
         "value": "Valor",
-        "label": "Rotulo",
+        "label": "Rótulo",
         "primary": "Principal",
         "remove": "Remover",
         "add": "Adicionar contato",
-        "limitReached": "Voce pode adicionar ate 5 contatos.",
-        "required": "Pelo menos um contato e obrigatorio."
+        "limitReached": "Você pode adicionar até 5 contatos.",
+        "required": "Pelo menos um contato é obrigatório."
       },
       "country": "País",
       "countryNotSpecified": "Não especificado"
@@ -433,12 +443,12 @@
     "avatar": {
       "title": "Avatar",
       "change": "Alterar avatar",
-      "error": "Nao foi possivel atualizar seu avatar. Tente outra imagem."
+      "error": "Não foi possível atualizar seu avatar. Tente outra imagem."
     }
   },
   "completeProfile": {
     "title": "Complete seu perfil",
-    "intro": "Antes de continuar, preencha seu perfil completo. Esta e uma etapa unica e autopreenchida — nenhuma aprovacao e necessaria.",
+    "intro": "Antes de continuar, preencha seu perfil completo. Esta é uma etapa única e não requer aprovação.",
     "email": "Email",
     "networkError": "Algo deu errado ao enviar seu perfil. Tente novamente.",
     "fieldErrorsIntro": "Corrija o(s) seguinte(s) campo(s):"
