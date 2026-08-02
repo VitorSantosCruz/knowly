@@ -3,9 +3,11 @@ package br.com.conectabyte.knowly.identity;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileEditRequestFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,6 +68,13 @@ public class UserProfileController {
     public ResponseEntity<UserProfileDto> updateOwnAvatar(
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(userProfileService.updateOwnAvatar(currentUser(), file));
+    }
+
+    /** REQ-6: the bootstrap account's one-time, no-approval self-completion endpoint. */
+    @PostMapping("/me/profile/complete")
+    public ResponseEntity<UserProfileDto> completeOwnProfile(
+            @Valid @RequestBody MandatoryProfileFieldsDto body) {
+        return ResponseEntity.ok(userProfileService.completeOwnProfile(currentUser(), body));
     }
 
     @PostMapping("/me/profile/edit-requests")

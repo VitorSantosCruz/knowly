@@ -69,4 +69,11 @@ public class IdentityExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new TenancyErrorResponseDto("INVALID_AVATAR_FILE"));
     }
+
+    @ExceptionHandler(ProfileAlreadyCompleteException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleProfileAlreadyComplete(
+            ProfileAlreadyCompleteException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new TenancyErrorResponseDto("PROFILE_ALREADY_COMPLETE"));
+    }
 }

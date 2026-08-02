@@ -11,6 +11,7 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
 import br.com.conectabyte.knowly.identity.exception.InvalidAvatarFileException;
+import br.com.conectabyte.knowly.identity.exception.ProfileAlreadyCompleteException;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.GlobalPermission;
 import br.com.conectabyte.knowly.tenancy.GlobalPermissionService;
@@ -58,6 +59,7 @@ public class UserProfileService {
     private final BlindIndexService blindIndexService;
     private final AvatarStorageService avatarStorageService;
     private final AvatarProperties avatarProperties;
+    private final ProfileCompletenessService profileCompletenessService;
 
     public UserProfileService(
             UserRepository userRepository,
@@ -70,7 +72,8 @@ public class UserProfileService {
             GlobalPermissionService globalPermissionService,
             BlindIndexService blindIndexService,
             AvatarStorageService avatarStorageService,
-            AvatarProperties avatarProperties) {
+            AvatarProperties avatarProperties,
+            ProfileCompletenessService profileCompletenessService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.addressRepository = addressRepository;
@@ -82,6 +85,7 @@ public class UserProfileService {
         this.blindIndexService = blindIndexService;
         this.avatarStorageService = avatarStorageService;
         this.avatarProperties = avatarProperties;
+        this.profileCompletenessService = profileCompletenessService;
     }
 
     /** REQ-7: the caller's own full profile detail, always allowed. */
@@ -266,6 +270,26 @@ public class UserProfileService {
                 applyContactChange(target, change);
             }
         }
+    }
+
+    /**
+     * REQ-6: the bootstrap account's one-time, no-approval self-completion. Applies only to the
+     * authenticated caller's own record (no {@code id} path variable at the controller level,
+     * removing any possibility of using this exception to complete someone else's profile); rejects
+     * outright if the caller's profile is already complete (SPEC's Decision 3 -- this never reopens
+     * identity-profile-model-v2's existing self-request/approval requirement for changes to an
+     * already-set field).
+     */
+    @Transactional
+    @AuditLog(action = "identity.profile.complete", resourceType = "User")
+    public UserProfileDto completeOwnProfile(User caller, MandatoryProfileFieldsDto fields) {
+        if (profileCompletenessService.isComplete(caller)) {
+            throw new ProfileAlreadyCompleteException();
+        }
+
+        applyMandatoryProfile(caller, fields);
+
+        return toDto(caller);
     }
 
     /**
