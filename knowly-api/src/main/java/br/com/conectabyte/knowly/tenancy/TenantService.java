@@ -1,6 +1,9 @@
 package br.com.conectabyte.knowly.tenancy;
 
+import br.com.conectabyte.knowly.audit.AuditEvent;
+import br.com.conectabyte.knowly.audit.AuditEventWriter;
 import br.com.conectabyte.knowly.audit.AuditLog;
+import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
@@ -17,10 +20,13 @@ import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
+import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -44,10 +50,13 @@ public class TenantService {
     private final UserProfileService userProfileService;
     private final ProfileCompletenessService profileCompletenessService;
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
+    private final AuditEventWriter auditEventWriter;
 
     private static final String MEMBER_RESOURCE_TYPE = "tenant-member";
     private static final String PERMISSION_RESOURCE_TYPE = "tenant-permission";
     private static final String ACCESS_GROUP_RESOURCE_TYPE = "tenant-access-group";
+    private static final String HARD_DELETE_RESOURCE_TYPE = "tenant-member-hard-delete";
+    private static final String BATCH_RESOURCE_TYPE = "tenant-permission-batch";
 
     public TenantService(
             TenantRepository tenantRepository,
@@ -63,7 +72,8 @@ public class TenantService {
             UserProfileRepository userProfileRepository,
             UserProfileService userProfileService,
             ProfileCompletenessService profileCompletenessService,
-            DeletionConfirmationTokenService deletionConfirmationTokenService) {
+            DeletionConfirmationTokenService deletionConfirmationTokenService,
+            AuditEventWriter auditEventWriter) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
@@ -78,6 +88,7 @@ public class TenantService {
         this.userProfileService = userProfileService;
         this.profileCompletenessService = profileCompletenessService;
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
+        this.auditEventWriter = auditEventWriter;
     }
 
     /**
@@ -352,6 +363,7 @@ public class TenantService {
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
         requireNotSelfTarget(actor, membership.getUser().getId());
+        rejectAdminTarget(membership);
         directPermissionGrantRepository
                 .findByTenantMembershipAndPermission(membership, permission)
                 .orElseGet(
@@ -399,6 +411,7 @@ public class TenantService {
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
         requireNotSelfTarget(actor, membership.getUser().getId());
+        rejectAdminTarget(membership);
         directPermissionGrantRepository
                 .findByTenantMembershipAndPermission(membership, permission)
                 .ifPresent(directPermissionGrantRepository::delete);
@@ -460,6 +473,7 @@ public class TenantService {
                         .findById(membershipId)
                         .orElseThrow(TenantAccessDeniedException::new);
         requireNotSelfTarget(actor, membership.getUser().getId());
+        rejectAdminTarget(membership);
         AccessGroup accessGroup =
                 accessGroupRepository
                         .findById(accessGroupId)
@@ -521,6 +535,11 @@ public class TenantService {
                         .toList();
         List<Permission> effective =
                 permissionService.effectivePermissions(membership).stream().toList();
+        boolean isLastAdminOfType =
+                membership.getRole() == MembershipRole.MEMBER_ADMIN
+                        && tenantMembershipRepository.countByTenantIdAndRoleAndActiveTrue(
+                                        tenantId, MembershipRole.MEMBER_ADMIN)
+                                == 1;
 
         return new MemberDetailDto(
                 membership.getId(),
@@ -529,7 +548,8 @@ public class TenantService {
                 membership.getRole(),
                 direct,
                 groups,
-                effective);
+                effective,
+                isLastAdminOfType);
     }
 
     /** REQ-23: generation endpoint reuses the exact same guard as {@link #unassignAccessGroup}. */
@@ -581,6 +601,216 @@ public class TenantService {
         userAccessGroupRepository
                 .findByTenantMembershipAndAccessGroup(membership, accessGroup)
                 .ifPresent(userAccessGroupRepository::delete);
+    }
+
+    /**
+     * REQ-2/REQ-6/REQ-21/REQ-22: {@code MEMBER_ADMIN} -> {@code MEMBER} within {@code tenantId},
+     * rejected (409) if the target is the last {@code MEMBER_ADMIN} in that tenant (per-tenant
+     * floor, locked count) or is the caller themselves. A target who isn't currently {@code
+     * MEMBER_ADMIN} is a no-op.
+     */
+    @Transactional
+    @AuditLog(
+            action = "tenant.member.demote",
+            resourceType = "TenantMembership",
+            resourceIdExpression = "#membershipId")
+    public void demoteMember(User actor, Long tenantId, Long membershipId) {
+        requireCallerIsAdminOfTenant(actor, tenantId);
+        TenantMembership membership = requireMembership(membershipId);
+        requireNotSelfTarget(actor, membership.getUser().getId());
+
+        if (membership.getRole() != MembershipRole.MEMBER_ADMIN) {
+            return;
+        }
+
+        requireNotLastMemberAdmin(tenantId, membershipId);
+        membership.setRole(MembershipRole.MEMBER);
+        tenantMembershipRepository.save(membership);
+    }
+
+    /**
+     * REQ-24/REQ-28/REQ-29: {@code MEMBER} -> {@code MEMBER_ADMIN} within {@code tenantId}, no
+     * floor/ceiling check, rejected only if the caller isn't an admin of that tenant or targets
+     * themselves.
+     */
+    @Transactional
+    @AuditLog(
+            action = "tenant.member.promote",
+            resourceType = "TenantMembership",
+            resourceIdExpression = "#membershipId")
+    public void promoteMember(User actor, Long tenantId, Long membershipId) {
+        requireCallerIsAdminOfTenant(actor, tenantId);
+        TenantMembership membership = requireMembership(membershipId);
+        requireNotSelfTarget(actor, membership.getUser().getId());
+
+        membership.setRole(MembershipRole.MEMBER_ADMIN);
+        tenantMembershipRepository.save(membership);
+    }
+
+    /** REQ-9: generation endpoint reuses the exact same guard as {@link #hardDeleteMember}. */
+    @Transactional(readOnly = true)
+    public String generateMemberHardDeletionConfirmationToken(
+            User actor, Long tenantId, Long membershipId, String acceptLanguageHeaderValue) {
+        TenantMembership membership = requireMembership(membershipId);
+        requireHardDeleteGate(actor, tenantId, membership);
+
+        return deletionConfirmationTokenService.generate(
+                HARD_DELETE_RESOURCE_TYPE,
+                membershipId.toString(),
+                actor,
+                acceptLanguageHeaderValue);
+    }
+
+    /**
+     * REQ-7/8/10/11: hard delete, requires a valid deletion-confirmation token, rejects self-target
+     * and the last {@code MEMBER_ADMIN} in the tenant (locked count); never blocked for a plain
+     * {@code MEMBER} target (including a tenant's lone {@code MEMBER}). Dependent grant/group rows
+     * are removed by the existing {@code ON DELETE CASCADE} FK (PLAN.md's "Data schema").
+     */
+    @Transactional
+    @AuditLog(
+            action = "tenant.member.hard_delete",
+            resourceType = "TenantMembership",
+            resourceIdExpression = "#membershipId")
+    public void hardDeleteMember(User actor, Long tenantId, Long membershipId, String word) {
+        TenantMembership membership = requireMembership(membershipId);
+        requireHardDeleteGate(actor, tenantId, membership);
+        requireNotSelfTarget(actor, membership.getUser().getId());
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                HARD_DELETE_RESOURCE_TYPE, membershipId.toString(), actor, word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
+
+        if (membership.getRole() == MembershipRole.MEMBER_ADMIN) {
+            requireNotLastMemberAdmin(tenantId, membershipId);
+        }
+
+        tenantMembershipRepository.delete(membership);
+    }
+
+    /**
+     * REQ-16: an admin-tier target (own tenant) requires {@link #requireCallerIsAdminOfTenant}; a
+     * plain-{@code MEMBER} target follows the existing {@code TENANT_MEMBER_MANAGE_ANY} gate
+     * (matching {@link #removeMember}), per PLAN.md's AppSec addition.
+     */
+    private void requireHardDeleteGate(User actor, Long tenantId, TenantMembership membership) {
+        if (membership.getRole() == MembershipRole.MEMBER_ADMIN) {
+            requireCallerIsAdminOfTenant(actor, tenantId);
+        } else {
+            requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        }
+    }
+
+    /**
+     * REQ-16: generation endpoint reuses the exact same guard as {@link #batchUpdatePermissions}.
+     */
+    @Transactional(readOnly = true)
+    public String generateBatchPermissionUpdateDeletionConfirmationToken(
+            User actor, Long tenantId, Long membershipId, String acceptLanguageHeaderValue) {
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+
+        return deletionConfirmationTokenService.generate(
+                BATCH_RESOURCE_TYPE, membershipId.toString(), actor, acceptLanguageHeaderValue);
+    }
+
+    /**
+     * Tenant-scope counterpart of {@link StaffService#batchUpdatePermissions(Long, Set, String)} —
+     * same full-replacement/no-op/per-permission-audit-event/admin-target-rejection semantics,
+     * scoped to {@code tenantId}'s directly-granted {@code Permission} set.
+     */
+    @Transactional
+    public void batchUpdatePermissions(
+            User actor,
+            Long tenantId,
+            Long membershipId,
+            Set<Permission> permissions,
+            String word) {
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        TenantMembership membership = requireMembership(membershipId);
+        requireNotSelfTarget(actor, membership.getUser().getId());
+        rejectAdminTarget(membership);
+
+        Set<Permission> current =
+                new HashSet<>(
+                        directPermissionGrantRepository.findByTenantMembership(membership).stream()
+                                .map(DirectPermissionGrant::getPermission)
+                                .toList());
+        Set<Permission> submitted = permissions == null ? Set.of() : permissions;
+
+        Set<Permission> added = new HashSet<>(submitted);
+        added.removeAll(current);
+        Set<Permission> removed = new HashSet<>(current);
+        removed.removeAll(submitted);
+
+        if (added.isEmpty() && removed.isEmpty()) {
+            return;
+        }
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                BATCH_RESOURCE_TYPE, membershipId.toString(), actor, word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
+
+        for (Permission permission : added) {
+            directPermissionGrantRepository.save(new DirectPermissionGrant(membership, permission));
+            writeBatchAuditEvent(actor, tenantId, membershipId, "grant", permission);
+        }
+
+        for (Permission permission : removed) {
+            directPermissionGrantRepository
+                    .findByTenantMembershipAndPermission(membership, permission)
+                    .ifPresent(directPermissionGrantRepository::delete);
+            writeBatchAuditEvent(actor, tenantId, membershipId, "revoke", permission);
+        }
+    }
+
+    private void writeBatchAuditEvent(
+            User actor, Long tenantId, Long membershipId, String change, Permission permission) {
+        auditEventWriter.write(
+                new AuditEvent(
+                        actor.getId(),
+                        tenantId,
+                        "tenant.permission.batch_update",
+                        "DirectPermissionGrant",
+                        membershipId + ":" + change + ":" + permission,
+                        AuditOutcome.SUCCESS));
+    }
+
+    private TenantMembership requireMembership(Long membershipId) {
+        return tenantMembershipRepository
+                .findById(membershipId)
+                .orElseThrow(TenantAccessDeniedException::new);
+    }
+
+    /**
+     * REQ-17/18/19: rejects any grant/revoke/access-group/batch-update mutation whose target is a
+     * {@code MEMBER_ADMIN} — demote/hard-delete are the only paths allowed to touch an admin-tier
+     * target.
+     */
+    private void rejectAdminTarget(TenantMembership membership) {
+        if (membership.getRole() == MembershipRole.MEMBER_ADMIN) {
+            throw new PermissionDeniedException();
+        }
+    }
+
+    /**
+     * Locks every current active {@code MEMBER_ADMIN} membership of {@code tenantId} (including
+     * {@code targetMembershipId}'s, if still one) and rejects if none of the others remain — closes
+     * the TOCTOU window a plain {@code COUNT} read-then-write would leave open (PLAN.md).
+     */
+    private void requireNotLastMemberAdmin(Long tenantId, Long targetMembershipId) {
+        List<TenantMembership> admins =
+                tenantMembershipRepository.findByTenantIdAndRoleAndActiveTrueForUpdate(
+                        tenantId, MembershipRole.MEMBER_ADMIN);
+        boolean anyOtherAdminRemains =
+                admins.stream().anyMatch(admin -> !admin.getId().equals(targetMembershipId));
+
+        if (!anyOtherAdminRemains) {
+            throw new LastAdminRemainingException();
+        }
     }
 
     /**

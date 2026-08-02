@@ -2,10 +2,12 @@ package br.com.conectabyte.knowly.auth;
 
 import br.com.conectabyte.knowly.metrics.DailyCountProjection;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -18,6 +20,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
             List<GlobalRole> globalRoles, String email);
 
     long countByGlobalRoleIn(List<GlobalRole> globalRoles);
+
+    /**
+     * specify/features/staff-rbac-management-operations/PLAN.md: pessimistic write lock over every
+     * user of {@code role}, used by demote/delete-{@code STAFF_ADMIN} to close the TOCTOU window on
+     * the last-admin floor check -- locks every current holder (including the target), so a second
+     * concurrent demote/delete against a different "last remaining" admin blocks until the first
+     * transaction commits/rolls back.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.globalRole = :role")
+    List<User> findByGlobalRoleForUpdate(GlobalRole role);
 
     long countByGlobalRoleInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             List<GlobalRole> globalRoles, Instant from, Instant to);

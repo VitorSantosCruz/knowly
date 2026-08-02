@@ -11,4 +11,5 @@ public record MemberDetailDto(
         MembershipRole role,
         List<Permission> directPermissions,
         List<AccessGroupDto> accessGroups,
-        List<Permission> effectivePermissions) {}
+        List<Permission> effectivePermissions,
+        boolean isLastAdminOfType) {}

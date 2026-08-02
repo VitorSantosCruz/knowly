@@ -5,6 +5,7 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.deletion.dto.DeleteConfirmationRequestDto;
 import br.com.conectabyte.knowly.deletion.dto.DeletionConfirmationTokenDto;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
+import br.com.conectabyte.knowly.tenancy.dto.BatchPermissionUpdateRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateGlobalAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateStaffUserRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -78,9 +80,11 @@ public class StaffController {
                         new StaffUserDetailDto(
                                 created.getId(),
                                 created.getEmail(),
+                                created.getGlobalRole(),
                                 List.of(),
                                 List.of(),
-                                List.of()));
+                                List.of(),
+                                false));
     }
 
     @GetMapping("/users")
@@ -125,6 +129,56 @@ public class StaffController {
             @PathVariable GlobalPermission permission,
             @RequestBody(required = false) DeleteConfirmationRequestDto request) {
         staffService.revokePermission(userId, permission, request == null ? null : request.word());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/users/{userId}/demote")
+    public ResponseEntity<Void> demoteStaffUser(@PathVariable Long userId) {
+        staffService.demoteStaffUser(userId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/users/{userId}/promote")
+    public ResponseEntity<Void> promoteStaffUser(@PathVariable Long userId) {
+        staffService.promoteStaffUser(userId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/users/{userId}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto> generateStaffUserDeletionConfirmationToken(
+            @PathVariable Long userId,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        staffService.generateStaffUserDeletionConfirmationToken(
+                                userId, acceptLanguage)));
+    }
+
+    @DeleteMapping("/users/{userId}")
+    public ResponseEntity<Void> deleteStaffUser(
+            @PathVariable Long userId,
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        staffService.deleteStaffUser(userId, request == null ? null : request.word());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/users/{userId}/permissions/batch/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generateBatchPermissionUpdateDeletionConfirmationToken(
+                    @PathVariable Long userId,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        staffService.generateBatchPermissionUpdateDeletionConfirmationToken(
+                                userId, acceptLanguage)));
+    }
+
+    @PutMapping("/users/{userId}/permissions/batch")
+    public ResponseEntity<Void> batchUpdatePermissions(
+            @PathVariable Long userId,
+            @Valid @RequestBody BatchPermissionUpdateRequestDto request) {
+        staffService.batchUpdatePermissions(userId, request.permissions(), request.word());
         return ResponseEntity.ok().build();
     }
 

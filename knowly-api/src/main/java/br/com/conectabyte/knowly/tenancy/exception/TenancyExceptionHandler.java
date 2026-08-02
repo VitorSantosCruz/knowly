@@ -57,4 +57,11 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new TenancyErrorResponseDto("INVALID_PAGINATION"));
     }
+
+    @ExceptionHandler(LastAdminRemainingException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleLastAdminRemaining(
+            LastAdminRemainingException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new TenancyErrorResponseDto("LAST_ADMIN_REMAINING"));
+    }
 }

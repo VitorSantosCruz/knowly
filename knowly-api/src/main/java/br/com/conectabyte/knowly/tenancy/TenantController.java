@@ -9,6 +9,7 @@ import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.AnyTenantPermissionDto;
+import br.com.conectabyte.knowly.tenancy.dto.BatchTenantPermissionUpdateRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -258,6 +260,64 @@ public class TenantController {
         tenantService.removeMember(
                 currentUser(), tenantId, membershipId, request == null ? null : request.word());
 
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members/{membershipId}/demote")
+    public ResponseEntity<Void> demoteMember(
+            @PathVariable Long tenantId, @PathVariable Long membershipId) {
+        tenantService.demoteMember(currentUser(), tenantId, membershipId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members/{membershipId}/promote")
+    public ResponseEntity<Void> promoteMember(
+            @PathVariable Long tenantId, @PathVariable Long membershipId) {
+        tenantService.promoteMember(currentUser(), tenantId, membershipId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members/{membershipId}/hard-delete/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto> generateMemberHardDeletionConfirmationToken(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generateMemberHardDeletionConfirmationToken(
+                                currentUser(), tenantId, membershipId, acceptLanguage)));
+    }
+
+    @DeleteMapping("/{tenantId}/members/{membershipId}/hard-delete")
+    public ResponseEntity<Void> hardDeleteMember(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        tenantService.hardDeleteMember(
+                currentUser(), tenantId, membershipId, request == null ? null : request.word());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{tenantId}/members/{membershipId}/permissions/batch/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generateBatchPermissionUpdateDeletionConfirmationToken(
+                    @PathVariable Long tenantId,
+                    @PathVariable Long membershipId,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generateBatchPermissionUpdateDeletionConfirmationToken(
+                                currentUser(), tenantId, membershipId, acceptLanguage)));
+    }
+
+    @PutMapping("/{tenantId}/members/{membershipId}/permissions/batch")
+    public ResponseEntity<Void> batchUpdatePermissions(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @Valid @RequestBody BatchTenantPermissionUpdateRequestDto request) {
+        tenantService.batchUpdatePermissions(
+                currentUser(), tenantId, membershipId, request.permissions(), request.word());
         return ResponseEntity.ok().build();
     }
 
