@@ -154,4 +154,62 @@ describe('StaffUserService', () => {
     expect(req.request.method).toBe('GET');
     req.flush([]);
   });
+
+  it('demote() posts to the demote endpoint', () => {
+    service.demote(1).subscribe();
+
+    const req = httpMock.expectOne('/api/staff/users/1/demote');
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
+  it('promote() posts to the promote endpoint', () => {
+    service.promote(1).subscribe();
+
+    const req = httpMock.expectOne('/api/staff/users/1/promote');
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
+  it('generateDeletionConfirmationToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateDeletionConfirmationToken(1).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne('/api/staff/users/1/deletion-confirmation-token');
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
+  });
+
+  it('delete() deletes the staff user with the confirmation word', () => {
+    service.delete(1, 'correct-horse').subscribe();
+
+    const req = httpMock.expectOne('/api/staff/users/1');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
+    req.flush({});
+  });
+
+  it('generateBatchPermissionUpdateToken() fetches a fresh word', () => {
+    let result: string | undefined;
+    service.generateBatchPermissionUpdateToken(1).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne(
+      '/api/staff/users/1/permissions/batch/deletion-confirmation-token',
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
+  });
+
+  it('batchUpdatePermissions() puts the full permission set with the confirmation word', () => {
+    service.batchUpdatePermissions(1, ['STAFF_USER_CREATE'], 'correct-horse').subscribe();
+
+    const req = httpMock.expectOne('/api/staff/users/1/permissions/batch');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ permissions: ['STAFF_USER_CREATE'], word: 'correct-horse' });
+    req.flush({});
+  });
 });

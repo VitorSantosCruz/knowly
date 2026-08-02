@@ -239,7 +239,18 @@
     "roles": {
       "MEMBER": "Member",
       "MEMBER_ADMIN": "Member Admin"
-    }
+    },
+    "editProfile": "Edit profile",
+    "demote": "Demote to MEMBER",
+    "demoteConfirm": "Demote {{email}} to MEMBER?",
+    "demoteDisabledLastAdmin": "At least one MEMBER_ADMIN must remain for this tenant.",
+    "promote": "Promote to MEMBER_ADMIN",
+    "promoteConfirm": "Promote {{email}} to MEMBER_ADMIN?",
+    "delete": "Delete member",
+    "confirmDelete": "Delete {{email}}? This cannot be undone.",
+    "deleteDisabledLastAdmin": "At least one MEMBER_ADMIN must remain for this tenant.",
+    "save": "Save",
+    "confirmBatchSave": "Save permission changes for {{email}}?"
   },
   "sharedList": {
     "selectAll": "Select all",
@@ -288,7 +299,18 @@
     "roles": {
       "STAFF": "Staff",
       "STAFF_ADMIN": "Staff Admin"
-    }
+    },
+    "editProfile": "Edit profile",
+    "demote": "Demote to STAFF",
+    "demoteConfirm": "Demote {{email}} to STAFF?",
+    "demoteDisabledLastAdmin": "At least one STAFF_ADMIN must remain.",
+    "promote": "Promote to STAFF_ADMIN",
+    "promoteConfirm": "Promote {{email}} to STAFF_ADMIN?",
+    "delete": "Delete user",
+    "confirmDelete": "Delete {{email}}? This cannot be undone.",
+    "deleteDisabledLastAdmin": "At least one STAFF_ADMIN must remain.",
+    "save": "Save",
+    "confirmBatchSave": "Save permission changes for {{email}}?"
   },
   "conversations": {
     "new": "New conversation",

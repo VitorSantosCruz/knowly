@@ -1,5 +1,5 @@
-import { Component, OnChanges, inject, input, signal } from '@angular/core';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { Component, OnChanges, computed, inject, signal, input } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-permission';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
@@ -10,9 +10,11 @@ import {
   StaffUserDetail,
   StaffUserService,
 } from '../../core/staff-user.service';
+import { buttonClass } from '../../shared/button-classes';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
+import { translatePermissionLabel } from '../../shared/permission-labels';
 import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
@@ -36,30 +38,163 @@ type DetailError = 'network' | 'permission-denied' | null;
         data-testid="staff-user-detail-panel"
         class="enter-fluid rounded-2xl border border-ink-200/70 bg-white p-6 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
       >
-        <h2 class="mb-4 font-semibold text-ink-900 dark:text-white">{{ detail.email }}</h2>
+        <header class="mb-6 flex items-center justify-between">
+          <h2 class="font-semibold text-ink-900 dark:text-white">{{ detail.email }}</h2>
 
-        <section data-testid="staff-direct-permissions" class="mb-5">
-          <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'staffDirectory.directPermissions' | transloco }}
-          </h3>
-          @for (permission of allPermissions; track permission) {
-            <label
-              class="mr-3 inline-flex items-center gap-1.5 text-sm text-ink-700 dark:text-ink-300"
+          @if (showEditProfileButton()) {
+            <button
+              type="button"
+              data-testid="staff-edit-profile-button"
+              [class]="secondaryButtonClass"
+              (click)="editProfileTrigger.set(editProfileTrigger() + 1)"
             >
-              <input
-                type="checkbox"
-                [attr.data-testid]="'staff-permission-toggle-' + permission"
-                [checked]="detail.directPermissions.includes(permission)"
-                [disabled]="!viewerIsStaffAdmin()"
-                (click)="
-                  onTogglePermission(permission, detail.directPermissions.includes(permission))
-                "
-                class="accent-signal-500"
-              />
-              {{ permission }}
-            </label>
+              {{ 'staffDirectory.editProfile' | transloco }}
+            </button>
           }
-        </section>
+        </header>
+
+        @if (detail.globalRole === 'STAFF_ADMIN') {
+          <section data-testid="staff-admin-tier-actions" class="mb-5">
+            @if (viewerIsStaffAdmin()) {
+              @if (pendingDemote()) {
+                <div class="flex items-center gap-2">
+                  <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                    'staffDirectory.demoteConfirm' | transloco: { email: detail.email }
+                  }}</span>
+                  <button
+                    type="button"
+                    data-testid="staff-demote-confirm"
+                    [class]="dangerButtonClass"
+                    (click)="confirmDemote()"
+                  >
+                    {{ 'common.confirm' | transloco }}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="staff-demote-cancel"
+                    [class]="secondaryButtonClass"
+                    (click)="pendingDemote.set(false)"
+                  >
+                    {{ 'common.cancel' | transloco }}
+                  </button>
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  data-testid="staff-demote-button"
+                  [class]="secondaryButtonClass"
+                  [disabled]="detail.isLastAdminOfType"
+                  [attr.title]="
+                    detail.isLastAdminOfType
+                      ? ('staffDirectory.demoteDisabledLastAdmin' | transloco)
+                      : null
+                  "
+                  [attr.aria-describedby]="
+                    detail.isLastAdminOfType ? 'staff-demote-disabled-reason' : null
+                  "
+                  (click)="pendingDemote.set(true)"
+                >
+                  {{ 'staffDirectory.demote' | transloco }}
+                </button>
+                @if (detail.isLastAdminOfType) {
+                  <p
+                    id="staff-demote-disabled-reason"
+                    data-testid="staff-demote-disabled-reason"
+                    class="mt-1 text-xs text-ink-500 dark:text-ink-400"
+                  >
+                    {{ 'staffDirectory.demoteDisabledLastAdmin' | transloco }}
+                  </p>
+                }
+              }
+            }
+          </section>
+        } @else {
+          <section data-testid="staff-direct-permissions" class="mb-5">
+            <div class="mb-2 flex items-center justify-between">
+              <h3 class="text-sm font-medium text-ink-700 dark:text-ink-300">
+                {{ 'staffDirectory.directPermissions' | transloco }}
+              </h3>
+              @if (viewerIsStaffAdmin()) {
+                @if (pendingPromote()) {
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                      'staffDirectory.promoteConfirm' | transloco: { email: detail.email }
+                    }}</span>
+                    <button
+                      type="button"
+                      data-testid="staff-promote-confirm"
+                      [class]="secondaryButtonClass"
+                      (click)="confirmPromote()"
+                    >
+                      {{ 'common.confirm' | transloco }}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="staff-promote-cancel"
+                      [class]="secondaryButtonClass"
+                      (click)="pendingPromote.set(false)"
+                    >
+                      {{ 'common.cancel' | transloco }}
+                    </button>
+                  </div>
+                } @else {
+                  <button
+                    type="button"
+                    data-testid="staff-promote-button"
+                    [class]="secondaryButtonClass"
+                    (click)="pendingPromote.set(true)"
+                  >
+                    {{ 'staffDirectory.promote' | transloco }}
+                  </button>
+                }
+              }
+            </div>
+
+            @for (permission of allPermissions; track permission) {
+              <span
+                class="mr-3 mb-1 inline-flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300"
+              >
+                <button
+                  type="button"
+                  role="switch"
+                  [attr.aria-checked]="pendingPermissions().has(permission)"
+                  [attr.aria-label]="permissionLabel(permission)"
+                  [attr.data-testid]="'staff-permission-toggle-' + permission"
+                  [disabled]="!viewerIsStaffAdmin()"
+                  (click)="onTogglePermission(permission)"
+                  [class]="
+                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
+                    (pendingPermissions().has(permission)
+                      ? 'bg-signal-600'
+                      : 'bg-ink-300 dark:bg-ink-700')
+                  "
+                >
+                  <span
+                    [class]="
+                      'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-fast ease-fluid ' +
+                      (pendingPermissions().has(permission) ? 'translate-x-4' : 'translate-x-1')
+                    "
+                  ></span>
+                </button>
+                {{ permissionLabel(permission) }}
+              </span>
+            }
+
+            @if (hasPendingPermissionChanges()) {
+              <div class="mt-3">
+                <button
+                  type="button"
+                  data-testid="staff-save-permissions-button"
+                  [class]="buttonClassPrimary"
+                  [disabled]="!viewerIsStaffAdmin()"
+                  (click)="onSaveBatchPermissions()"
+                >
+                  {{ 'staffDirectory.save' | transloco }}
+                </button>
+              </div>
+            }
+          </section>
+        }
 
         <section data-testid="staff-access-groups" class="mb-5">
           <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
@@ -98,28 +233,6 @@ type DetailError = 'network' | 'permission-denied' | null;
               </li>
             }
           </ul>
-
-          @if (viewerIsStaffAdmin()) {
-            <form
-              data-testid="staff-new-access-group-form"
-              class="mt-3 flex gap-2"
-              (submit)="onCreateAccessGroup($event)"
-            >
-              <input
-                data-testid="staff-new-access-group-name"
-                type="text"
-                [value]="newAccessGroupName()"
-                (input)="newAccessGroupName.set($any($event.target).value)"
-                class="flex-1 rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm transition-shadow duration-fast ease-fluid focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
-              />
-              <button
-                type="submit"
-                class="rounded-xl bg-ink-800 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-fast ease-fluid hover:bg-signal-600 active:bg-signal-700 dark:bg-ink-600 dark:hover:bg-signal-500"
-              >
-                {{ 'staffDirectory.createGroup' | transloco }}
-              </button>
-            </form>
-          }
         </section>
 
         <section data-testid="staff-effective-permissions" class="mb-5">
@@ -127,7 +240,7 @@ type DetailError = 'network' | 'permission-denied' | null;
             {{ 'staffDirectory.effectivePermissions' | transloco }}
           </h3>
           <p class="text-sm text-ink-600 dark:text-ink-400">
-            {{ detail.effectivePermissions.join(', ') }}
+            {{ effectivePermissionLabels(detail) }}
           </p>
         </section>
 
@@ -188,9 +301,42 @@ type DetailError = 'network' | 'permission-denied' | null;
 
         <app-profile-section
           [userId]="userId()"
-          [canEdit]="viewerIsStaffAdmin() || globalPermissionsService.has('PROFILE_EDIT')"
+          [canEdit]="viewerCanEditProfile()"
           [ownUserId]="ownUserId()"
+          [hideEditToggle]="true"
+          [editTrigger]="editProfileTrigger()"
         />
+
+        @if (viewerCanDelete(detail)) {
+          <div class="mt-6 border-t border-ink-100 pt-4 dark:border-ink-800/50">
+            <button
+              type="button"
+              data-testid="staff-delete-button"
+              [class]="dangerButtonClass"
+              [disabled]="detail.isLastAdminOfType"
+              [attr.title]="
+                detail.isLastAdminOfType
+                  ? ('staffDirectory.deleteDisabledLastAdmin' | transloco)
+                  : null
+              "
+              [attr.aria-describedby]="
+                detail.isLastAdminOfType ? 'staff-delete-disabled-reason' : null
+              "
+              (click)="pendingDelete.set(true)"
+            >
+              {{ 'staffDirectory.delete' | transloco }}
+            </button>
+            @if (detail.isLastAdminOfType) {
+              <p
+                id="staff-delete-disabled-reason"
+                data-testid="staff-delete-disabled-reason"
+                class="mt-1 text-xs text-ink-500 dark:text-ink-400"
+              >
+                {{ 'staffDirectory.deleteDisabledLastAdmin' | transloco }}
+              </p>
+            }
+          </div>
+        }
       </div>
 
       @if (pendingPermissionRevoke(); as permission) {
@@ -220,20 +366,46 @@ type DetailError = 'network' | 'permission-denied' | null;
           (dismissed)="cancelGroupUnassign()"
         />
       }
+
+      @if (pendingDelete()) {
+        <app-confirm-dialog
+          [open]="true"
+          [message]="'staffDirectory.confirmDelete' | transloco: { email: detail.email }"
+          [fetchToken]="deletionTokenFetcher()"
+          [retryToken]="deleteRetryToken()"
+          (confirm)="confirmDelete($event)"
+          (dismissed)="cancelDelete()"
+        />
+      }
+
+      @if (pendingBatchSave()) {
+        <app-confirm-dialog
+          [open]="true"
+          [message]="'staffDirectory.confirmBatchSave' | transloco: { email: detail.email }"
+          [fetchToken]="batchTokenFetcher()"
+          [retryToken]="batchRetryToken()"
+          (confirm)="confirmBatchSave($event)"
+          (dismissed)="cancelBatchSave()"
+        />
+      }
     }
   `,
 })
 export class StaffUserDetailPanelComponent implements OnChanges {
   private readonly staffUserService = inject(StaffUserService);
   private readonly profileService = inject(ProfileService);
+  private readonly transloco = inject(TranslocoService);
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
 
   readonly userId = input.required<number>();
   readonly viewerIsStaffAdmin = input.required<boolean>();
 
+  protected readonly secondaryButtonClass = buttonClass('secondary');
+  protected readonly dangerButtonClass = buttonClass('danger');
+  protected readonly buttonClassPrimary = buttonClass('primary');
+
   protected readonly detail = signal<StaffUserDetail | null>(null);
   protected readonly availableAccessGroups = signal<GlobalAccessGroup[]>([]);
-  protected readonly newAccessGroupName = signal('');
   protected readonly allPermissions = ALL_GLOBAL_PERMISSIONS;
   protected readonly error = signal<DetailError>(null);
 
@@ -246,11 +418,51 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   // REQ-12/SPEC judgment call 5: sourced once per panel-open, threaded down to
   // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
   protected readonly ownUserId = signal<number | null>(null);
+  protected readonly editProfileTrigger = signal(0);
 
   protected readonly pendingPermissionRevoke = signal<GlobalPermission | null>(null);
   protected readonly permissionRevokeRetryToken = signal(0);
   protected readonly pendingGroupUnassign = signal<GlobalAccessGroup | null>(null);
   protected readonly groupUnassignRetryToken = signal(0);
+
+  protected readonly pendingDemote = signal(false);
+  protected readonly pendingPromote = signal(false);
+  protected readonly pendingDelete = signal(false);
+  protected readonly deleteRetryToken = signal(0);
+
+  // REQ-15/16: local, unsaved switches state. Seeded from `directPermissions` on every
+  // load/refresh (see `loadDetail`), only mutated locally by `onTogglePermission`.
+  protected readonly pendingPermissions = signal<Set<GlobalPermission>>(new Set());
+  protected readonly initialPermissions = signal<Set<GlobalPermission>>(new Set());
+  protected readonly pendingBatchSave = signal(false);
+  protected readonly batchRetryToken = signal(0);
+
+  protected readonly hasPendingPermissionChanges = computed(() => {
+    const pending = this.pendingPermissions();
+    const initial = this.initialPermissions();
+
+    if (pending.size !== initial.size) {
+      return true;
+    }
+
+    for (const permission of pending) {
+      if (!initial.has(permission)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+  protected readonly viewerCanEditProfile = computed(
+    () => this.viewerIsStaffAdmin() || this.globalPermissionsService.has('PROFILE_EDIT'),
+  );
+
+  // REQ-11 (identity-profile-model-v2): self-edit is removed entirely, not merely disabled — the
+  // header "Editar perfil" trigger mirrors `ProfileSectionComponent#showEditToggle`'s own rule.
+  protected readonly showEditProfileButton = computed(
+    () => this.viewerCanEditProfile() && this.userId() !== this.ownUserId(),
+  );
 
   ngOnChanges(): void {
     this.loadDetail();
@@ -275,6 +487,30 @@ export class StaffUserDetailPanelComponent implements OnChanges {
     return this.availableAccessGroups().filter((group) => !assignedIds.has(group.id));
   }
 
+  protected permissionLabel(permission: GlobalPermission): string {
+    return translatePermissionLabel(permission, this.transloco);
+  }
+
+  protected effectivePermissionLabels(detail: StaffUserDetail): string {
+    return detail.effectivePermissions
+      .map((permission) => this.permissionLabel(permission))
+      .join(', ');
+  }
+
+  // REQ-7a/REQ-12a: an admin-tier target's demote/delete actions are only shown to a viewer who
+  // is themselves a STAFF_ADMIN — a STAFF/MEMBER viewer holding broad granted permissions is
+  // still not an admin.
+  protected viewerCanDelete(detail: StaffUserDetail): boolean {
+    if (detail.globalRole === 'STAFF_ADMIN') {
+      return this.viewerIsStaffAdmin();
+    }
+
+    // No dedicated "delete" GlobalPermission exists (per REQ-11, unlike the admin-tier gate,
+    // deleting a plain STAFF target is never disabled/hidden on a granted-permission basis
+    // beyond the same STAFF_USER_CREATE-holder bar this panel already applies elsewhere).
+    return this.viewerIsStaffAdmin() || this.globalPermissionsService.has('STAFF_USER_CREATE');
+  }
+
   private reportError(err: { status: number }): void {
     this.error.set(err.status === 403 ? 'permission-denied' : 'network');
   }
@@ -291,6 +527,9 @@ export class StaffUserDetailPanelComponent implements OnChanges {
       .subscribe((detail) => {
         if (detail !== null) {
           this.detail.set(detail);
+          const direct = new Set(detail.directPermissions);
+          this.pendingPermissions.set(new Set(direct));
+          this.initialPermissions.set(new Set(direct));
         }
       });
   }
@@ -327,29 +566,23 @@ export class StaffUserDetailPanelComponent implements OnChanges {
       });
   }
 
-  protected onTogglePermission(permission: GlobalPermission, isGranted: boolean): void {
+  // REQ-16: toggling only mutates local state — no HTTP call per toggle.
+  protected onTogglePermission(permission: GlobalPermission): void {
     if (!this.viewerIsStaffAdmin()) {
       return;
     }
 
-    if (isGranted) {
-      this.pendingPermissionRevoke.set(permission);
-      return;
-    }
+    this.pendingPermissions.update((current) => {
+      const next = new Set(current);
 
-    this.staffUserService
-      .grantPermission(this.userId(), permission)
-      .pipe(
-        catchError((err) => {
-          this.reportError(err);
-          return of(null);
-        }),
-      )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.loadDetail();
-        }
-      });
+      if (next.has(permission)) {
+        next.delete(permission);
+      } else {
+        next.add(permission);
+      }
+
+      return next;
+    });
   }
 
   protected permissionRevocationTokenFetcher(
@@ -463,32 +696,105 @@ export class StaffUserDetailPanelComponent implements OnChanges {
     this.groupUnassignRetryToken.set(0);
   }
 
-  protected onCreateAccessGroup(event: Event): void {
-    event.preventDefault();
-
-    if (!this.viewerIsStaffAdmin()) {
-      return;
-    }
-
-    const name = this.newAccessGroupName();
-
-    if (!name) {
-      return;
-    }
+  // REQ-7: demote — no security-phrase token endpoint exists for this action (backend PLAN),
+  // so this uses a plain inline confirm step rather than `ConfirmDialogComponent`.
+  protected confirmDemote(): void {
+    this.pendingDemote.set(false);
 
     this.staffUserService
-      .createAccessGroup(name)
+      .demote(this.userId())
       .pipe(
         catchError((err) => {
           this.reportError(err);
-          return of(null);
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.newAccessGroupName.set('');
-          this.loadAccessGroups();
-        }
+      .subscribe(() => this.loadDetail());
+  }
+
+  // REQ-7e: promote — same plain-confirm shape as demote, never disabled on a last-admin basis.
+  protected confirmPromote(): void {
+    this.pendingPromote.set(false);
+
+    this.staffUserService
+      .promote(this.userId())
+      .pipe(
+        catchError((err) => {
+          this.reportError(err);
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => this.loadDetail());
+  }
+
+  protected deletionTokenFetcher(): () => Observable<string> {
+    return () => this.staffUserService.generateDeletionConfirmationToken(this.userId());
+  }
+
+  protected confirmDelete(word: string): void {
+    this.staffUserService
+      .delete(this.userId(), word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.deleteRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingDelete.set(false);
+            this.deleteRetryToken.set(0);
+            this.reportError(err);
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingDelete.set(false);
+        this.deleteRetryToken.set(0);
+        this.loadDetail();
       });
+  }
+
+  protected cancelDelete(): void {
+    this.pendingDelete.set(false);
+    this.deleteRetryToken.set(0);
+  }
+
+  // REQ-17/18/19: single confirmation for the whole batch, submitting the full pending set.
+  protected onSaveBatchPermissions(): void {
+    if (!this.hasPendingPermissionChanges()) {
+      return;
+    }
+
+    this.pendingBatchSave.set(true);
+  }
+
+  protected batchTokenFetcher(): () => Observable<string> {
+    return () => this.staffUserService.generateBatchPermissionUpdateToken(this.userId());
+  }
+
+  protected confirmBatchSave(word: string): void {
+    this.staffUserService
+      .batchUpdatePermissions(this.userId(), Array.from(this.pendingPermissions()), word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.batchRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingBatchSave.set(false);
+            this.batchRetryToken.set(0);
+            this.reportError(err);
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingBatchSave.set(false);
+        this.batchRetryToken.set(0);
+        this.loadDetail();
+      });
+  }
+
+  protected cancelBatchSave(): void {
+    this.pendingBatchSave.set(false);
+    this.batchRetryToken.set(0);
   }
 }

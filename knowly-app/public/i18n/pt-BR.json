@@ -239,7 +239,18 @@
     "roles": {
       "MEMBER": "Membro",
       "MEMBER_ADMIN": "Membro Admin"
-    }
+    },
+    "editProfile": "Editar perfil",
+    "demote": "Demover para MEMBER",
+    "demoteConfirm": "Demover {{email}} para MEMBER?",
+    "demoteDisabledLastAdmin": "É necessário manter ao menos um MEMBER_ADMIN neste tenant.",
+    "promote": "Promover a MEMBER_ADMIN",
+    "promoteConfirm": "Promover {{email}} a MEMBER_ADMIN?",
+    "delete": "Excluir membro",
+    "confirmDelete": "Excluir {{email}}? Esta ação não pode ser desfeita.",
+    "deleteDisabledLastAdmin": "É necessário manter ao menos um MEMBER_ADMIN neste tenant.",
+    "save": "Salvar",
+    "confirmBatchSave": "Salvar alterações de permissões para {{email}}?"
   },
   "sharedList": {
     "selectAll": "Selecionar tudo",
@@ -288,7 +299,18 @@
     "roles": {
       "STAFF": "Staff",
       "STAFF_ADMIN": "Staff Admin"
-    }
+    },
+    "editProfile": "Editar perfil",
+    "demote": "Demover para STAFF",
+    "demoteConfirm": "Demover {{email}} para STAFF?",
+    "demoteDisabledLastAdmin": "É necessário manter ao menos um STAFF_ADMIN.",
+    "promote": "Promover a STAFF_ADMIN",
+    "promoteConfirm": "Promover {{email}} a STAFF_ADMIN?",
+    "delete": "Excluir usuário",
+    "confirmDelete": "Excluir {{email}}? Esta ação não pode ser desfeita.",
+    "deleteDisabledLastAdmin": "É necessário manter ao menos um STAFF_ADMIN.",
+    "save": "Salvar",
+    "confirmBatchSave": "Salvar alterações de permissões para {{email}}?"
   },
   "conversations": {
     "new": "Nova conversa",

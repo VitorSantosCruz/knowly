@@ -65,7 +65,7 @@ type DetailError = 'network' | 'permission-denied' | null;
           }
           <p class="text-sm text-ink-600 dark:text-ink-400">{{ profile.email }}</p>
 
-          @if (showEditToggle()) {
+          @if (showEditToggle() && !hideEditToggle()) {
             <button
               data-testid="profile-section-edit-toggle"
               (click)="editing.set(true)"
@@ -97,6 +97,11 @@ export class ProfileSectionComponent {
   // viewer is looking at their own row, since REQ-11 (identity-profile-model-v2) removed
   // self-direct-edit entirely, for anyone.
   readonly ownUserId = input<number | null>(null);
+  // REQ-28: hides this component's own bottom-of-content edit toggle when the parent detail
+  // screen renders "Editar perfil" in its top header instead — the parent triggers editing via
+  // `editTrigger` (an incrementing counter, same pattern as `ConfirmDialogComponent#retryToken`).
+  readonly hideEditToggle = input(false);
+  readonly editTrigger = input(0);
 
   protected readonly profile = signal<UserProfile | null>(null);
   protected readonly profileError = signal<DetailError>(null);
@@ -115,6 +120,16 @@ export class ProfileSectionComponent {
     effect(() => {
       const userId = this.userId();
       this.loadProfile(userId);
+    });
+
+    let lastEditTrigger = 0;
+    effect(() => {
+      const trigger = this.editTrigger();
+
+      if (trigger > 0 && trigger !== lastEditTrigger) {
+        lastEditTrigger = trigger;
+        this.editing.set(true);
+      }
     });
   }
 

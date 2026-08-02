@@ -19,9 +19,11 @@ export interface GlobalAccessGroup {
 export interface StaffUserDetail {
   userId: number;
   email: string;
+  globalRole: GlobalRole;
   directPermissions: GlobalPermission[];
   accessGroups: GlobalAccessGroup[];
   effectivePermissions: GlobalPermission[];
+  isLastAdminOfType: boolean;
 }
 
 export interface AuditEvent {
@@ -111,5 +113,43 @@ export class StaffUserService {
 
   getAuditTrail(userId: number): Observable<AuditEvent[]> {
     return this.http.get<AuditEvent[]>(`/api/staff/users/${userId}/audit-trail`);
+  }
+
+  demote(userId: number): Observable<void> {
+    return this.http.post<void>(`/api/staff/users/${userId}/demote`, {});
+  }
+
+  promote(userId: number): Observable<void> {
+    return this.http.post<void>(`/api/staff/users/${userId}/promote`, {});
+  }
+
+  generateDeletionConfirmationToken(userId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(`/api/staff/users/${userId}/deletion-confirmation-token`, {})
+      .pipe(map((res) => res.word));
+  }
+
+  delete(userId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/staff/users/${userId}`, { body: { word } });
+  }
+
+  generateBatchPermissionUpdateToken(userId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(
+        `/api/staff/users/${userId}/permissions/batch/deletion-confirmation-token`,
+        {},
+      )
+      .pipe(map((res) => res.word));
+  }
+
+  batchUpdatePermissions(
+    userId: number,
+    permissions: GlobalPermission[],
+    word: string,
+  ): Observable<void> {
+    return this.http.put<void>(`/api/staff/users/${userId}/permissions/batch`, {
+      permissions,
+      word,
+    });
   }
 }
