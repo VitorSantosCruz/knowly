@@ -9,6 +9,8 @@ import { SelectTenantPageComponent } from './features/select-tenant/select-tenan
 import { TenantCreatePageComponent } from './features/tenant-create/tenant-create-page.component';
 import { tenantSelectionGuard } from './core/tenant-selection.guard';
 import { staffGuard } from './core/staff.guard';
+import { accessGroupManagementGuard } from './core/access-group-management.guard';
+import { AccessGroupManagementPageComponent } from './features/access-groups/access-group-management-page.component';
 import { rootRedirectGuard } from './core/root-redirect.guard';
 import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
 import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
@@ -48,6 +50,16 @@ export const routes: Routes = [
     path: 'members',
     component: UserManagementPageComponent,
     canActivate: [tenantSelectionGuard],
+  },
+  // REQ-20 (staff-members-management-redesign): access groups are their own
+  // screen, independent of any user's detail view. Guarded the same fixed
+  // way as staffGuard (GET /api/staff/permissions, which never 403s), gated
+  // on STAFF_PERMISSION_MANAGE — the permission every access-group endpoint
+  // this screen calls already requires server-side.
+  {
+    path: 'staff/access-groups',
+    component: AccessGroupManagementPageComponent,
+    canActivate: [accessGroupManagementGuard],
   },
   {
     path: 'conversations',

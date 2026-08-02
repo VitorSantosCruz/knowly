@@ -157,18 +157,34 @@
 
 ## 7. Access group management screen
 
-- [ ] 7.1. Write `access-group-management-page.component.spec.ts`:
+- [x] 7.1. Write `access-group-management-page.component.spec.ts`:
       create group, list groups via `app-shared-list`, expand/view
       members (Red).
-- [ ] 7.2. Implement `AccessGroupManagementPageComponent` (Green).
-- [ ] 7.3. Write tests: assign/unassign a `STAFF`/`MEMBER` user to/from a
+- [x] 7.2. Implement `AccessGroupManagementPageComponent` (Green).
+- [x] 7.3. Write tests: assign/unassign a `STAFF`/`MEMBER` user to/from a
       group; `STAFF_ADMIN`/`MEMBER_ADMIN` never offered as assignable
       candidates (REQ-23) (Red).
-- [ ] 7.4. Implement assignment UI with the role filter (Green).
-- [ ] 7.5. Add `/staff/access-groups` route with its permission-specific
-      guard (mirroring `staffGuard`'s fixed pattern, checked against
-      `GET /api/staff/permissions`).
-- [ ] 7.6. Run full verification; commit
+- [x] 7.4. Implement assignment UI with the role filter (Green).
+      **Deviation from PLAN.md**: no `GET`-a-group's-members backend
+      endpoint exists (confirmed against `StaffController.java`/
+      `StaffService.java` — only create/list/grant-permission/assign/
+      unassign per user). Membership is derived client-side by fetching
+      every non-`STAFF_ADMIN` candidate's own detail
+      (`GET /api/staff/users/{id}/permissions`, which already returns
+      `accessGroups`) once a group is selected, via `forkJoin` — an N+1
+      pattern, accepted as the only option without a new backend
+      endpoint (tenant-scope access groups explicitly stay out of this
+      PLAN's scope per its own "Tenant-scope access groups" note, so
+      only the global/staff screen is built here).
+- [x] 7.5. Add `/staff/access-groups` route with its permission-specific
+      guard (`accessGroupManagementGuard`, mirroring `staffGuard`'s
+      fixed pattern, checked against `GET /api/staff/permissions` for
+      `STAFF_PERMISSION_MANAGE` — the exact `GlobalPermission` every
+      access-group endpoint this screen calls already requires
+      server-side, per `@RequiresGlobalPermission` on
+      `StaffController`'s access-group methods).
+- [x] 7.6. Run full verification (`format:check && test && build &&
+      lint`, 590/590 tests green); commit
       `feat(access-groups): add standalone access-group management screen`.
 
 ## 8. Final pass

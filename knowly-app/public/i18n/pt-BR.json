@@ -312,6 +312,18 @@
     "save": "Salvar",
     "confirmBatchSave": "Salvar alterações de permissões para {{email}}?"
   },
+  "accessGroupManagement": {
+    "title": "Grupos de acesso",
+    "namePlaceholder": "Nome do novo grupo…",
+    "empty": "Nenhum grupo de acesso ainda.",
+    "columns": {
+      "name": "Nome"
+    },
+    "membersOf": "Membros de '{{group}}'",
+    "members": "Membros",
+    "noMembers": "Nenhum membro ainda.",
+    "assignable": "Usuários atribuíveis"
+  },
   "conversations": {
     "new": "Nova conversa",
     "untitled": "Conversa sem título",

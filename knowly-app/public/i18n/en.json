@@ -312,6 +312,18 @@
     "save": "Save",
     "confirmBatchSave": "Save permission changes for {{email}}?"
   },
+  "accessGroupManagement": {
+    "title": "Access groups",
+    "namePlaceholder": "New group name…",
+    "empty": "No access groups yet.",
+    "columns": {
+      "name": "Name"
+    },
+    "membersOf": "Members of '{{group}}'",
+    "members": "Members",
+    "noMembers": "No members yet.",
+    "assignable": "Assignable users"
+  },
   "conversations": {
     "new": "New conversation",
     "untitled": "Untitled conversation",
