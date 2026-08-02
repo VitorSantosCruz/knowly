@@ -4,6 +4,19 @@
 
 ## Changelog
 
+- **2026-08-02**: **REQ-3 amended — this is a confirmed reversal of a
+  prior decision, not a reinterpretation.** REQ-3 previously mirrored
+  `tenancy` SPEC's original REQ-18 verbatim ("no permission implies any
+  other"). The product owner confirmed the same reversal applies at the
+  global/staff scope as at the tenant scope: view/list remains
+  independent, but edit and delete now each additionally require the
+  caller to also hold view on that same resource; create remains fully
+  independent. See `tenancy` SPEC's own 2026-08-02 changelog entry and
+  the new `permission-granularity-model` SPEC (the canonical source of
+  this rule) for full detail. REQ-1, REQ-2, REQ-4 through REQ-9, all
+  prior acceptance criteria, and the existing "Out of scope"/"Decisions"
+  sections are unchanged — nothing else pre-existing was reinterpreted
+  or removed.
 - **2026-08-01**: Added REQ-9 and its acceptance criterion. Fixes a
   consumer-reported gap surfaced while implementing `knowly-app`'s
   `navigation-menu` feature (REQ-10/REQ-11 there): `GET
@@ -58,8 +71,10 @@ this entirely, per REQ-2, so it's unaffected). REQ-9 closes this gap.
   explicitly granted actions so that I can bring on support staff without
   giving them the same reach as a platform owner.
 - As a `STAFF` user, I want my access to be exactly what was granted to
-  me — no more, no less — so that "I can view X" never silently implies
-  "I can also edit or delete X."
+  me — no more, no less, except that being able to edit or delete a
+  resource always implies I can also see it — so that "I can view X"
+  never silently implies "I can also edit or delete X," but "I can edit
+  X" does require that I can already view X.
 - As a frontend consuming `GET /api/staff/permissions`, I want to know
   whether the caller is a staff account at all, independent of whether
   they currently hold any granted global permission, so that I can show
@@ -75,10 +90,18 @@ this entirely, per REQ-2, so it's unaffected). REQ-9 closes this gap.
   `GlobalRole.STAFF` has today — bypassing all permission checks, both
   tenant-scoped (already true today) and the new global ones this
   feature introduces.
-- **REQ-3 [Ubiquitous]** A global permission shall be independent per
-  action, following the exact same principle already established for
-  tenant permissions (`tenancy` SPEC REQ-18): no permission implies any
-  other, access is always exactly what was explicitly granted.
+- **REQ-3 [Ubiquitous]** *(Amended 2026-08-02 — see Changelog above;
+  supersedes this requirement's original "no permission implies any
+  other" wording.)* A global permission shall be independent per action,
+  following the same principle established for tenant permissions
+  (`tenancy` SPEC REQ-18, itself amended 2026-08-02) — **except** that
+  edit and delete global permissions each additionally require the
+  caller to also hold the corresponding view permission for that same
+  resource; view/list and create remain fully independent. The
+  canonical, authoritative statement of this rule (and the per-resource
+  gap analysis for the global/staff scope) is `permission-granularity-model`
+  SPEC's REQ-1 through REQ-3; this requirement must not drift from that
+  one.
 - **REQ-4 [Ubiquitous]** A `STAFF` user's global permissions shall be
   grantable both directly (to that specific user) and via a reusable,
   named group of permissions assignable to multiple `STAFF` users —
@@ -149,6 +172,11 @@ this entirely, per REQ-2, so it's unaffected). REQ-9 closes this gap.
 - [x] `GET /api/staff/permissions` for a plain tenant member (`MEMBER` or
       `MEMBER_ADMIN`, no `GlobalRole`) returns the new field as `false`
       and an empty `permissions` list.
+- [ ] **New, per REQ-3's 2026-08-02 amendment**: a `STAFF` user granted
+      only `STAFF_USER_EDIT`/`STAFF_USER_DELETE` (once those exist, per
+      `permission-granularity-model`) without `STAFF_USER_VIEW` is
+      denied — tracked and detailed in `permission-granularity-model`
+      SPEC, not duplicated here.
 
 ## Out of scope
 

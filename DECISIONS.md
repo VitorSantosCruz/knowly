@@ -1777,6 +1777,412 @@ the general "avoid widening a shared endpoint's contract" guidance would
 otherwise suggest — symmetry between deliberately-parallel roles is a
 stronger signal than the generic blast-radius concern.
 
+## Permission granularity model reversed: edit/delete now require view; create stays independent (Tier 3, confirmed by the product owner 2026-08-02)
+
+**What it was:** `tenancy` SPEC's original REQ-18 (and
+`staff-rbac-split` SPEC's REQ-3, which mirrored it at the global/staff
+scope) stated that permissions are **fully independent per action** —
+"no permission implies any other... access is always exactly what was
+explicitly granted, never inferred from ownership." Under that model, a
+caller could hold, say, `ARTICLE_DELETE` without `ARTICLE_VIEW`, and the
+system would have to honor that combination.
+
+**What it is now:** the product owner explicitly confirmed (2026-08-02)
+that this is reversed for edit and delete specifically, for **every**
+CRUD-shaped resource in the system (tenants, articles, staff users,
+tenant members, access groups, permission grants, and any future
+resource with the same four actions) — not just one resource. The new
+rule: view/list remains fully independent (as before); create remains
+fully independent (as before); but **edit and delete each now
+additionally require the caller to also hold view/list on that same
+resource** — a caller cannot edit or delete something they cannot see.
+Granting or revoking edit/delete does not itself auto-grant/auto-revoke
+view/list; the dependency is enforced only at authorization-check time.
+
+**Why:** the product owner's own words, paraphrased: "como a pessoa vai
+deletar ou editar sem ver o recurso?" (how is the person going to
+delete or edit a resource without seeing it?) — the fully-independent
+model was judged operationally illogical for edit/delete specifically,
+since there is no coherent way to act on a resource a caller cannot
+locate/identify in the first place. View/list and create were
+deliberately left alone: viewing something clearly needs nothing else,
+and creating something clearly can't require having first viewed an
+item that doesn't exist yet — the illogic argument only ever applied to
+the "acting on an existing, specific item" cases (edit, delete).
+
+**This is a genuine reversal, not a clarification** — see this file's
+own incident record at the top (an AI once silently edited out an "Out
+of scope" line and implemented it anyway) for why this distinction
+matters: the previous "fully independent" wording is not being
+reinterpreted here, it is being explicitly superseded, with the old
+wording kept visible (struck through in spirit, not literally deleted)
+in both `tenancy` SPEC's and `staff-rbac-split` SPEC's own Changelog
+sections, each pointing to the new canonical source below rather than
+silently rewriting history.
+
+**Where the new rule lives:** a new SPEC,
+`knowly-api/specify/features/permission-granularity-model/SPEC.md`, is
+now the single canonical statement of this rule (REQ-1 through REQ-5),
+plus a full per-resource gap analysis (REQ-6 through REQ-11) covering
+every CRUD-shaped resource that exists today: `Article` (already has all
+four permissions, just needs the new dependency wired into the
+authorization check — no permission renaming needed); `Tenant` (today
+only has `TENANT_CREATE` — `TENANT_VIEW`/`_EDIT`/`_DELETE` need to be
+added, and the tenant edit/delete *business logic itself* doesn't exist
+yet — deliberately scoped out of this SPEC into a future "tenant CRUD"
+SPEC, since that's a new business capability, not just new permission
+plumbing); staff users (today `STAFF_USER_CREATE`/`_VIEW` exist,
+`_EDIT`/`_DELETE` need to be added — the deletion business logic itself
+is `staff-rbac-management-operations` SPEC's, untouched here); tenant
+members, access groups, and permission grants (today each is one
+bundled `*_MANAGE_ANY` permission — each needs to become four/three
+independent permissions with the view-dependency wired in, with a
+migration that grants all of the new permissions to every existing
+holder of the old bundled one, so no one's effective access silently
+narrows at cutover). `tenancy` SPEC's REQ-18 and `staff-rbac-split`
+SPEC's REQ-3 are both amended (not rewritten wholesale) to point at this
+new SPEC as the source of truth, rather than duplicating the rule text
+in three places that could drift independently.
+
+**Applies to new decisions:** (1) any future CRUD-shaped resource added
+to this system must, from day one, have its edit/delete permissions
+depend on its view/list permission — this is now the house default, not
+something to re-derive/re-confirm per feature. (2) A bundled
+`*_MANAGE_ANY`-style permission covering multiple distinct actions on
+one resource is no longer the preferred shape for a *new* resource going
+forward (see `permission-granularity-model` SPEC's REQ-9/10/11 replacing
+exactly this shape for tenant members/access groups/permission grants) —
+default to one permission per action, with the view-dependency wired in
+for edit/delete, rather than bundling. (3) Splitting a bundled
+permission into granular ones for an *existing* resource must always
+ship with a migration that grants every new granular permission to every
+existing holder of the old bundled one, so effective access doesn't
+silently narrow — the same "preserve effective access at cutover"
+principle already established for the `GlobalRole` rename in
+`role-model-refinement`.
+
+## `tenant-creation` (frontend): the long-form staff screen adopts Reactive Forms + two extracted address/contacts components (Tier 2, 2026-08-02)
+
+**What:** the `/tenants/new` screen (staff-only tenant + first-admin
+creation) is the first form in `knowly-app` to use Angular **Reactive
+Forms** (`FormGroup`/`FormBuilder`/`FormArray`), rather than the
+plain-signal-plus-manual-validation convention every other form in this
+codebase uses today (`members-page.component.ts`, the original
+`tenant-create-page.component.ts` itself). It also introduces two new
+standalone, presentational, reusable components:
+`AddressFieldsComponent` (an 8-field structured-address fieldset bound
+to a caller-supplied `FormGroup`) and `ContactsListEditorComponent` (a
+repeatable contact-row editor bound to a caller-supplied `FormArray`).
+
+**Why Reactive Forms here, specifically:** the amended SPEC
+(`knowly-app/specify/features/tenant-creation/SPEC.md` REQ-7–REQ-21)
+grew this form to ~25 fields across three sections, including a
+repeatable contacts list and two independent structured-address
+sub-sections, each with its own required/format validation rules
+(REQ-8, REQ-9, REQ-10, REQ-13, REQ-14). The plain-signal convention this
+codebase has used until now was viable for forms with a handful of flat
+fields (`members-page.component.ts`'s invite form); reproducing
+`FormArray`-equivalent add/remove-row behavior, per-field
+touched/error/validator state, and nested-group scoping by hand for a
+form this size would mean re-implementing most of what
+`ReactiveFormsModule` already provides, with more surface area for bugs
+than the framework module Angular already ships. `ReactiveFormsModule`
+is part of `@angular/forms`, already a project dependency — this is a
+new *pattern* adopted for one form, not a new package (no
+`package.json` change), so it does not trigger the Tier 3 "new
+dependency" bar.
+
+**Why extracted, standalone `AddressFieldsComponent`/
+`ContactsListEditorComponent`, not inline markup duplicated per
+section:** the form needs the exact same 8-field address layout twice
+(company address, first user's address — SPEC REQ-16 requires this
+explicitly, "reuse presentation only, not data") and `user-profile-v2`
+already independently solved "a repeatable contacts-row editor" inline
+inside `ProfileFieldsFormComponent`. Rather than copy that inline
+pattern a second time for `tenant-create`, this feature factors both
+into standalone, purely presentational components taking a caller-owned
+`FormGroup`/`FormArray` as input — no HTTP call, no service dependency,
+no shared data between the two `AddressFieldsComponent` instances (each
+is bound to an independent `FormGroup` instance, so filling one never
+affects the other, satisfying REQ-16 by construction rather than by
+convention).
+
+**Known drift accepted, not resolved by this decision:**
+`ProfileFieldsFormComponent`'s existing contacts editor stays inline,
+un-refactored to use the new `ContactsListEditorComponent` — this
+decision does not retroactively unify the two. If a third repeatable-
+contacts consumer appears, reconciling all three into one shared
+component becomes the stronger case; two independent implementations of
+the same UI shape is accepted as a real but small amount of drift for
+now, not silently ignored.
+
+**Applies to new decisions:** (1) a new form in `knowly-app` that needs
+`FormArray`-shaped repeatable rows, more than ~2 independent
+nested-group sub-sections, or non-trivial cross-field validation should
+default to Reactive Forms rather than the plain-signal convention — the
+plain-signal convention remains the default for simple, flat forms (a
+handful of top-level fields, no repeatable rows), consistent with
+`members-page.component.ts`'s continued use of it. (2) A structured
+"presentation shape reused across independent data" need (like this
+feature's two addresses) should be factored into a standalone,
+input/output-only component bound to a caller-owned form
+construct — not duplicated markup, and not a shared data model.
+
+## `tenant-creation`: tenant + first admin are created in one atomic call, not two (2026-08-02)
+
+`tenant-creation/PLAN.md` (backend) originally kept `POST /api/tenants`
+scoped to company fields + a bare `adminEmail`, leaving the first
+admin's full profile (`mandatory-complete-profile`) and role
+(`user-role-selection-at-creation`) to a *separate*, subsequent
+`addMember` call — mirroring how every other member is added to an
+already-existing tenant. Writing that PLAN surfaced a real contradiction
+against the already-written frontend SPEC
+(`knowly-app/specify/features/tenant-creation/SPEC.md` REQ-4/REQ-5),
+which requires the `/tenants/new` screen to submit company data, the
+first admin's full profile, and their role in **one** `POST
+/api/tenants` call — not two round trips the UI would have to sequence
+and partially roll back on failure.
+
+**Decision:** `POST /api/tenants` becomes a single, atomic,
+`@Transactional` endpoint that creates the `Tenant` **and** its first
+`TenantMembership` (`User` + `UserProfile` + `Address` + `Contact` rows,
+role defaulting to `MEMBER_ADMIN`) together. If any part fails —
+invalid company fields, an incomplete first-user profile, an invalid
+role — nothing is persisted: no orphaned tenant without a member, no
+member without a tenant. **Why:** the frontend SPEC's one-call
+requirement is the actual, already-approved product requirement here;
+splitting it into "create tenant" then "add member" server-side would
+force the frontend to either violate its own SPEC (two calls) or fake
+atomicity client-side (call 1, then call 2, then manually clean up call
+1's tenant if call 2 fails) — strictly worse than doing it properly in
+one transaction, which this system already has the primitives for
+(`@Transactional`, existing `UserProfileService` field-setting helpers).
+
+This does **not** change `addMember` for the *n*-th member of an
+already-existing tenant — that flow, and `mandatory-complete-profile`/
+`user-role-selection-at-creation`'s field/role rules, are unchanged;
+only *where* those already-decided rules apply for a brand-new tenant's
+very first member moves from a follow-up `addMember` call to
+`createTenant` itself, reusing the same lower-level persistence helpers
+rather than re-deriving them.
+
+**Applies to new decisions:** when a backend PLAN's natural
+decomposition (one call per aggregate created) conflicts with an
+already-approved frontend SPEC's UX requirement (one call for the whole
+screen), the frontend SPEC's approved requirement wins if it was written
+and approved first — don't silently keep the backend-only shape and
+leave the frontend to reconcile it later. Cross-check a new SPEC's
+"submits in one action" language against every backend endpoint it
+implies before finalizing that backend's own PLAN.
+
+## `tenant-creation`: tenant address lives as flat columns on `tenants`, not a separate 1:1 address table (2026-08-02)
+
+`identity-profile-model-v2` split a user's address into its own
+`addresses` table (PK = `user_id`) specifically because a user's address
+is **optional and lazily created** — most users may never submit one,
+and the row's lifecycle is independent from the rest of the profile.
+`tenant-creation` SPEC's REQ-2 makes every tenant address sub-field
+(except `complement`) **mandatory at creation** — a tenant's address row
+would always exist, always be created in the same transaction as the
+`Tenant` itself, and never have an independent lifecycle.
+
+**Decision:** address fields (`postalCode`, `street`, `number`,
+`complement`, `neighborhood`, `city`, `state`) are plain columns on
+`tenants`, not a second `tenant_addresses` table. **Why:** a mandatory,
+always-present 1:1 relation gains nothing from being split into a
+separate table — no join is ever avoided (it's always fetched together
+with the tenant), no optionality is modeled (there's nothing to be
+"absent" the way a user's address can be), and splitting it would only
+add a second entity/repository and an insert-ordering concern to every
+tenant-creation code path for no benefit. `identity-profile-model-v2`'s
+own underlying rule was never "always split address into its own
+table" — it was "split out data whose lifecycle is genuinely
+independent/optional from its parent." Applied consistently, that rule
+produces the *opposite* answer for `tenants` than it did for `users`,
+which is the correct outcome, not an inconsistency.
+
+**Applies to new decisions:** before copying `identity-profile-model
+-v2`'s `Address`-as-separate-table shape for a new entity's address (or
+any other 1:1 sub-record), check whether that data is genuinely
+optional/independently-lifecycled from its parent. If it's mandatory,
+always created together with the parent, and never independently
+edited on its own lifecycle, flat columns on the parent table are the
+simpler, equally consistent choice — don't split it out just because a
+superficially similar feature did.
+
+## `tenant-creation`: first codebase precedent for a class-level custom Bean Validation `@Constraint` (conditional cross-field rule), diverging from `identity-profile-model-v2`'s "no custom `@Constraint`" call (2026-08-02)
+
+`identity-profile-model-v2`'s `DECISIONS.md` entry chose a plain
+service-layer `if` over a custom Bean Validation `@Constraint` for
+`ContactType` format rules, reasoning that "exactly one conditional
+rule doesn't justify introducing a whole new validation mechanism for a
+one-off," and that case was validated deep inside a service method
+called from multiple write paths (direct add, edit-request approval),
+where a `@Constraint` would need duplicating or bypassing on one path
+anyway.
+
+`tenant-creation`'s `taxId`-format-depends-on-`country` rule (REQ-6) is
+conditional in the same shape, but arrives at the opposite structural
+answer: both fields arrive together in exactly **one** place
+(`CreateTenantRequestDto` at `POST /api/tenants`, one write path, not
+several). **Decision:** a class-level custom `@ValidTaxId` constraint
+on `CreateTenantRequestDto`, applied via the controller's existing
+`@Valid`. **Why:** this validates at the exact boundary Bean Validation
+already owns for every other field on this DTO (`@Email`, `@NotBlank`),
+producing the same uniform per-field 400 response REQ-3 requires,
+without a service-layer `if` needing its own exception + handler just
+to fold into that same field-level error list.
+
+**Applies to new decisions:** `identity-profile-model-v2`'s "prefer a
+plain service-layer conditional over a new `@Constraint`" guidance
+applies when the validated data is reachable from multiple write paths
+inside a service method — not universally. When a conditional/
+cross-field rule's inputs arrive together in exactly one DTO at exactly
+one endpoint, a class-level `@Constraint` is the better fit precisely
+because Bean Validation already owns that boundary's error-response
+shape; re-derive which precedent applies from *this* distinction, don't
+default to whichever one shipped first.
+
+### Concurrent "count must never reach a forbidden value" floors are enforced with a pessimistic row lock, not a read-then-write `COUNT`
+
+`staff-rbac-management-operations/PLAN.md`'s "last admin" floor (never
+let the count of `STAFF_ADMIN`/`MEMBER_ADMIN` reach zero via demotion or
+deletion) is the first case in this codebase of a business rule that
+must hold under concurrent requests, not just within a single
+transaction. A plain `SELECT COUNT(*) ... WHERE role = ADMIN` read
+followed by a conditional write, even inside `@Transactional`, does not
+close this gap under this project's default (read-committed) isolation:
+two concurrent demote/delete requests against two different "last
+remaining" admins can each read "2 remain" before either commits, and
+both proceed, landing on zero.
+
+**Decision:** the floor check locks the actual candidate rows for update
+(`@Lock(LockModeType.PESSIMISTIC_WRITE)` on a JPQL query returning the
+matching rows, e.g. `UserRepository.findByGlobalRoleForUpdate(GlobalRole
+role)`), counts the locked result set in Java, and only then proceeds
+with the mutation — all inside the same transaction. A second concurrent
+request against an overlapping row set blocks on the row lock until the
+first transaction commits or rolls back, then re-reads a now-accurate
+count. **Why:** this closes the TOCTOU window with the smallest possible
+change — no new table, no advisory lock, no serializable-isolation
+setting change for the whole app (which would affect unrelated queries)
+— by locking exactly the rows whose count matters for this specific
+check, for the shortest time that check needs them held.
+
+**Applies to new decisions:** any future rule shaped like "a count of
+some row set must never cross a threshold under concurrent mutation" —
+not just role floors — should reach for this same pattern (lock the
+candidate rows, count them locked, then mutate, all in one transaction)
+rather than a bare `COUNT` read. Don't reach for `SERIALIZABLE`
+isolation or an advisory lock as the default answer; those are broader
+hammers than this project has needed so far.
+
+## `tenant-creation` (backend): tenant + first admin are one atomic call, not two (Tier 3, decided 2026-08-02)
+
+**What:** `POST /api/tenants` creates the `Tenant` **and** its first
+`TenantMembership` (`User` + `UserProfile` + `Address` + `Contact`(s),
+role defaulting to `MEMBER_ADMIN`) in a single request, inside one
+`@Transactional` service method. If any part fails — invalid company
+fields, an incomplete/invalid first-admin profile, a role the caller
+isn't allowed to assign — the whole call fails and nothing is
+persisted: no tenant without a member, no member without a tenant.
+
+**Why:** a real contradiction was found between two already-written
+artifacts in the same session — `knowly-app`'s `tenant-creation/SPEC.md`
+REQ-4/REQ-5 (approved, requiring the `/tenants/new` screen to call
+`POST /api/tenants` exactly once with company data, the first admin's
+full profile, and their role together) versus `knowly-api`'s
+`tenant-creation/PLAN.md` (which, before this decision, planned company
+fields + a bare `adminEmail` on `POST /api/tenants`, deferring the
+admin's full profile/role to a separate, subsequent `addMember` call).
+Two separate calls creates a real inconsistent-state risk this product
+cannot tolerate: a tenant could be created and then the second call
+(profile/role) could fail for any reason (network, validation, a crash
+between calls), leaving a tenant with zero members — permanently
+inaccessible under the tenant-isolation model (`tenants` has no
+"orphaned"/reconciliation path; a tenant with no `MEMBER_ADMIN` can
+never be administered into a working state by anyone except staff
+re-running the whole flow manually). A single atomic transaction makes
+that state unreachable by construction rather than by discipline.
+
+**Applies to new decisions:** any future multi-entity "create X and its
+mandatory related Y in one user action" flow (this product's
+established shape: `tenancy` REQ-10 already requires "a tenant is never
+created without an admin") should default to one atomic transaction
+behind one endpoint, not two client-orchestrated calls, whenever the
+related entity is *mandatory* and *always* created together with the
+first (not an optional, later-addable relation like `addMember`'s 2nd+
+member case, which correctly remains its own call). Before splitting
+a "create + its required child" flow across two endpoints, check
+whether the child is truly optional/deferred (matches `addMember`'s
+shape) or truly mandatory-at-creation (matches this decision) — the
+same distinction `mandatory-complete-profile`'s "derived, not persisted"
+entry already drew for pending state.
+
+## `tenant-crud`: soft-deleted-tenant unreachability is enforced at the two existing tenant-selection chokepoints, not a new check (Tier 2, 2026-08-02)
+
+`TenantService#requireActiveMembership` (a member's `switchActiveTenant`)
+and `TenantService#requireTenant` (staff's "act as tenant") already are
+the only two places any caller resolves "can I reach this tenant" before
+a `TenantMembership`-less staff session or a real membership gets wired
+into the security context — both already throw
+`TenantAccessDeniedException` for "no access." Rather than adding a
+third, separate "is this tenant soft-deleted" check somewhere else (a new
+filter, a new guard, a new aspect), `tenant-crud` adds one condition —
+`tenant.getDeletedAt() != null` — to those same two methods, throwing the
+exact same exception. **Why:** this is the same "fails closed, no
+parallel mechanism" principle `TenantFilter`/`TenantFilterAspect` already
+establish for cross-tenant isolation, applied to a new axis (soft-deleted
+vs. active) rather than a new mechanism for it — and because
+`TenantController#switchActiveTenant` is already `@AuditLog`-annotated,
+`AuditLogAspect`'s existing `TenantAccessDeniedException`/
+`PermissionDeniedException` → `AuditOutcome.DENIED` special-case logs the
+rejection automatically, satisfying the SPEC's "log it as a security
+event" requirement with zero new audit code.
+
+**Applies to new decisions:** before adding a new "can this caller reach
+this tenant" check anywhere in the codebase, check whether
+`requireActiveMembership`/`requireTenant` (or their eventual successors)
+are already the funnel every session-establishing path goes through — if
+so, extend those, don't add a parallel guard elsewhere; a soft-deleted
+tenant's associated `TenantMembership` rows are also all
+`active = false` (cascaded per `tenant-crud`'s own soft-delete step), so
+any code path that already excludes inactive memberships (e.g.
+`resolveSessionOutcome`'s `findByUserAndActiveTrue`) needs no additional
+change — verify that before assuming a third check is needed.
+
+### `staff-members-management-redesign` (frontend): shared list/table component configured via plain input objects, not projected templates (Tier 2, 2026-08-02)
+
+`SharedListComponent`/`app-shared-list` (the reusable list layout REQ-1
+of `staff-members-management-redesign` requires across staff directory,
+tenant members, and future screens) takes its columns and row-actions as
+plain data — `columns: input.required<SharedListColumn<T>[]>()` with a
+`render(row: T)` function per column, and a similarly data-shaped
+`rowActions` input — rather than Angular content projection
+(`ng-content`/`ContentChild`/`TemplateRef`) for custom per-cell markup.
+
+**Why:** this codebase has no existing generic "table with projected
+cell templates" component to mirror; the closest existing precedent
+(`TicketStatusBadgeComponent`'s color-map + i18n-key-map,
+`buttonClass()`'s data-driven variant/state flags) is already
+"data in, render function/map decides the output," not template
+projection. Staying consistent with that shape keeps the component easy
+to unit-test with Vitest (assert directly on the `columns`/`rowActions`
+arrays and the rendered DOM, no `TemplateRef` mocking/`ViewContainerRef`
+setup) and keeps sort/search/selection/pagination logic entirely inside
+the shared component instead of leaking into each consumer's template.
+
+**Applies to new decisions:** before reaching for Angular content
+projection (`ng-content`, `ContentChild`, `TemplateRef` inputs) to make
+a new shared component customizable, check whether the customization
+can instead be expressed as data (a render function, a variant flag, a
+map) the way `TicketStatusBadgeComponent`/`buttonClass()`/
+`SharedListComponent` all do — this project's established pattern for
+"reusable but per-screen-different" UI is data-driven configuration, not
+template projection, and that should be the default unless a case
+genuinely needs to project arbitrary markup a data-shaped input can't
+express.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

@@ -207,6 +207,44 @@ None new.
 - `src/main/resources/db/migration/V14__create_global_permission_tables.sql` (new)
 - Every other current call site of `GlobalRole.STAFF`/`tenantContext.isStaff()` (article-management, conversations, dashboard-metrics per PROJECT_STATUS's cross-references) — audited and updated to `STAFF_ADMIN`/`isStaffAdmin()` task by task; SPEC REQ-2 requires no regression here.
 
+## REQ-9 addendum (2026-08-01)
+
+- `OwnGlobalPermissionsDto` gains one new field: `boolean isStaffAccount`
+  — record becomes `OwnGlobalPermissionsDto(List<GlobalPermission>
+  permissions, boolean isStaffAccount)`. Named to match the JSON key the
+  frontend PLAN (`navigation-menu`) already expects
+  (`isStaffAccount`), not a fresh name invented here.
+- Staff-ness is **not re-derived** from `User.getGlobalRole()` in
+  `StaffController`. `TenantContext.isStaff()` already answers exactly
+  this question today: `TenantContextFilter` populates it per-request
+  from the session's `TenantSessionKeys.STAFF` attribute, which is set
+  true for *both* `GlobalRole.STAFF` and `GlobalRole.STAFF_ADMIN` (see
+  `isStaffAdmin()`'s Javadoc: "`isStaff()` tracks is this user staff at
+  all", unchanged since the Task-4 rename). Reusing it means REQ-9's
+  field is guaranteed to be consistent with the same staff/non-staff
+  split already enforced everywhere else (`PermissionAspect`,
+  `GlobalPermissionAspect`), rather than a second, potentially-drifting
+  source of truth.
+- `StaffController.ownPermissions()` changes only its return
+  construction: both branches (`STAFF_ADMIN` bypass and the
+  `effectivePermissions` branch) now pass `tenantContext.isStaff()` as
+  the second constructor argument. No new branch/condition is added —
+  reaching `ownPermissions()` at all already implies
+  `tenantContext.isStaff()` is `true` in both existing code paths, but
+  the field is still read from `tenantContext.isStaff()` directly
+  (rather than hardcoding `true` in the controller) so the single source
+  of truth stays `TenantContext`, not a controller-local assumption that
+  could silently go stale if `ownPermissions()`'s access rules ever
+  change.
+- No new `@RequiresGlobalPermission`/security change: `GET
+  /api/staff/permissions` remains open to any authenticated caller
+  exactly as today — REQ-9 only asks for one boolean of *metadata about
+  the caller themselves*, not a new authorization gate (SPEC's Security
+  NFR: read-only, no permission implication).
+- No migration/entity change: this is a response-shape addition over
+  data (`GlobalRole`, per-request staff/staff-admin flags) that already
+  exists.
+
 ## Testing strategy
 
 - Unit tests: `GlobalPermissionService` (direct grant, group grant,

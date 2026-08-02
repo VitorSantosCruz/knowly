@@ -2,6 +2,41 @@
 
 > The what and the why. No technical implementation details.
 
+## Changelog
+
+- **2026-08-02**: **REQ-18 amended — this is a confirmed reversal of a
+  prior decision, not a reinterpretation.** The original text read:
+  "Permissions shall be independent per action... No permission implies
+  any other... access is always exactly what was explicitly granted,
+  never inferred from ownership." The product owner explicitly confirmed
+  this no longer holds in full: view/list remains independent of
+  everything else, but **edit and delete now always require the caller
+  to also hold view/list on the same resource** (create remains fully
+  independent, requiring no other permission). Rationale: a caller
+  without the ability to see/locate a resource has no coherent way to
+  identify what to edit or delete — the old "fully independent" model was
+  judged illogical for edit/delete specifically. The full canonical
+  statement of the new rule, plus the per-resource gap analysis needed to
+  bring the codebase into compliance, lives in the new
+  `permission-granularity-model` SPEC — this file's REQ-18 is now a
+  pointer to that canonical rule, not a competing copy of it. No other
+  requirement in this SPEC is affected.
+- **2026-08-02 (second amendment, same day)**: `addMember`'s request
+  contract is formalized explicitly, per product-owner direction to fold
+  in — as a requirement of *this* SPEC, not left to PLAN.md — the
+  combination of two sibling SPECs approved in the same session:
+  `mandatory-complete-profile` (REQ-8: every `addMember` request must
+  supply a complete profile or the addition is rejected outright, no
+  partial/pending membership ever persisted) and
+  `user-role-selection-at-creation` (REQ-6–REQ-9: the request may
+  optionally specify `role`, `MEMBER`/`MEMBER_ADMIN`, default `MEMBER`,
+  gated to `STAFF_ADMIN`/that tenant's `MEMBER_ADMIN` for the
+  `MEMBER_ADMIN` case). New REQ-22 through REQ-25 below state the
+  resulting contract explicitly. This is additive — no prior requirement
+  in this SPEC is reversed, and this amendment does not touch the
+  bootstrap `STAFF_ADMIN` exception (out of scope for `addMember`
+  entirely; that account is never a tenant member).
+
 ## Context and motivation
 
 Every feature planned from here on (file upload, search, usage metrics,
@@ -113,12 +148,22 @@ must ship behind an explicit permission check, not open by default.
   not been explicitly granted (directly or via an access group), then
   the system shall deny it and log it as an authorization failure, the
   same way other authorization failures are logged.
-- **REQ-18 [Ubiquitous]** Permissions shall be independent per action
-  (e.g. view/create/edit/delete on a given resource type are each
-  granted separately). No permission implies any other, and having
-  created or otherwise being associated with a specific record confers
-  no additional right over it — access is always exactly what was
-  explicitly granted, never inferred from ownership.
+- **REQ-18 [Ubiquitous]** *(Amended 2026-08-02 — see Changelog above;
+  supersedes this requirement's original "no permission implies any
+  other" wording.)* Permissions shall be independent per action (view/
+  list, create, edit, delete on a given resource type are each granted
+  separately), **except** that edit and delete each additionally require
+  the caller to also hold view/list on that same resource type — a
+  caller cannot edit or delete a resource they cannot see. View/list and
+  create remain fully independent of every other action and of each
+  other. Having created or otherwise being associated with a specific
+  record confers no additional right over it — access is always exactly
+  what was explicitly granted (subject to the view-implies-edit/delete
+  dependency above), never inferred from ownership. The canonical,
+  authoritative statement of this rule — including the per-resource
+  compliance gaps it creates in the current codebase — is
+  `permission-granularity-model` SPEC's REQ-1 through REQ-3; this
+  requirement must not drift from that one.
 - **REQ-19 [Ubiquitous]** Removing a user's tenant membership shall
   always be a soft removal: the user loses access and stops appearing
   as an active member, but their record and their entire audit history
@@ -134,6 +179,55 @@ must ship behind an explicit permission check, not open by default.
   Once acting as a tenant, they are scoped by tenant isolation exactly
   like any member of that tenant (REQ-8) — the staff bypass applies only
   to permission checks (REQ-16), never to tenant data isolation itself.
+- **REQ-22 [Ubiquitous]** *(New 2026-08-02, folding in
+  `mandatory-complete-profile` REQ-8.)* The `addMember` request payload
+  shall require, in addition to the target tenant and the new member's
+  email, every one of the following profile fields:
+  - `full_name`
+  - `birth_date`
+  - `cpf`
+  - `rg`
+  - `rg_orgao_emissor`
+  - a complete address: `cep`, `logradouro`, `numero` (optional),
+    `complemento` (optional), `bairro`, `cidade`, `estado`, `pais`
+  - at least one contact (`type` + `value`)
+
+  This is the same field set and the same optionality of `numero`/
+  `complemento` as `identity-profile-model-v2`'s existing schema and
+  `mandatory-complete-profile`'s completeness definition — no new field
+  is introduced here.
+- **REQ-23 [Unwanted Behavior]** If an `addMember` request omits any
+  field listed in REQ-22, then the system shall reject the request in
+  its entirety: no `User` row, no `TenantMembership` row, no
+  `user_profiles`/address/contact row, and no other partial state of
+  any kind is persisted. This rejection is unconditional — there is no
+  pending/incomplete state for any tenant member (that mechanism exists
+  only for the bootstrap `STAFF_ADMIN` row, per
+  `mandatory-complete-profile` REQ-1–REQ-6, which never applies to
+  tenant members at all).
+- **REQ-24 [Optional Feature]** *(New 2026-08-02, folding in
+  `user-role-selection-at-creation` REQ-6/REQ-9.)* The `addMember`
+  request payload shall accept an optional `role` field whose only valid
+  values are `MEMBER` and `MEMBER_ADMIN`. Where `role` is omitted or
+  explicitly `MEMBER`, the new membership is created with
+  `MembershipRole.MEMBER` (today's existing default, unchanged).
+- **REQ-25 [Complex]** *(New 2026-08-02, folding in
+  `user-role-selection-at-creation` REQ-7/REQ-8.)* When an `addMember`
+  request specifies `role=MEMBER_ADMIN`:
+  - if the caller is either a `STAFF_ADMIN` or that same tenant's
+    `MEMBER_ADMIN`, the system shall create the new membership with
+    `MembershipRole.MEMBER_ADMIN` and record an audit event including
+    the assigned role;
+  - if the caller is neither a `STAFF_ADMIN` nor that tenant's
+    `MEMBER_ADMIN` — including a `MEMBER` caller holding any
+    directly-granted or access-group permission — the system shall
+    reject the request outright and create no membership, mirroring
+    `staff-rbac-management-operations` REQ-22's rule for acting on an
+    admin-tier target.
+
+  No "last admin"/floor-or-ceiling check applies to this path — that
+  safeguard governs demotion/removal only, never creation of an
+  additional admin.
 
 ## Non-functional requirements
 
@@ -156,6 +250,13 @@ must ship behind an explicit permission check, not open by default.
   members. Access is opt-in (direct grant or access group), never
   opt-out — a feature with no permission check wired up must behave as
   if members are denied, not as if they're allowed.
+- Security: REQ-22/REQ-23's completeness precondition and REQ-24/
+  REQ-25's role-authorization check reuse existing, already-decided
+  rules (`mandatory-complete-profile`'s completeness definition;
+  `staff-rbac-management-operations` REQ-22's admin-tier-caller rule) —
+  neither invents a new rule.
+- Observability: `addMember`'s existing audit event (REQ-11) is extended
+  to include the assigned role, per `user-role-selection-at-creation`.
 
 ## Acceptance criteria
 
@@ -208,6 +309,33 @@ must ship behind an explicit permission check, not open by default.
       holding a membership; a non-staff user gets 403 attempting the
       list. Once switched, they are isolated to that tenant's data like
       any member (`TenantSessionIntegrationTest`).
+- [ ] **New, per REQ-18's 2026-08-02 amendment**: a caller granted only
+      `ARTICLE_EDIT` (or `ARTICLE_DELETE`) without `ARTICLE_VIEW` is
+      denied — tracked and detailed in `permission-granularity-model`
+      SPEC, not duplicated here.
+- [ ] **New 2026-08-02 (REQ-22/REQ-23)**: an `addMember` request missing
+      any of `full_name`, `birth_date`, `cpf`, `rg`, `rg_orgao_emissor`,
+      a complete address, or at least one contact is rejected outright
+      — no `User`/`TenantMembership`/`user_profiles`/address/contact row
+      is created.
+- [ ] **New 2026-08-02 (REQ-22/REQ-23)**: an `addMember` request
+      supplying every required field succeeds and the resulting member
+      has a complete profile from the moment the membership exists —
+      never a pending state.
+- [ ] **New 2026-08-02 (REQ-24/REQ-25)**: a `STAFF_ADMIN` or a tenant's
+      `MEMBER_ADMIN` can add a new member with `role=MEMBER_ADMIN`; the
+      new membership has `MembershipRole.MEMBER_ADMIN`, and the audit
+      event records that role.
+- [ ] **New 2026-08-02 (REQ-24/REQ-25)**: a `MEMBER` caller (with or
+      without any directly-granted or access-group permission)
+      requesting `role=MEMBER_ADMIN` is rejected; no membership is
+      created.
+- [ ] **New 2026-08-02 (REQ-24/REQ-25)**: an `addMember` request with
+      `role=MEMBER` or no `role` field behaves exactly as before (new
+      membership is `MEMBER`).
+- [ ] **New 2026-08-02 (REQ-24/REQ-25)**: creating a `MEMBER_ADMIN` this
+      way succeeds regardless of how many `MEMBER_ADMIN`s already exist
+      in that tenant (no floor/ceiling check applies).
 
 ## Out of scope
 
@@ -223,3 +351,14 @@ must ship behind an explicit permission check, not open by default.
 - Per-resource sharing rules (e.g. "share this one file with this one
   user") — access groups and direct grants are feature/action-level,
   not per-record; per-record sharing isn't requested yet.
+- Promotion of an existing `MEMBER` to `MEMBER_ADMIN`, or demotion, after
+  creation — unchanged, still governed entirely by
+  `staff-rbac-management-operations`; REQ-24/REQ-25 above only cover
+  choosing the role **at the moment of `addMember`**, not promoting/
+  demoting an existing membership.
+- The bootstrap `STAFF_ADMIN` account and its pending-profile-completion
+  mechanism — entirely out of scope for `addMember`; that account is
+  never a tenant member and REQ-22/REQ-23 above do not apply to it in
+  any way (see `mandatory-complete-profile` REQ-1–REQ-6 for that
+  separate, staff-only exception).
+</content>
