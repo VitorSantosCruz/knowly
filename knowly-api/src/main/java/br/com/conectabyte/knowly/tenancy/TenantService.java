@@ -4,6 +4,7 @@ import br.com.conectabyte.knowly.audit.AuditEvent;
 import br.com.conectabyte.knowly.audit.AuditEventWriter;
 import br.com.conectabyte.knowly.audit.AuditLog;
 import br.com.conectabyte.knowly.audit.AuditOutcome;
+import br.com.conectabyte.knowly.audit.RequiresGlobalPermission;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
@@ -16,15 +17,18 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidTenantEditException;
 import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -315,6 +319,82 @@ public class TenantService {
         tenantMembershipRepository.save(new TenantMembership(admin, tenant, role));
 
         return tenant;
+    }
+
+    /**
+     * tenant-crud REQ-1/REQ-2/REQ-3/REQ-4/REQ-6: staff-only (no {@code MEMBER_ADMIN} bypass, unlike
+     * {@link #addMember} and friends -- reuses {@code @RequiresGlobalPermission} directly per
+     * PLAN.md's "Architectural decisions" rather than {@link #requireStaff}, so the {@code
+     * TENANT_VIEW} view-dependency check REQ-4/REQ-5 require is not silently skipped). Every field
+     * is independently optional (REQ-1): {@code null} leaves the current value unchanged,
+     * present-but- blank is rejected (REQ-2). {@code taxId} is never accepted (REQ-3) -- {@link
+     * EditTenantRequestDto} has no such field at all.
+     */
+    @Transactional
+    @RequiresGlobalPermission(GlobalPermission.TENANT_EDIT)
+    @AuditLog(action = "tenant.edit", resourceType = "Tenant")
+    public TenantSummaryDto editTenant(User actor, Long tenantId, EditTenantRequestDto request) {
+        Tenant tenant =
+                tenantRepository
+                        .findById(tenantId)
+                        .filter(t -> t.getDeletedAt() == null)
+                        .orElseThrow(TenantNotFoundException::new);
+
+        requireNotBlankIfPresent("name", request.name());
+        requireNotBlankIfPresent("legalName", request.legalName());
+        requireNotBlankIfPresent("contactEmail", request.contactEmail());
+        requireNotBlankIfPresent("contactPhone", request.contactPhone());
+        requireNotBlankIfPresent("postalCode", request.postalCode());
+        requireNotBlankIfPresent("street", request.street());
+        requireNotBlankIfPresent("number", request.number());
+        requireNotBlankIfPresent("neighborhood", request.neighborhood());
+        requireNotBlankIfPresent("city", request.city());
+        requireNotBlankIfPresent("state", request.state());
+
+        if (request.name() != null) {
+            tenant.setName(request.name());
+        }
+        if (request.legalName() != null) {
+            tenant.setLegalName(request.legalName());
+        }
+        if (request.contactEmail() != null) {
+            tenant.setContactEmail(request.contactEmail());
+        }
+        if (request.contactPhone() != null) {
+            tenant.setContactPhone(request.contactPhone());
+        }
+        if (request.postalCode() != null) {
+            tenant.setPostalCode(request.postalCode());
+        }
+        if (request.street() != null) {
+            tenant.setStreet(request.street());
+        }
+        if (request.number() != null) {
+            tenant.setNumber(request.number());
+        }
+        if (request.complement() != null) {
+            tenant.setComplement(request.complement());
+        }
+        if (request.neighborhood() != null) {
+            tenant.setNeighborhood(request.neighborhood());
+        }
+        if (request.city() != null) {
+            tenant.setCity(request.city());
+        }
+        if (request.state() != null) {
+            tenant.setState(request.state());
+        }
+
+        return TenantSummaryDto.from(tenantRepository.save(tenant));
+    }
+
+    /**
+     * REQ-2: a present field must not be blankable -- {@code null} (omitted) is not checked here.
+     */
+    private void requireNotBlankIfPresent(String fieldName, String value) {
+        if (value != null && value.isBlank()) {
+            throw new InvalidTenantEditException(fieldName + " must not be blank");
+        }
     }
 
     /**

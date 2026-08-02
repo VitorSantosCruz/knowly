@@ -71,4 +71,18 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new TenancyErrorResponseDto("TENANT_ALREADY_EXISTS"));
     }
+
+    @ExceptionHandler(TenantNotFoundException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleTenantNotFound(
+            TenantNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new TenancyErrorResponseDto("TENANT_NOT_FOUND"));
+    }
+
+    @ExceptionHandler(InvalidTenantEditException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidTenantEdit(
+            InvalidTenantEditException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_TENANT_EDIT"));
+    }
 }

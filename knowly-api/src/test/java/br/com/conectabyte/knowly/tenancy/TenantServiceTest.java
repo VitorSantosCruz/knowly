@@ -64,6 +64,7 @@ class TenantServiceTest {
     @Autowired private AuditEventRepository auditEventRepository;
     @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
     @Autowired private DirectPermissionGrantRepository directPermissionGrantRepository;
+    @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
 
     private String memberRemovalWord(User actor, Long membershipId) {
         return deletionConfirmationTokenService.generate(
@@ -1101,6 +1102,160 @@ class TenantServiceTest {
                 .isInstanceOf(
                         br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException
                                 .class);
+    }
+
+    // tenant-crud: TenantService#editTenant unit coverage (PLAN.md's "Testing strategy").
+
+    @Test
+    void editTenantUpdatesOnlySuppliedFieldsLeavingOthersUntouched() {
+        User staff = staffAdmin("edit-partial@example.com");
+        authenticateAs("edit-partial@example.com");
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit Partial Co"));
+        String originalLegalName = tenant.getLegalName();
+        String originalTaxId = tenant.getTaxId();
+
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        "Renamed Co", null, null, null, null, null, null, null, null, null, null);
+
+        var result = tenantService.editTenant(staff, tenant.getId(), request);
+
+        assertThat(result.name()).isEqualTo("Renamed Co");
+        assertThat(result.legalName()).isEqualTo(originalLegalName);
+        assertThat(result.taxId()).isEqualTo(originalTaxId);
+
+        Tenant persisted = tenantRepository.findById(tenant.getId()).orElseThrow();
+        assertThat(persisted.getName()).isEqualTo("Renamed Co");
+        assertThat(persisted.getLegalName()).isEqualTo(originalLegalName);
+    }
+
+    @Test
+    void editTenantRejectsAPresentButBlankMandatoryFieldWithNoPartialUpdate() {
+        User staff = staffAdmin("edit-blank@example.com");
+        authenticateAs("edit-blank@example.com");
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit Blank Co"));
+        String originalName = tenant.getName();
+
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        "", null, null, null, null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> tenantService.editTenant(staff, tenant.getId(), request))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.InvalidTenantEditException
+                                .class);
+
+        Tenant persisted = tenantRepository.findById(tenant.getId()).orElseThrow();
+        assertThat(persisted.getName()).isEqualTo(originalName);
+    }
+
+    @Test
+    void editTenantAllowsComplementToBeBlanked() {
+        User staff = staffAdmin("edit-complement@example.com");
+        authenticateAs("edit-complement@example.com");
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit Complement Co"));
+        tenant.setComplement("Suite 1");
+        tenantRepository.saveAndFlush(tenant);
+
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        null, null, null, null, null, null, null, "", null, null, null);
+
+        var result = tenantService.editTenant(staff, tenant.getId(), request);
+
+        assertThat(result.complement()).isEmpty();
+    }
+
+    @Test
+    void editTenantOnASoftDeletedTenantThrowsTenantNotFound() {
+        User staff = staffAdmin("edit-deleted@example.com");
+        authenticateAs("edit-deleted@example.com");
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit Deleted Co"));
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        "New Name", null, null, null, null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> tenantService.editTenant(staff, tenant.getId(), request))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException.class);
+    }
+
+    @Test
+    void editTenantOnANonExistentTenantThrowsTenantNotFound() {
+        User staff = staffAdmin("edit-missing@example.com");
+        authenticateAs("edit-missing@example.com");
+        tenantContext.setStaffAdmin(true);
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        "New Name", null, null, null, null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> tenantService.editTenant(staff, Long.MAX_VALUE, request))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.tenancy.exception.TenantNotFoundException.class);
+    }
+
+    @Test
+    void editTenantSucceedsForStaffGrantedTenantEditAndTenantView() {
+        User staff = limitedStaff("edit-granted@example.com");
+        authenticateAs("edit-granted@example.com");
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_EDIT);
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_VIEW);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit Granted Co"));
+
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        "Granted Renamed Co",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        var result = tenantService.editTenant(staff, tenant.getId(), request);
+
+        assertThat(result.name()).isEqualTo("Granted Renamed Co");
+    }
+
+    @Test
+    void editTenantRejectsStaffGrantedOnlyTenantEditWithoutTenantView() {
+        User staff = limitedStaff("edit-no-view@example.com");
+        authenticateAs("edit-no-view@example.com");
+        globalPermissionServiceGrant(staff, GlobalPermission.TENANT_EDIT);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit No View Co"));
+
+        var request =
+                new br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto(
+                        "Rejected Rename Co",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThatThrownBy(() -> tenantService.editTenant(staff, tenant.getId(), request))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    private void globalPermissionServiceGrant(User user, GlobalPermission permission) {
+        directGlobalPermissionGrantRepository.saveAndFlush(
+                new DirectGlobalPermissionGrant(user, permission));
     }
 
     @Test

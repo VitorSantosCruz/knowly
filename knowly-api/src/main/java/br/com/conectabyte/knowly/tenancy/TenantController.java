@@ -12,6 +12,7 @@ import br.com.conectabyte.knowly.tenancy.dto.AnyTenantPermissionDto;
 import br.com.conectabyte.knowly.tenancy.dto.BatchTenantPermissionUpdateRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
+import br.com.conectabyte.knowly.tenancy.dto.EditTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.OwnPermissionsDto;
@@ -34,6 +35,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -216,6 +218,12 @@ public class TenantController {
         tenantService.createTenant(currentUser(), request);
 
         return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{tenantId}")
+    public ResponseEntity<TenantSummaryDto> editTenant(
+            @PathVariable Long tenantId, @Valid @RequestBody EditTenantRequestDto request) {
+        return ResponseEntity.ok(tenantService.editTenant(currentUser(), tenantId, request));
     }
 
     @PostMapping("/{tenantId}/members")
