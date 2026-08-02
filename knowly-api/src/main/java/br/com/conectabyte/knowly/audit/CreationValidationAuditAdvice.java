@@ -4,6 +4,7 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
@@ -19,10 +20,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * #createStaffUser}/{@code TenantController#addMember} happens before the target
  * {@code @AuditLog}-annotated service method is ever entered, so the existing per-method
  * {@code @AuditLog} mechanism can't record the denial -- this advice writes it directly, scoped (by
- * checking the exception's target handler method) to exactly those two call sites, per
- * specify/features/mandatory-complete-profile/PLAN.md. Every other {@code @Valid} validation
- * failure in the app still gets a plain 400 (this advice doesn't audit it, but the status code is
- * unchanged from before this feature existed).
+ * checking the exception's target handler method) to exactly those two call sites (plus {@code
+ * TenantController#createTenant}), per specify/features/mandatory-complete-profile/PLAN.md.
+ *
+ * <p>This is also, incidentally, the only {@code @ExceptionHandler(MethodArgumentNotValidException
+ * .class)} registered anywhere in the app, so it's dispatched for every {@code @Valid} failure on
+ * every endpoint, not just the three it audits -- it always builds the same structured {@link
+ * ValidationErrorResponseDto} body (matching the frontend's existing field-error parsing contract)
+ * regardless of whether the failing handler method is one of the audited actions; only the audit
+ * *logging* side effect stays scoped to those three call sites.
  */
 @RestControllerAdvice
 public class CreationValidationAuditAdvice {
@@ -42,14 +48,25 @@ public class CreationValidationAuditAdvice {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Void> handleValidationFailure(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ValidationErrorResponseDto> handleValidationFailure(
+            MethodArgumentNotValidException ex) {
         String action = resolveDeniedAction(ex);
 
         if (action != null) {
             audit(action, ex);
         }
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        List<ValidationFieldErrorDto> errors =
+                ex.getBindingResult().getFieldErrors().stream()
+                        .map(
+                                fieldError ->
+                                        new ValidationFieldErrorDto(
+                                                fieldError.getField(),
+                                                fieldError.getDefaultMessage()))
+                        .toList();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ValidationErrorResponseDto(errors));
     }
 
     private String resolveDeniedAction(MethodArgumentNotValidException ex) {
