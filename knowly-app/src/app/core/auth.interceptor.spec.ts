@@ -51,6 +51,56 @@ describe('authInterceptor', () => {
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
+  it('redirects to /profile on a 409 PROFILE_COMPLETION_REQUIRED response', () => {
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const request = new HttpRequest('GET', '/api/tenants/active');
+    const next: HttpHandlerFn = () =>
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            url: '/api/tenants/active',
+            error: { code: 'PROFILE_COMPLETION_REQUIRED' },
+          }),
+      ) as never;
+
+    TestBed.runInInjectionContext(() => {
+      authInterceptor(request, next).subscribe({
+        error: () => {
+          /* noop */
+        },
+      });
+    });
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/profile');
+  });
+
+  it('does not redirect on a 409 response with a different code', () => {
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const request = new HttpRequest('GET', '/api/tenants/active');
+    const next: HttpHandlerFn = () =>
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            url: '/api/tenants/active',
+            error: { code: 'TENANT_SELECTION_REQUIRED' },
+          }),
+      ) as never;
+
+    TestBed.runInInjectionContext(() => {
+      authInterceptor(request, next).subscribe({
+        error: () => {
+          /* noop */
+        },
+      });
+    });
+
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
   it('passes through successful responses untouched', () => {
     const router = TestBed.inject(Router);
     vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
