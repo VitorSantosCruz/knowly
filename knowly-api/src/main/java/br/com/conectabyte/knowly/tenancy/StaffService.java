@@ -78,18 +78,32 @@ public class StaffService {
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
     }
 
+    /**
+     * REQ-1/REQ-4 (user-role-selection-at-creation): {@code role} is optional -- {@code null} or
+     * {@code STAFF} defaults to today's {@code STAFF} behavior. REQ-2/REQ-3: {@code STAFF_ADMIN} is
+     * only honored when the caller is themselves a {@code STAFF_ADMIN} ({@link
+     * #requireCallerIsStaffAdmin()}) -- no permission-grant substitution, unlike the {@code
+     * STAFF_USER_CREATE} gate below which governs the base "can this caller create a staff user at
+     * all" question. REQ-5: no floor/ceiling check applies to creation.
+     */
     @Transactional
     @RequiresGlobalPermission(GlobalPermission.STAFF_USER_CREATE)
-    @AuditLog(action = "staff.user.create", resourceType = "User")
-    public User createStaffUser(String email, MandatoryProfileFieldsDto profile) {
-        enforceStaffCeiling(GlobalRole.STAFF);
+    @AuditLog(action = "staff.user.create", resourceType = "User", metadataExpression = "#role")
+    public User createStaffUser(String email, GlobalRole role, MandatoryProfileFieldsDto profile) {
+        GlobalRole resolvedRole = role == null ? GlobalRole.STAFF : role;
+
+        if (resolvedRole == GlobalRole.STAFF_ADMIN) {
+            requireCallerIsStaffAdmin();
+        } else {
+            enforceStaffCeiling(GlobalRole.STAFF);
+        }
 
         if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
             throw new StaffUserAlreadyExistsException();
         }
 
         User user = new User(email);
-        user.setGlobalRole(GlobalRole.STAFF);
+        user.setGlobalRole(resolvedRole);
         user = userRepository.save(user);
         userProfileRepository.save(new UserProfile(user));
         userProfileService.applyMandatoryProfile(user, profile);
@@ -294,6 +308,19 @@ public class StaffService {
         return auditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc(userId).stream()
                 .map(AuditEventDto::from)
                 .toList();
+    }
+
+    /**
+     * REQ-2/REQ-3 (user-role-selection-at-creation): only a caller who is themselves {@code
+     * STAFF_ADMIN} may create another {@code STAFF_ADMIN} -- no permission-grant substitution, a
+     * {@code STAFF} caller holding {@code STAFF_USER_CREATE}/{@code STAFF_PERMISSION_MANAGE}/any
+     * other grant still fails this check. Reused verbatim by {@code
+     * staff-rbac-management-operations}'s demotion/deletion/promotion paths, per PLAN.md.
+     */
+    private void requireCallerIsStaffAdmin() {
+        if (currentActor().getGlobalRole() != GlobalRole.STAFF_ADMIN) {
+            throw new PermissionDeniedException();
+        }
     }
 
     private void enforceStaffCeiling(GlobalRole targetGlobalRole) {
