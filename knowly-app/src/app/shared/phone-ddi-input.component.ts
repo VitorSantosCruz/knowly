@@ -34,7 +34,7 @@ export function composeE164(ddi: string, number: string): string {
       <input
         [attr.data-testid]="'phone-ddi-input' + testIdSuffix()"
         type="text"
-        [value]="ddi()"
+        [value]="'+' + ddi()"
         [disabled]="disabled()"
         (input)="onDdiChange($event)"
         class="w-14 rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
