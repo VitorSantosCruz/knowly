@@ -232,6 +232,23 @@
     "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Isso não pode ser desfeito.",
     "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito."
   },
+  "sharedList": {
+    "selectAll": "Selecionar tudo",
+    "showingRange": "Mostrando {{from}}-{{to}} de {{total}}",
+    "actions": {
+      "edit": "Editar",
+      "delete": "Excluir"
+    },
+    "empty": {
+      "default": "Nada por aqui ainda.",
+      "staffDirectory": "Nenhum usuário staff ainda.",
+      "tenantMembers": "Nenhum membro ainda.",
+      "tenants": "Nenhum tenant ainda."
+    },
+    "noResults": "Nenhum resultado para sua busca.",
+    "clearFilters": "Limpar filtros",
+    "sortBy": "Ordenar por"
+  },
   "staffDirectory": {
     "searchPlaceholder": "Buscar por e-mail…",
     "create": "Criar usuário staff",

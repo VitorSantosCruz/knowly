@@ -232,6 +232,23 @@
     "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? This cannot be undone.",
     "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? This cannot be undone."
   },
+  "sharedList": {
+    "selectAll": "Select all",
+    "showingRange": "Showing {{from}}-{{to}} of {{total}}",
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "empty": {
+      "default": "Nothing here yet.",
+      "staffDirectory": "No staff users yet.",
+      "tenantMembers": "No members yet.",
+      "tenants": "No tenants yet."
+    },
+    "noResults": "No results match your search.",
+    "clearFilters": "Clear filters",
+    "sortBy": "Sort by"
+  },
   "staffDirectory": {
     "searchPlaceholder": "Search by email…",
     "create": "Create staff user",
