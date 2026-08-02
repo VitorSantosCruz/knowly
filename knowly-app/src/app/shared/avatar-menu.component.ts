@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { map } from 'rxjs';
@@ -79,6 +79,7 @@ export class AvatarMenuComponent {
   protected readonly authService = inject(AuthService);
   private readonly profileService = inject(ProfileService);
   private readonly router = inject(Router);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   protected readonly toggleButtonClass = buttonClass('secondary', { ghost: true, rounded: true });
 
@@ -93,6 +94,13 @@ export class AvatarMenuComponent {
   protected goToProfile(): void {
     this.open.set(false);
     this.router.navigateByUrl('/profile');
+  }
+
+  @HostListener('document:click', ['$event.target'])
+  protected onDocumentClick(target: EventTarget | null): void {
+    if (this.open() && target instanceof Node && !this.elementRef.nativeElement.contains(target)) {
+      this.open.set(false);
+    }
   }
 
   protected logout(): void {

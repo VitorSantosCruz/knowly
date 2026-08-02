@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, signal, computed } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { buttonClass } from './button-classes';
 import { TourService } from '../core/tour.service';
@@ -48,6 +48,7 @@ interface HelpMenuItem {
 })
 export class HelpMenuComponent {
   private readonly tourService = inject(TourService);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   protected readonly open = signal(false);
   protected readonly toggleButtonClass = buttonClass('secondary', { ghost: true });
@@ -59,6 +60,13 @@ export class HelpMenuComponent {
       command: () => this.restartTour(),
     },
   ]);
+
+  @HostListener('document:click', ['$event.target'])
+  protected onDocumentClick(target: EventTarget | null): void {
+    if (this.open() && target instanceof Node && !this.elementRef.nativeElement.contains(target)) {
+      this.open.set(false);
+    }
+  }
 
   protected restartTour(): void {
     this.open.set(false);
