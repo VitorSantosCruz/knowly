@@ -85,7 +85,9 @@ public class DeletionConfirmationTokenService {
             String resourceType, String resourceId, User actor, String suppliedWord) {
         String redisKey = key(resourceType, resourceId, actor);
         String hash = redisTemplate.opsForValue().get(redisKey);
-        boolean matches = passwordEncoder.matches(suppliedWord, hash != null ? hash : dummyHash);
+        boolean matches =
+                suppliedWord != null
+                        && passwordEncoder.matches(suppliedWord, hash != null ? hash : dummyHash);
         boolean success = hash != null && matches;
 
         if (hash != null) {

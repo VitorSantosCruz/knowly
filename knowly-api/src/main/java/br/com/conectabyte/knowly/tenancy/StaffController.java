@@ -121,8 +121,8 @@ public class StaffController {
     public ResponseEntity<Void> revokePermission(
             @PathVariable Long userId,
             @PathVariable GlobalPermission permission,
-            @Valid @RequestBody DeleteConfirmationRequestDto request) {
-        staffService.revokePermission(userId, permission, request.word());
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        staffService.revokePermission(userId, permission, request == null ? null : request.word());
         return ResponseEntity.ok().build();
     }
 
@@ -170,8 +170,9 @@ public class StaffController {
     public ResponseEntity<Void> unassignAccessGroup(
             @PathVariable Long userId,
             @PathVariable Long accessGroupId,
-            @Valid @RequestBody DeleteConfirmationRequestDto request) {
-        staffService.unassignAccessGroup(userId, accessGroupId, request.word());
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        staffService.unassignAccessGroup(
+                userId, accessGroupId, request == null ? null : request.word());
         return ResponseEntity.ok().build();
     }
 

@@ -115,8 +115,9 @@ public class ArticleController {
     public ResponseEntity<Void> delete(
             @PathVariable Long tenantId,
             @PathVariable Long articleId,
-            @Valid @RequestBody DeleteConfirmationRequestDto request) {
-        articleService.delete(tenantId, articleId, currentUser(), request.word());
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        articleService.delete(
+                tenantId, articleId, currentUser(), request == null ? null : request.word());
 
         return ResponseEntity.ok().build();
     }

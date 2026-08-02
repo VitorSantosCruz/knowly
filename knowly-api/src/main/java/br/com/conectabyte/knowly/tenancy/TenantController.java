@@ -253,8 +253,9 @@ public class TenantController {
     public ResponseEntity<Void> removeMember(
             @PathVariable Long tenantId,
             @PathVariable Long membershipId,
-            @Valid @RequestBody DeleteConfirmationRequestDto request) {
-        tenantService.removeMember(currentUser(), tenantId, membershipId, request.word());
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        tenantService.removeMember(
+                currentUser(), tenantId, membershipId, request == null ? null : request.word());
 
         return ResponseEntity.ok().build();
     }
@@ -293,9 +294,13 @@ public class TenantController {
             @PathVariable Long tenantId,
             @PathVariable Long membershipId,
             @PathVariable Permission permission,
-            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
         tenantService.revokePermission(
-                currentUser(), tenantId, membershipId, permission, request.word());
+                currentUser(),
+                tenantId,
+                membershipId,
+                permission,
+                request == null ? null : request.word());
 
         return ResponseEntity.ok().build();
     }
@@ -358,9 +363,13 @@ public class TenantController {
             @PathVariable Long tenantId,
             @PathVariable Long membershipId,
             @PathVariable Long accessGroupId,
-            @Valid @RequestBody DeleteConfirmationRequestDto request) {
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
         tenantService.unassignAccessGroup(
-                currentUser(), tenantId, membershipId, accessGroupId, request.word());
+                currentUser(),
+                tenantId,
+                membershipId,
+                accessGroupId,
+                request == null ? null : request.word());
 
         return ResponseEntity.ok().build();
     }
