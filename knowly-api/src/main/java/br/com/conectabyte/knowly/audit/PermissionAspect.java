@@ -57,6 +57,16 @@ public class PermissionAspect {
             throw new PermissionDeniedException();
         }
 
+        requiresPermission
+                .value()
+                .viewDependency()
+                .ifPresent(
+                        viewPermission -> {
+                            if (!permissionService.hasPermission(membership, viewPermission)) {
+                                throw new PermissionDeniedException();
+                            }
+                        });
+
         return joinPoint.proceed();
     }
 

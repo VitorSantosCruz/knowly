@@ -224,10 +224,90 @@ class PermissionAspectTest {
         assertThat(protectedService.doProtectedThing()).isEqualTo("done");
     }
 
+    // permission-granularity-model REQ-2/REQ-5: ARTICLE_EDIT/ARTICLE_DELETE require ARTICLE_VIEW.
+
+    @Test
+    void articleEditWithArticleViewProceeds() {
+        TenantMembership membership = newMembership("edit-with-view@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_EDIT));
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_VIEW));
+
+        assertThat(protectedService.editArticle()).isEqualTo("edited");
+    }
+
+    @Test
+    void articleEditWithoutArticleViewIsDenied() {
+        TenantMembership membership = newMembership("edit-without-view@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_EDIT));
+
+        assertThatThrownBy(protectedService::editArticle)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void articleDeleteWithArticleViewProceeds() {
+        TenantMembership membership = newMembership("delete-with-view@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_DELETE));
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_VIEW));
+
+        assertThat(protectedService.deleteArticle()).isEqualTo("deleted");
+    }
+
+    @Test
+    void articleDeleteWithoutArticleViewIsDenied() {
+        TenantMembership membership = newMembership("delete-without-view@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_DELETE));
+
+        assertThatThrownBy(protectedService::deleteArticle)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void articleViewAloneNeverGrantsEditOrDelete() {
+        TenantMembership membership = newMembership("view-alone@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_VIEW));
+
+        assertThatThrownBy(protectedService::editArticle)
+                .isInstanceOf(PermissionDeniedException.class);
+        assertThatThrownBy(protectedService::deleteArticle)
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void articleCreateAloneIsUnaffectedByTheViewDependency() {
+        TenantMembership membership = newMembership("create-alone@example.com");
+        directPermissionGrantRepository.saveAndFlush(
+                new DirectPermissionGrant(membership, Permission.ARTICLE_CREATE));
+
+        assertThat(protectedService.createArticle()).isEqualTo("created");
+    }
+
     static class ProtectedService {
         @RequiresPermission(Permission.TENANT_MEMBER_MANAGE)
         String doProtectedThing() {
             return "done";
+        }
+
+        @RequiresPermission(Permission.ARTICLE_EDIT)
+        String editArticle() {
+            return "edited";
+        }
+
+        @RequiresPermission(Permission.ARTICLE_DELETE)
+        String deleteArticle() {
+            return "deleted";
+        }
+
+        @RequiresPermission(Permission.ARTICLE_CREATE)
+        String createArticle() {
+            return "created";
         }
     }
 

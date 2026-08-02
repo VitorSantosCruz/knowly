@@ -52,6 +52,16 @@ public class GlobalPermissionAspect {
             throw new PermissionDeniedException();
         }
 
+        requiresGlobalPermission
+                .value()
+                .viewDependency()
+                .ifPresent(
+                        viewPermission -> {
+                            if (!globalPermissionService.hasPermission(user, viewPermission)) {
+                                throw new PermissionDeniedException();
+                            }
+                        });
+
         return joinPoint.proceed();
     }
 }
