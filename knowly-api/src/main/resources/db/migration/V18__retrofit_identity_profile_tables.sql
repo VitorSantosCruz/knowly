@@ -103,15 +103,15 @@ CREATE INDEX idx_profile_edit_request_contacts_request ON profile_edit_request_c
 
 -- backfill from users into the new tables (REQ-24)
 INSERT INTO user_profiles (user_id, full_name, cpf, cpf_blind_index, rg, rg_blind_index, created_by, updated_by)
-  SELECT id, full_name, cpf, cpf_blind_index, rg, rg_blind_index, 'migration', 'migration'
+  SELECT id, full_name, cpf, cpf_blind_index, rg, rg_blind_index, 'system', 'system'
   FROM users WHERE full_name IS NOT NULL OR cpf IS NOT NULL OR rg IS NOT NULL;
 -- users with none of the above still get an eager empty row (REQ-1):
 INSERT INTO user_profiles (user_id, created_by, updated_by)
-  SELECT id, 'migration', 'migration' FROM users
+  SELECT id, 'system', 'system' FROM users
   WHERE id NOT IN (SELECT user_id FROM user_profiles);
 
 INSERT INTO contacts (user_id, type, value, is_primary, created_by, updated_by)
-  SELECT id, 'PHONE', phone, true, 'migration', 'migration'
+  SELECT id, 'PHONE', phone, true, 'system', 'system'
   FROM users WHERE phone IS NOT NULL;
 -- users.address is explicitly NOT migrated (REQ-26).
 
