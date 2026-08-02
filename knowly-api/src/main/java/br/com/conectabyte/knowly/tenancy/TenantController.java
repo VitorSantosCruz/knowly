@@ -219,7 +219,8 @@ public class TenantController {
     @PostMapping("/{tenantId}/members")
     public ResponseEntity<Void> addMember(
             @PathVariable Long tenantId, @Valid @RequestBody AddMemberRequestDto request) {
-        tenantService.addMember(currentUser(), tenantId, request.email(), request.role());
+        tenantService.addMember(
+                currentUser(), tenantId, request.email(), request.role(), request.profile());
 
         return ResponseEntity.ok().build();
     }

@@ -415,7 +415,8 @@ class StaffServiceCeilingIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"new-staff@example.com\"}")
+                        .content(
+                                "{\"email\":\"new-staff@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -435,7 +436,8 @@ class StaffServiceCeilingIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"new-staff2@example.com\"}")
+                        .content(
+                                "{\"email\":\"new-staff2@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -454,7 +456,8 @@ class StaffServiceCeilingIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"new-staff3@example.com\"}")
+                        .content(
+                                "{\"email\":\"new-staff3@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);

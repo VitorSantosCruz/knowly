@@ -6,6 +6,8 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.identity.dto.AddressDto;
 import br.com.conectabyte.knowly.identity.dto.ContactChangeDto;
 import br.com.conectabyte.knowly.identity.dto.ContactDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
 import br.com.conectabyte.knowly.identity.exception.InvalidAvatarFileException;
@@ -263,6 +265,50 @@ public class UserProfileService {
             for (ContactChangeDto change : contactChanges) {
                 applyContactChange(target, change);
             }
+        }
+    }
+
+    /**
+     * REQ-7/REQ-8/REQ-6: writes the full mandatory profile field set (per
+     * specify/features/mandatory-complete-profile/PLAN.md's "one shared mandatory profile fields
+     * DTO shape" decision) into {@code target}'s {@link UserProfile}/{@link Address}/{@link
+     * Contact} rows, atomically. Reused by staff creation, {@code addMember}, and the bootstrap
+     * completion endpoint -- no permission check here, each call site is responsible for its own
+     * (creation-time precondition for the first two, "is this the caller's own row" for the third).
+     */
+    @Transactional
+    public void applyMandatoryProfile(User target, MandatoryProfileFieldsDto fields) {
+        UserProfile profile = requireUserProfile(target);
+
+        profile.setFullName(fields.fullName());
+        profile.setBirthDate(fields.birthDate());
+        profile.setRgOrgaoEmissor(fields.rgOrgaoEmissor());
+        profile.setCpf(fields.cpf());
+        profile.setCpfBlindIndex(blindIndexService.hmac(fields.cpf()));
+        profile.setRg(fields.rg());
+        profile.setRgBlindIndex(blindIndexService.hmac(fields.rg()));
+        userProfileRepository.save(profile);
+
+        MandatoryAddressDto addressDto = fields.address();
+        Address address =
+                addressRepository.findById(target.getId()).orElseGet(() -> new Address(target));
+        address.setCep(addressDto.cep());
+        address.setLogradouro(addressDto.logradouro());
+        address.setNumero(addressDto.numero());
+        address.setComplemento(addressDto.complemento());
+        address.setBairro(addressDto.bairro());
+        address.setCidade(addressDto.cidade());
+        address.setEstado(addressDto.estado());
+        address.setPais(addressDto.pais());
+        addressRepository.save(address);
+
+        for (ContactDto contact : fields.contacts()) {
+            contactService.addContact(
+                    target,
+                    contact.type(),
+                    contact.value(),
+                    contact.label(),
+                    Boolean.TRUE.equals(contact.isPrimary()));
         }
     }
 

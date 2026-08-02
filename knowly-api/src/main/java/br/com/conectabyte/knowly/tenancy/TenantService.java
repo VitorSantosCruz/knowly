@@ -7,6 +7,8 @@ import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
+import br.com.conectabyte.knowly.identity.UserProfileService;
+import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
@@ -38,6 +40,7 @@ public class TenantService {
     private final GlobalPermissionService globalPermissionService;
     private final NotificationRepository notificationRepository;
     private final UserProfileRepository userProfileRepository;
+    private final UserProfileService userProfileService;
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
 
     private static final String MEMBER_RESOURCE_TYPE = "tenant-member";
@@ -56,6 +59,7 @@ public class TenantService {
             GlobalPermissionService globalPermissionService,
             NotificationRepository notificationRepository,
             UserProfileRepository userProfileRepository,
+            UserProfileService userProfileService,
             DeletionConfirmationTokenService deletionConfirmationTokenService) {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
@@ -68,6 +72,7 @@ public class TenantService {
         this.globalPermissionService = globalPermissionService;
         this.notificationRepository = notificationRepository;
         this.userProfileRepository = userProfileRepository;
+        this.userProfileService = userProfileService;
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
     }
 
@@ -77,6 +82,17 @@ public class TenantService {
     private User createUserWithProfile(String email) {
         User user = userRepository.save(new User(email));
         userProfileRepository.save(new UserProfile(user));
+        return user;
+    }
+
+    /**
+     * REQ-8 (mandatory-complete-profile): same as {@link #createUserWithProfile(String)}, plus
+     * immediately writing the mandatory profile field set -- used only by {@link #addMember}'s
+     * brand-new-email path, so a newly created tenant member is never left incomplete.
+     */
+    private User createUserWithProfile(String email, MandatoryProfileFieldsDto profile) {
+        User user = createUserWithProfile(email);
+        userProfileService.applyMandatoryProfile(user, profile);
         return user;
     }
 
@@ -230,11 +246,24 @@ public class TenantService {
      * a user who already has an account is added as a pending membership requiring their acceptance
      * (REQ-4 notification); a brand-new email is created active immediately, matching today's
      * behavior, since there is no existing account to notify/ask for consent.
+     *
+     * <p>REQ-8 (mandatory-complete-profile): {@code profile} is required on every call (enforced by
+     * {@code AddMemberRequestDto}'s Bean Validation before this method is ever entered), but is
+     * only written when a brand-new {@link User} is created here -- an already-existing account's
+     * profile is never silently overwritten by an inviter's submission, preserving
+     * identity-profile-model-v2's existing self-request/approval requirement for changes to an
+     * already-set field (conservative reading: this SPEC's completeness requirement is a
+     * creation-time precondition, not a license to bypass that approval flow for pre-existing
+     * users).
      */
     @Transactional
     @AuditLog(action = "tenant.member.add", resourceType = "TenantMembership")
     public TenantMembership addMember(
-            User actor, Long tenantId, String email, MembershipRole role) {
+            User actor,
+            Long tenantId,
+            String email,
+            MembershipRole role,
+            MandatoryProfileFieldsDto profile) {
         requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
 
         Tenant tenant =
@@ -242,7 +271,7 @@ public class TenantService {
         Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
         requireNotSelfTarget(actor, existingUser.map(User::getId).orElse(null));
         boolean userAlreadyExisted = existingUser.isPresent();
-        User user = existingUser.orElseGet(() -> createUserWithProfile(email));
+        User user = existingUser.orElseGet(() -> createUserWithProfile(email, profile));
 
         TenantMembership membership =
                 tenantMembershipRepository

@@ -342,7 +342,8 @@ class StaffRbacIntegrationTest {
                         .cookie(noGrantCsrf)
                         .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"newmember@example.com\",\"role\":\"MEMBER\"}")
+                        .content(
+                                "{\"email\":\"newmember@example.com\",\"role\":\"MEMBER\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
@@ -358,7 +359,8 @@ class StaffRbacIntegrationTest {
                         .cookie(grantedCsrf)
                         .header("X-XSRF-TOKEN", grantedCsrf.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"newmember2@example.com\",\"role\":\"MEMBER\"}")
+                        .content(
+                                "{\"email\":\"newmember2@example.com\",\"role\":\"MEMBER\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
     }

@@ -11,6 +11,8 @@ import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
+import br.com.conectabyte.knowly.identity.UserProfileService;
+import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
@@ -43,6 +45,7 @@ public class StaffService {
     private final MailService mailService;
     private final AuditEventRepository auditEventRepository;
     private final UserProfileRepository userProfileRepository;
+    private final UserProfileService userProfileService;
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
 
     private static final String PERMISSION_RESOURCE_TYPE = "staff-permission";
@@ -59,6 +62,7 @@ public class StaffService {
             MailService mailService,
             AuditEventRepository auditEventRepository,
             UserProfileRepository userProfileRepository,
+            UserProfileService userProfileService,
             DeletionConfirmationTokenService deletionConfirmationTokenService) {
         this.userRepository = userRepository;
         this.directGlobalPermissionGrantRepository = directGlobalPermissionGrantRepository;
@@ -68,6 +72,7 @@ public class StaffService {
         this.globalPermissionService = globalPermissionService;
         this.oneTimePasswordService = oneTimePasswordService;
         this.userProfileRepository = userProfileRepository;
+        this.userProfileService = userProfileService;
         this.mailService = mailService;
         this.auditEventRepository = auditEventRepository;
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
@@ -76,7 +81,7 @@ public class StaffService {
     @Transactional
     @RequiresGlobalPermission(GlobalPermission.STAFF_USER_CREATE)
     @AuditLog(action = "staff.user.create", resourceType = "User")
-    public User createStaffUser(String email) {
+    public User createStaffUser(String email, MandatoryProfileFieldsDto profile) {
         enforceStaffCeiling(GlobalRole.STAFF);
 
         if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
@@ -87,6 +92,7 @@ public class StaffService {
         user.setGlobalRole(GlobalRole.STAFF);
         user = userRepository.save(user);
         userProfileRepository.save(new UserProfile(user));
+        userProfileService.applyMandatoryProfile(user, profile);
 
         String oneTimePassword = oneTimePasswordService.generateFor(user);
         mailService.sendNewOneTimePassword(user.getEmail(), oneTimePassword);

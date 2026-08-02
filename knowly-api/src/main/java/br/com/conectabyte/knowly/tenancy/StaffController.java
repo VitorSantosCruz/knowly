@@ -65,7 +65,7 @@ public class StaffController {
     @PostMapping("/users")
     public ResponseEntity<StaffUserDetailDto> createStaffUser(
             @Valid @RequestBody CreateStaffUserRequestDto request) {
-        User created = staffService.createStaffUser(request.email());
+        User created = staffService.createStaffUser(request.email(), request.profile());
 
         // A freshly created staff user always has zero direct/group permissions, so this is built
         // directly rather than via getStaffUserDetail — that method requires

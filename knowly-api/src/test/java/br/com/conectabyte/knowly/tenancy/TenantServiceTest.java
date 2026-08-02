@@ -9,10 +9,15 @@ import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
+import br.com.conectabyte.knowly.identity.ContactType;
+import br.com.conectabyte.knowly.identity.dto.ContactDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
+import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +37,18 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("test")
 class TenantServiceTest {
+
+    private static MandatoryProfileFieldsDto mandatoryProfile() {
+        return new MandatoryProfileFieldsDto(
+                "Test User",
+                LocalDate.of(1990, 1, 1),
+                "12345678901",
+                "123456",
+                "SSP",
+                new MandatoryAddressDto(
+                        "01000-000", "Rua Um", null, null, "Centro", "Sao Paulo", "SP", "Brasil"),
+                List.of(new ContactDto(null, ContactType.OTHER, "value", null, false)));
+    }
 
     @Autowired private UserRepository userRepository;
     @Autowired private TenantRepository tenantRepository;
@@ -89,7 +106,8 @@ class TenantServiceTest {
                         admin.getUser(),
                         tenant.getId(),
                         "brandnew@example.com",
-                        MembershipRole.MEMBER);
+                        MembershipRole.MEMBER,
+                        mandatoryProfile());
 
         assertThat(membership.getStatus()).isEqualTo(MembershipStatus.ACTIVE);
         assertThat(membership.isActive()).isTrue();
@@ -109,7 +127,8 @@ class TenantServiceTest {
                         admin.getUser(),
                         tenant.getId(),
                         "existing@example.com",
-                        MembershipRole.MEMBER);
+                        MembershipRole.MEMBER,
+                        mandatoryProfile());
 
         assertThat(membership.getStatus()).isEqualTo(MembershipStatus.PENDING);
         assertThat(membership.isActive()).isFalse();
@@ -139,7 +158,8 @@ class TenantServiceTest {
                         admin.getUser(),
                         tenant.getId(),
                         "declined@example.com",
-                        MembershipRole.MEMBER);
+                        MembershipRole.MEMBER,
+                        mandatoryProfile());
 
         assertThat(membership.getId()).isEqualTo(previouslyDeclined.getId());
         assertThat(membership.getStatus()).isEqualTo(MembershipStatus.PENDING);
@@ -173,7 +193,8 @@ class TenantServiceTest {
                         admin.getUser(),
                         tenant.getId(),
                         "removed@example.com",
-                        MembershipRole.MEMBER);
+                        MembershipRole.MEMBER,
+                        mandatoryProfile());
 
         assertThat(membership.getId()).isEqualTo(previouslyRemoved.getId());
         assertThat(membership.getStatus()).isEqualTo(MembershipStatus.PENDING);
@@ -302,7 +323,8 @@ class TenantServiceTest {
                                         admin.getUser(),
                                         tenant.getId(),
                                         "self-add@example.com",
-                                        MembershipRole.MEMBER))
+                                        MembershipRole.MEMBER,
+                                        mandatoryProfile()))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -444,7 +466,8 @@ class TenantServiceTest {
                                 admin.getUser(),
                                 tenant.getId(),
                                 "another-new@example.com",
-                                MembershipRole.MEMBER))
+                                MembershipRole.MEMBER,
+                                mandatoryProfile()))
                 .isNotNull();
 
         tenantService.grantPermission(
@@ -534,7 +557,8 @@ class TenantServiceTest {
                                         admin.getUser(),
                                         tenant.getId(),
                                         "admin-add-audit@example.com",
-                                        MembershipRole.MEMBER))
+                                        MembershipRole.MEMBER,
+                                        mandatoryProfile()))
                 .isInstanceOf(PermissionDeniedException.class);
 
         var events =
@@ -702,7 +726,8 @@ class TenantServiceTest {
                                         unauthorized,
                                         tenant.getId(),
                                         "newuser@example.com",
-                                        MembershipRole.MEMBER))
+                                        MembershipRole.MEMBER,
+                                        mandatoryProfile()))
                 .isInstanceOf(PermissionDeniedException.class);
 
         // grantPermission: plain MEMBER should be rejected

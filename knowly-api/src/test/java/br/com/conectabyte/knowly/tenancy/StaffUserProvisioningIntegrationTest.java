@@ -95,7 +95,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"new-staff@example.com\"}")
+                        .content(
+                                "{\"email\":\"new-staff@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);
@@ -126,7 +127,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie1)
                         .header("X-XSRF-TOKEN", csrfCookie1.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"someone@example.com\"}")
+                        .content(
+                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(rejected).hasStatus(HttpStatus.FORBIDDEN);
     }
@@ -146,7 +148,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie1)
                         .header("X-XSRF-TOKEN", csrfCookie1.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"someone@example.com\"}")
+                        .content(
+                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(rejected).hasStatus(HttpStatus.FORBIDDEN);
 
@@ -163,7 +166,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie2)
                         .header("X-XSRF-TOKEN", csrfCookie2.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"someone@example.com\"}")
+                        .content(
+                                "{\"email\":\"someone@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(allowed).hasStatus(HttpStatus.CREATED);
     }
@@ -183,7 +187,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"someone-else@example.com\"}")
+                        .content(
+                                "{\"email\":\"someone-else@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
@@ -203,7 +208,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"existing@example.com\"}")
+                        .content(
+                                "{\"email\":\"existing@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CONFLICT);
@@ -226,7 +232,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"newbie@example.com\"}")
+                        .content(
+                                "{\"email\":\"newbie@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(createResponse).hasStatus(HttpStatus.CREATED);
 
@@ -269,7 +276,8 @@ class StaffUserProvisioningIntegrationTest {
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"audited@example.com\"}")
+                        .content(
+                                "{\"email\":\"audited@example.com\",\"profile\":{\"fullName\":\"Test User\",\"birthDate\":\"1990-01-01\",\"cpf\":\"12345678901\",\"rg\":\"123456\",\"rgOrgaoEmissor\":\"SSP\",\"address\":{\"cep\":\"01000-000\",\"logradouro\":\"Rua Um\",\"bairro\":\"Centro\",\"cidade\":\"Sao Paulo\",\"estado\":\"SP\",\"pais\":\"Brasil\"},\"contacts\":[{\"type\":\"OTHER\",\"value\":\"v\",\"isPrimary\":false}]}}")
                         .exchange();
         assertThat(response).hasStatus(HttpStatus.CREATED);
 
