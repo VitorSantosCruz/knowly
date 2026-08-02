@@ -217,11 +217,46 @@
   },
   "tenantCreate": {
     "title": "Criar tenant",
-    "name": "Nome do tenant",
-    "adminEmail": "E-mail do primeiro admin",
+    "companySection": "Identificação da empresa",
+    "userSection": "Perfil do primeiro administrador",
+    "roleSection": "Papel",
+    "name": "Nome fantasia",
+    "legalName": "Razão social",
+    "taxId": "CNPJ/Tax ID",
+    "taxIdCnpjShape": "Informe um CNPJ com 14 dígitos, com ou sem pontuação.",
+    "country": "País",
+    "contactEmail": "Email de contato",
+    "contactPhone": "Telefone de contato",
+    "adminEmail": "Email de login do administrador",
+    "fullName": "Nome completo",
+    "birthDate": "Data de nascimento",
+    "cpf": "CPF",
+    "rg": "RG",
+    "rgOrgaoEmissor": "Órgão emissor do RG",
+    "role": "Papel",
+    "roleMemberAdmin": "Administrador",
+    "roleMember": "Membro",
+    "companyAddressTitle": "Endereço da empresa",
+    "userAddressTitle": "Endereço do primeiro administrador",
+    "address": {
+      "postalCode": "CEP",
+      "street": "Rua",
+      "number": "Número",
+      "complement": "Complemento",
+      "neighborhood": "Bairro",
+      "city": "Cidade",
+      "state": "Estado"
+    },
+    "contacts": {
+      "title": "Contatos",
+      "add": "Adicionar contato",
+      "remove": "Remover",
+      "minLength": "É necessário pelo menos um contato."
+    },
     "submit": "Criar",
-    "invalid": "Informe um nome de tenant e um e-mail de admin válido.",
-    "submitError": "Não foi possível criar o tenant. Verifique os dados e tente novamente."
+    "invalid": "Corrija os campos destacados.",
+    "submitError": "Não foi possível criar o tenant. Verifique os dados e tente novamente.",
+    "taxIdConflict": "Este CNPJ/Tax ID já está em uso por outro tenant."
   },
   "profile": {
     "myProfile": "Meu perfil",
@@ -366,5 +401,8 @@
       "inputLabel": "Palavra de confirmação",
       "inputPlaceholder": "Digite a palavra acima para confirmar"
     }
+  },
+  "shared": {
+    "fieldRequired": "This field is required."
   }
 }

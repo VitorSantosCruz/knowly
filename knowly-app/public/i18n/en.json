@@ -217,11 +217,46 @@
   },
   "tenantCreate": {
     "title": "Create tenant",
-    "name": "Tenant name",
-    "adminEmail": "First admin's email",
+    "companySection": "Company identification",
+    "userSection": "First admin profile",
+    "roleSection": "Role",
+    "name": "Trade name",
+    "legalName": "Legal name",
+    "taxId": "Tax ID",
+    "taxIdCnpjShape": "Enter a 14-digit CNPJ, with or without punctuation.",
+    "country": "Country",
+    "contactEmail": "Contact email",
+    "contactPhone": "Contact phone",
+    "adminEmail": "Admin login email",
+    "fullName": "Full name",
+    "birthDate": "Birth date",
+    "cpf": "CPF",
+    "rg": "RG",
+    "rgOrgaoEmissor": "RG issuing body",
+    "role": "Role",
+    "roleMemberAdmin": "Member admin",
+    "roleMember": "Member",
+    "companyAddressTitle": "Company address",
+    "userAddressTitle": "First admin address",
+    "address": {
+      "postalCode": "Postal code",
+      "street": "Street",
+      "number": "Number",
+      "complement": "Complement",
+      "neighborhood": "Neighborhood",
+      "city": "City",
+      "state": "State/Province"
+    },
+    "contacts": {
+      "title": "Contacts",
+      "add": "Add contact",
+      "remove": "Remove",
+      "minLength": "At least one contact is required."
+    },
     "submit": "Create",
-    "invalid": "Enter a tenant name and a valid admin email.",
-    "submitError": "Couldn't create the tenant. Please check the details and try again."
+    "invalid": "Please fix the highlighted fields.",
+    "submitError": "Couldn't create the tenant. Please check the details and try again.",
+    "taxIdConflict": "This tax ID is already in use by another tenant."
   },
   "profile": {
     "myProfile": "My profile",
@@ -366,5 +401,8 @@
       "inputLabel": "Confirmation word",
       "inputPlaceholder": "Type the word above to confirm"
     }
+  },
+  "shared": {
+    "fieldRequired": "This field is required."
   }
 }
