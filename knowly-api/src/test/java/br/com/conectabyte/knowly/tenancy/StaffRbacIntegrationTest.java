@@ -375,7 +375,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-addmember@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_CREATE);
         Cookie grantedSession = logIn("grant-addmember@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
 
@@ -416,7 +416,8 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-removemember@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_DELETE);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_VIEW);
         Cookie grantedSession = logIn("grant-removemember@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
         String word =
@@ -463,7 +464,8 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-tokengen-remove@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_DELETE);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_VIEW);
         Cookie grantedSession = logIn("grant-tokengen-remove@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
 
@@ -501,7 +503,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-listmembers@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_VIEW);
         Cookie grantedSession = logIn("grant-listmembers@example.com");
 
         var allowedResponse =
@@ -534,7 +536,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-creategroup@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_CREATE);
         Cookie grantedSession = logIn("grant-creategroup@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
 
@@ -566,7 +568,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-listgroups@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_VIEW);
         Cookie grantedSession = logIn("grant-listgroups@example.com");
 
         var allowedResponse =
@@ -607,7 +609,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-grantperm@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
         Cookie grantedSession = logIn("grant-grantperm@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
 
@@ -657,7 +659,8 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-revokeperm@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_VIEW);
         Cookie grantedSession = logIn("grant-revokeperm@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
         String word =
@@ -714,7 +717,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-assigngroup@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
         Cookie grantedSession = logIn("grant-assigngroup@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
 
@@ -766,7 +769,8 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-unassigngroup@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_VIEW);
         Cookie grantedSession = logIn("grant-unassigngroup@example.com");
         Cookie grantedCsrf = obtainCsrfCookie();
         String word =
@@ -813,7 +817,7 @@ class StaffRbacIntegrationTest {
         assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
 
         User grantedStaff = limitedStaff("grant-memberdetail@example.com");
-        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_VIEW);
         Cookie grantedSession = logIn("grant-memberdetail@example.com");
 
         var allowedResponse =
@@ -822,5 +826,139 @@ class StaffRbacIntegrationTest {
                         .cookie(grantedSession)
                         .exchange();
         assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    // permission-granularity-model REQ-2/REQ-5: edit/delete GlobalPermission requires its view
+    // companion, enforced by TenantService#requireAdminOfTenantOrStaff for the staff branch.
+
+    @Test
+    void removeMemberWithDeleteButWithoutViewIsDenied() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("No View Remove Co"));
+        User member = userRepository.saveAndFlush(new User("noview-removable@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        User grantedStaff = limitedStaff("noview-removemember@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_MEMBER_DELETE);
+        Cookie session = logIn("noview-removemember@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.delete()
+                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"irrelevant-word\"}")
+                        .exchange();
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void grantAccessGroupPermissionIsGatedByTenantAccessGroupEditWithViewDependency() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Group Edit Perm Co"));
+        AccessGroup accessGroup =
+                accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editable Group"));
+
+        limitedStaff("nogrant-groupeditperm@example.com");
+        Cookie noGrantSession = logIn("nogrant-groupeditperm@example.com");
+        Cookie noGrantCsrf = obtainCsrfCookie();
+
+        var deniedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId()
+                                        + "/permissions")
+                        .cookie(noGrantSession)
+                        .cookie(noGrantCsrf)
+                        .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(deniedResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User editOnlyStaff = limitedStaff("edit-only-groupeditperm@example.com");
+        grantGlobalPermission(editOnlyStaff, GlobalPermission.TENANT_ACCESS_GROUP_EDIT);
+        Cookie editOnlySession = logIn("edit-only-groupeditperm@example.com");
+        Cookie editOnlyCsrf = obtainCsrfCookie();
+
+        var editWithoutViewResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId()
+                                        + "/permissions")
+                        .cookie(editOnlySession)
+                        .cookie(editOnlyCsrf)
+                        .header("X-XSRF-TOKEN", editOnlyCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(editWithoutViewResponse).hasStatus(HttpStatus.FORBIDDEN);
+
+        User grantedStaff = limitedStaff("grant-groupeditperm@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_EDIT);
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_ACCESS_GROUP_VIEW);
+        Cookie grantedSession = logIn("grant-groupeditperm@example.com");
+        Cookie grantedCsrf = obtainCsrfCookie();
+
+        var allowedResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/access-groups/"
+                                        + accessGroup.getId()
+                                        + "/permissions")
+                        .cookie(grantedSession)
+                        .cookie(grantedCsrf)
+                        .header("X-XSRF-TOKEN", grantedCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(allowedResponse).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void revokePermissionWithDeleteButWithoutViewIsDenied() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("No View Revoke Co"));
+        User member = userRepository.saveAndFlush(new User("noview-revokee@example.com"));
+        TenantMembership membership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        User grantedStaff = limitedStaff("noview-revokeperm@example.com");
+        grantGlobalPermission(grantedStaff, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
+        Cookie session = logIn("noview-revokeperm@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "tenant-permission",
+                        membership.getId() + ":" + Permission.TENANT_MEMBER_MANAGE,
+                        grantedStaff,
+                        null);
+
+        var response =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/permissions/TENANT_MEMBER_MANAGE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"word\":\"" + word + "\"}")
+                        .exchange();
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
 }

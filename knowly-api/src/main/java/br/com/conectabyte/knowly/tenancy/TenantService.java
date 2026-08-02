@@ -323,7 +323,7 @@ public class TenantService {
             String email,
             MembershipRole role,
             MandatoryProfileFieldsDto profile) {
-        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_CREATE);
         MembershipRole resolvedRole = role == null ? MembershipRole.MEMBER : role;
 
         if (resolvedRole == MembershipRole.MEMBER_ADMIN) {
@@ -365,7 +365,7 @@ public class TenantService {
     @Transactional(readOnly = true)
     public String generateMemberRemovalDeletionConfirmationToken(
             User actor, Long tenantId, Long membershipId, String acceptLanguageHeaderValue) {
-        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_DELETE);
 
         return deletionConfirmationTokenService.generate(
                 MEMBER_RESOURCE_TYPE, membershipId.toString(), actor, acceptLanguageHeaderValue);
@@ -375,7 +375,7 @@ public class TenantService {
     @Transactional
     @AuditLog(action = "tenant.member.remove", resourceType = "TenantMembership")
     public void removeMember(User actor, Long tenantId, Long membershipId, String word) {
-        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_DELETE);
 
         if (!deletionConfirmationTokenService.validateAndConsume(
                 MEMBER_RESOURCE_TYPE, membershipId.toString(), actor, word)) {
@@ -397,7 +397,7 @@ public class TenantService {
     public void grantPermission(
             User actor, Long tenantId, Long membershipId, Permission permission) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -422,7 +422,7 @@ public class TenantService {
             Permission permission,
             String acceptLanguageHeaderValue) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
 
         return deletionConfirmationTokenService.generate(
                 PERMISSION_RESOURCE_TYPE,
@@ -437,7 +437,7 @@ public class TenantService {
     public void revokePermission(
             User actor, Long tenantId, Long membershipId, Permission permission, String word) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
 
         if (!deletionConfirmationTokenService.validateAndConsume(
                 PERMISSION_RESOURCE_TYPE,
@@ -470,8 +470,7 @@ public class TenantService {
     @Transactional
     @AuditLog(action = "tenant.access_group.create", resourceType = "AccessGroup")
     public AccessGroup createAccessGroup(User actor, Long tenantId, String name) {
-        requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_CREATE);
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
@@ -486,8 +485,7 @@ public class TenantService {
             resourceType = "AccessGroupPermission")
     public void grantAccessGroupPermission(
             User actor, Long tenantId, Long accessGroupId, Permission permission) {
-        requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_EDIT);
 
         AccessGroup accessGroup =
                 accessGroupRepository
@@ -507,7 +505,7 @@ public class TenantService {
     public void assignAccessGroup(
             User actor, Long tenantId, Long membershipId, Long accessGroupId) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -531,7 +529,7 @@ public class TenantService {
     /** REQ-9/16: list a tenant's active members — admin (own tenant) or staff only. */
     @Transactional(readOnly = true)
     public List<MemberDto> listMembers(User actor, Long tenantId) {
-        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_VIEW);
 
         return tenantMembershipRepository.findByTenantIdAndActiveTrue(tenantId).stream()
                 .map(MemberDto::from)
@@ -541,8 +539,7 @@ public class TenantService {
     /** REQ-13: list a tenant's access groups — admin (own tenant) or staff only. */
     @Transactional(readOnly = true)
     public List<AccessGroupDto> listAccessGroups(User actor, Long tenantId) {
-        requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_VIEW);
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
@@ -557,8 +554,7 @@ public class TenantService {
      */
     @Transactional(readOnly = true)
     public MemberDetailDto getMemberDetail(User actor, Long tenantId, Long membershipId) {
-        requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_VIEW);
 
         TenantMembership membership =
                 tenantMembershipRepository
@@ -602,7 +598,7 @@ public class TenantService {
             Long accessGroupId,
             String acceptLanguageHeaderValue) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
 
         return deletionConfirmationTokenService.generate(
                 ACCESS_GROUP_RESOURCE_TYPE,
@@ -619,7 +615,7 @@ public class TenantService {
     public void unassignAccessGroup(
             User actor, Long tenantId, Long membershipId, Long accessGroupId, String word) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_DELETE);
 
         if (!deletionConfirmationTokenService.validateAndConsume(
                 ACCESS_GROUP_RESOURCE_TYPE,
@@ -732,14 +728,17 @@ public class TenantService {
 
     /**
      * REQ-16: an admin-tier target (own tenant) requires {@link #requireCallerIsAdminOfTenant}; a
-     * plain-{@code MEMBER} target follows the existing {@code TENANT_MEMBER_MANAGE_ANY} gate
-     * (matching {@link #removeMember}), per PLAN.md's AppSec addition.
+     * plain-{@code MEMBER} target follows the same gate as {@link #removeMember} (matching it per
+     * PLAN.md's AppSec addition) — {@code TENANT_MEMBER_DELETE}, reconnected here from the
+     * pre-{@code permission-granularity-model} {@code TENANT_MEMBER_MANAGE_ANY} fallback documented
+     * in {@code staff-rbac-management-operations}'s "Implementation notes" now that the granular
+     * permission exists.
      */
     private void requireHardDeleteGate(User actor, Long tenantId, TenantMembership membership) {
         if (membership.getRole() == MembershipRole.MEMBER_ADMIN) {
             requireCallerIsAdminOfTenant(actor, tenantId);
         } else {
-            requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_MANAGE_ANY);
+            requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_DELETE);
         }
     }
 
@@ -750,7 +749,7 @@ public class TenantService {
     public String generateBatchPermissionUpdateDeletionConfirmationToken(
             User actor, Long tenantId, Long membershipId, String acceptLanguageHeaderValue) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
 
         return deletionConfirmationTokenService.generate(
                 BATCH_RESOURCE_TYPE, membershipId.toString(), actor, acceptLanguageHeaderValue);
@@ -759,7 +758,11 @@ public class TenantService {
     /**
      * Tenant-scope counterpart of {@link StaffService#batchUpdatePermissions(Long, Set, String)} —
      * same full-replacement/no-op/per-permission-audit-event/admin-target-rejection semantics,
-     * scoped to {@code tenantId}'s directly-granted {@code Permission} set.
+     * scoped to {@code tenantId}'s directly-granted {@code Permission} set. Gate reconnected from
+     * the pre-{@code permission-granularity-model} {@code TENANT_PERMISSION_GRANT_MANAGE_ANY}
+     * fallback to {@code TENANT_PERMISSION_GRANT_CREATE} (mirroring {@link #grantPermission}, per
+     * {@code staff-rbac-management-operations} PLAN.md's REQ-16 gate note), now that the granular
+     * permission exists.
      */
     @Transactional
     public void batchUpdatePermissions(
@@ -769,7 +772,7 @@ public class TenantService {
             Set<Permission> permissions,
             String word) {
         requireAdminOfTenantOrStaff(
-                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_MANAGE_ANY);
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
         TenantMembership membership = requireMembership(membershipId);
         requireNotSelfTarget(actor, membership.getUser().getId());
         rejectAdminTarget(membership);
@@ -921,7 +924,11 @@ public class TenantService {
 
     /**
      * REQ-9/16: staff can manage any tenant (STAFF_ADMIN unconditionally, STAFF only if granted
-     * {@code requiredPermission}); a tenant admin only their own.
+     * {@code requiredPermission}); a tenant admin only their own. permission-granularity-model
+     * REQ-2: a granted {@code STAFF} caller must also hold {@code
+     * requiredPermission.viewDependency()}, if any, mirroring {@code GlobalPermissionAspect}'s
+     * check for annotation-driven endpoints (this helper isn't annotation-driven, so it re-derives
+     * the same rule from the same authoritative source, {@link GlobalPermission#viewDependency()}).
      */
     private void requireAdminOfTenantOrStaff(
             User actor, Long tenantId, GlobalPermission requiredPermission) {
@@ -930,7 +937,11 @@ public class TenantService {
         }
 
         if (actor.getGlobalRole() == GlobalRole.STAFF
-                && globalPermissionService.hasPermission(actor, requiredPermission)) {
+                && globalPermissionService.hasPermission(actor, requiredPermission)
+                && requiredPermission
+                        .viewDependency()
+                        .map(view -> globalPermissionService.hasPermission(actor, view))
+                        .orElse(true)) {
             return;
         }
 

@@ -373,7 +373,7 @@ public class StaffService {
     }
 
     /** REQ-9: generation endpoint reuses the exact same guard as {@link #deleteStaffUser}. */
-    @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    @RequiresGlobalPermission(GlobalPermission.STAFF_USER_DELETE)
     public String generateStaffUserDeletionConfirmationToken(
             Long userId, String acceptLanguageHeaderValue) {
         User user = requireUser(userId);
@@ -390,10 +390,15 @@ public class StaffService {
      * REQ-7/8/10/11: hard delete, requires a valid deletion-confirmation token, rejects self-target
      * and the last {@code STAFF_ADMIN} (locked count); never blocked for a plain {@code STAFF}
      * target. Dependent {@code DirectGlobalPermissionGrant}/{@code UserGlobalAccessGroup} rows are
-     * removed by the existing {@code ON DELETE CASCADE} FK (see PLAN.md's "Data schema").
+     * removed by the existing {@code ON DELETE CASCADE} FK (see PLAN.md's "Data schema"). Gate
+     * reconnected from the pre-{@code permission-granularity-model} {@code STAFF_PERMISSION_MANAGE}
+     * fallback to {@code STAFF_USER_DELETE} (per {@code staff-rbac-management-operations} PLAN.md's
+     * "Implementation notes"), now that the granular permission exists; combined with {@code
+     * enforceStaffCeiling} below, this remains reachable only by a {@code STAFF_ADMIN} caller in
+     * practice for a {@code STAFF}/{@code STAFF_ADMIN} target, as already documented there.
      */
     @Transactional
-    @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    @RequiresGlobalPermission(GlobalPermission.STAFF_USER_DELETE)
     @AuditLog(action = "staff.user.delete", resourceType = "User", resourceIdExpression = "#userId")
     public void deleteStaffUser(Long userId, String word) {
         User user = requireUser(userId);

@@ -188,9 +188,33 @@ class ArticleControllerIntegrationTest {
     }
 
     @Test
+    void editWithEditPermissionButWithoutViewPermissionIsDenied() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit No View Tenant"));
+        memberWithPermissions("editor-noview@example.com", tenant, Permission.ARTICLE_EDIT);
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(tenant, "Original title", "key", "f.pdf", "application/pdf"));
+        Cookie session = logIn("editor-noview@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.put()
+                        .uri("/api/tenants/" + tenant.getId() + "/articles/" + article.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Fixed title\",\"text\":\"corrected text\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void editRequiresEditPermissionIndependentOfCreate() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Edit Tenant"));
-        memberWithPermissions("editor@example.com", tenant, Permission.ARTICLE_EDIT);
+        memberWithPermissions(
+                "editor@example.com", tenant, Permission.ARTICLE_EDIT, Permission.ARTICLE_VIEW);
         Article article =
                 articleRepository.saveAndFlush(
                         new Article(tenant, "Original title", "key", "f.pdf", "application/pdf"));
@@ -232,9 +256,36 @@ class ArticleControllerIntegrationTest {
     }
 
     @Test
+    void deleteWithDeletePermissionButWithoutViewPermissionIsDenied() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete No View Tenant"));
+        memberWithPermissions("deleter-noview@example.com", tenant, Permission.ARTICLE_DELETE);
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(tenant, "To delete", "key", "f.pdf", "application/pdf"));
+        Cookie session = logIn("deleter-noview@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var tokenResponse =
+                mockMvc.post()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/articles/"
+                                        + article.getId()
+                                        + "/deletion-confirmation-token")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(tokenResponse).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void deleteRequiresDeletePermissionAndSoftDeletes() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Tenant"));
-        memberWithPermissions("deleter@example.com", tenant, Permission.ARTICLE_DELETE);
+        memberWithPermissions(
+                "deleter@example.com", tenant, Permission.ARTICLE_DELETE, Permission.ARTICLE_VIEW);
         Article article =
                 articleRepository.saveAndFlush(
                         new Article(tenant, "To delete", "key", "f.pdf", "application/pdf"));
@@ -286,7 +337,11 @@ class ArticleControllerIntegrationTest {
     @Test
     void ptBrAcceptLanguageYieldsAPtBrWordAndAMissingHeaderYieldsAnEnWord() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Locale Tenant"));
-        memberWithPermissions("localeuser@example.com", tenant, Permission.ARTICLE_DELETE);
+        memberWithPermissions(
+                "localeuser@example.com",
+                tenant,
+                Permission.ARTICLE_DELETE,
+                Permission.ARTICLE_VIEW);
         Article article =
                 articleRepository.saveAndFlush(
                         new Article(tenant, "Locale", "key", "f.pdf", "application/pdf"));
@@ -338,7 +393,8 @@ class ArticleControllerIntegrationTest {
     @Test
     void deleteRejectsAMissingOrWrongConfirmationWordWithoutDeleting() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Reject Delete Tenant"));
-        memberWithPermissions("rejecter@example.com", tenant, Permission.ARTICLE_DELETE);
+        memberWithPermissions(
+                "rejecter@example.com", tenant, Permission.ARTICLE_DELETE, Permission.ARTICLE_VIEW);
         Article article =
                 articleRepository.saveAndFlush(
                         new Article(tenant, "Kept", "key", "f.pdf", "application/pdf"));
