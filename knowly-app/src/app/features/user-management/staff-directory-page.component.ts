@@ -24,7 +24,7 @@ type StaffDirectoryError = 'network' | 'permission-denied' | null;
     StaffUserDetailPanelComponent,
   ],
   template: `
-    <div data-testid="staff-directory-page" class="page-shell max-w-3xl">
+    <div data-testid="staff-directory-page" class="page-shell">
       @if (loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {

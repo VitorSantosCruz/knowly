@@ -25,7 +25,7 @@ type MembersError = 'network' | 'permission-denied' | null;
     ConfirmDialogComponent,
   ],
   template: `
-    <div data-testid="members-page" class="page-shell max-w-3xl">
+    <div data-testid="members-page" class="page-shell">
       @if (loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {

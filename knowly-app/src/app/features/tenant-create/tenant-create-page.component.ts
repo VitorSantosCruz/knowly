@@ -120,7 +120,7 @@ function taxIdValidator(control: AbstractControl): ValidationErrors | null {
     ContactsListEditorComponent,
   ],
   template: `
-    <div data-testid="tenant-create-page" class="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div data-testid="tenant-create-page" class="page-shell flex flex-col gap-6">
       <h1 class="font-display text-2xl font-semibold tracking-tight text-ink-900 dark:text-white">
         {{ 'tenantCreate.title' | transloco }}
       </h1>

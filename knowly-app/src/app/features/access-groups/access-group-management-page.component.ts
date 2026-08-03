@@ -44,7 +44,7 @@ type PageError = 'network' | 'permission-denied' | null;
     ConfirmDialogComponent,
   ],
   template: `
-    <div data-testid="access-group-management-page" class="page-shell max-w-3xl">
+    <div data-testid="access-group-management-page" class="page-shell">
       @if (error() === 'permission-denied') {
         <app-no-access-state />
       } @else if (error() === 'network') {

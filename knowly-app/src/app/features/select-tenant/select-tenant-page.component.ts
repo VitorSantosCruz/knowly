@@ -23,10 +23,7 @@ const PAGE_SIZE = 20;
   selector: 'app-select-tenant-page',
   imports: [TranslocoPipe, RouterLink, LucidePlus],
   template: `
-    <div
-      data-testid="select-tenant-page"
-      class="mx-auto flex min-h-dvh max-w-md flex-col justify-center p-6"
-    >
+    <div data-testid="select-tenant-page" class="page-shell">
       <div class="enter-fluid mb-6 flex items-center justify-between gap-3">
         <h1 class="font-display text-2xl font-semibold tracking-tight text-ink-900 dark:text-white">
           {{ 'selectTenant.title' | transloco }}
