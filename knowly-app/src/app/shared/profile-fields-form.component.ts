@@ -38,8 +38,14 @@ interface ContactRow extends Contact {
   rowKey: string;
 }
 
+// `w-full` here (bugfix, 2026-08-02): the input/select used to be a direct child of a
+// `flex flex-col` `<label>`, whose default `align-items: stretch` filled the available width
+// without any explicit width class. Wrapping each input in `<div class="relative">` (for the
+// inline error icon) took the input out of that flex-item position, so it silently reverted to
+// intrinsic/auto sizing and shrank to content width. Explicit `w-full` restores full-width
+// sizing regardless of the parent's layout mode.
 const BASE_INPUT_CLASS =
-  'rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100';
+  'w-full rounded-xl border border-ink-300/70 bg-white px-3 py-1.5 text-sm text-ink-900 shadow-sm focus:border-signal-400 focus:ring-2 focus:ring-signal-400/30 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100';
 
 // Inline per-field validation error style (bugfix, 2026-08-02): reuses the same rounded/padding
 // shape as `BASE_INPUT_CLASS`, only swapping the border/ring color to red, so a field named in
@@ -47,7 +53,7 @@ const BASE_INPUT_CLASS =
 // swapping between them never shifts layout) reserves room for the inline warning icon rendered
 // inside the `relative`-positioned wrapper around each input — see the template.
 const ERROR_INPUT_CLASS =
-  'rounded-xl border border-red-500 bg-white px-3 py-1.5 pr-9 text-sm text-ink-900 shadow-sm focus:border-red-500 focus:ring-2 focus:ring-red-400/40 focus:outline-none dark:border-red-500 dark:bg-ink-800 dark:text-ink-100';
+  'w-full rounded-xl border border-red-500 bg-white px-3 py-1.5 pr-9 text-sm text-ink-900 shadow-sm focus:border-red-500 focus:ring-2 focus:ring-red-400/40 focus:outline-none dark:border-red-500 dark:bg-ink-800 dark:text-ink-100';
 
 // Bugfix (2026-08-02, round 2): client-side required-field checks (`clientRequiredErrors`) use
 // their own field-name -> Transloco-key map, so `hasFieldError`'s generic message doesn't
@@ -79,7 +85,7 @@ export interface ProfileFieldsFormSubmission {
     <form data-testid="profile-fields-form" (submit)="onSubmit($event)" class="flex flex-col gap-3">
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
         {{ 'profile.fields.fullName' | transloco }}
-        <div class="relative">
+        <div class="relative w-full">
           <input
             data-testid="profile-field-fullName"
             type="text"
@@ -110,7 +116,7 @@ export interface ProfileFieldsFormSubmission {
 
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
         {{ 'profile.fields.country' | transloco }}
-        <div class="relative">
+        <div class="relative w-full">
           <select
             data-testid="profile-field-countryCode"
             [disabled]="disabled()"
@@ -154,7 +160,7 @@ export interface ProfileFieldsFormSubmission {
         } @else {
           {{ 'profile.fields.taxIdGeneric' | transloco }}
         }
-        <div class="relative">
+        <div class="relative w-full">
           <input
             data-testid="profile-field-taxId"
             type="text"
@@ -191,7 +197,7 @@ export interface ProfileFieldsFormSubmission {
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.addressLine1' | transloco }}
-          <div class="relative">
+          <div class="relative w-full">
             <input
               data-testid="profile-address-field-addressLine1"
               type="text"
@@ -223,7 +229,7 @@ export interface ProfileFieldsFormSubmission {
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.addressLine2' | transloco }}
-          <div class="relative">
+          <div class="relative w-full">
             <input
               data-testid="profile-address-field-addressLine2"
               type="text"
@@ -254,7 +260,7 @@ export interface ProfileFieldsFormSubmission {
 
         <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
           {{ 'profile.fields.address.city' | transloco }}
-          <div class="relative">
+          <div class="relative w-full">
             <input
               data-testid="profile-address-field-city"
               type="text"
@@ -289,7 +295,7 @@ export interface ProfileFieldsFormSubmission {
           } @else {
             {{ 'profile.fields.address.stateRegion' | transloco }}
           }
-          <div class="relative">
+          <div class="relative w-full">
             <input
               data-testid="profile-address-field-stateRegion"
               type="text"
@@ -323,7 +329,7 @@ export interface ProfileFieldsFormSubmission {
           } @else {
             {{ 'profile.fields.postalCodeGeneric' | transloco }}
           }
-          <div class="relative">
+          <div class="relative w-full">
             <input
               data-testid="profile-address-field-postalCode"
               type="text"
