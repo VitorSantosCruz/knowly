@@ -82,4 +82,17 @@ public class IdentityExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new TenancyErrorResponseDto("INVALID_CPF"));
     }
+
+    /**
+     * A deployment/environment misconfiguration (malformed {@code CPF_RG_ENCRYPTION_KEY}/{@code
+     * CPF_RG_HMAC_KEY}), never a client mistake -- so this is always a 500, but a structured one:
+     * previously the underlying raw {@code IllegalArgumentException} went unmapped and produced an
+     * empty response body (see {@code IdentityCryptoConfigurationException}'s javadoc).
+     */
+    @ExceptionHandler(IdentityCryptoConfigurationException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleIdentityCryptoMisconfigured(
+            IdentityCryptoConfigurationException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new TenancyErrorResponseDto("IDENTITY_CRYPTO_MISCONFIGURED"));
+    }
 }

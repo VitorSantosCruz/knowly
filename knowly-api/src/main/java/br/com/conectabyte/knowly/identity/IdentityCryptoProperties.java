@@ -1,5 +1,6 @@
 package br.com.conectabyte.knowly.identity;
 
+import br.com.conectabyte.knowly.identity.exception.IdentityCryptoConfigurationException;
 import java.util.Base64;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -14,10 +15,23 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record IdentityCryptoProperties(String cpfRgEncryptionKey, String cpfRgHmacKey) {
 
     public byte[] encryptionKeyBytes() {
-        return Base64.getDecoder().decode(cpfRgEncryptionKey);
+        return decode(cpfRgEncryptionKey, "CPF_RG_ENCRYPTION_KEY");
     }
 
     public byte[] hmacKeyBytes() {
-        return Base64.getDecoder().decode(cpfRgHmacKey);
+        return decode(cpfRgHmacKey, "CPF_RG_HMAC_KEY");
+    }
+
+    /**
+     * Wraps a malformed key's raw {@code IllegalArgumentException} ("Illegal base64 character ...")
+     * in a clear, mapped exception identifying which environment variable is broken -- never the
+     * value itself, to avoid leaking a partial secret into logs/responses.
+     */
+    private static byte[] decode(String value, String propertyName) {
+        try {
+            return Base64.getDecoder().decode(value);
+        } catch (IllegalArgumentException e) {
+            throw new IdentityCryptoConfigurationException(propertyName, e);
+        }
     }
 }
