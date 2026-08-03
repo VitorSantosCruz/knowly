@@ -1,5 +1,6 @@
 package br.com.conectabyte.knowly.chat;
 
+import br.com.conectabyte.knowly.chat.exception.ChatInvalidCursorException;
 import java.util.Base64;
 
 /**
@@ -20,7 +21,7 @@ public final class ChatCursor {
         try {
             return Long.parseLong(new String(Base64.getDecoder().decode(cursor)));
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Malformed cursor", ex);
+            throw new ChatInvalidCursorException(ex);
         }
     }
 

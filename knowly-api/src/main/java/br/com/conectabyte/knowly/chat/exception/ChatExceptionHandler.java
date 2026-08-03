@@ -39,10 +39,14 @@ public class ChatExceptionHandler {
     /**
      * Covers a malformed/tampered pagination cursor ({@link
      * br.com.conectabyte.knowly.chat.ChatCursor#decode}) -- a client-supplied value that fails to
-     * decode is a bad request, never a server error.
+     * decode is a bad request, never a server error. Scoped to {@link ChatInvalidCursorException}
+     * specifically (not the broader {@code IllegalArgumentException}, which -- since this advice is
+     * application-wide -- previously caught and mislabeled unrelated failures from other modules;
+     * see that exception's javadoc).
      */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ChatErrorResponseDto> handleMalformedCursor(IllegalArgumentException ex) {
+    @ExceptionHandler(ChatInvalidCursorException.class)
+    public ResponseEntity<ChatErrorResponseDto> handleMalformedCursor(
+            ChatInvalidCursorException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ChatErrorResponseDto("CHAT_INVALID_CURSOR"));
     }

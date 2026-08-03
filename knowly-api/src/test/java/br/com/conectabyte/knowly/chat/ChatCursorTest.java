@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.chat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.conectabyte.knowly.chat.exception.ChatInvalidCursorException;
 import org.junit.jupiter.api.Test;
 
 class ChatCursorTest {
@@ -17,7 +18,7 @@ class ChatCursorTest {
     @Test
     void decodeRejectsAMalformedCursor() {
         assertThatThrownBy(() -> ChatCursor.decode("not-valid-base64!"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(ChatInvalidCursorException.class);
     }
 
     @Test
