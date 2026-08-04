@@ -417,6 +417,25 @@ describe('LoginPageComponent', () => {
         expect(document.activeElement).toBe(boxes(fixture)[1]);
       });
 
+      it('distributes an autofilled multi-digit value dropped into one box across the rest', () => {
+        const fixture = setup();
+        goToCredentialStep(fixture);
+        const box0 = boxes(fixture)[0];
+
+        // SMS/one-time-code autofill can bypass maxlength and set the whole code at once.
+        box0.value = '813467';
+        box0.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+
+        const allBoxes = boxes(fixture);
+        expect(
+          Array.from(allBoxes)
+            .map((box) => box.value)
+            .join(''),
+        ).toBe('813467');
+        expect(document.activeElement).toBe(allBoxes[5]);
+      });
+
       it('rejects a non-digit keystroke and does not advance focus', () => {
         const fixture = setup();
         goToCredentialStep(fixture);

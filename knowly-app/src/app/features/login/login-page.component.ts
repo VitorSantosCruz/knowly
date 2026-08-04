@@ -259,7 +259,22 @@ export class LoginPageComponent implements OnDestroy {
 
   onDigitInput(event: Event, index: number): void {
     const value = (event.target as HTMLInputElement).value;
-    const digit = value.slice(-1);
+    const enteredDigits = value.match(/\d/g) ?? [];
+
+    if (enteredDigits.length > 1) {
+      // SMS/one-time-code autofill (and fast synthetic typing) can deliver the whole
+      // code as a single multi-character value into one box, bypassing maxlength —
+      // spread it across this box and the following ones, same as a paste.
+      this.digits.update((digits) =>
+        digits.map((d, i) => (i >= index ? (enteredDigits[i - index] ?? d) : d)),
+      );
+
+      const nextIndex = Math.min(index + enteredDigits.length, this.otpIndexes.length - 1);
+      (document.getElementById(`otp-digit-${nextIndex}`) as HTMLInputElement | null)?.focus();
+      return;
+    }
+
+    const digit = enteredDigits[0] ?? '';
 
     this.digits.update((digits) => digits.map((d, i) => (i === index ? digit : d)));
 
