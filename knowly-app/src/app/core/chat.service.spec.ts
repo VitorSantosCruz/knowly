@@ -141,7 +141,8 @@ describe('ChatService', () => {
     service.pollNewMessages(1);
     httpMock
       .expectOne(
-        (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('after') === '10',
+        (r) =>
+          r.url === '/api/chat/conversations/1/messages' && r.params.get('after') === btoa('10'),
       )
       .flush({
         messages: [
@@ -155,7 +156,8 @@ describe('ChatService', () => {
     service.pollNewMessages(1);
     httpMock
       .expectOne(
-        (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('after') === '11',
+        (r) =>
+          r.url === '/api/chat/conversations/1/messages' && r.params.get('after') === btoa('11'),
       )
       .flush({ messages: [], nextCursor: null });
 

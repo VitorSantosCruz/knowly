@@ -231,7 +231,7 @@ describe('SupportService', () => {
       .expectOne(
         (r) =>
           r.url === '/api/tenants/1/support/members/9/channel/messages' &&
-          r.params.get('after') === '10',
+          r.params.get('after') === btoa('10'),
       )
       .flush({
         messages: [

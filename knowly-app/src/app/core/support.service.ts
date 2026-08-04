@@ -17,6 +17,12 @@ function channelKey(tenantId: number, memberUserId: number): string {
   return `${tenantId}:${memberUserId}`;
 }
 
+/** Mirrors chat.service.ts's encodeMessageCursor — see that function's comment; support
+ * channels are backed by the same ChatConversationService/ChatCursor contract on the backend. */
+function encodeMessageCursor(id: number): string {
+  return btoa(String(id));
+}
+
 /**
  * Signals-based support-channel service (REQ-10..18), mirroring `ChatService`'s shape.
  *
@@ -187,7 +193,9 @@ export class SupportService {
       hasMore: page.nextCursor !== null,
       oldestCursor: page.nextCursor,
       newestCursor:
-        page.messages.length > 0 ? String(page.messages[page.messages.length - 1].id) : null,
+        page.messages.length > 0
+          ? encodeMessageCursor(page.messages[page.messages.length - 1].id)
+          : null,
       loadError: false,
       loading: false,
     }));
@@ -254,7 +262,7 @@ export class SupportService {
       return {
         ...current,
         messages: [...current.messages, ...deduped],
-        newestCursor: String(deduped[deduped.length - 1].id),
+        newestCursor: encodeMessageCursor(deduped[deduped.length - 1].id),
       };
     });
   }
@@ -311,7 +319,7 @@ export class SupportService {
       messages: current.messages.map((m) =>
         m.localId === localId ? { ...message, sendState: undefined, localId } : m,
       ),
-      newestCursor: String(message.id),
+      newestCursor: encodeMessageCursor(message.id),
     }));
   }
 

@@ -17,6 +17,17 @@ import {
 const PAGE_SIZE = 30;
 
 /**
+ * Mirrors the backend's `ChatCursor.encode` (`base64(String.valueOf(id))`) — the backend never
+ * hands back a cursor pointing at the newest message (its own `nextCursor` always points at the
+ * oldest end of whichever page it just returned), so polling/optimistic-send have to mint one
+ * client-side from a known message id. A previous version sent the raw id string, which the
+ * backend's `ChatCursor.decode` rejects outright (`CHAT_INVALID_CURSOR`, every poll cycle).
+ */
+function encodeMessageCursor(id: number): string {
+  return btoa(String(id));
+}
+
+/**
  * Signals-based peer-chat service (REQ-1, REQ-2, REQ-3, REQ-5, REQ-6, REQ-19, REQ-21),
  * following `PermissionsService`/`ActiveTenantService`'s shape: private signal(s) + public
  * `.asReadonly()` + fetch()/action methods owning the HTTP call.
@@ -85,7 +96,9 @@ export class ChatService {
       hasMore: page.nextCursor !== null,
       oldestCursor: page.nextCursor,
       newestCursor:
-        page.messages.length > 0 ? String(page.messages[page.messages.length - 1].id) : null,
+        page.messages.length > 0
+          ? encodeMessageCursor(page.messages[page.messages.length - 1].id)
+          : null,
       loadError: false,
       loading: false,
     }));
@@ -149,7 +162,7 @@ export class ChatService {
       return {
         ...current,
         messages: [...current.messages, ...deduped],
-        newestCursor: String(deduped[deduped.length - 1].id),
+        newestCursor: encodeMessageCursor(deduped[deduped.length - 1].id),
       };
     });
   }
@@ -203,7 +216,7 @@ export class ChatService {
       messages: current.messages.map((m) =>
         m.localId === localId ? { ...message, sendState: undefined, localId } : m,
       ),
-      newestCursor: String(message.id),
+      newestCursor: encodeMessageCursor(message.id),
     }));
   }
 
