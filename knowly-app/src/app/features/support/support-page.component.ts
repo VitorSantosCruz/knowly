@@ -48,7 +48,9 @@ const POLL_INTERVAL_MS = 5000;
   ],
   template: `
     <div data-testid="support-page" class="page-shell flex flex-col gap-6">
-      @if (isStaffHandler()) {
+      @if (!viewerReady()) {
+        <!-- intentionally blank while permissions/profile are still resolving -->
+      } @else if (isStaffHandler()) {
         <div class="grid gap-6 md:grid-cols-[320px_1fr]">
           <app-staff-support-inbox />
           @if (staffChannel(); as staffChannel) {
@@ -116,6 +118,18 @@ export class SupportPageComponent implements OnInit {
 
   protected readonly isStaffHandler = computed(() =>
     this.globalPermissionsService.has(STAFF_SUPPORT_HANDLE),
+  );
+
+  /**
+   * `isStaffHandler()`/`currentUserId()` both start out "falsy while loading" (`false` /
+   * `null`), which is indistinguishable from their real "not staff" / "not yet known" resolved
+   * values -- rendering the member-channel branch before both resolve was firing
+   * `GET /api/tenants/{activeTenantId}/support/members/null/channel` (member id genuinely
+   * `null`, tenant id the staff's *active* tenant rather than the ticket's own) whenever the
+   * active-tenant fetch won the race against permissions/profile. Found live (2026-08-04).
+   */
+  protected readonly viewerReady = computed(
+    () => this.globalPermissionsService.permissions() !== null && this.currentUserId() !== null,
   );
 
   protected readonly canBrowseSupport = computed(() =>

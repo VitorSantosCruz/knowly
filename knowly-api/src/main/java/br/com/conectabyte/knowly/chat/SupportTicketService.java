@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.chat.dto.SupportTicketDto;
 import br.com.conectabyte.knowly.chat.exception.ChatAccessDeniedException;
 import br.com.conectabyte.knowly.chat.exception.ChatConversationNotFoundException;
 import br.com.conectabyte.knowly.chat.exception.SupportTicketConflictException;
+import br.com.conectabyte.knowly.tenancy.BypassTenantFilterForOversight;
 import br.com.conectabyte.knowly.tenancy.GlobalPermission;
 import br.com.conectabyte.knowly.tenancy.GlobalPermissionService;
 import br.com.conectabyte.knowly.tenancy.Tenant;
@@ -102,7 +103,18 @@ public class SupportTicketService {
                         });
     }
 
+    /**
+     * {@code @BypassTenantFilterForOversight}: this query already takes and filters by an explicit
+     * {@code tenantId} parameter -- letting {@code TenantFilterAspect}'s ambient session-scoped
+     * filter also apply ANDs it with the caller's *currently acting-as* tenant, which silently
+     * returns nothing whenever a staff member is acting as tenant A but handling a support ticket
+     * that belongs to tenant B (their own STAFF_SUPPORT_HANDLE permission is unconditional, but
+     * this lookup never got that far). Found live (2026-08-04): claiming a ticket while acting as
+     * an unrelated tenant left the whole channel permanently 404ing (CHAT_CONVERSATION_NOT_FOUND)
+     * until the staff member cleared their active tenant.
+     */
     @Transactional(readOnly = true)
+    @BypassTenantFilterForOversight
     public java.util.Optional<ChatConversation> findChannel(Long tenantId, Long memberUserId) {
         return chatConversationRepository.findByTenantIdAndOwnerIdAndKind(
                 tenantId, memberUserId, ChatConversationKind.SUPPORT);

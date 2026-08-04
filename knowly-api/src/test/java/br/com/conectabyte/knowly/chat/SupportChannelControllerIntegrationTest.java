@@ -93,6 +93,10 @@ class SupportChannelControllerIntegrationTest {
 
     private User member(String email, Tenant tenant) {
         User user = userRepository.saveAndFlush(new User(email));
+        return member(user, tenant);
+    }
+
+    private User member(User user, Tenant tenant) {
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(user, tenant, MembershipRole.MEMBER));
         return user;
@@ -310,6 +314,54 @@ class SupportChannelControllerIntegrationTest {
                                         + owner.getId()
                                         + "/channel")
                         .cookie(viewerSession)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void staffCanReadASupportChannelForATicketBelongingToADifferentTenantThanTheirActiveOne()
+            throws Exception {
+        // Regression test: TenantFilterAspect scopes Hibernate's tenant @Filter to the staff's
+        // *currently-active* tenant, but SupportTicketService#findChannel already takes and
+        // filters by the ticket's own explicit tenantId -- without @BypassTenantFilterForOversight,
+        // the ambient filter ANDs in a second, unrelated tenant_id condition and the channel
+        // permanently 404s (CHAT_CONVERSATION_NOT_FOUND) while the staff member is acting as any
+        // tenant other than the ticket's own. Found live (2026-08-04).
+        Tenant ownTenant = tenantRepository.saveAndFlush(new Tenant("Ticket Owner Co"));
+        Tenant otherTenant = tenantRepository.saveAndFlush(new Tenant("Unrelated Active Co"));
+        User owner = member("cross-tenant-member@example.com", ownTenant);
+        Cookie ownerSession = logIn("cross-tenant-member@example.com");
+        Cookie ownerCsrf = obtainCsrfCookie();
+        mockMvc.post()
+                .uri("/api/tenants/" + ownTenant.getId() + "/support/tickets")
+                .cookie(ownerSession)
+                .cookie(ownerCsrf)
+                .header("X-XSRF-TOKEN", ownerCsrf.getValue())
+                .exchange();
+
+        User staff = staffWithSupportHandle("cross-tenant-staff@example.com");
+        member(staff, otherTenant);
+        Cookie staffSession = logIn("cross-tenant-staff@example.com");
+        Cookie staffCsrf = obtainCsrfCookie();
+        mockMvc.post()
+                .uri("/api/tenants/active")
+                .cookie(staffSession)
+                .cookie(staffCsrf)
+                .header("X-XSRF-TOKEN", staffCsrf.getValue())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":" + otherTenant.getId() + "}")
+                .exchange();
+
+        var response =
+                mockMvc.get()
+                        .uri(
+                                "/api/tenants/"
+                                        + ownTenant.getId()
+                                        + "/support/members/"
+                                        + owner.getId()
+                                        + "/channel")
+                        .cookie(staffSession)
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);

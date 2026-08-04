@@ -146,6 +146,45 @@ describe('SupportPageComponent', () => {
     ).toBeNull();
   });
 
+  it('does not render the member channel with a null memberUserId while permissions/profile are still resolving', () => {
+    // Regression test: `activeTenantService.fetch()` resolving before
+    // `globalPermissionsService.fetch()`/`profileService.getOwnProfile()` used to render
+    // `<app-member-support-channel>` with `currentUserId()!` still `null`, firing
+    // `GET /api/tenants/{id}/support/members/null/channel`. Found live (2026-08-04).
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/tenants/active').flush({
+      tenantId: 1,
+      tenantName: 'T',
+      role: 'MEMBER',
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="member-support-channel"]'),
+    ).toBeNull();
+
+    httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
+    httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
+    httpMock
+      .expectOne('/api/users/me/profile')
+      .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="member-support-channel"]'),
+    ).toBeTruthy();
+
+    httpMock.expectOne('/api/tenants/1/support/members/1/channel').flush('nf', {
+      status: 404,
+      statusText: 'Not Found',
+    });
+    httpMock
+      .expectOne((r) => r.url === '/api/tenants/1/support/members/1/channel/messages')
+      .flush('nf', { status: 404, statusText: 'Not Found' });
+    fixture.detectChanges();
+  });
+
   it('polls the member channel via a visibility-gated interval(5000), mirroring peer-chat polling', () => {
     fixture.detectChanges();
     flushBaseline({
