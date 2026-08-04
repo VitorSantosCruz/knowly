@@ -57,11 +57,11 @@
 >    <what it is>"), not just "in progress."
 
 **Current state (2026-08-04): three manual, full-app Playwright QA passes (not
-a feature) found and fixed 13 real bugs across login, i18n, tenant-scoped
+a feature) found and fixed 15 real bugs across login, i18n, tenant-scoped
 routing, tenant creation, staff/tenant permission granting, chat, member/
 staff-user creation, identity, and support tickets — see the "Known
 operational/tooling notes" section and each affected feature's row below for
-detail, and `git log` since `66a4ae9` for the individual commits. All 13 are
+detail, and `git log` since `66a4ae9` for the individual commits. All 15 are
 now closed; there is no carried-over bug from this pass.** The second pass
 specifically exercised (via Playwright, against the real backend, not just
 component specs): staff user creation, granting a permission to a member,
@@ -70,9 +70,9 @@ and a full profile-edit-request submit-then-approve cycle — all now work end
 to end. "Conversar com a doc" (RAG chat grounded in an uploaded article) could
 not be fully verified beyond the retrieval step — the dev environment's
 OpenAI key has no remaining credits, an environment limitation, not a code
-bug. The third pass (commit `b49e741`) found and fixed two related
-support-ticket bugs surfaced while claiming and reopening a ticket for a
-tenant the staff member wasn't currently acting as: (1) backend —
+bug. The third pass (commits `b49e741`, `398f339`) found and fixed four
+related support-ticket bugs, all surfaced while exercising the full
+claim → transfer → close lifecycle as staff: (1) backend —
 `SupportTicketService#findChannel` already filters by an explicit `tenantId`,
 but `TenantFilterAspect`'s ambient Hibernate `@Filter` ANDed in the staff's
 *currently-active* tenant on top of it, permanently 404ing
@@ -84,7 +84,18 @@ pattern as `ChatOversightConversationLoader`; (2) frontend —
 `globalPermissionsService`/`profileService` to also resolve, occasionally
 firing `GET /api/tenants/{activeTenantId}/support/members/null/channel`
 (wrong tenant, null member) — fixed by gating rendering on a new
-`viewerReady` computed.
+`viewerReady` computed; (3) `StaffSupportChannelComponent#transfer()`/`close()`
+called `.subscribe()` with no error handler, so a failed transfer (bad target
+id, target lacking `STAFF_SUPPORT_HANDLE`) or a failed close left the staff
+viewer with zero feedback — now surfaces a dismissable error message; (4)
+`SupportService.activeTicket()` was only ever populated by the
+claim/transfer/close response bodies, so a page reload (or a direct
+`/support/:channelId` link) after claiming a ticket permanently lost the
+transfer/close controls for that session even though the backend still
+considered the viewer the assignee — added
+`GET /api/tenants/{tenantId}/support/members/{memberUserId}/ticket`
+(404 when the channel has no non-CLOSED ticket) to re-hydrate that state on
+init.
 
 **Before that (2026-08-02): `staff-members-management-redesign` is now
 fully done — see its row below in this list. This was picked up outside
