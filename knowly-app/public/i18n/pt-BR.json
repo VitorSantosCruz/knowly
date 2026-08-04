@@ -187,6 +187,8 @@
     "tenant.member.remove": "Removeu um membro do tenant",
     "tenant.permission.grant": "Concedeu uma permissão direta",
     "tenant.permission.revoke": "Revogou uma permissão direta",
+    "tenant.permission.batch_update": "Atualizou permissões em lote",
+    "tenant.member.creation.denied": "Negou a criação de um membro do tenant",
     "tenant.access_group.create": "Criou um grupo de acesso",
     "tenant.access_group.grant_permission": "Concedeu uma permissão a um grupo de acesso",
     "tenant.member.access_group.assign": "Atribuiu um membro a um grupo de acesso",
@@ -238,7 +240,9 @@
     "metrics.conversations.timeseries.view": "Visualizou métricas de conversas ao longo do tempo",
     "metrics.messages.view": "Visualizou métricas de mensagens",
     "metrics.messages.timeseries.view": "Visualizou métricas de mensagens ao longo do tempo",
-    "metrics.export.view": "Exportou métricas"
+    "metrics.export.view": "Exportou métricas",
+    "deletion_confirmation_token.generate": "Gerou uma palavra de confirmação de exclusão",
+    "deletion_confirmation_token.validate": "Confirmou uma exclusão com a palavra de confirmação"
   },
   "helpMenu": {
     "label": "Ajuda",

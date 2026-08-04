@@ -187,6 +187,8 @@
     "tenant.member.remove": "Removed a tenant member",
     "tenant.permission.grant": "Granted a direct permission",
     "tenant.permission.revoke": "Revoked a direct permission",
+    "tenant.permission.batch_update": "Updated permissions in batch",
+    "tenant.member.creation.denied": "Denied creating a tenant member",
     "tenant.access_group.create": "Created an access group",
     "tenant.access_group.grant_permission": "Granted a permission to an access group",
     "tenant.member.access_group.assign": "Assigned a member to an access group",
@@ -238,7 +240,9 @@
     "metrics.conversations.timeseries.view": "Viewed conversation metrics over time",
     "metrics.messages.view": "Viewed message metrics",
     "metrics.messages.timeseries.view": "Viewed message metrics over time",
-    "metrics.export.view": "Exported metrics"
+    "metrics.export.view": "Exported metrics",
+    "deletion_confirmation_token.generate": "Generated a deletion confirmation word",
+    "deletion_confirmation_token.validate": "Confirmed a deletion with the confirmation word"
   },
   "helpMenu": {
     "label": "Help",
