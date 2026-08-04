@@ -57,12 +57,19 @@
 >    <what it is>"), not just "in progress."
 
 **Current state (2026-08-04): three manual, full-app Playwright QA passes (not
-a feature) found and fixed 15 real bugs across login, i18n, tenant-scoped
+a feature) found and fixed 16 real bugs across login, i18n, tenant-scoped
 routing, tenant creation, staff/tenant permission granting, chat, member/
 staff-user creation, identity, and support tickets — see the "Known
 operational/tooling notes" section and each affected feature's row below for
-detail, and `git log` since `66a4ae9` for the individual commits. All 15 are
-now closed; there is no carried-over bug from this pass.** The second pass
+detail, and `git log` since `66a4ae9` for the individual commits. All 16 are
+now closed; there is no carried-over bug from this pass.** Bug #16
+(`65c8c23`): viewing a staff user's audit trail after a batch permission
+update, a deletion-confirmation-token generate/validate, or a denied
+tenant-member-creation attempt rendered the raw backend action string
+instead of a label, with a transloco "Missing translation" console warning
+per occurrence — 4 `auditActions.*` keys were missing from both locale
+files; fixed by cross-checking every `@AuditLog`/`AuditEvent` action string
+in `knowly-api` against both locale files (these 4 were the only gaps). The second pass
 specifically exercised (via Playwright, against the real backend, not just
 component specs): staff user creation, granting a permission to a member,
 publishing an article, 1:1 chat between two real tenant members, group chat,
