@@ -98,7 +98,7 @@ interface DailyRoleCountResponse {
           testId="active-members-tile"
           [period]="period()"
           url="/api/tenants/metrics/members/timeseries"
-          label="{{ 'dashboard.tiles.activeMembers' | transloco }}"
+          label="{{ 'dashboard.tiles.dailyActiveMembers' | transloco }}"
           subtitle="{{ 'dashboard.trends.activeMembersSubtitle' | transloco }}"
           [valueSelector]="activeMembersValueSelector"
           [sparklineSelector]="dailyCountSparklineSelector"
