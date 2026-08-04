@@ -610,6 +610,7 @@
   "common": {
     "confirm": "Confirm",
     "cancel": "Cancel",
+    "noActiveTenant": "No active tenant selected.",
     "confirmDialog": {
       "loading": "Generating confirmation word…",
       "fetchError": "Couldn't generate a confirmation word.",

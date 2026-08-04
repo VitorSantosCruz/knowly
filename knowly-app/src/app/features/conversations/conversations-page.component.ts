@@ -6,6 +6,7 @@ import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ConversationService, ConversationSummary, Message } from '../../core/conversation.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 
 type ConversationsError = 'network' | 'permission-denied' | null;
 
@@ -13,10 +14,19 @@ let nextLocalMessageId = -1;
 
 @Component({
   selector: 'app-conversations-page',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent],
+  imports: [
+    TranslocoPipe,
+    ErrorStateComponent,
+    NoAccessStateComponent,
+    NoActiveTenantStateComponent,
+  ],
   template: `
     <div data-testid="conversations-page" class="page-shell flex gap-6">
-      @if (loading()) {
+      @if (!activeTenantService.activeTenantResolved()) {
+        <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
+      } @else if (activeTenantService.activeTenantId() === null) {
+        <app-no-active-tenant-state />
+      } @else if (loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {
         <app-no-access-state />
@@ -119,7 +129,7 @@ let nextLocalMessageId = -1;
   `,
 })
 export class ConversationsPageComponent implements OnInit {
-  private readonly activeTenantService = inject(ActiveTenantService);
+  protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly conversationService = inject(ConversationService);
 
   protected readonly newConversationButtonClass = buttonClass('primary');

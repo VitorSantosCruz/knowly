@@ -94,6 +94,19 @@ describe('ConversationsPageComponent', () => {
     expect(assistantMessage?.textContent).toContain('Hello!');
   });
 
+  it('shows a no-active-tenant state instead of hanging on loading when staff has no active tenant', () => {
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush(null, { status: 204, statusText: 'No Content' });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="loading-state"]')).toBeFalsy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="no-active-tenant-state"]'),
+    ).toBeTruthy();
+  });
+
   it('shows a permission-denied state when the conversation list is forbidden', () => {
     fixture.detectChanges();
     httpMock

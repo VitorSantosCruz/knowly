@@ -7,6 +7,7 @@ import { ArticleDetail, ArticleService, ArticleSummary } from '../../core/articl
 import { PermissionsService } from '../../core/permissions.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 
 type ArticlesError = 'network' | 'permission-denied' | null;
@@ -15,10 +16,20 @@ const POLL_INTERVAL_MS = 4000;
 
 @Component({
   selector: 'app-articles-page',
-  imports: [TranslocoPipe, ErrorStateComponent, NoAccessStateComponent, ConfirmDialogComponent],
+  imports: [
+    TranslocoPipe,
+    ErrorStateComponent,
+    NoAccessStateComponent,
+    NoActiveTenantStateComponent,
+    ConfirmDialogComponent,
+  ],
   template: `
     <div data-testid="articles-page" class="page-shell flex gap-6">
-      @if (loading()) {
+      @if (!activeTenantService.activeTenantResolved()) {
+        <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
+      } @else if (activeTenantService.activeTenantId() === null) {
+        <app-no-active-tenant-state />
+      } @else if (loading()) {
         <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (error() === 'permission-denied') {
         <app-no-access-state />
@@ -215,7 +226,7 @@ const POLL_INTERVAL_MS = 4000;
   `,
 })
 export class ArticlesPageComponent implements OnInit, OnDestroy {
-  private readonly activeTenantService = inject(ActiveTenantService);
+  protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly articleService = inject(ArticleService);
   protected readonly permissionsService = inject(PermissionsService);
 
