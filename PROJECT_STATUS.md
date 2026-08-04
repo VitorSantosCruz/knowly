@@ -56,11 +56,31 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-02): `staff-members-management-redesign` is now
+**Current state (2026-08-04): a manual, full-app Playwright QA pass (not a
+feature) found and fixed 8 real bugs across login, i18n, tenant-scoped
+routing, tenant creation, staff/tenant permission granting, and chat cursor
+pagination — see the "Known operational/tooling notes" section and each
+affected feature's row below for detail, and `git log` since `66a4ae9` for the
+individual commits. **One confirmed bug from that same pass is still open and
+should be the next thing picked up**: `POST /api/staff/users` (create staff
+user) and `POST /api/tenants/{id}/members` (add member) both now require a
+full `profile: MandatoryProfileFieldsDto` in the request body
+(`mandatory-complete-profile`, backend-only, already shipped) — neither
+`StaffDirectoryPageComponent`'s "Create staff user" form nor
+`MembersPageComponent`'s "Add member" form was ever updated to collect it, so
+both actions 400 unconditionally today (`"profile": "não deve ser nulo"`,
+confirmed by exercising both forms live and by replaying the exact requests
+with `curl`/`fetch` against the real backend). This needs a proper SPEC first
+(a full profile-collection form is real feature work, not a one-line fix —
+likely reusing `ProfileFieldsFormComponent`, the same component `tenant-
+create`'s admin-profile section and `complete-profile` already use) rather
+than a drive-by patch.
+
+**Before that (2026-08-02): `staff-members-management-redesign` is now
 fully done — see its row below in this list. This was picked up outside
 the confirmed 2026-07-25 backlog order (which closed out with
 `internal-team-chat`, see below), at the user's explicit direction.**
-There is no queued next feature. Per this section's own protocol:
+Per this section's own protocol:
 propose 2-4 concrete candidate directions to the user and ask them to
 pick, drawing from `VISION.md`'s "What's deliberately not decided yet"
 section or anything not-yet-built implied by the product vision — do
@@ -1083,6 +1103,68 @@ rule.
   this way in both `ArticlesPageComponent` and `ConversationsPageComponent`
   (2026-08-04, manual Playwright exploration as staff); fixed with a new
   shared `NoActiveTenantStateComponent`.
+- `core/global-permission.ts`'s `GlobalPermission` type/`ALL_GLOBAL_PERMISSIONS`
+  is a hand-maintained mirror of `knowly-api`'s `GlobalPermission` enum, same
+  staleness risk as the `auditActions` dictionary above — no compiler or test
+  catches it drifting since the frontend just treats every value as an opaque
+  string. Found badly stale (2026-08-04, manual Playwright test of "grant a
+  permission to a staff user"): only 11 of the real 27 backend values were
+  modeled, plus 3 renamed/removed legacy names (`*_MANAGE_ANY`) that don't
+  exist server-side at all. Since `StaffUserDetailPanelComponent` renders its
+  permission-grant toggles off `ALL_GLOBAL_PERMISSIONS`, this meant a
+  `STAFF_ADMIN` could not grant 16 real permissions to another staff user
+  through the UI — the toggle simply didn't exist. Fixed by rewriting the
+  type/array to match the backend enum exactly (all 27 i18n labels already
+  existed in `en`/`pt-BR`, untouched). Re-diff
+  `knowly-api/src/main/java/br/com/conectabyte/knowly/tenancy/GlobalPermission.java`
+  against this file whenever the backend enum changes. Note this contradicts
+  `staff-global-dashboard`'s row above, which recorded `appsec` confirming the
+  two matched exactly (2026-07-28) — they did at the time; nothing re-checked
+  it as more permissions were added since.
+- `MemberDetailPanelComponent`'s direct-permission-grant toggles were
+  hard-disabled for any viewer who isn't that tenant's own `MEMBER_ADMIN`,
+  even though backend `TenantService#grantPermission`/`revokePermission`
+  (`requireAdminOfTenantOrStaff`) also accepts a staff caller holding the
+  global `TENANT_PERMISSION_GRANT_CREATE`/`_DELETE` permission — a
+  `STAFF_ADMIN` acting as a tenant (no real `TenantMembership` row) was
+  locked out of granting tenant permissions entirely. Confirmed by replaying
+  the exact POST the UI would send, which the backend accepted with a 200.
+  Fixed (2026-08-04) with a `viewerCanManageDirectPermissions` computed
+  checking `GlobalPermissionsService` too. If a similar "staff bypass"
+  permission check is added to a new tenant-scoped admin action, check
+  whether it needs the same treatment — `viewerCanDelete` in this same file
+  already had the analogous `permissionsService.has('TENANT_MEMBER_MANAGE')`
+  fallback, so this class of gap isn't universal, just missed here.
+- Chat/support-channel pagination cursors (`ChatCursor`, backend) are
+  `base64(String.valueOf(id))`, opaque by design — but the backend's own
+  `nextCursor` in `ChatMessagePageDto` only ever points at the *oldest* end
+  of whatever page it just returned (used for `before`/"load older"), never
+  the newest. `chat.service.ts`/`support.service.ts` mint their own "newest"
+  cursor client-side from a known message id for polling/optimistic-send, and
+  both were sending the raw id string instead of encoding it — every
+  `pollNewMessages` tick 400'd (`CHAT_INVALID_CURSOR`), forever, silently
+  (the initially-loaded/just-sent message was already visible from the
+  original response, masking that live updates from a peer never arrived).
+  Found by sending a real message between two tenant members end-to-end via
+  Playwright. Fixed with a shared `encodeMessageCursor()` helper
+  (`btoa(String(id))`) in both services — if a third chat-shaped feature is
+  added, it needs the same helper, not a raw `String(id)`.
+- `<select [value]="...">` silently fails to apply the bound value on an
+  element's very first change-detection pass when its `<option>`s come from
+  an `@for` — Angular evaluates the parent's own bindings before the
+  `@for`-generated children exist yet. Already identified and fixed once for
+  `profile-fields-form.component.ts`'s `countryCode` select (see that file's
+  "Bugfix" comments); found unfixed a second time (2026-08-04) on the same
+  file's contact-`type` select and on `contacts-list-editor.component.ts`'s
+  (tenant-creation's admin-contacts editor) equivalent — both always showed
+  the *first* `<option>` regardless of the contact's real stored type. Purely
+  a display bug (submission reads the tracked local value/FormControl, never
+  the DOM), but confusing to look at, and the first-option-happens-to-match
+  case (`PHONE`/`EMAIL` respectively) is exactly why it went unnoticed. Fixed
+  both the same way as the earlier `countryCode` fix: `[selected]` per
+  `<option>` instead of `[value]` on the `<select>`. **Any new `<select>`
+  whose `<option>`s come from an `@for`/`*ngFor` in this codebase must use
+  this pattern from the start, not `[value]` on the `<select>` itself.**
 
 ### Monorepo / CI
 
