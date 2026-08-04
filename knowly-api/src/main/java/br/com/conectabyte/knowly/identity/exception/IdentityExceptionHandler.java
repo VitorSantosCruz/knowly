@@ -83,6 +83,13 @@ public class IdentityExceptionHandler {
                 .body(new TenancyErrorResponseDto("INVALID_CPF"));
     }
 
+    @ExceptionHandler(TaxIdAlreadyExistsException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleTaxIdAlreadyExists(
+            TaxIdAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new TenancyErrorResponseDto("TAX_ID_ALREADY_EXISTS"));
+    }
+
     /**
      * A deployment/environment misconfiguration (malformed {@code CPF_RG_ENCRYPTION_KEY}/{@code
      * CPF_RG_HMAC_KEY}), never a client mistake -- so this is always a 500, but a structured one:

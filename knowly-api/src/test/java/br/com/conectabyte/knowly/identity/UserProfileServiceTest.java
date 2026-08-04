@@ -13,6 +13,7 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.dto.ProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.exception.InvalidCpfException;
+import br.com.conectabyte.knowly.identity.exception.TaxIdAlreadyExistsException;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrant;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrantRepository;
 import br.com.conectabyte.knowly.tenancy.DirectPermissionGrant;
@@ -382,5 +383,23 @@ class UserProfileServiceTest {
                 .isInstanceOf(InvalidCpfException.class);
 
         assertThat(addressRepository.findById(caller.getId())).isEmpty();
+    }
+
+    @Test
+    void applyMandatoryProfileRejectsATaxIdAlreadyBelongingToAnotherProfile() {
+        User first = user("first-taxid-owner@example.com");
+        userProfileService.completeOwnProfile(first, mandatoryFieldsWithTaxId("529.982.247-25"));
+
+        User second = user("second-taxid-owner@example.com");
+
+        // Previously this reached the DB's own unique index on tax_id_blind_index unchecked,
+        // surfacing as an unhandled 500 (transaction-abort cascade) instead of a clean conflict.
+        assertThatThrownBy(
+                        () ->
+                                userProfileService.completeOwnProfile(
+                                        second, mandatoryFieldsWithTaxId("529.982.247-25")))
+                .isInstanceOf(TaxIdAlreadyExistsException.class);
+
+        assertThat(addressRepository.findById(second.getId())).isEmpty();
     }
 }

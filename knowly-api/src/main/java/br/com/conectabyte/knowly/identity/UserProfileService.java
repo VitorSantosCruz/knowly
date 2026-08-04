@@ -13,6 +13,7 @@ import br.com.conectabyte.knowly.identity.dto.UserProfileDto;
 import br.com.conectabyte.knowly.identity.exception.InvalidAvatarFileException;
 import br.com.conectabyte.knowly.identity.exception.InvalidCpfException;
 import br.com.conectabyte.knowly.identity.exception.ProfileAlreadyCompleteException;
+import br.com.conectabyte.knowly.identity.exception.TaxIdAlreadyExistsException;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.GlobalPermission;
 import br.com.conectabyte.knowly.tenancy.GlobalPermissionService;
@@ -303,10 +304,23 @@ public class UserProfileService {
         String normalizedTaxId = IdentityFieldNormalizer.stripFormatting(fields.taxId());
         requireValidTaxId(normalizedTaxId, fields.countryCode());
 
+        String taxIdBlindIndex = blindIndexService.hmac(normalizedTaxId);
+        // Proactive check, not "insert and catch DataIntegrityViolationException": this method
+        // runs inside its own @Transactional/@AuditLog boundary (same reasoning as
+        // TenantService#createTenant's taxId/adminEmail checks), so a failed insert here would
+        // leave the persistence context in a state Hibernate can't safely keep flushing against
+        // within the same still-open transaction. Previously this reached the DB's own unique
+        // index on tax_id_blind_index unchecked, surfacing as an unhandled 500 with a leaked SQL
+        // stack trace instead of a clean conflict response.
+        if (userProfileRepository.existsByTaxIdBlindIndexAndUserIdNot(
+                taxIdBlindIndex, target.getId())) {
+            throw new TaxIdAlreadyExistsException();
+        }
+
         profile.setFullName(fields.fullName());
         profile.setCountryCode(fields.countryCode());
         profile.setTaxId(normalizedTaxId);
-        profile.setTaxIdBlindIndex(blindIndexService.hmac(normalizedTaxId));
+        profile.setTaxIdBlindIndex(taxIdBlindIndex);
         userProfileRepository.save(profile);
 
         MandatoryAddressDto addressDto = fields.address();

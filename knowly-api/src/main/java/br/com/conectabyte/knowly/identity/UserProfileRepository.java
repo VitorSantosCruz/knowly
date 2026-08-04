@@ -2,4 +2,7 @@ package br.com.conectabyte.knowly.identity;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {}
+public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
+
+    boolean existsByTaxIdBlindIndexAndUserIdNot(String taxIdBlindIndex, Long userId);
+}

@@ -295,7 +295,9 @@ export class MembersPageComponent implements OnInit {
 
           if (err.status === 403) {
             this.error.set('permission-denied');
-          } else if (err.status === 400) {
+          } else if (err.status === 409 && err.error?.code === 'TAX_ID_ALREADY_EXISTS') {
+            this.addError.set('members.addProfileTaxIdConflict');
+          } else if (err.status === 400 || err.status === 409) {
             this.addError.set('members.addProfileError');
           } else {
             this.error.set('network');
