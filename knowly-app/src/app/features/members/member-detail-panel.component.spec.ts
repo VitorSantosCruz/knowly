@@ -346,7 +346,9 @@ describe('MemberDetailPanelComponent', () => {
     );
     assignButton.click();
 
-    httpMock.expectOne('/api/tenants/1/members/2/access-groups/5').flush({});
+    // Real backend returns ResponseEntity.ok().build() -- a genuinely empty body, which
+    // Angular parses as `null`, not `{}`.
+    httpMock.expectOne('/api/tenants/1/members/2/access-groups/5').flush(null);
     httpMock
       .expectOne('/api/tenants/1/members/2')
       .flush({ ...memberDetail, accessGroups: [{ id: 5, name: 'Support' }] });

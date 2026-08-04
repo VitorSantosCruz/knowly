@@ -554,13 +554,11 @@ export class MemberDetailPanelComponent implements OnChanges {
       .pipe(
         catchError((err) => {
           this.reportError(err);
-          return of(null);
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.loadDetail();
-        }
+      .subscribe(() => {
+        this.loadDetail();
       });
   }
 

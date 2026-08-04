@@ -139,7 +139,10 @@ describe('AccessGroupManagementPageComponent', () => {
     fixture.nativeElement.querySelector('[data-testid="access-group-assign-2"]').click();
     fixture.detectChanges();
 
-    httpMock.expectOne('/api/staff/users/2/access-groups/5').flush({});
+    // Real backend returns ResponseEntity.ok().build() -- a genuinely empty body, which
+    // Angular parses as `null`, not `{}` (regression test, same class of bug as
+    // MembersPageComponent#onAddMember).
+    httpMock.expectOne('/api/staff/users/2/access-groups/5').flush(null);
     httpMock
       .expectOne('/api/staff/users')
       .flush([{ id: 2, email: 'staffer@example.com', globalRole: 'STAFF' }]);

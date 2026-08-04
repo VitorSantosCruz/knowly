@@ -324,13 +324,11 @@ export class AccessGroupManagementPageComponent implements OnInit {
       .pipe(
         catchError((err) => {
           this.error.set(err.status === 403 ? 'permission-denied' : 'network');
-          return of(null);
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.loadCandidates();
-        }
+      .subscribe(() => {
+        this.loadCandidates();
       });
   }
 
