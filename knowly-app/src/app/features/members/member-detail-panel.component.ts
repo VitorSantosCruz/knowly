@@ -3,6 +3,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { ALL_PERMISSIONS, Permission } from '../../core/permission';
 import { PermissionsService } from '../../core/permissions.service';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { ProfileService } from '../../core/profile.service';
 import { AccessGroup, MemberDetail, MemberService } from '../../core/member.service';
 import { buttonClass } from '../../shared/button-classes';
@@ -155,7 +156,7 @@ type DetailError = 'network' | 'permission-denied' | null;
                   [attr.aria-checked]="pendingPermissions().has(permission)"
                   [attr.aria-label]="permissionLabel(permission)"
                   [attr.data-testid]="'permission-toggle-' + permission"
-                  [disabled]="!viewerIsMemberAdminOfThisTenant()"
+                  [disabled]="!viewerCanManageDirectPermissions()"
                   (click)="onTogglePermission(permission)"
                   [class]="
                     'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
@@ -181,7 +182,7 @@ type DetailError = 'network' | 'permission-denied' | null;
                   type="button"
                   data-testid="member-save-permissions-button"
                   [class]="buttonClassPrimary"
-                  [disabled]="!viewerIsMemberAdminOfThisTenant()"
+                  [disabled]="!viewerCanManageDirectPermissions()"
                   (click)="onSaveBatchPermissions()"
                 >
                   {{ 'members.save' | transloco }}
@@ -328,6 +329,7 @@ type DetailError = 'network' | 'permission-denied' | null;
 export class MemberDetailPanelComponent implements OnChanges {
   private readonly memberService = inject(MemberService);
   private readonly permissionsService = inject(PermissionsService);
+  private readonly globalPermissionsService = inject(GlobalPermissionsService);
   private readonly profileService = inject(ProfileService);
   private readonly transloco = inject(TranslocoService);
 
@@ -341,6 +343,18 @@ export class MemberDetailPanelComponent implements OnChanges {
 
   protected readonly canEdit = computed(
     () => this.viewerIsMemberAdminOfThisTenant() || this.permissionsService.has('PROFILE_EDIT'),
+  );
+
+  // Backend's TenantService#grantPermission/revokePermission accept either a real tenant
+  // MEMBER_ADMIN or a staff caller holding the *global* TENANT_PERMISSION_GRANT_CREATE/DELETE
+  // permission (requireAdminOfTenantOrStaff) — a STAFF_ADMIN acting as a tenant with no real
+  // TenantMembership row was previously locked out of these switches entirely, even though the
+  // backend would accept the exact same call. `permissionsService` only exposes the tenant-scoped
+  // permission set, which never includes this staff-only permission — needs GlobalPermissionsService.
+  protected readonly viewerCanManageDirectPermissions = computed(
+    () =>
+      this.viewerIsMemberAdminOfThisTenant() ||
+      this.globalPermissionsService.has('TENANT_PERMISSION_GRANT_CREATE'),
   );
 
   // REQ-11 (identity-profile-model-v2): self-edit is removed entirely, not merely disabled — the
@@ -475,7 +489,7 @@ export class MemberDetailPanelComponent implements OnChanges {
   }
 
   protected onTogglePermission(permission: Permission): void {
-    if (!this.viewerIsMemberAdminOfThisTenant()) {
+    if (!this.viewerCanManageDirectPermissions()) {
       return;
     }
 

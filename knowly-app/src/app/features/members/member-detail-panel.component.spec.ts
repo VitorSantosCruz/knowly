@@ -5,6 +5,7 @@ import { provideTransloco } from '@jsverse/transloco';
 import { MemberDetailPanelComponent } from './member-detail-panel.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import { Permission } from '../../core/permission';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
 
 describe('MemberDetailPanelComponent', () => {
   let fixture: ComponentFixture<MemberDetailPanelComponent>;
@@ -255,6 +256,31 @@ describe('MemberDetailPanelComponent', () => {
 
     expect(toggle.getAttribute('aria-checked')).toBe('false');
     httpMock.expectNone('/api/tenants/1/members/2');
+  });
+
+  it('disables permission switches for a viewer who is neither tenant admin nor globally permitted', async () => {
+    await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, false);
+
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="permission-toggle-ARTICLE_CREATE"]',
+    );
+    expect(toggle.disabled).toBe(true);
+  });
+
+  it('enables permission switches for a staff viewer holding TENANT_PERMISSION_GRANT_CREATE even with no tenant membership', async () => {
+    await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, false);
+
+    const globalPermissions = TestBed.inject(GlobalPermissionsService);
+    globalPermissions.fetch();
+    httpMock
+      .expectOne('/api/staff/permissions')
+      .flush({ permissions: ['TENANT_PERMISSION_GRANT_CREATE'], isStaffAccount: true });
+    fixture.detectChanges();
+
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="permission-toggle-ARTICLE_CREATE"]',
+    );
+    expect(toggle.disabled).toBe(false);
   });
 
   it('hides "Save" with zero pending changes and shows it once a switch is toggled', async () => {
