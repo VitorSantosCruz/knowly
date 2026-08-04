@@ -303,16 +303,14 @@ export class MembersPageComponent implements OnInit {
             this.error.set('network');
           }
 
-          return of(null);
+          return EMPTY;
         }),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.adding.set(false);
-          this.showAddProfileForm.set(false);
-          this.newMemberEmail.set('');
-          this.loadMembers(tenantId);
-        }
+      .subscribe(() => {
+        this.adding.set(false);
+        this.showAddProfileForm.set(false);
+        this.newMemberEmail.set('');
+        this.loadMembers(tenantId);
       });
   }
 

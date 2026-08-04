@@ -119,7 +119,11 @@ describe('MembersPageComponent', () => {
     expect(req.request.body.email).toBe('new@example.com');
     expect(req.request.body.role).toBe('MEMBER');
     expect(req.request.body.profile.fullName).toBe('New Member');
-    req.flush({});
+    // The real backend's addMember returns ResponseEntity.ok().build() -- a genuinely empty
+    // body, which Angular's HttpClient parses as `null`, not `{}`. Regression test for a bug
+    // where the success handler's `if (result !== null)` check silently never fired against
+    // the real backend, leaving the form stuck disabled forever.
+    req.flush(null);
     httpMock
       .expectOne('/api/tenants/7/members')
       .flush([{ membershipId: 2, email: 'new@example.com', role: 'MEMBER' }]);
