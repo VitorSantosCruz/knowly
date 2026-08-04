@@ -30,6 +30,16 @@ describe('ContactsListEditorComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('[data-testid^="contacts-row-"]').length).toBe(1);
   });
 
+  it("includes isPrimary: true in every row so ContactDto's primitive boolean never gets a null", () => {
+    expect(formArray.at(0).value).toEqual({ type: 'EMAIL', value: '', isPrimary: true });
+
+    fixture.nativeElement
+      .querySelector('[data-testid="contacts-add-row"]')
+      .dispatchEvent(new Event('click'));
+
+    expect(formArray.at(1).value.isPrimary).toBe(true);
+  });
+
   it('appends a control pair when add-row is clicked', () => {
     fixture.nativeElement
       .querySelector('[data-testid="contacts-add-row"]')
@@ -82,6 +92,10 @@ describe('ContactsListEditorComponent', () => {
     valueInput.value = 'admin@acme.test';
     valueInput.dispatchEvent(new Event('input'));
 
-    expect(formArray.at(0).value).toEqual({ type: 'EMAIL', value: 'admin@acme.test' });
+    expect(formArray.at(0).value).toEqual({
+      type: 'EMAIL',
+      value: 'admin@acme.test',
+      isPrimary: true,
+    });
   });
 });

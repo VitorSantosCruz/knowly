@@ -8,11 +8,19 @@ const CONTACT_TYPES = ['EMAIL', 'PHONE', 'WHATSAPP', 'OTHER'] as const;
 const INPUT_CLASS =
   'min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white';
 
-/** One `{ type, value }` row matching backend `ContactDto`'s minimal shape (REQ-13). */
+/**
+ * One `{ type, value, isPrimary }` row matching backend `ContactDto`'s minimal shape
+ * (REQ-13). `isPrimary` is fixed `true` and not exposed in this form's UI — `ContactDto.
+ * isPrimary` is a primitive `boolean` on the backend record, so omitting it entirely fails
+ * JSON deserialization outright rather than defaulting to `false`; `ContactService.addContact`
+ * demotes any earlier same-type primary automatically, so a later row of the same type simply
+ * becomes the new primary instead of violating a one-primary-per-type invariant.
+ */
 export function createContactGroup(): FormGroup {
   return new FormGroup({
     type: new FormControl<(typeof CONTACT_TYPES)[number]>('EMAIL', { nonNullable: true }),
     value: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    isPrimary: new FormControl(true, { nonNullable: true }),
   });
 }
 

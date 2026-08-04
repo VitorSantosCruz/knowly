@@ -301,7 +301,7 @@ describe('TenantCreatePageComponent', () => {
           postalCode: '01310-000',
           countryCode: 'BR',
         },
-        contacts: [{ type: 'EMAIL', value: 'admin@acme.test' }],
+        contacts: [{ type: 'EMAIL', value: 'admin@acme.test', isPrimary: true }],
       },
       role: 'MEMBER_ADMIN',
     });
