@@ -56,20 +56,35 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-04): two manual, full-app Playwright QA passes (not
-a feature) found and fixed 11 real bugs across login, i18n, tenant-scoped
+**Current state (2026-08-04): three manual, full-app Playwright QA passes (not
+a feature) found and fixed 13 real bugs across login, i18n, tenant-scoped
 routing, tenant creation, staff/tenant permission granting, chat, member/
-staff-user creation, and identity — see the "Known operational/tooling notes"
-section and each affected feature's row below for detail, and `git log` since
-`66a4ae9` for the individual commits. All 11 are now closed; there is no
-carried-over bug from this pass.** The second pass specifically exercised (via
-Playwright, against the real backend, not just component specs): staff user
-creation, granting a permission to a member, publishing an article, 1:1 chat
-between two real tenant members, group chat, and a full profile-edit-request
-submit-then-approve cycle — all now work end to end. "Conversar com a doc"
-(RAG chat grounded in an uploaded article) could not be fully verified beyond
-the retrieval step — the dev environment's OpenAI key has no remaining
-credits, an environment limitation, not a code bug.
+staff-user creation, identity, and support tickets — see the "Known
+operational/tooling notes" section and each affected feature's row below for
+detail, and `git log` since `66a4ae9` for the individual commits. All 13 are
+now closed; there is no carried-over bug from this pass.** The second pass
+specifically exercised (via Playwright, against the real backend, not just
+component specs): staff user creation, granting a permission to a member,
+publishing an article, 1:1 chat between two real tenant members, group chat,
+and a full profile-edit-request submit-then-approve cycle — all now work end
+to end. "Conversar com a doc" (RAG chat grounded in an uploaded article) could
+not be fully verified beyond the retrieval step — the dev environment's
+OpenAI key has no remaining credits, an environment limitation, not a code
+bug. The third pass (commit `b49e741`) found and fixed two related
+support-ticket bugs surfaced while claiming and reopening a ticket for a
+tenant the staff member wasn't currently acting as: (1) backend —
+`SupportTicketService#findChannel` already filters by an explicit `tenantId`,
+but `TenantFilterAspect`'s ambient Hibernate `@Filter` ANDed in the staff's
+*currently-active* tenant on top of it, permanently 404ing
+(`CHAT_CONVERSATION_NOT_FOUND`) any ticket for a tenant other than the one
+currently active — fixed with `@BypassTenantFilterForOversight`, same
+pattern as `ChatOversightConversationLoader`; (2) frontend —
+`SupportPageComponent` rendered its member-channel branch as soon as
+`activeTenantId()` resolved, without waiting for
+`globalPermissionsService`/`profileService` to also resolve, occasionally
+firing `GET /api/tenants/{activeTenantId}/support/members/null/channel`
+(wrong tenant, null member) — fixed by gating rendering on a new
+`viewerReady` computed.
 
 **Before that (2026-08-02): `staff-members-management-redesign` is now
 fully done — see its row below in this list. This was picked up outside
