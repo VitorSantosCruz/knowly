@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { Permission } from './permission';
+import { MandatoryProfileFields } from './profile.service';
 
 export interface Member {
   membershipId: number;
@@ -30,8 +31,15 @@ export class MemberService {
     return this.http.get<Member[]>(`/api/tenants/${tenantId}/members`);
   }
 
-  add(tenantId: number, email: string, role: 'MEMBER_ADMIN' | 'MEMBER'): Observable<void> {
-    return this.http.post<void>(`/api/tenants/${tenantId}/members`, { email, role });
+  // mandatory-complete-profile (backend): `profile` is a required field on this request —
+  // omitting it 400s unconditionally, regardless of role.
+  add(
+    tenantId: number,
+    email: string,
+    role: 'MEMBER_ADMIN' | 'MEMBER',
+    profile: MandatoryProfileFields,
+  ): Observable<void> {
+    return this.http.post<void>(`/api/tenants/${tenantId}/members`, { email, role, profile });
   }
 
   remove(tenantId: number, membershipId: number, word: string): Observable<void> {

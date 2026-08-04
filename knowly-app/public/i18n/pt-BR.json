@@ -264,6 +264,8 @@
   },
   "members": {
     "add": "Adicionar membro",
+    "addProfileIntro": "Complete o perfil de {{email}} para finalizar a adição deste membro.",
+    "addProfileError": "Não foi possível adicionar o membro. Verifique os dados e tente novamente.",
     "remove": "Remover",
     "directPermissions": "Permissões diretas",
     "accessGroups": "Grupos de acesso",
@@ -315,6 +317,8 @@
   "staffDirectory": {
     "searchPlaceholder": "Buscar por e-mail…",
     "create": "Criar usuário staff",
+    "createProfileIntro": "Complete o perfil de {{email}} para finalizar a criação deste usuário staff.",
+    "createProfileError": "Não foi possível criar o usuário staff. Verifique os dados e tente novamente.",
     "directPermissions": "Permissões diretas",
     "accessGroups": "Grupos de acesso",
     "effectivePermissions": "Permissões efetivas",

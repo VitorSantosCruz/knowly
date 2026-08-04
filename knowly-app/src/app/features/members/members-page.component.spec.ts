@@ -53,7 +53,7 @@ describe('MembersPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('a@example.com');
   });
 
-  it('adding a member refreshes the list', () => {
+  it('adding a member collects the mandatory profile first, then posts it and refreshes the list', () => {
     fixture.detectChanges();
     flushActiveTenant();
     fixture.detectChanges();
@@ -72,8 +72,54 @@ describe('MembersPageComponent', () => {
       '[data-testid="add-member-form"]',
     );
     form.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
 
-    httpMock.expectOne('/api/tenants/7/members').flush({});
+    // The plain email/role form is replaced by the mandatory-profile-fields form (backend
+    // requires a full profile on this request) rather than posting immediately.
+    expect(fixture.nativeElement.querySelector('[data-testid="add-member-form"]')).toBeFalsy();
+    const profileForm = fixture.nativeElement.querySelector(
+      '[data-testid="add-member-profile-form"]',
+    );
+    expect(profileForm).toBeTruthy();
+
+    const input = (testId: string): HTMLInputElement =>
+      fixture.nativeElement.querySelector(`[data-testid="${testId}"]`);
+
+    input('profile-field-fullName').value = 'New Member';
+    input('profile-field-fullName').dispatchEvent(new Event('input'));
+    input('profile-field-countryCode').value = 'BR';
+    input('profile-field-countryCode').dispatchEvent(new Event('change'));
+    input('profile-field-taxId').value = '111.111.111-11';
+    input('profile-field-taxId').dispatchEvent(new Event('input'));
+    input('profile-address-field-addressLine1').value = 'Main St, 123';
+    input('profile-address-field-addressLine1').dispatchEvent(new Event('input'));
+    input('profile-address-field-city').value = 'Sao Paulo';
+    input('profile-address-field-city').dispatchEvent(new Event('input'));
+    input('profile-address-field-stateRegion').value = 'SP';
+    input('profile-address-field-stateRegion').dispatchEvent(new Event('input'));
+    input('profile-address-field-postalCode').value = '01000-000';
+    input('profile-address-field-postalCode').dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    input('profile-contact-add').click();
+    fixture.detectChanges();
+    const newRow = fixture.nativeElement.querySelector('[data-testid^="profile-contact-row-"]');
+    const rowKey = newRow.getAttribute('data-testid').replace('profile-contact-row-', '');
+    input(`profile-contact-type-${rowKey}`).value = 'EMAIL';
+    input(`profile-contact-type-${rowKey}`).dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    input(`profile-contact-value-${rowKey}`).value = 'new@example.com';
+    input(`profile-contact-value-${rowKey}`).dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="profile-fields-submit"]').click();
+
+    const req = httpMock.expectOne('/api/tenants/7/members');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.email).toBe('new@example.com');
+    expect(req.request.body.role).toBe('MEMBER');
+    expect(req.request.body.profile.fullName).toBe('New Member');
+    req.flush({});
     httpMock
       .expectOne('/api/tenants/7/members')
       .flush([{ membershipId: 2, email: 'new@example.com', role: 'MEMBER' }]);

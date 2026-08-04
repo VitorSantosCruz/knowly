@@ -5,14 +5,35 @@ import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { Member, MemberService } from '../../core/member.service';
+import { MandatoryProfileFields, ProfileFields } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { SharedListComponent } from '../../shared/shared-list/shared-list.component';
 import { SharedListColumn, SharedListRowAction } from '../../shared/shared-list/shared-list.model';
+import {
+  ProfileFieldsFormComponent,
+  ProfileFieldsFormSubmission,
+} from '../../shared/profile-fields-form.component';
 import { MemberDetailPanelComponent } from './member-detail-panel.component';
 
 type MembersError = 'network' | 'permission-denied' | null;
+
+// Same empty starting point complete-profile-page.component.ts uses for the same form.
+const EMPTY_FIELDS: ProfileFields = {
+  fullName: '',
+  taxId: '',
+  countryCode: '',
+  address: {
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    stateRegion: '',
+    postalCode: '',
+    countryCode: '',
+  },
+  contacts: [],
+};
 
 @Component({
   selector: 'app-members-page',
@@ -21,6 +42,7 @@ type MembersError = 'network' | 'permission-denied' | null;
     ErrorStateComponent,
     NoAccessStateComponent,
     SharedListComponent,
+    ProfileFieldsFormComponent,
     MemberDetailPanelComponent,
     ConfirmDialogComponent,
   ],
@@ -33,23 +55,54 @@ type MembersError = 'network' | 'permission-denied' | null;
       } @else if (error() === 'network') {
         <app-error-state />
       } @else {
-        <form
-          data-testid="add-member-form"
-          class="enter-fluid mb-6 flex gap-2 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
-          (submit)="onAddMember($event)"
-        >
-          <input
-            data-testid="add-member-email"
-            type="email"
-            name="email"
-            [value]="newMemberEmail()"
-            (input)="newMemberEmail.set($any($event.target).value)"
-            class="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
-          />
-          <button type="submit" [class]="addButtonClass">
-            {{ 'members.add' | transloco }}
-          </button>
-        </form>
+        @if (!showAddProfileForm()) {
+          <form
+            data-testid="add-member-form"
+            class="enter-fluid mb-6 flex gap-2 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+            (submit)="onStartAddMember($event)"
+          >
+            <input
+              data-testid="add-member-email"
+              type="email"
+              name="email"
+              [value]="newMemberEmail()"
+              (input)="newMemberEmail.set($any($event.target).value)"
+              class="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
+            />
+            <button type="submit" [class]="addButtonClass">
+              {{ 'members.add' | transloco }}
+            </button>
+          </form>
+        } @else {
+          <div
+            data-testid="add-member-profile-form"
+            class="enter-fluid mb-6 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+          >
+            <p class="mb-3 text-sm text-ink-600 dark:text-ink-400">
+              {{ 'members.addProfileIntro' | transloco: { email: newMemberEmail() } }}
+            </p>
+            @if (addError(); as addErrorMessage) {
+              <p data-testid="add-member-error" class="mb-3 text-sm text-red-600 dark:text-red-400">
+                {{ addErrorMessage | transloco }}
+              </p>
+            }
+            <app-profile-fields-form
+              [fields]="newMemberProfileFields()"
+              [requireAllFields]="true"
+              [disabled]="adding()"
+              (submitted)="onAddMember($event)"
+            />
+            <button
+              type="button"
+              data-testid="add-member-cancel"
+              [class]="secondaryButtonClass"
+              [disabled]="adding()"
+              (click)="onCancelAddMember()"
+            >
+              {{ 'common.cancel' | transloco }}
+            </button>
+          </div>
+        }
 
         <app-shared-list
           data-testid="members-list"
@@ -90,6 +143,7 @@ export class MembersPageComponent implements OnInit {
   private readonly memberService = inject(MemberService);
 
   protected readonly addButtonClass = buttonClass('primary');
+  protected readonly secondaryButtonClass = buttonClass('secondary');
   protected readonly members = signal<Member[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<MembersError>(null);
@@ -97,6 +151,14 @@ export class MembersPageComponent implements OnInit {
   protected readonly selectedMembershipId = signal<number | null>(null);
   protected readonly pendingRemoval = signal<Member | null>(null);
   protected readonly removalRetryToken = signal(0);
+
+  // mandatory-complete-profile (backend): adding a member requires a full
+  // MandatoryProfileFieldsDto — this two-step flow collects it via the same
+  // ProfileFieldsFormComponent complete-profile-page.component.ts already uses.
+  protected readonly showAddProfileForm = signal(false);
+  protected readonly newMemberProfileFields = signal<ProfileFields>(EMPTY_FIELDS);
+  protected readonly adding = signal(false);
+  protected readonly addError = signal<string | null>(null);
 
   protected readonly rowId = (row: Member): number => row.membershipId;
 
@@ -181,25 +243,71 @@ export class MembersPageComponent implements OnInit {
       });
   }
 
-  protected onAddMember(event: Event): void {
+  protected onStartAddMember(event: Event): void {
     event.preventDefault();
-    const tenantId = this.activeTenantService.activeTenantId();
-    const email = this.newMemberEmail();
 
-    if (tenantId === null || !email) {
+    if (!this.newMemberEmail()) {
       return;
     }
 
+    this.addError.set(null);
+    this.newMemberProfileFields.set(EMPTY_FIELDS);
+    this.showAddProfileForm.set(true);
+  }
+
+  protected onCancelAddMember(): void {
+    this.showAddProfileForm.set(false);
+    this.newMemberEmail.set('');
+    this.addError.set(null);
+  }
+
+  protected onAddMember({ fields }: ProfileFieldsFormSubmission): void {
+    if (this.adding()) {
+      return;
+    }
+
+    const tenantId = this.activeTenantService.activeTenantId();
+    const email = this.newMemberEmail();
+
+    if (tenantId === null) {
+      return;
+    }
+
+    this.newMemberProfileFields.set(fields);
+    this.addError.set(null);
+    this.adding.set(true);
+
+    const profile: MandatoryProfileFields = {
+      ...fields,
+      contacts: fields.contacts.map((contact) => ({
+        type: contact.type,
+        value: contact.value,
+        label: contact.label,
+        isPrimary: contact.isPrimary,
+      })),
+    };
+
     this.memberService
-      .add(tenantId, email, 'MEMBER')
+      .add(tenantId, email, 'MEMBER', profile)
       .pipe(
         catchError((err) => {
-          this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          this.adding.set(false);
+
+          if (err.status === 403) {
+            this.error.set('permission-denied');
+          } else if (err.status === 400) {
+            this.addError.set('members.addProfileError');
+          } else {
+            this.error.set('network');
+          }
+
           return of(null);
         }),
       )
       .subscribe((result) => {
         if (result !== null) {
+          this.adding.set(false);
+          this.showAddProfileForm.set(false);
           this.newMemberEmail.set('');
           this.loadMembers(tenantId);
         }

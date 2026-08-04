@@ -2,6 +2,22 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { StaffUserService } from './staff-user.service';
+import { MandatoryProfileFields } from './profile.service';
+
+const PROFILE: MandatoryProfileFields = {
+  fullName: 'Jane Doe',
+  taxId: '111.111.111-11',
+  countryCode: 'BR',
+  address: {
+    addressLine1: 'Main St, 123',
+    addressLine2: null,
+    city: 'Sao Paulo',
+    stateRegion: 'SP',
+    postalCode: '01000-000',
+    countryCode: 'BR',
+  },
+  contacts: [{ type: 'EMAIL', value: 'new@example.com', label: null, isPrimary: true }],
+};
 
 describe('StaffUserService', () => {
   let service: StaffUserService;
@@ -35,12 +51,12 @@ describe('StaffUserService', () => {
     req.flush([]);
   });
 
-  it('create() posts the new staff user email', () => {
-    service.create('new@example.com').subscribe();
+  it('create() posts the new staff user email with its mandatory profile', () => {
+    service.create('new@example.com', PROFILE).subscribe();
 
     const req = httpMock.expectOne('/api/staff/users');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ email: 'new@example.com' });
+    expect(req.request.body).toEqual({ email: 'new@example.com', profile: PROFILE });
     req.flush({});
   });
 

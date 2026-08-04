@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { GlobalPermission } from './global-permission';
+import { MandatoryProfileFields } from './profile.service';
 
 export type GlobalRole = 'STAFF' | 'STAFF_ADMIN';
 
@@ -45,8 +46,10 @@ export class StaffUserService {
     return this.http.get<StaffUserSummary[]>('/api/staff/users', { params });
   }
 
-  create(email: string): Observable<StaffUserDetail> {
-    return this.http.post<StaffUserDetail>('/api/staff/users', { email });
+  // mandatory-complete-profile (backend): `profile` is a required field on this request —
+  // omitting it 400s unconditionally, regardless of role.
+  create(email: string, profile: MandatoryProfileFields): Observable<StaffUserDetail> {
+    return this.http.post<StaffUserDetail>('/api/staff/users', { email, profile });
   }
 
   getDetail(userId: number): Observable<StaffUserDetail> {

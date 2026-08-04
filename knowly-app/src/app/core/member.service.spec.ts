@@ -2,6 +2,22 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { MemberService } from './member.service';
+import { MandatoryProfileFields } from './profile.service';
+
+const PROFILE: MandatoryProfileFields = {
+  fullName: 'Jane Doe',
+  taxId: '111.111.111-11',
+  countryCode: 'BR',
+  address: {
+    addressLine1: 'Main St, 123',
+    addressLine2: null,
+    city: 'Sao Paulo',
+    stateRegion: 'SP',
+    postalCode: '01000-000',
+    countryCode: 'BR',
+  },
+  contacts: [{ type: 'EMAIL', value: 'new@example.com', label: null, isPrimary: true }],
+};
 
 describe('MemberService', () => {
   let service: MemberService;
@@ -27,12 +43,16 @@ describe('MemberService', () => {
     req.flush([]);
   });
 
-  it('add() posts the new member', () => {
-    service.add(1, 'new@example.com', 'MEMBER').subscribe();
+  it('add() posts the new member with its mandatory profile', () => {
+    service.add(1, 'new@example.com', 'MEMBER', PROFILE).subscribe();
 
     const req = httpMock.expectOne('/api/tenants/1/members');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ email: 'new@example.com', role: 'MEMBER' });
+    expect(req.request.body).toEqual({
+      email: 'new@example.com',
+      role: 'MEMBER',
+      profile: PROFILE,
+    });
     req.flush({});
   });
 
