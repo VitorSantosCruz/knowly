@@ -381,13 +381,12 @@ export interface ProfileFieldsFormSubmission {
             >
               <select
                 [attr.data-testid]="'profile-contact-type-' + row.rowKey"
-                [value]="row.type"
                 [disabled]="disabled()"
                 (change)="onContactFieldChange(row.rowKey, 'type', $any($event.target).value)"
                 class="rounded-lg border border-ink-300/70 bg-white px-2 py-1 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-100"
               >
                 @for (type of contactTypes; track type) {
-                  <option [value]="type">
+                  <option [value]="type" [selected]="type === row.type">
                     {{ 'profile.fields.contacts.types.' + type | transloco }}
                   </option>
                 }

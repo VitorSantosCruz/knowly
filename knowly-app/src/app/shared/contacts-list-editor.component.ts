@@ -37,12 +37,13 @@ export function createContactGroup(): FormGroup {
         <div [attr.data-testid]="'contacts-row-' + $index" class="flex items-center gap-2">
           <select
             [attr.data-testid]="'contacts-type-' + $index"
-            [value]="row.get('type')?.value"
             (change)="onTypeChange($index, $event)"
             class="rounded-lg border border-ink-200 bg-white px-2 py-2 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-white"
           >
             @for (type of contactTypes; track type) {
-              <option [value]="type">{{ type }}</option>
+              <option [value]="type" [selected]="type === row.get('type')?.value">
+                {{ type }}
+              </option>
             }
           </select>
           <input

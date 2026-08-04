@@ -40,6 +40,27 @@ describe('ContactsListEditorComponent', () => {
     expect(formArray.at(1).value.isPrimary).toBe(true);
   });
 
+  it('selects the <option> matching a non-first (pre-set) contact type on first render', () => {
+    // Regression test: same [value]-vs-[selected] <select> bug already fixed elsewhere in the
+    // app (see profile-fields-form.component.ts's countryCode <select> "Bugfix" comments) — EMAIL
+    // being the first contactTypes entry meant the default new-row case never exposed it here.
+    // Must be seeded as PHONE *before* the first detectChanges(), not patched afterward, to
+    // reproduce the actual bug (Angular fails to apply [value] only on the very first CD pass,
+    // before the @for-generated <option>s exist yet).
+    const phoneGroup = createContactGroup();
+    phoneGroup.patchValue({ type: 'PHONE', value: '+5511987654321' });
+    const freshArray = new FormArray<FormGroup>([phoneGroup]);
+
+    const freshFixture = TestBed.createComponent(ContactsListEditorComponent);
+    freshFixture.componentRef.setInput('formArray', freshArray);
+    freshFixture.detectChanges();
+
+    const typeSelect = freshFixture.nativeElement.querySelector(
+      '[data-testid="contacts-type-0"]',
+    ) as HTMLSelectElement;
+    expect(typeSelect.value).toBe('PHONE');
+  });
+
   it('appends a control pair when add-row is clicked', () => {
     fixture.nativeElement
       .querySelector('[data-testid="contacts-add-row"]')

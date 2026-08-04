@@ -485,6 +485,37 @@ describe('ProfileFieldsFormComponent', () => {
       expect(optionTexts).toEqual(['Phone', 'WhatsApp', 'Email', 'Other']);
       expect(optionTexts).not.toContain('PHONE');
     });
+
+    it('selects the <option> matching a non-first contact type on first render', async () => {
+      // Regression test: the <select> used to bind [value]="row.type" directly, which Angular
+      // silently fails to apply on the very first change-detection pass because the @for-generated
+      // <option>s don't exist in the DOM yet at that point — same class of bug already fixed for
+      // the countryCode <select> elsewhere in this component (see its "Bugfix" comments). PHONE is
+      // the first contactTypes entry, so a PHONE-typed seed contact never exposed this.
+      await TestBed.configureTestingModule({
+        imports: [ProfileFieldsFormComponent],
+        providers: [
+          provideTransloco({
+            config: { availableLangs: ['en', 'pt-BR'], defaultLang: 'en' },
+            loader: FakeTranslocoLoader,
+          }),
+        ],
+      }).compileComponents();
+
+      const emailFixture = TestBed.createComponent(ProfileFieldsFormComponent);
+      emailFixture.componentRef.setInput('fields', {
+        ...fields,
+        contacts: [
+          { id: 1, type: 'EMAIL', value: 'jane@example.com', label: null, isPrimary: true },
+        ],
+      });
+      emailFixture.detectChanges();
+
+      const select = emailFixture.nativeElement.querySelector(
+        '[data-testid="profile-contact-type-id-1"]',
+      ) as HTMLSelectElement;
+      expect(select.value).toBe('EMAIL');
+    });
   });
 
   describe('phone/WhatsApp contact rows', () => {
