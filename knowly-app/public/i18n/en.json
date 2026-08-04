@@ -602,7 +602,9 @@
       "close": "Close ticket",
       "readOnly": "This ticket is assigned to another staff member; you can view it read-only.",
       "transferLabel": "Transfer ticket",
-      "closeLabel": "Close ticket"
+      "closeLabel": "Close ticket",
+      "transferError": "Couldn't transfer the ticket. Check the target staff user ID and try again.",
+      "closeError": "Couldn't close the ticket. Please try again."
     },
     "status": {
       "open": "Open",

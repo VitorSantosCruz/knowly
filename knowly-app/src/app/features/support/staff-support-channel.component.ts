@@ -1,6 +1,7 @@
-import { Component, OnInit, computed, inject, input } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { catchError, EMPTY } from 'rxjs';
 import { SupportService } from '../../core/support.service';
 import { MessageThreadComponent } from '../../shared/chat/message-thread.component';
 import { TicketStatusBadgeComponent } from './ticket-status-badge.component';
@@ -50,6 +51,17 @@ import { TicketStatusBadgeComponent } from './ticket-status-badge.component';
           }
         </div>
 
+        @if (ticket.status !== 'CLOSED' && transferError()) {
+          <p data-testid="transfer-error" class="text-sm text-red-700 dark:text-red-400">
+            {{ 'support.channel.transferError' | transloco }}
+          </p>
+        }
+        @if (ticket.status !== 'CLOSED' && closeError()) {
+          <p data-testid="close-error" class="text-sm text-red-700 dark:text-red-400">
+            {{ 'support.channel.closeError' | transloco }}
+          </p>
+        }
+
         @if (!isAssignedToMe() && ticket.status !== 'CLOSED') {
           <p class="text-sm text-ink-500 dark:text-ink-400">
             {{ 'support.channel.readOnly' | transloco }}
@@ -77,6 +89,8 @@ export class StaffSupportChannelComponent implements OnInit {
 
   protected readonly supportService = inject(SupportService);
   protected transferTargetId: number | null = null;
+  protected readonly transferError = signal(false);
+  protected readonly closeError = signal(false);
 
   protected readonly entry = computed(() =>
     this.supportService.entryOf(this.tenantId(), this.memberUserId()),
@@ -92,6 +106,9 @@ export class StaffSupportChannelComponent implements OnInit {
 
   ngOnInit(): void {
     this.supportService.openChannel(this.tenantId(), this.memberUserId());
+    if (this.supportService.activeTicket() === null) {
+      this.supportService.loadActiveTicket(this.tenantId(), this.memberUserId());
+    }
   }
 
   transfer(): void {
@@ -99,7 +116,16 @@ export class StaffSupportChannelComponent implements OnInit {
     if (!ticket || this.transferTargetId === null) {
       return;
     }
-    this.supportService.transfer(this.tenantId(), ticket.id, this.transferTargetId).subscribe();
+    this.transferError.set(false);
+    this.supportService
+      .transfer(this.tenantId(), ticket.id, this.transferTargetId)
+      .pipe(
+        catchError(() => {
+          this.transferError.set(true);
+          return EMPTY;
+        }),
+      )
+      .subscribe();
   }
 
   close(): void {
@@ -107,7 +133,16 @@ export class StaffSupportChannelComponent implements OnInit {
     if (!ticket) {
       return;
     }
-    this.supportService.close(this.tenantId(), ticket.id).subscribe();
+    this.closeError.set(false);
+    this.supportService
+      .close(this.tenantId(), ticket.id)
+      .pipe(
+        catchError(() => {
+          this.closeError.set(true);
+          return EMPTY;
+        }),
+      )
+      .subscribe();
   }
 
   onSend(content: string): void {

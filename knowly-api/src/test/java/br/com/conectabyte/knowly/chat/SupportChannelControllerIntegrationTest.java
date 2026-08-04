@@ -285,6 +285,97 @@ class SupportChannelControllerIntegrationTest {
     }
 
     @Test
+    void getActiveTicketReHydratesStatusAfterClaimWithoutRequiringTheClaimResponse()
+            throws Exception {
+        // Regression test: activeTicket()'s only source of truth used to be the
+        // claim/transfer/close response bodies, so a frontend page reload after claiming a
+        // ticket had no way to re-fetch its status. Found live (2026-08-04).
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Ticket Ghost Co"));
+        User owner = member("ticket-ghost-member@example.com", tenant);
+        Cookie memberSession = logIn("ticket-ghost-member@example.com");
+        Cookie memberCsrf = obtainCsrfCookie();
+        mockMvc.post()
+                .uri("/api/tenants/" + tenant.getId() + "/support/tickets")
+                .cookie(memberSession)
+                .cookie(memberCsrf)
+                .header("X-XSRF-TOKEN", memberCsrf.getValue())
+                .exchange();
+
+        var beforeClaim =
+                mockMvc.get()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/members/"
+                                        + owner.getId()
+                                        + "/ticket")
+                        .cookie(memberSession)
+                        .exchange();
+        assertThat(beforeClaim).hasStatus(HttpStatus.OK);
+        assertThat(beforeClaim.getResponse().getContentAsString()).contains("\"status\":\"OPEN\"");
+
+        User assignee = staffWithSupportHandle("ticket-ghost-assignee@example.com");
+        Cookie assigneeSession = logIn("ticket-ghost-assignee@example.com");
+        Cookie assigneeCsrf = obtainCsrfCookie();
+        Long ticketId =
+                (long)
+                        (int)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        mockMvc.get()
+                                                .uri(
+                                                        "/api/tenants/"
+                                                                + tenant.getId()
+                                                                + "/support/tickets/unclaimed")
+                                                .cookie(assigneeSession)
+                                                .exchange()
+                                                .getResponse()
+                                                .getContentAsString(),
+                                        "$[0].id");
+        mockMvc.post()
+                .uri("/api/tenants/" + tenant.getId() + "/support/tickets/" + ticketId + "/claim")
+                .cookie(assigneeSession)
+                .cookie(assigneeCsrf)
+                .header("X-XSRF-TOKEN", assigneeCsrf.getValue())
+                .exchange();
+
+        // Simulate a fresh page load for the assignee: a brand-new GET, no claim response reused.
+        var afterClaim =
+                mockMvc.get()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/members/"
+                                        + owner.getId()
+                                        + "/ticket")
+                        .cookie(assigneeSession)
+                        .exchange();
+        assertThat(afterClaim).hasStatus(HttpStatus.OK);
+        assertThat(afterClaim.getResponse().getContentAsString())
+                .contains("\"status\":\"ASSIGNED\"")
+                .contains("\"assignedStaffUserId\":" + assignee.getId());
+    }
+
+    @Test
+    void getActiveTicketReturns404WhenTheChannelHasNoNonClosedTicket() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Ticketless Co"));
+        User owner = member("ticketless-member@example.com", tenant);
+        Cookie memberSession = logIn("ticketless-member@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/support/members/"
+                                        + owner.getId()
+                                        + "/ticket")
+                        .cookie(memberSession)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void memberWithSupportChannelViewCanReadAnotherMembersChannel() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("View Co"));
         User owner = member("channel-owner@example.com", tenant);

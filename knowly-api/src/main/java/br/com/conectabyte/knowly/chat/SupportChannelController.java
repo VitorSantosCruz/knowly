@@ -86,6 +86,26 @@ public class SupportChannelController {
         return ResponseEntity.ok(chatConversationService.getConversation(currentUser(), channelId));
     }
 
+    /**
+     * The channel's current non-CLOSED ticket, if any -- lets a client re-hydrate ticket
+     * status/assignee (and thus transfer/close controls) after a page reload or a direct {@code
+     * /support/:channelId} link, since {@code claim}/{@code transfer}/{@code close} are otherwise
+     * the only endpoints that ever return a {@link SupportTicketDto}. Reuses {@code
+     * getConversation}'s access check (same readability rule as the channel/messages endpoints)
+     * purely for its side effect of throwing when the caller can't read this channel.
+     */
+    @GetMapping("/members/{memberUserId}/ticket")
+    public ResponseEntity<SupportTicketDto> getActiveTicket(
+            @PathVariable Long tenantId, @PathVariable Long memberUserId) {
+        Long channelId = requireChannelId(tenantId, memberUserId);
+        chatConversationService.getConversation(currentUser(), channelId);
+
+        return supportTicketService
+                .findActiveTicketForChannel(channelId)
+                .map(ticket -> ResponseEntity.ok(SupportTicketDto.from(ticket)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/members/{memberUserId}/channel/messages")
     public ResponseEntity<ChatMessagePageDto> listChannelMessages(
             @PathVariable Long tenantId,

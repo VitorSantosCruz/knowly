@@ -26,14 +26,16 @@ function encodeMessageCursor(id: number): string {
 /**
  * Signals-based support-channel service (REQ-10..18), mirroring `ChatService`'s shape.
  *
- * Deviation from PLAN.md: there is no `SupportChannelSummary` DTO and no GET endpoint
- * returning a member's ticket history/open-ticket status — the backend only returns a
- * `TicketSummary` (`SupportTicketDto`) from the four ticket action endpoints
- * (open/claim/transfer/close) and an unclaimed-list endpoint scoped to `OPEN` tickets only.
- * `myOpenTicket()` is therefore tracked purely from those action responses within the current
- * session (it starts `null`/unknown on a fresh page load and is set by `openTicket()`'s
- * response, or by `openTicket()`'s 409 body, which does carry back nothing usable either —
- * see `openTicket()`'s doc comment for the concrete fallback this implies for REQ-11).
+ * Deviation from PLAN.md: there is no `SupportChannelSummary` DTO or member-ticket-history
+ * endpoint — the backend returns a `TicketSummary` (`SupportTicketDto`) from the four ticket
+ * action endpoints (open/claim/transfer/close), an unclaimed-list endpoint scoped to `OPEN`
+ * tickets only, and (added 2026-08-04) `GET .../members/{id}/ticket` for re-hydrating a
+ * channel's current non-CLOSED ticket outside those action responses — see `loadActiveTicket()`.
+ * `myOpenTicket()` is still tracked purely from action responses within the current session (it
+ * starts `null`/unknown on a fresh page load and is set by `openTicket()`'s response, or by
+ * `openTicket()`'s 409 body, which does carry back nothing usable either — see `openTicket()`'s
+ * doc comment for the concrete fallback this implies for REQ-11); `activeTicket()` no longer has
+ * this limitation, see `loadActiveTicket()`.
  */
 @Injectable({ providedIn: 'root' })
 export class SupportService {
@@ -92,6 +94,23 @@ export class SupportService {
     return this.http
       .post<TicketSummary>(`/api/tenants/${tenantId}/support/tickets`, {})
       .pipe(tap((ticket) => this._myOpenTicket.set(ticket)));
+  }
+
+  /**
+   * Re-hydrates `activeTicket()` after a page reload or a direct `/support/:channelId` link,
+   * where `claim()`/`transfer()`/`close()` never ran this session to populate it inline. A 404
+   * means "no active ticket for this channel" and is treated as a normal, silent no-op rather
+   * than an error -- not every channel has an open ticket.
+   */
+  loadActiveTicket(tenantId: number, memberUserId: number): void {
+    this.http
+      .get<TicketSummary>(`/api/tenants/${tenantId}/support/members/${memberUserId}/ticket`)
+      .pipe(catchError(() => of(null)))
+      .subscribe((ticket) => {
+        if (ticket !== null) {
+          this._activeTicket.set(ticket);
+        }
+      });
   }
 
   fetchInbox(tenantId: number): void {

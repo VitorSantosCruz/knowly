@@ -602,7 +602,9 @@
       "close": "Encerrar chamado",
       "readOnly": "Este chamado está atribuído a outro membro do suporte; você pode apenas visualizar.",
       "transferLabel": "Transferir chamado",
-      "closeLabel": "Encerrar chamado"
+      "closeLabel": "Encerrar chamado",
+      "transferError": "Não foi possível transferir o chamado. Verifique o ID do membro da equipe de destino e tente novamente.",
+      "closeError": "Não foi possível encerrar o chamado. Tente novamente."
     },
     "status": {
       "open": "Aberto",

@@ -120,6 +120,20 @@ public class SupportTicketService {
                 tenantId, memberUserId, ChatConversationKind.SUPPORT);
     }
 
+    /**
+     * The channel's current non-CLOSED ticket, if any -- the only way for a client to learn a
+     * ticket's status/assignee without having just performed the claim/transfer/close action that
+     * returned it inline. Added (2026-08-04) after a live gap: a staff member who claimed a ticket
+     * then reloaded the page (or followed a direct {@code /support/:channelId} link) had no way to
+     * re-fetch that state, permanently losing the transfer/close controls for that session even
+     * though the backend still considered them the assignee.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<SupportTicket> findActiveTicketForChannel(Long channelId) {
+        return supportTicketRepository.findBySupportChannelIdAndStatusNot(
+                channelId, SupportTicketStatus.CLOSED);
+    }
+
     @Transactional(readOnly = true)
     @RequiresGlobalPermission(GlobalPermission.STAFF_SUPPORT_HANDLE)
     public List<SupportTicketDto> listUnclaimed(Long tenantId) {
