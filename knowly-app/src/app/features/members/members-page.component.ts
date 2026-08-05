@@ -1,10 +1,11 @@
 import { Component, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { LucideSquarePen, LucideTrash, LucideUser } from '@lucide/angular';
+import { LucideSquarePen, LucideTrash, LucideUser, LucideUserX } from '@lucide/angular';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { Member, MemberService } from '../../core/member.service';
 import { MandatoryProfileFields, ProfileFields, ProfileService } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -136,6 +137,17 @@ const EMPTY_FIELDS: ProfileFields = {
             (dismissed)="cancelRemoval()"
           />
         }
+
+        @if (pendingHardDelete(); as memberToHardDelete) {
+          <app-confirm-dialog
+            [open]="true"
+            [message]="'members.confirmDelete' | transloco: { email: memberToHardDelete.email }"
+            [fetchToken]="hardDeleteTokenFetcher(memberToHardDelete.membershipId)"
+            [retryToken]="hardDeleteRetryToken()"
+            (confirm)="confirmHardDelete($event)"
+            (dismissed)="cancelHardDelete()"
+          />
+        }
       }
     </div>
   `,
@@ -144,6 +156,7 @@ export class MembersPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly memberService = inject(MemberService);
   private readonly profileService = inject(ProfileService);
+  private readonly permissionsService = inject(PermissionsService);
   private readonly router = inject(Router);
 
   protected readonly addButtonClass = buttonClass('primary');
@@ -155,6 +168,8 @@ export class MembersPageComponent implements OnInit {
   protected readonly selectedMembershipId = signal<number | null>(null);
   protected readonly pendingRemoval = signal<Member | null>(null);
   protected readonly removalRetryToken = signal(0);
+  protected readonly pendingHardDelete = signal<Member | null>(null);
+  protected readonly hardDeleteRetryToken = signal(0);
 
   // REQ-10: sourced once, kept page-local per PLAN's "second call site for the same
   // one-shot value, no caching layer needed" judgment call.
@@ -232,12 +247,44 @@ export class MembersPageComponent implements OnInit {
         hidden: (row: Member) => !isOwnRow(row),
         onClick: () => this.router.navigateByUrl('/profile'),
       },
+      {
+        // Hard-delete (irreversible account deletion) — distinct from the soft "remove
+        // from tenant" action above, and distinct icon on purpose (LucideUserX, not
+        // LucideTrash) so the two aren't visually confusable on the same row. This was
+        // previously reachable only via a button at the bottom of
+        // member-detail-panel.component.ts (removed in the design-system-consistency-pass
+        // migration to list-level actions) — restored here as a row action using the same
+        // gate the panel used (viewerCanHardDelete). Unlike the old panel, this list has
+        // no per-row `isLastAdminOfType` (that field only exists on the full
+        // `MemberDetail` fetch, not the lightweight `Member` row) so the button is never
+        // pre-emptively disabled for that case — the backend's existing
+        // `LastAdminRemainingException` check still rejects it, surfaced as a generic
+        // error rather than a disabled button; a deliberate, documented tradeoff.
+        icon: LucideUserX,
+        labelKey: 'members.delete',
+        variant: 'danger',
+        hidden: (row: Member) => isOwnRow(row) || !this.viewerCanHardDelete(row),
+        onClick: (row: Member) => this.onHardDeleteMember(row),
+      },
     ];
   });
 
   protected readonly viewerIsMemberAdminOfThisTenant = computed(
     () => this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN',
   );
+
+  // Mirrors member-detail-panel.component.ts's removed `viewerCanDelete`: an admin-tier
+  // target's hard-delete is only offered to a viewer who is themselves that tenant's
+  // MEMBER_ADMIN; a plain-MEMBER target is also reachable via TENANT_MEMBER_MANAGE.
+  protected viewerCanHardDelete(member: Member): boolean {
+    if (member.role === 'MEMBER_ADMIN') {
+      return this.viewerIsMemberAdminOfThisTenant();
+    }
+
+    return (
+      this.viewerIsMemberAdminOfThisTenant() || this.permissionsService.has('TENANT_MEMBER_MANAGE')
+    );
+  }
 
   private hasLoaded = false;
 
@@ -433,6 +480,53 @@ export class MembersPageComponent implements OnInit {
           members.filter((m) => m.membershipId !== member.membershipId),
         );
       });
+  }
+
+  protected onHardDeleteMember(member: Member): void {
+    this.pendingHardDelete.set(member);
+  }
+
+  protected hardDeleteTokenFetcher(membershipId: number): () => Observable<string> {
+    return () => {
+      const tenantId = this.activeTenantService.activeTenantId();
+      return this.memberService.generateHardDeleteToken(tenantId ?? -1, membershipId);
+    };
+  }
+
+  protected confirmHardDelete(word: string): void {
+    const tenantId = this.activeTenantService.activeTenantId();
+    const member = this.pendingHardDelete();
+
+    if (tenantId === null || member === null) {
+      return;
+    }
+
+    this.memberService
+      .hardDelete(tenantId, member.membershipId, word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.hardDeleteRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingHardDelete.set(null);
+            this.hardDeleteRetryToken.set(0);
+            this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingHardDelete.set(null);
+        this.hardDeleteRetryToken.set(0);
+        this.members.update((members) =>
+          members.filter((m) => m.membershipId !== member.membershipId),
+        );
+      });
+  }
+
+  protected cancelHardDelete(): void {
+    this.pendingHardDelete.set(null);
+    this.hardDeleteRetryToken.set(0);
   }
 
   protected cancelRemoval(): void {

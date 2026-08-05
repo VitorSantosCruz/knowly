@@ -301,4 +301,68 @@ describe('MembersPageComponent', () => {
     myProfileAction.click();
     expect(navigateSpy).toHaveBeenCalledWith('/profile');
   });
+
+  // Regression: hard-delete (irreversible account deletion, distinct from the soft "remove
+  // from tenant" row action) used to live only inside member-detail-panel.component.ts's
+  // bottom-of-panel button, which the design-system-consistency-pass migration removed
+  // without adding a replacement anywhere — restored here as its own row action.
+  it("shows a hard-delete row action (distinct from remove) for a MEMBER_ADMIN viewer, omitted from the viewer's own row", () => {
+    fixture.detectChanges();
+    flushActiveTenant();
+    flushOwnProfile(42);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/tenants/7/members').flush([
+      { membershipId: 1, userId: 42, email: 'me@example.com', role: 'MEMBER' },
+      { membershipId: 2, userId: 43, email: 'other@example.com', role: 'MEMBER' },
+    ]);
+    httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="shared-list-action-members.delete-1"]'),
+    ).toBeFalsy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="shared-list-action-members.delete-2"]'),
+    ).toBeTruthy();
+  });
+
+  it('hard-deleting a member removes it from the list', () => {
+    fixture.detectChanges();
+    flushActiveTenant();
+    flushOwnProfile();
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/7/members')
+      .flush([{ membershipId: 1, userId: 43, email: 'a@example.com', role: 'MEMBER' }]);
+    httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
+    fixture.detectChanges();
+
+    const hardDeleteButton: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="shared-list-action-members.delete-1"]',
+    );
+    hardDeleteButton.click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/7/members/1/hard-delete/deletion-confirmation-token')
+      .flush({ word: 'severed-oak' });
+    fixture.detectChanges();
+
+    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
+    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
+    input.value = 'severed-oak';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+    fixture.detectChanges();
+
+    const deleteReq = httpMock.expectOne('/api/tenants/7/members/1/hard-delete');
+    expect(deleteReq.request.method).toBe('DELETE');
+    expect(deleteReq.request.body).toEqual({ word: 'severed-oak' });
+    deleteReq.flush({});
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('a@example.com');
+  });
 });
