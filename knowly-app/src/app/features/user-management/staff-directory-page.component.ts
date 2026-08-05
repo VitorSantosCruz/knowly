@@ -1,7 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { LucideSquarePen } from '@lucide/angular';
-import { catchError, of } from 'rxjs';
+import { LucideHistory, LucideSquarePen, LucideTrash } from '@lucide/angular';
+import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ALL_GLOBAL_PERMISSIONS } from '../../core/global-permission';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
@@ -9,6 +10,7 @@ import { StaffUserService, StaffUserSummary } from '../../core/staff-user.servic
 import { MandatoryProfileFields, ProfileFields } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { SharedListComponent } from '../../shared/shared-list/shared-list.component';
 import { SharedListColumn, SharedListRowAction } from '../../shared/shared-list/shared-list.model';
 import {
@@ -44,6 +46,7 @@ const EMPTY_FIELDS: ProfileFields = {
     SharedListComponent,
     ProfileFieldsFormComponent,
     StaffUserDetailPanelComponent,
+    ConfirmDialogComponent,
   ],
   template: `
     <div data-testid="staff-directory-page" class="page-shell">
@@ -124,7 +127,7 @@ const EMPTY_FIELDS: ProfileFields = {
           [title]="'staffDirectory.title' | transloco"
           [rows]="staffUsers()"
           [columns]="columns"
-          [rowActions]="rowActions"
+          [rowActions]="rowActions()"
           [rowId]="rowId"
           [emptyMessageKey]="'sharedList.empty.staffDirectory'"
         />
@@ -132,10 +135,22 @@ const EMPTY_FIELDS: ProfileFields = {
         @if (selectedUserId(); as userId) {
           <div class="mt-6">
             <app-staff-user-detail-panel
+              #staffUserDetailPanel
               [userId]="userId"
               [viewerIsStaffAdmin]="viewerIsStaffAdmin()"
             />
           </div>
+        }
+
+        @if (pendingDelete(); as staffUser) {
+          <app-confirm-dialog
+            [open]="true"
+            [message]="'staffDirectory.confirmDelete' | transloco: { email: staffUser.email }"
+            [fetchToken]="deletionTokenFetcher(staffUser.id)"
+            [retryToken]="deleteRetryToken()"
+            (confirm)="confirmDelete($event)"
+            (dismissed)="cancelDelete()"
+          />
         }
       }
     </div>
@@ -143,6 +158,7 @@ const EMPTY_FIELDS: ProfileFields = {
 })
 export class StaffDirectoryPageComponent implements OnInit {
   private readonly staffUserService = inject(StaffUserService);
+  private readonly router = inject(Router);
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
 
   protected readonly addButtonClass = buttonClass('primary');
@@ -153,6 +169,12 @@ export class StaffDirectoryPageComponent implements OnInit {
   protected readonly searchTerm = signal('');
   protected readonly newStaffUserEmail = signal('');
   protected readonly selectedUserId = signal<number | null>(null);
+  protected readonly pendingDelete = signal<StaffUserSummary | null>(null);
+  protected readonly deleteRetryToken = signal(0);
+
+  private readonly staffUserDetailPanel =
+    viewChild<StaffUserDetailPanelComponent>('staffUserDetailPanel');
+  private pendingEditMode = false;
 
   // mandatory-complete-profile (backend): creating a staff user requires a full
   // MandatoryProfileFieldsDto — this two-step flow collects it via the same
@@ -190,14 +212,37 @@ export class StaffDirectoryPageComponent implements OnInit {
     },
   ];
 
-  protected readonly rowActions: SharedListRowAction<StaffUserSummary>[] = [
-    {
-      icon: LucideSquarePen,
-      labelKey: 'sharedList.actions.edit',
-      variant: 'secondary',
-      onClick: (row) => this.selectedUserId.set(row.id),
-    },
-  ];
+  // REQ-6/7/8: edit/delete/history become list row actions; history is itself gated
+  // (appsec review, 2026-08-05) on AUDIT_TRAIL_VIEW — offered only to a viewer the
+  // backend endpoint would actually accept, not merely disabled, to avoid a
+  // permission-denied flash after navigating in.
+  protected readonly rowActions = computed<SharedListRowAction<StaffUserSummary>[]>(() => {
+    const actions: SharedListRowAction<StaffUserSummary>[] = [
+      {
+        icon: LucideSquarePen,
+        labelKey: 'sharedList.actions.edit',
+        variant: 'secondary',
+        onClick: (row) => this.openInEditMode(row.id),
+      },
+      {
+        icon: LucideTrash,
+        labelKey: 'sharedList.actions.delete',
+        variant: 'danger',
+        onClick: (row) => this.onDeleteStaffUser(row),
+      },
+    ];
+
+    if (this.globalPermissionsService.has('AUDIT_TRAIL_VIEW')) {
+      actions.push({
+        icon: LucideHistory,
+        labelKey: 'sharedList.actions.history',
+        variant: 'secondary',
+        onClick: (row) => this.router.navigateByUrl(`/staff/users/${row.id}/audit`),
+      });
+    }
+
+    return actions;
+  });
 
   protected readonly viewerIsStaffAdmin = computed(() =>
     ALL_GLOBAL_PERMISSIONS.every((permission) => this.globalPermissionsService.has(permission)),
@@ -207,8 +252,74 @@ export class StaffDirectoryPageComponent implements OnInit {
     () => this.viewerIsStaffAdmin() || this.globalPermissionsService.has('STAFF_USER_CREATE'),
   );
 
+  constructor() {
+    // Mirrors members-page.component.ts's own deferred-call handling — the panel only
+    // mounts once selectedUserId() is set, so openInEditMode() may need to wait for its
+    // viewChild to resolve after the change-detection pass that renders it.
+    effect(() => {
+      const panel = this.staffUserDetailPanel();
+
+      if (panel !== undefined && this.pendingEditMode) {
+        this.pendingEditMode = false;
+        panel.openInEditMode();
+      }
+    });
+  }
+
   ngOnInit(): void {
     this.loadStaffUsers();
+  }
+
+  protected openInEditMode(userId: number): void {
+    const panel = this.staffUserDetailPanel();
+    this.selectedUserId.set(userId);
+
+    if (panel !== undefined) {
+      panel.openInEditMode();
+    } else {
+      this.pendingEditMode = true;
+    }
+  }
+
+  protected onDeleteStaffUser(staffUser: StaffUserSummary): void {
+    this.pendingDelete.set(staffUser);
+  }
+
+  protected deletionTokenFetcher(userId: number): () => Observable<string> {
+    return () => this.staffUserService.generateDeletionConfirmationToken(userId);
+  }
+
+  protected confirmDelete(word: string): void {
+    const staffUser = this.pendingDelete();
+
+    if (staffUser === null) {
+      return;
+    }
+
+    this.staffUserService
+      .delete(staffUser.id, word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.deleteRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingDelete.set(null);
+            this.deleteRetryToken.set(0);
+            this.error.set(err.status === 403 ? 'permission-denied' : 'network');
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingDelete.set(null);
+        this.deleteRetryToken.set(0);
+        this.loadStaffUsers();
+      });
+  }
+
+  protected cancelDelete(): void {
+    this.pendingDelete.set(null);
+    this.deleteRetryToken.set(0);
   }
 
   private loadStaffUsers(): void {

@@ -5,7 +5,6 @@ import { provideTransloco } from '@jsverse/transloco';
 import { StaffUserDetailPanelComponent } from './staff-user-detail-panel.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import { GlobalPermission } from '../../core/global-permission';
-import { formatAuditTimestamp } from '../../shared/audit-timestamp';
 
 describe('StaffUserDetailPanelComponent', () => {
   let fixture: ComponentFixture<StaffUserDetailPanelComponent>;
@@ -50,10 +49,6 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.verify();
   });
 
-  function flushAuditTrail(events: unknown[] = []): void {
-    httpMock.expectOne('/api/staff/users/1/audit-trail').flush(events);
-  }
-
   const profileFields = {
     fullName: 'Staffer',
     cpf: '111.111.111-11',
@@ -92,14 +87,13 @@ describe('StaffUserDetailPanelComponent', () => {
 
     httpMock.expectOne('/api/staff/users/1/permissions').flush(detail);
     httpMock.expectOne('/api/staff/access-groups').flush(accessGroups);
-    flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
     flushOwnProfile();
     fixture.detectChanges();
   }
 
-  it('renders "Editar perfil" in the top header, before the permission/audit sections', async () => {
+  it('renders "Editar perfil" in the top header, before the permission sections', async () => {
     await open(staffDetail, true);
 
     const panel = fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]');
@@ -107,12 +101,24 @@ describe('StaffUserDetailPanelComponent', () => {
     expect(header.querySelector('[data-testid="staff-edit-profile-button"]')).toBeTruthy();
 
     const children = Array.from(panel.children) as HTMLElement[];
-    const headerIndex = children.indexOf(header);
-    const auditIndex = children.findIndex(
-      (el) => el.getAttribute('data-testid') === 'staff-audit-trail',
-    );
-    expect(headerIndex).toBe(0);
-    expect(headerIndex).toBeLessThan(auditIndex);
+    expect(children.indexOf(header)).toBe(0);
+  });
+
+  it('no longer embeds the (unpaginated) audit-trail table (replaced by the /staff/users/:userId/audit route, REQ-8)', async () => {
+    await open(staffDetail, true);
+
+    expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
+  });
+
+  it('openInEditMode() puts the embedded profile section into edit mode', async () => {
+    await open(staffDetail, true);
+
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeFalsy();
+
+    fixture.componentInstance.openInEditMode();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeTruthy();
   });
 
   it('clicking "Editar perfil" opens the profile edit form', async () => {
@@ -206,60 +212,6 @@ describe('StaffUserDetailPanelComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="staff-demote-button"]')).toBeTruthy();
-  });
-
-  it('offers delete for STAFF/STAFF_ADMIN, disabled with explanation only for the last STAFF_ADMIN', async () => {
-    await open({ ...adminDetail, isLastAdminOfType: true }, true);
-
-    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="staff-delete-button"]',
-    );
-    expect(button).toBeTruthy();
-    expect(button.disabled).toBe(true);
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="staff-delete-disabled-reason"]'),
-    ).toBeTruthy();
-  });
-
-  it('never disables delete for a plain STAFF target', async () => {
-    await open(staffDetail, true);
-
-    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="staff-delete-button"]',
-    );
-    expect(button.disabled).toBe(false);
-  });
-
-  it('hides delete for an admin target when the viewer is not a STAFF_ADMIN', async () => {
-    await open(adminDetail, false);
-
-    expect(fixture.nativeElement.querySelector('[data-testid="staff-delete-button"]')).toBeFalsy();
-  });
-
-  it('confirming delete fetches a token, submits the word, and refreshes', async () => {
-    await open(staffDetail, true);
-
-    fixture.nativeElement.querySelector('[data-testid="staff-delete-button"]').click();
-    fixture.detectChanges();
-
-    httpMock
-      .expectOne('/api/staff/users/1/deletion-confirmation-token')
-      .flush({ word: 'correct-horse' });
-    fixture.detectChanges();
-
-    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
-    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
-    input.value = 'correct-horse';
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
-
-    const req = httpMock.expectOne('/api/staff/users/1');
-    expect(req.request.method).toBe('DELETE');
-    expect(req.request.body).toEqual({ word: 'correct-horse' });
-    req.flush({});
-
-    httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
   });
 
   it('renders switches (not checkboxes) for a STAFF target, seeded from directPermissions, toggling only local state', async () => {
@@ -397,85 +349,6 @@ describe('StaffUserDetailPanelComponent', () => {
     ).toBeFalsy();
   });
 
-  it('fetches and renders the audit trail alongside the other sections', async () => {
-    await createFixture(true);
-    fixture.detectChanges();
-
-    httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
-    httpMock.expectOne('/api/staff/access-groups').flush([]);
-    flushAuditTrail([
-      {
-        occurredAt: '2026-07-20T10:00:00Z',
-        action: 'staff.user.demote',
-        resourceType: 'STAFF_PERMISSION',
-        resourceId: 'STAFF_USER_CREATE',
-        tenantId: null,
-        outcome: 'SUCCESS',
-        metadata: {},
-      },
-    ]);
-    fixture.detectChanges();
-    flushProfile();
-    flushOwnProfile();
-    fixture.detectChanges();
-
-    const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
-    const rows = section.querySelectorAll('tbody tr');
-    expect(rows.length).toBe(1);
-    expect(rows[0].textContent).toContain('Demoted a staff user');
-    expect(rows[0].textContent).not.toContain('staff.user.demote');
-    expect(rows[0].textContent).toContain(formatAuditTimestamp('2026-07-20T10:00:00Z'));
-    expect(rows[0].textContent).not.toContain('2026-07-20T10:00:00Z');
-  });
-
-  it('falls back to the raw action string for an unknown audit action', async () => {
-    await createFixture(true);
-    fixture.detectChanges();
-
-    httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
-    httpMock.expectOne('/api/staff/access-groups').flush([]);
-    flushAuditTrail([
-      {
-        occurredAt: '2026-07-20T10:00:00Z',
-        action: 'some.unknown.action',
-        resourceType: 'STAFF_PERMISSION',
-        resourceId: 'STAFF_USER_CREATE',
-        tenantId: null,
-        outcome: 'SUCCESS',
-        metadata: {},
-      },
-    ]);
-    fixture.detectChanges();
-    flushProfile();
-    flushOwnProfile();
-    fixture.detectChanges();
-
-    const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
-    const rows = section.querySelectorAll('tbody tr');
-    expect(rows[0].textContent).toContain('some.unknown.action');
-  });
-
-  it('renders a permission-denied state only inside the audit-trail section on a 403', async () => {
-    await createFixture(true);
-    fixture.detectChanges();
-
-    httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
-    httpMock.expectOne('/api/staff/access-groups').flush([]);
-    httpMock
-      .expectOne('/api/staff/users/1/audit-trail')
-      .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
-    fixture.detectChanges();
-    flushProfile();
-    flushOwnProfile();
-    fixture.detectChanges();
-
-    const section = fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]');
-    expect(section.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="staff-effective-permissions"]'),
-    ).toBeTruthy();
-  });
-
   it('renders a permission-denied state on a 403 from the detail fetch', async () => {
     await createFixture(true);
     fixture.detectChanges();
@@ -484,7 +357,6 @@ describe('StaffUserDetailPanelComponent', () => {
       .expectOne('/api/staff/users/1/permissions')
       .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
     httpMock.expectOne('/api/staff/access-groups').flush([]);
-    flushAuditTrail();
     httpMock.expectOne('/api/users/me/profile').flush(null);
     fixture.detectChanges();
 
@@ -497,7 +369,6 @@ describe('StaffUserDetailPanelComponent', () => {
 
     httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
     httpMock.expectOne('/api/staff/access-groups').flush([]);
-    flushAuditTrail();
     fixture.detectChanges();
     flushProfile();
     flushOwnProfile(1);

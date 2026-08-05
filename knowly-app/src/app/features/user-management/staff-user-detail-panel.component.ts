@@ -5,7 +5,6 @@ import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-perm
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { ProfileService } from '../../core/profile.service';
 import {
-  AuditEvent,
   GlobalAccessGroup,
   StaffUserDetail,
   StaffUserService,
@@ -15,8 +14,6 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { translatePermissionLabel } from '../../shared/permission-labels';
-import { translateAuditAction } from '../../shared/audit-trail-labels';
-import { formatAuditTimestamp } from '../../shared/audit-timestamp';
 import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
@@ -246,61 +243,6 @@ type DetailError = 'network' | 'permission-denied' | null;
           </p>
         </section>
 
-        <section data-testid="staff-audit-trail">
-          <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'staffDirectory.auditTrail.title' | transloco }}
-          </h3>
-          @if (auditTrailError() === 'permission-denied') {
-            <app-no-access-state />
-          } @else if (auditTrailError() === 'network') {
-            <app-error-state />
-          } @else if (auditTrail(); as events) {
-            @if (events.length === 0) {
-              <p
-                data-testid="staff-audit-trail-empty"
-                class="text-sm text-ink-500 dark:text-ink-400"
-              >
-                {{ 'staffDirectory.auditTrail.noHistory' | transloco }}
-              </p>
-            } @else {
-              <table class="w-full text-left text-sm text-ink-700 dark:text-ink-300">
-                <thead>
-                  <tr class="text-xs tracking-wide text-ink-500 uppercase dark:text-ink-400">
-                    <th class="py-1 pr-2">
-                      {{ 'staffDirectory.auditTrail.occurredAt' | transloco }}
-                    </th>
-                    <th class="py-1 pr-2">{{ 'staffDirectory.auditTrail.action' | transloco }}</th>
-                    <th class="py-1 pr-2">
-                      {{ 'staffDirectory.auditTrail.resourceType' | transloco }}
-                    </th>
-                    <th class="py-1 pr-2">
-                      {{ 'staffDirectory.auditTrail.resourceId' | transloco }}
-                    </th>
-                    <th class="py-1 pr-2">
-                      {{ 'staffDirectory.auditTrail.tenantId' | transloco }}
-                    </th>
-                    <th class="py-1 pr-2">{{ 'staffDirectory.auditTrail.outcome' | transloco }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (event of events; track $index) {
-                    <tr>
-                      <td class="py-1 pr-2">{{ formatAuditTimestamp(event.occurredAt) }}</td>
-                      <td class="py-1 pr-2">{{ translateAuditAction(event.action) }}</td>
-                      <td class="py-1 pr-2">{{ event.resourceType }}</td>
-                      <td class="py-1 pr-2">{{ event.resourceId }}</td>
-                      <td class="py-1 pr-2">
-                        {{ event.tenantId ?? ('staffDirectory.auditTrail.global' | transloco) }}
-                      </td>
-                      <td class="py-1 pr-2">{{ event.outcome }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            }
-          }
-        </section>
-
         <app-profile-section
           [userId]="userId()"
           [canEdit]="viewerCanEditProfile()"
@@ -308,37 +250,6 @@ type DetailError = 'network' | 'permission-denied' | null;
           [hideEditToggle]="true"
           [editTrigger]="editProfileTrigger()"
         />
-
-        @if (viewerCanDelete(detail)) {
-          <div class="mt-6 border-t border-ink-100 pt-4 dark:border-ink-800/50">
-            <button
-              type="button"
-              data-testid="staff-delete-button"
-              [class]="dangerButtonClass"
-              [disabled]="detail.isLastAdminOfType"
-              [attr.title]="
-                detail.isLastAdminOfType
-                  ? ('staffDirectory.deleteDisabledLastAdmin' | transloco)
-                  : null
-              "
-              [attr.aria-describedby]="
-                detail.isLastAdminOfType ? 'staff-delete-disabled-reason' : null
-              "
-              (click)="pendingDelete.set(true)"
-            >
-              {{ 'staffDirectory.delete' | transloco }}
-            </button>
-            @if (detail.isLastAdminOfType) {
-              <p
-                id="staff-delete-disabled-reason"
-                data-testid="staff-delete-disabled-reason"
-                class="mt-1 text-xs text-ink-500 dark:text-ink-400"
-              >
-                {{ 'staffDirectory.deleteDisabledLastAdmin' | transloco }}
-              </p>
-            }
-          </div>
-        }
       </div>
 
       @if (pendingPermissionRevoke(); as permission) {
@@ -366,17 +277,6 @@ type DetailError = 'network' | 'permission-denied' | null;
           [retryToken]="groupUnassignRetryToken()"
           (confirm)="confirmGroupUnassign($event)"
           (dismissed)="cancelGroupUnassign()"
-        />
-      }
-
-      @if (pendingDelete()) {
-        <app-confirm-dialog
-          [open]="true"
-          [message]="'staffDirectory.confirmDelete' | transloco: { email: detail.email }"
-          [fetchToken]="deletionTokenFetcher()"
-          [retryToken]="deleteRetryToken()"
-          (confirm)="confirmDelete($event)"
-          (dismissed)="cancelDelete()"
         />
       }
 
@@ -411,12 +311,6 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   protected readonly allPermissions = ALL_GLOBAL_PERMISSIONS;
   protected readonly error = signal<DetailError>(null);
 
-  // Independent of `error`/`detail` above, matching this panel's existing per-section
-  // signal pattern — a 403 from the audit-trail endpoint only sets this, never the
-  // permissions/access-groups sections' own state (REQ-12).
-  protected readonly auditTrail = signal<AuditEvent[] | null>(null);
-  protected readonly auditTrailError = signal<DetailError>(null);
-
   // REQ-12/SPEC judgment call 5: sourced once per panel-open, threaded down to
   // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
   protected readonly ownUserId = signal<number | null>(null);
@@ -429,8 +323,6 @@ export class StaffUserDetailPanelComponent implements OnChanges {
 
   protected readonly pendingDemote = signal(false);
   protected readonly pendingPromote = signal(false);
-  protected readonly pendingDelete = signal(false);
-  protected readonly deleteRetryToken = signal(0);
 
   // REQ-15/16: local, unsaved switches state. Seeded from `directPermissions` on every
   // load/refresh (see `loadDetail`), only mutated locally by `onTogglePermission`.
@@ -466,10 +358,17 @@ export class StaffUserDetailPanelComponent implements OnChanges {
     () => this.viewerCanEditProfile() && this.userId() !== this.ownUserId(),
   );
 
+  /**
+   * Called by `staff-directory-page.component.ts`'s edit row action (REQ-6) — mirrors
+   * `MemberDetailPanelComponent#openInEditMode()`.
+   */
+  openInEditMode(): void {
+    this.editProfileTrigger.update((n) => n + 1);
+  }
+
   ngOnChanges(): void {
     this.loadDetail();
     this.loadAccessGroups();
-    this.loadAuditTrail();
     this.loadOwnUserId();
   }
 
@@ -493,32 +392,10 @@ export class StaffUserDetailPanelComponent implements OnChanges {
     return translatePermissionLabel(permission, this.transloco);
   }
 
-  protected formatAuditTimestamp(occurredAt: string): string {
-    return formatAuditTimestamp(occurredAt);
-  }
-
-  protected translateAuditAction(action: string): string {
-    return translateAuditAction(action, this.transloco);
-  }
-
   protected effectivePermissionLabels(detail: StaffUserDetail): string {
     return detail.effectivePermissions
       .map((permission) => this.permissionLabel(permission))
       .join(', ');
-  }
-
-  // REQ-7a/REQ-12a: an admin-tier target's demote/delete actions are only shown to a viewer who
-  // is themselves a STAFF_ADMIN — a STAFF/MEMBER viewer holding broad granted permissions is
-  // still not an admin.
-  protected viewerCanDelete(detail: StaffUserDetail): boolean {
-    if (detail.globalRole === 'STAFF_ADMIN') {
-      return this.viewerIsStaffAdmin();
-    }
-
-    // No dedicated "delete" GlobalPermission exists (per REQ-11, unlike the admin-tier gate,
-    // deleting a plain STAFF target is never disabled/hidden on a granted-permission basis
-    // beyond the same STAFF_USER_CREATE-holder bar this panel already applies elsewhere).
-    return this.viewerIsStaffAdmin() || this.globalPermissionsService.has('STAFF_USER_CREATE');
   }
 
   private reportError(err: { status: number }): void {
@@ -556,22 +433,6 @@ export class StaffUserDetailPanelComponent implements OnChanges {
       .subscribe((groups) => {
         if (groups !== null) {
           this.availableAccessGroups.set(groups);
-        }
-      });
-  }
-
-  private loadAuditTrail(): void {
-    this.staffUserService
-      .getAuditTrail(this.userId())
-      .pipe(
-        catchError((err) => {
-          this.auditTrailError.set(err.status === 403 ? 'permission-denied' : 'network');
-          return of(null);
-        }),
-      )
-      .subscribe((events) => {
-        if (events !== null) {
-          this.auditTrail.set(events);
         }
       });
   }
@@ -733,37 +594,6 @@ export class StaffUserDetailPanelComponent implements OnChanges {
         }),
       )
       .subscribe(() => this.loadDetail());
-  }
-
-  protected deletionTokenFetcher(): () => Observable<string> {
-    return () => this.staffUserService.generateDeletionConfirmationToken(this.userId());
-  }
-
-  protected confirmDelete(word: string): void {
-    this.staffUserService
-      .delete(this.userId(), word)
-      .pipe(
-        catchError((err) => {
-          if (err.status === 400) {
-            this.deleteRetryToken.update((n) => n + 1);
-          } else {
-            this.pendingDelete.set(false);
-            this.deleteRetryToken.set(0);
-            this.reportError(err);
-          }
-          return EMPTY;
-        }),
-      )
-      .subscribe(() => {
-        this.pendingDelete.set(false);
-        this.deleteRetryToken.set(0);
-        this.loadDetail();
-      });
-  }
-
-  protected cancelDelete(): void {
-    this.pendingDelete.set(false);
-    this.deleteRetryToken.set(0);
   }
 
   // REQ-17/18/19: single confirmation for the whole batch, submitting the full pending set.

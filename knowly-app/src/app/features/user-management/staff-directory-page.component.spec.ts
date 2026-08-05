@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { StaffDirectoryPageComponent } from './staff-directory-page.component';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
@@ -162,7 +162,7 @@ describe('StaffDirectoryPageComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
   });
 
-  it('selecting a staff user shows the detail panel', () => {
+  it('selecting a staff user shows the detail panel, opened in edit mode', () => {
     fixture.detectChanges();
     httpMock
       .expectOne('/api/staff/users')
@@ -183,7 +183,6 @@ describe('StaffDirectoryPageComponent', () => {
       effectivePermissions: [],
     });
     httpMock.expectOne('/api/staff/access-groups').flush([]);
-    httpMock.expectOne('/api/staff/users/1/audit-trail').flush([]);
     fixture.detectChanges();
     httpMock.expectOne('/api/users/1/profile').flush({
       userId: 1,
@@ -218,5 +217,110 @@ describe('StaffDirectoryPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]'),
     ).toBeTruthy();
+    // REQ-6: the edit row action opens the panel directly in edit mode.
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeTruthy();
+  });
+
+  it('the delete row action opens app-confirm-dialog directly and, on confirm, reloads the list', () => {
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/staff/users')
+      .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]'),
+    ).toBeFalsy();
+
+    const deleteButton: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="shared-list-action-sharedList.actions.delete-1"]',
+    );
+    deleteButton.click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/staff/users/1/deletion-confirmation-token')
+      .flush({ word: 'correct-horse' });
+    fixture.detectChanges();
+
+    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
+    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
+    input.value = 'correct-horse';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+    fixture.detectChanges();
+
+    const deleteReq = httpMock.expectOne('/api/staff/users/1');
+    expect(deleteReq.request.method).toBe('DELETE');
+    expect(deleteReq.request.body).toEqual({ word: 'correct-horse' });
+    deleteReq.flush({});
+
+    httpMock.expectOne('/api/staff/users').flush([]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('staffer@example.com');
+  });
+
+  describe('history row action, gated on AUDIT_TRAIL_VIEW (appsec review, 2026-08-05)', () => {
+    function flushGlobalPermissions(permissions: string[] = []): void {
+      httpMock.expectOne('/api/staff/permissions').flush({ permissions });
+    }
+
+    it('includes the history action when the viewer holds AUDIT_TRAIL_VIEW', () => {
+      const permissionsService = TestBed.inject(GlobalPermissionsService);
+      permissionsService.fetch();
+      flushGlobalPermissions(['AUDIT_TRAIL_VIEW']);
+
+      fixture.detectChanges();
+      httpMock
+        .expectOne('/api/staff/users')
+        .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector(
+          '[data-testid="shared-list-action-sharedList.actions.history-1"]',
+        ),
+      ).toBeTruthy();
+    });
+
+    it('omits the history action entirely (not merely disabled) when the viewer lacks AUDIT_TRAIL_VIEW', () => {
+      const permissionsService = TestBed.inject(GlobalPermissionsService);
+      permissionsService.fetch();
+      flushGlobalPermissions([]);
+
+      fixture.detectChanges();
+      httpMock
+        .expectOne('/api/staff/users')
+        .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector(
+          '[data-testid="shared-list-action-sharedList.actions.history-1"]',
+        ),
+      ).toBeFalsy();
+    });
+
+    it('clicking the history row action navigates to /staff/users/:userId/audit', () => {
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+      const permissionsService = TestBed.inject(GlobalPermissionsService);
+      permissionsService.fetch();
+      flushGlobalPermissions(['AUDIT_TRAIL_VIEW']);
+
+      fixture.detectChanges();
+      httpMock
+        .expectOne('/api/staff/users')
+        .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
+      fixture.detectChanges();
+
+      fixture.nativeElement
+        .querySelector('[data-testid="shared-list-action-sharedList.actions.history-1"]')
+        .click();
+
+      expect(navigateSpy).toHaveBeenCalledWith('/staff/users/1/audit');
+    });
   });
 });
