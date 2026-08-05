@@ -264,7 +264,8 @@
     "switchTenant": "Switch tenant",
     "leaveTenant": "Leave tenant",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "closeMobileMenu": "Close menu"
   },
   "logout": {
     "label": "Log out"

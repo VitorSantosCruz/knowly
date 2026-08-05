@@ -267,7 +267,8 @@
     "switchTenant": "Trocar tenant",
     "leaveTenant": "Sair do tenant",
     "collapse": "Recolher menu",
-    "expand": "Expandir menu"
+    "expand": "Expandir menu",
+    "closeMobileMenu": "Fechar menu"
   },
   "members": {
     "add": "Adicionar membro",
