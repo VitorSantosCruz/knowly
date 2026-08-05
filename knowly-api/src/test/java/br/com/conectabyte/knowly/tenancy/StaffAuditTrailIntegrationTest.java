@@ -152,7 +152,7 @@ class StaffAuditTrailIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response)
                 .bodyJson()
-                .extractingPath("$[*].action")
+                .extractingPath("$.content[*].action")
                 .asInstanceOf(LIST)
                 .contains("profile.view");
     }
@@ -197,14 +197,18 @@ class StaffAuditTrailIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response)
                 .bodyJson()
-                .extractingPath("$[0].action")
+                .extractingPath("$.content[0].action")
                 .isEqualTo("profile.view.newer");
         assertThat(response)
                 .bodyJson()
-                .extractingPath("$[1].action")
+                .extractingPath("$.content[1].action")
                 .isEqualTo("profile.view.older");
-        assertThat(response).bodyJson().extractingPath("$[0].occurredAt").isNotNull();
-        assertThat(response).bodyJson().extractingPath("$[0].outcome").isEqualTo("SUCCESS");
+        assertThat(response).bodyJson().extractingPath("$.content[0].occurredAt").isNotNull();
+        assertThat(response).bodyJson().extractingPath("$.content[0].outcome").isEqualTo("SUCCESS");
+        assertThat(response).bodyJson().extractingPath("$.page").isEqualTo(0);
+        assertThat(response).bodyJson().extractingPath("$.size").isEqualTo(20);
+        assertThat(response).bodyJson().extractingPath("$.totalElements").isEqualTo(2);
+        assertThat(response).bodyJson().extractingPath("$.totalPages").isEqualTo(1);
     }
 
     @Test
@@ -221,7 +225,8 @@ class StaffAuditTrailIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response).bodyJson().extractingPath("$").asInstanceOf(LIST).isEmpty();
+        assertThat(response).bodyJson().extractingPath("$.content").asInstanceOf(LIST).isEmpty();
+        assertThat(response).bodyJson().extractingPath("$.totalElements").isEqualTo(0);
     }
 
     // --- REQ-4: cross-tenant rows all come back in one call, no active tenant selected ---
@@ -247,9 +252,86 @@ class StaffAuditTrailIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.OK);
         assertThat(response)
                 .bodyJson()
-                .extractingPath("$[*].action")
+                .extractingPath("$.content[*].action")
                 .asInstanceOf(LIST)
                 .contains("tenant.a.action", "tenant.b.action", "global.action");
+    }
+
+    // --- REQ-1: page/size query params, sorted occurredAt descending end-to-end ---
+
+    @Test
+    void pageAndSizeQueryParamsPaginateResultsOccurredAtDescending() {
+        staffAdmin("audit-trail-pagination-actor@example.com");
+        User target = plainMember("audit-trail-pagination-target@example.com");
+        for (int i = 0; i < 5; i++) {
+            insertEvent(target.getId(), null, "pagination-action-" + i);
+        }
+        Cookie session = logIn("audit-trail-pagination-actor@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/staff/users/" + target.getId() + "/audit-trail?page=0&size=2")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response).bodyJson().extractingPath("$.content").asInstanceOf(LIST).hasSize(2);
+        assertThat(response).bodyJson().extractingPath("$.page").isEqualTo(0);
+        assertThat(response).bodyJson().extractingPath("$.size").isEqualTo(2);
+        assertThat(response).bodyJson().extractingPath("$.totalElements").isEqualTo(5);
+        assertThat(response).bodyJson().extractingPath("$.totalPages").isEqualTo(3);
+        assertThat(response)
+                .bodyJson()
+                .extractingPath("$.content[0].action")
+                .isEqualTo("pagination-action-4");
+    }
+
+    @Test
+    void oversizedSizeQueryParamIsClampedToOneHundred() {
+        staffAdmin("audit-trail-clamp-actor@example.com");
+        User target = plainMember("audit-trail-clamp-target@example.com");
+        Cookie session = logIn("audit-trail-clamp-actor@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/staff/users/" + target.getId() + "/audit-trail?page=0&size=500")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response).bodyJson().extractingPath("$.size").isEqualTo(100);
+    }
+
+    @Test
+    void negativePageReturns400InvalidPagination() {
+        staffAdmin("audit-trail-neg-page-actor@example.com");
+        User target = plainMember("audit-trail-neg-page-target@example.com");
+        Cookie session = logIn("audit-trail-neg-page-actor@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/staff/users/" + target.getId() + "/audit-trail?page=-1&size=20")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response).bodyJson().extractingPath("$.code").isEqualTo("INVALID_PAGINATION");
+    }
+
+    @Test
+    void zeroSizeReturns400InvalidPagination() {
+        staffAdmin("audit-trail-zero-size-actor@example.com");
+        User target = plainMember("audit-trail-zero-size-target@example.com");
+        Cookie session = logIn("audit-trail-zero-size-actor@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/staff/users/" + target.getId() + "/audit-trail?page=0&size=0")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response).bodyJson().extractingPath("$.code").isEqualTo("INVALID_PAGINATION");
     }
 
     // --- REQ-8: nonexistent userId returns 404 ---

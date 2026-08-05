@@ -23,8 +23,10 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
+import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.StaffUserAlreadyExistsException;
@@ -32,6 +34,9 @@ import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +71,12 @@ public class StaffService {
     private static final String ACCESS_GROUP_RESOURCE_TYPE = "staff-access-group";
     private static final String DELETION_RESOURCE_TYPE = "staff-user";
     private static final String BATCH_RESOURCE_TYPE = "staff-permission-batch";
+
+    /**
+     * specify/features/paginated-audit-trail/PLAN.md: same reject-then-clamp shape as {@link
+     * TenantService#listAllTenants}, own constant since the two services share no base class.
+     */
+    private static final int MAX_PAGE_SIZE = 100;
 
     public StaffService(
             UserRepository userRepository,
@@ -340,6 +351,13 @@ public class StaffService {
      * "Context and motivation"/"Tier 3 flag"). Deliberately does not call {@link
      * #enforceStaffCeiling(GlobalRole)} — per REQ-9, viewing a STAFF/STAFF_ADMIN target's history
      * grants no ability to act on the account, mirroring {@link #listStaffUsers(String)}.
+     *
+     * <p>specify/features/paginated-audit-trail/SPEC.md REQ-1/REQ-2: replaces the former {@code
+     * Top500}-capped unpaginated read with genuine {@code Pageable}-bounded pagination, {@code
+     * occurredAt} descending. Negative {@code page} or {@code size <= 0} are rejected before an
+     * over-{@value #MAX_PAGE_SIZE} {@code size} is clamped, same order as {@link
+     * TenantService#listAllTenants} so an out-of-range-and-negative {@code size=-500} is rejected,
+     * not silently clamped into a positive number.
      */
     @Transactional(readOnly = true)
     @RequiresGlobalPermission(GlobalPermission.AUDIT_TRAIL_VIEW)
@@ -347,14 +365,22 @@ public class StaffService {
             action = "staff.audit_trail.view",
             resourceType = "User",
             resourceIdExpression = "#userId")
-    public List<AuditEventDto> getAuditTrail(Long userId) {
+    public PageResponseDto<AuditEventDto> getAuditTrail(Long userId, int page, int size) {
         if (!userRepository.existsById(userId)) {
             throw new UserNotFoundException();
         }
 
-        return auditEventRepository.findTop500ByActorUserIdOrderByOccurredAtDesc(userId).stream()
-                .map(AuditEventDto::from)
-                .toList();
+        if (page < 0 || size <= 0) {
+            throw new InvalidPaginationException("page must be >= 0 and size must be > 0");
+        }
+
+        int effectiveSize = Math.min(size, MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(page, effectiveSize, Sort.by("occurredAt").descending());
+
+        return PageResponseDto.from(
+                auditEventRepository
+                        .findByActorUserIdOrderByOccurredAtDesc(userId, pageable)
+                        .map(AuditEventDto::from));
     }
 
     /**

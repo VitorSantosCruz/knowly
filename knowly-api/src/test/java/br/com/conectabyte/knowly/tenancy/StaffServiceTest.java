@@ -4,12 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.audit.AuditEvent;
+import br.com.conectabyte.knowly.audit.AuditEventRepository;
+import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.identity.ContactType;
 import br.com.conectabyte.knowly.identity.dto.ContactDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
+import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
+import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
+import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -46,6 +53,7 @@ class StaffServiceTest {
     @Autowired private StaffService staffService;
     @Autowired private TenantContext tenantContext;
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
+    @Autowired private AuditEventRepository auditEventRepository;
 
     @AfterEach
     void cleanUp() {
@@ -171,5 +179,98 @@ class StaffServiceTest {
                         mandatoryProfile());
 
         assertThat(created.getGlobalRole()).isEqualTo(GlobalRole.STAFF_ADMIN);
+    }
+
+    // specify/features/paginated-audit-trail/SPEC.md REQ-1/REQ-2/REQ-3
+
+    /**
+     * Deliberately does not touch {@code tenantContext} (unlike {@link #staffAdmin(String)}/{@link
+     * #limitedStaff(String)}) — those helpers set the caller's ThreadLocal staff-admin bypass flag,
+     * which would be wrongly overwritten if used to create a *target* user after the *actor* has
+     * already been authenticated in the same test.
+     */
+    private User plainTarget(String email) {
+        return userRepository.saveAndFlush(new User(email));
+    }
+
+    private void insertAuditEvent(Long actorUserId, String action) {
+        auditEventRepository.save(
+                new AuditEvent(actorUserId, null, action, null, null, AuditOutcome.SUCCESS));
+    }
+
+    @Test
+    void getAuditTrailReturnsPageResponseDtoWithDefaultsWhenNotSupplied() {
+        staffAdmin("audit-page-default-actor@example.com");
+        authenticateAs("audit-page-default-actor@example.com");
+        User target = plainTarget("audit-page-default-target@example.com");
+        insertAuditEvent(target.getId(), "action-1");
+        insertAuditEvent(target.getId(), "action-2");
+
+        PageResponseDto<AuditEventDto> result = staffService.getAuditTrail(target.getId(), 0, 20);
+
+        assertThat(result.page()).isEqualTo(0);
+        assertThat(result.size()).isEqualTo(20);
+        assertThat(result.totalElements()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void getAuditTrailClampsSizeToMaxPageSizeWhenRequestingMore() {
+        staffAdmin("audit-page-clamp-actor@example.com");
+        authenticateAs("audit-page-clamp-actor@example.com");
+        User target = plainTarget("audit-page-clamp-target@example.com");
+
+        PageResponseDto<AuditEventDto> result = staffService.getAuditTrail(target.getId(), 0, 500);
+
+        assertThat(result.size()).isEqualTo(100);
+    }
+
+    @Test
+    void getAuditTrailRejectsNegativePage() {
+        staffAdmin("audit-page-neg-page-actor@example.com");
+        authenticateAs("audit-page-neg-page-actor@example.com");
+        User target = plainTarget("audit-page-neg-page-target@example.com");
+
+        assertThatThrownBy(() -> staffService.getAuditTrail(target.getId(), -1, 20))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    @Test
+    void getAuditTrailRejectsNegativeSize() {
+        staffAdmin("audit-page-neg-size-actor@example.com");
+        authenticateAs("audit-page-neg-size-actor@example.com");
+        User target = plainTarget("audit-page-neg-size-target@example.com");
+
+        assertThatThrownBy(() -> staffService.getAuditTrail(target.getId(), 0, -5))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    @Test
+    void getAuditTrailRejectsZeroSize() {
+        staffAdmin("audit-page-zero-size-actor@example.com");
+        authenticateAs("audit-page-zero-size-actor@example.com");
+        User target = plainTarget("audit-page-zero-size-target@example.com");
+
+        assertThatThrownBy(() -> staffService.getAuditTrail(target.getId(), 0, 0))
+                .isInstanceOf(InvalidPaginationException.class);
+    }
+
+    @Test
+    void getAuditTrailStillThrowsUserNotFoundForANonexistentUserId() {
+        User actor = staffAdmin("audit-page-404-actor@example.com");
+        authenticateAs("audit-page-404-actor@example.com");
+        long nonexistentUserId = actor.getId() + 999_999L;
+
+        assertThatThrownBy(() -> staffService.getAuditTrail(nonexistentUserId, 0, 20))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void getAuditTrailStillThrowsPermissionDeniedForACallerWithoutTheGrant() {
+        limitedStaff("audit-page-denied-actor@example.com");
+        authenticateAs("audit-page-denied-actor@example.com");
+        User target = plainTarget("audit-page-denied-target@example.com");
+
+        assertThatThrownBy(() -> staffService.getAuditTrail(target.getId(), 0, 20))
+                .isInstanceOf(PermissionDeniedException.class);
     }
 }

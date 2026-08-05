@@ -12,6 +12,7 @@ import br.com.conectabyte.knowly.tenancy.dto.CreateStaffUserRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.GlobalPermissionRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.OwnGlobalPermissionsDto;
+import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
 import jakarta.validation.Valid;
@@ -95,8 +96,11 @@ public class StaffController {
     }
 
     @GetMapping("/users/{userId}/audit-trail")
-    public ResponseEntity<List<AuditEventDto>> auditTrail(@PathVariable Long userId) {
-        return ResponseEntity.ok(staffService.getAuditTrail(userId));
+    public ResponseEntity<PageResponseDto<AuditEventDto>> auditTrail(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(staffService.getAuditTrail(userId, page, size));
     }
 
     @GetMapping("/users/{userId}/permissions")
