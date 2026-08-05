@@ -295,7 +295,7 @@ import {
                 @if (rowActions().length > 0) {
                   <td class="px-4 py-3 text-right">
                     <div class="inline-flex items-center gap-1">
-                      @for (action of rowActions(); track action.labelKey) {
+                      @for (action of visibleRowActions(row); track action.labelKey) {
                         <button
                           type="button"
                           [attr.data-testid]="
@@ -561,6 +561,10 @@ export class SharedListComponent<T> {
 
     this.selectedIds.set(next);
     this.selectionChange.emit([...next]);
+  }
+
+  protected visibleRowActions(row: T): SharedListRowAction<T>[] {
+    return this.rowActions().filter((action) => !action.hidden?.(row));
   }
 
   protected isActionDisabled(action: SharedListRowAction<T>, row: T): boolean {

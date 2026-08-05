@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { MembersPageComponent } from './members-page.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
@@ -38,9 +38,27 @@ describe('MembersPageComponent', () => {
       .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
   }
 
+  function flushOwnProfile(userId = 999) {
+    httpMock.expectOne('/api/users/me/profile').flush({
+      userId,
+      email: 'me@example.com',
+      fields: {
+        fullName: 'Me',
+        cpf: null,
+        rg: null,
+        rgOrgaoEmissor: null,
+        birthDate: null,
+        address: null,
+        contacts: [],
+      },
+      avatarUrl: null,
+    });
+  }
+
   it('renders the member list once the active tenant and members resolve', () => {
     fixture.detectChanges();
     flushActiveTenant();
+    flushOwnProfile();
     fixture.detectChanges();
 
     httpMock
@@ -56,6 +74,7 @@ describe('MembersPageComponent', () => {
   it('adding a member collects the mandatory profile first, then posts it and refreshes the list', () => {
     fixture.detectChanges();
     flushActiveTenant();
+    flushOwnProfile();
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/7/members').flush([]);
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
@@ -135,6 +154,7 @@ describe('MembersPageComponent', () => {
   it('removing a member removes it from the list', () => {
     fixture.detectChanges();
     flushActiveTenant();
+    flushOwnProfile();
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/7/members')
@@ -169,9 +189,10 @@ describe('MembersPageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('a@example.com');
   });
 
-  it('selecting a member shows the detail panel', () => {
+  it('selecting a member shows the detail panel, opened in edit mode', () => {
     fixture.detectChanges();
     flushActiveTenant();
+    flushOwnProfile();
     fixture.detectChanges();
 
     httpMock
@@ -212,29 +233,20 @@ describe('MembersPageComponent', () => {
       },
       avatarUrl: null,
     });
-    httpMock.expectOne('/api/users/me/profile').flush({
-      userId: 999,
-      email: 'me@example.com',
-      fields: {
-        fullName: 'Me',
-        cpf: null,
-        rg: null,
-        rgOrgaoEmissor: null,
-        birthDate: null,
-        address: null,
-        contacts: [],
-      },
-      avatarUrl: null,
-    });
+    flushOwnProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="member-detail-panel"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="profile-section"]')).toBeTruthy();
+    // REQ-6: clicking the edit row action opens the panel directly in edit mode, not merely
+    // opens the panel requiring a further click to find edit.
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeTruthy();
   });
 
   it('shows a permission-denied state when the members list is forbidden', () => {
     fixture.detectChanges();
     flushActiveTenant();
+    flushOwnProfile();
     fixture.detectChanges();
 
     httpMock
@@ -244,5 +256,49 @@ describe('MembersPageComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="no-access-state"]')).toBeTruthy();
+  });
+
+  it("shows a 'my profile' action instead of edit/delete on the viewer's own row, navigating to /profile", () => {
+    const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+    fixture.detectChanges();
+    flushActiveTenant();
+    flushOwnProfile(42);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/tenants/7/members').flush([
+      { membershipId: 1, userId: 42, email: 'me@example.com', role: 'MEMBER' },
+      { membershipId: 2, userId: 43, email: 'other@example.com', role: 'MEMBER' },
+    ]);
+    httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="shared-list-action-sharedList.actions.edit-1"]',
+      ),
+    ).toBeFalsy();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="shared-list-action-sharedList.actions.delete-1"]',
+      ),
+    ).toBeFalsy();
+    const myProfileAction: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="shared-list-action-sharedList.actions.myProfile-1"]',
+    );
+    expect(myProfileAction).toBeTruthy();
+
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="shared-list-action-sharedList.actions.edit-2"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="shared-list-action-sharedList.actions.delete-2"]',
+      ),
+    ).toBeTruthy();
+
+    myProfileAction.click();
+    expect(navigateSpy).toHaveBeenCalledWith('/profile');
   });
 });

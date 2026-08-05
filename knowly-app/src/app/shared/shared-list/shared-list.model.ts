@@ -44,6 +44,15 @@ export interface SharedListRowAction<T> {
   variant: 'secondary' | 'danger';
   disabled?: (row: T) => boolean;
   disabledReasonKey?: (row: T) => string | null;
+  /**
+   * Per-row omission, not merely disabling — e.g. `members-page.component.ts`'s own-row
+   * swap (REQ-10), where the viewer's own row drops edit/delete entirely rather than
+   * showing them disabled. Defaults to always-visible when omitted. Distinct from
+   * `select-tenant-page.component.ts`'s all-or-nothing `computed(rowActions())` case
+   * (PLAN's judgment call against adding this for that single case) — this is the
+   * genuinely per-row case that justifies it.
+   */
+  hidden?: (row: T) => boolean;
   onClick: (row: T) => void;
 }
 

@@ -1,11 +1,12 @@
-import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { LucideSquarePen, LucideTrash2 } from '@lucide/angular';
+import { LucideSquarePen, LucideTrash, LucideUser } from '@lucide/angular';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { Member, MemberService } from '../../core/member.service';
-import { MandatoryProfileFields, ProfileFields } from '../../core/profile.service';
+import { MandatoryProfileFields, ProfileFields, ProfileService } from '../../core/profile.service';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
@@ -109,7 +110,7 @@ const EMPTY_FIELDS: ProfileFields = {
           [title]="'members.title' | transloco"
           [rows]="members()"
           [columns]="columns"
-          [rowActions]="rowActions"
+          [rowActions]="rowActions()"
           [rowId]="rowId"
           [emptyMessageKey]="'sharedList.empty.tenantMembers'"
         />
@@ -117,6 +118,7 @@ const EMPTY_FIELDS: ProfileFields = {
         @if (selectedMembershipId(); as membershipId) {
           <div class="mt-6">
             <app-member-detail-panel
+              #memberDetailPanel
               [tenantId]="activeTenantService.activeTenantId()!"
               [membershipId]="membershipId"
               [viewerIsMemberAdminOfThisTenant]="viewerIsMemberAdminOfThisTenant()"
@@ -141,6 +143,8 @@ const EMPTY_FIELDS: ProfileFields = {
 export class MembersPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly memberService = inject(MemberService);
+  private readonly profileService = inject(ProfileService);
+  private readonly router = inject(Router);
 
   protected readonly addButtonClass = buttonClass('primary');
   protected readonly secondaryButtonClass = buttonClass('secondary');
@@ -151,6 +155,12 @@ export class MembersPageComponent implements OnInit {
   protected readonly selectedMembershipId = signal<number | null>(null);
   protected readonly pendingRemoval = signal<Member | null>(null);
   protected readonly removalRetryToken = signal(0);
+
+  // REQ-10: sourced once, kept page-local per PLAN's "second call site for the same
+  // one-shot value, no caching layer needed" judgment call.
+  protected readonly ownUserId = signal<number | null>(null);
+  private readonly memberDetailPanel = viewChild<MemberDetailPanelComponent>('memberDetailPanel');
+  private pendingEditMode = false;
 
   // mandatory-complete-profile (backend): adding a member requires a full
   // MandatoryProfileFieldsDto — this two-step flow collects it via the same
@@ -188,20 +198,42 @@ export class MembersPageComponent implements OnInit {
     },
   ];
 
-  protected readonly rowActions: SharedListRowAction<Member>[] = [
-    {
-      icon: LucideSquarePen,
-      labelKey: 'sharedList.actions.edit',
-      variant: 'secondary',
-      onClick: (row) => this.selectedMembershipId.set(row.membershipId),
-    },
-    {
-      icon: LucideTrash2,
-      labelKey: 'sharedList.actions.delete',
-      variant: 'danger',
-      onClick: (row) => this.onRemoveMember(row.membershipId),
-    },
-  ];
+  // REQ-10 (own-row swap, appsec review 2026-08-05): the viewer's own row omits edit
+  // (self-edit-by-request is never allowed, identity-profile-model-v2's REQ-11) *and*
+  // delete (no legitimate self-removal UI path exists either; the backend already
+  // rejects it independently — this is defense-in-depth UX clarity, not the actual
+  // authorization boundary), replaced by a "my profile" action navigating to /profile.
+  // `SharedListRowAction`'s per-row `hidden(row)` predicate (extended alongside this
+  // task, mirroring the existing per-row `disabled(row)` shape) is what makes a
+  // genuinely per-row (not all-or-nothing) omission possible from one flat array.
+  protected readonly rowActions = computed<SharedListRowAction<Member>[]>(() => {
+    const ownUserId = this.ownUserId();
+    const isOwnRow = (row: Member) => row.userId === ownUserId;
+
+    return [
+      {
+        icon: LucideSquarePen,
+        labelKey: 'sharedList.actions.edit',
+        variant: 'secondary',
+        hidden: isOwnRow,
+        onClick: (row: Member) => this.openInEditMode(row.membershipId),
+      },
+      {
+        icon: LucideTrash,
+        labelKey: 'sharedList.actions.delete',
+        variant: 'danger',
+        hidden: isOwnRow,
+        onClick: (row: Member) => this.onRemoveMember(row.membershipId),
+      },
+      {
+        icon: LucideUser,
+        labelKey: 'sharedList.actions.myProfile',
+        variant: 'secondary',
+        hidden: (row: Member) => !isOwnRow(row),
+        onClick: () => this.router.navigateByUrl('/profile'),
+      },
+    ];
+  });
 
   protected readonly viewerIsMemberAdminOfThisTenant = computed(
     () => this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN',
@@ -219,10 +251,51 @@ export class MembersPageComponent implements OnInit {
         this.memberService.listAccessGroups(tenantId).subscribe();
       }
     });
+
+    // REQ-6: the row's edit action must open the panel already in edit mode. The panel
+    // only mounts once `selectedMembershipId()` is set (it wasn't necessarily open
+    // before this click), so the `openInEditMode()` call on the panel instance is
+    // deferred to this effect, which re-runs once the panel's viewChild resolves after
+    // the same change-detection pass that rendered it.
+    effect(() => {
+      const panel = this.memberDetailPanel();
+
+      if (panel !== undefined && this.pendingEditMode) {
+        this.pendingEditMode = false;
+        panel.openInEditMode();
+      }
+    });
   }
 
   ngOnInit(): void {
     this.activeTenantService.fetch();
+    this.loadOwnUserId();
+  }
+
+  private loadOwnUserId(): void {
+    this.profileService
+      .getOwnProfile()
+      .pipe(catchError(() => of(null)))
+      .subscribe((profile) => {
+        if (profile !== null) {
+          this.ownUserId.set(profile.userId);
+        }
+      });
+  }
+
+  protected openInEditMode(membershipId: number): void {
+    const panel = this.memberDetailPanel();
+    this.selectedMembershipId.set(membershipId);
+
+    if (panel !== undefined) {
+      // Panel already mounted (from a previous selection) — its own `ngOnChanges` will
+      // re-fetch for the new `membershipId`, but the trigger still needs bumping here
+      // since the effect below only reacts to the panel's viewChild *appearing*, not to
+      // `membershipId` changing on an already-mounted instance.
+      panel.openInEditMode();
+    } else {
+      this.pendingEditMode = true;
+    }
   }
 
   private loadMembers(tenantId: number): void {

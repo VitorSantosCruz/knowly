@@ -245,35 +245,6 @@ type DetailError = 'network' | 'permission-denied' | null;
           [hideEditToggle]="true"
           [editTrigger]="editProfileTrigger()"
         />
-
-        @if (viewerCanDelete(detail)) {
-          <div class="mt-6 border-t border-ink-100 pt-4 dark:border-ink-800/50">
-            <button
-              type="button"
-              data-testid="member-delete-button"
-              [class]="dangerButtonClass"
-              [disabled]="detail.isLastAdminOfType"
-              [attr.title]="
-                detail.isLastAdminOfType ? ('members.deleteDisabledLastAdmin' | transloco) : null
-              "
-              [attr.aria-describedby]="
-                detail.isLastAdminOfType ? 'member-delete-disabled-reason' : null
-              "
-              (click)="pendingDelete.set(true)"
-            >
-              {{ 'members.delete' | transloco }}
-            </button>
-            @if (detail.isLastAdminOfType) {
-              <p
-                id="member-delete-disabled-reason"
-                data-testid="member-delete-disabled-reason"
-                class="mt-1 text-xs text-ink-500 dark:text-ink-400"
-              >
-                {{ 'members.deleteDisabledLastAdmin' | transloco }}
-              </p>
-            }
-          </div>
-        }
       </div>
 
       @if (pendingPermissionRevoke(); as permission) {
@@ -299,17 +270,6 @@ type DetailError = 'network' | 'permission-denied' | null;
           [retryToken]="groupUnassignRetryToken()"
           (confirm)="confirmGroupUnassign($event)"
           (dismissed)="cancelGroupUnassign()"
-        />
-      }
-
-      @if (pendingDelete()) {
-        <app-confirm-dialog
-          [open]="true"
-          [message]="'members.confirmDelete' | transloco: { email: detail.email }"
-          [fetchToken]="deletionTokenFetcher()"
-          [retryToken]="deleteRetryToken()"
-          (confirm)="confirmDelete($event)"
-          (dismissed)="cancelDelete()"
         />
       }
 
@@ -375,8 +335,6 @@ export class MemberDetailPanelComponent implements OnChanges {
 
   protected readonly pendingDemote = signal(false);
   protected readonly pendingPromote = signal(false);
-  protected readonly pendingDelete = signal(false);
-  protected readonly deleteRetryToken = signal(0);
 
   protected readonly pendingPermissions = signal<Set<Permission>>(new Set());
   protected readonly initialPermissions = signal<Set<Permission>>(new Set());
@@ -404,6 +362,16 @@ export class MemberDetailPanelComponent implements OnChanges {
   // `ProfileSectionComponent` so it can hide the inline-edit affordance on the viewer's own row.
   protected readonly ownUserId = signal<number | null>(null);
   protected readonly editProfileTrigger = signal(0);
+
+  /**
+   * Called by `members-page.component.ts`'s edit row action (REQ-6) — opens the
+   * embedded `ProfileSectionComponent` directly in edit mode via the same
+   * `editTrigger` counter the panel's own header "Editar perfil" button already
+   * drives, so both entry points share one code path.
+   */
+  openInEditMode(): void {
+    this.editProfileTrigger.update((n) => n + 1);
+  }
 
   ngOnChanges(): void {
     this.loadDetail();
@@ -435,18 +403,6 @@ export class MemberDetailPanelComponent implements OnChanges {
     return detail.effectivePermissions
       .map((permission) => this.permissionLabel(permission))
       .join(', ');
-  }
-
-  // REQ-7a/REQ-12a: an admin-tier target's demote/delete actions are only shown to a viewer who
-  // is themselves that tenant's MEMBER_ADMIN.
-  protected viewerCanDelete(detail: MemberDetail): boolean {
-    if (detail.role === 'MEMBER_ADMIN') {
-      return this.viewerIsMemberAdminOfThisTenant();
-    }
-
-    return (
-      this.viewerIsMemberAdminOfThisTenant() || this.permissionsService.has('TENANT_MEMBER_MANAGE')
-    );
   }
 
   private reportError(err: { status: number }): void {
@@ -643,37 +599,6 @@ export class MemberDetailPanelComponent implements OnChanges {
         }),
       )
       .subscribe(() => this.loadDetail());
-  }
-
-  protected deletionTokenFetcher(): () => Observable<string> {
-    return () => this.memberService.generateHardDeleteToken(this.tenantId(), this.membershipId());
-  }
-
-  protected confirmDelete(word: string): void {
-    this.memberService
-      .hardDelete(this.tenantId(), this.membershipId(), word)
-      .pipe(
-        catchError((err) => {
-          if (err.status === 400) {
-            this.deleteRetryToken.update((n) => n + 1);
-          } else {
-            this.pendingDelete.set(false);
-            this.deleteRetryToken.set(0);
-            this.reportError(err);
-          }
-          return EMPTY;
-        }),
-      )
-      .subscribe(() => {
-        this.pendingDelete.set(false);
-        this.deleteRetryToken.set(0);
-        this.loadDetail();
-      });
-  }
-
-  protected cancelDelete(): void {
-    this.pendingDelete.set(false);
-    this.deleteRetryToken.set(0);
   }
 
   // REQ-17/18/19: single confirmation for the whole batch, submitting the full pending set.

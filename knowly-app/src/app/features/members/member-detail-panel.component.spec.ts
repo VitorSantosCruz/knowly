@@ -188,58 +188,30 @@ describe('MemberDetailPanelComponent', () => {
     ).toBeTruthy();
   });
 
-  it('offers delete for MEMBER/MEMBER_ADMIN, disabled with explanation only for the last MEMBER_ADMIN', async () => {
+  it('no longer offers a delete affordance inside the panel (moved to the list row action, REQ-7)', async () => {
     await open({ ...adminDetail, isLastAdminOfType: true }, true);
 
-    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="member-delete-button"]',
-    );
-    expect(button).toBeTruthy();
-    expect(button.disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-testid="member-delete-button"]')).toBeFalsy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="member-delete-disabled-reason"]'),
-    ).toBeTruthy();
+    ).toBeFalsy();
+    const instance = fixture.componentInstance as unknown as Record<string, unknown>;
+    expect(instance['pendingDelete']).toBeUndefined();
+    expect(instance['deleteRetryToken']).toBeUndefined();
+    expect(instance['deletionTokenFetcher']).toBeUndefined();
+    expect(instance['confirmDelete']).toBeUndefined();
+    expect(instance['cancelDelete']).toBeUndefined();
   });
 
-  it('never disables delete for a plain MEMBER target', async () => {
+  it('openInEditMode() puts the embedded profile section into edit mode', async () => {
     await open(memberDetail, true);
 
-    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="member-delete-button"]',
-    );
-    expect(button.disabled).toBe(false);
-  });
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeFalsy();
 
-  it('hides delete for an admin target when the viewer is not a MEMBER_ADMIN of this tenant', async () => {
-    await open(adminDetail, false);
-
-    expect(fixture.nativeElement.querySelector('[data-testid="member-delete-button"]')).toBeFalsy();
-  });
-
-  it('confirming delete fetches a hard-delete token, submits the word, and refreshes', async () => {
-    await open(memberDetail, true);
-
-    fixture.nativeElement.querySelector('[data-testid="member-delete-button"]').click();
+    fixture.componentInstance.openInEditMode();
     fixture.detectChanges();
 
-    httpMock
-      .expectOne('/api/tenants/1/members/2/hard-delete/deletion-confirmation-token')
-      .flush({ word: 'correct-horse' });
-    fixture.detectChanges();
-
-    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
-    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
-    input.value = 'correct-horse';
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
-
-    const req = httpMock.expectOne('/api/tenants/1/members/2/hard-delete');
-    expect(req.request.method).toBe('DELETE');
-    expect(req.request.body).toEqual({ word: 'correct-horse' });
-    req.flush({});
-
-    httpMock.expectOne('/api/tenants/1/members/2').flush(memberDetail);
+    expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeTruthy();
   });
 
   it('renders switches for a MEMBER target, seeded from directPermissions, toggling only local state', async () => {

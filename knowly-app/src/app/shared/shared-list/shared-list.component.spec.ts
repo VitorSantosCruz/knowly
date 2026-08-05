@@ -248,6 +248,22 @@ describe('SharedListComponent', () => {
       expect(deleteButtonRegular.disabled).toBe(false);
     });
 
+    it('omits an action entirely (not merely disabled) for a row where hidden(row) is true', async () => {
+      const actions: SharedListRowAction<Row>[] = [
+        {
+          icon: LucideSquarePen,
+          labelKey: 'sharedList.actions.edit',
+          variant: 'secondary',
+          hidden: (row) => row.id === 1,
+          onClick: () => undefined,
+        },
+      ];
+      await setup({ rowActions: actions });
+
+      expect(el('shared-list-action-sharedList.actions.edit-1')).toBeNull();
+      expect(el('shared-list-action-sharedList.actions.edit-2')).toBeTruthy();
+    });
+
     it('invokes onClick with the row when clicked', async () => {
       const clicked: Row[] = [];
       const actions: SharedListRowAction<Row>[] = [

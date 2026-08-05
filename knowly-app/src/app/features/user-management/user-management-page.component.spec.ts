@@ -55,10 +55,25 @@ describe('UserManagementPageComponent', () => {
     expect(fixture.nativeElement.querySelector('app-staff-directory-page')).toBeFalsy();
 
     // MembersPageComponent (unchanged, reused as-is) calls ActiveTenantService.fetch()
-    // itself in its own ngOnInit, independent of the wrapper's own fetch() above.
+    // itself in its own ngOnInit, independent of the wrapper's own fetch() above. It also
+    // loads ownUserId (REQ-10) via ProfileService.getOwnProfile() in the same ngOnInit.
     httpMock
       .expectOne('/api/tenants/active')
       .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
+    httpMock.expectOne('/api/users/me/profile').flush({
+      userId: 999,
+      email: 'me@example.com',
+      fields: {
+        fullName: 'Me',
+        cpf: null,
+        rg: null,
+        rgOrgaoEmissor: null,
+        birthDate: null,
+        address: null,
+        contacts: [],
+      },
+      avatarUrl: null,
+    });
     httpMock.expectOne('/api/tenants/7/members').flush([]);
     httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
   });
