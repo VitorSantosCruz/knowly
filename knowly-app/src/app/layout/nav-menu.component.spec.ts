@@ -6,13 +6,17 @@ import { provideTransloco } from '@jsverse/transloco';
 import { NavMenuComponent } from './nav-menu.component';
 import { ActiveTenantService } from '../core/active-tenant.service';
 import { ALL_PERMISSIONS } from '../core/permission';
+import { SidebarStateService } from '../core/sidebar-state.service';
 import { FakeTranslocoLoader } from '../testing/fake-transloco-loader';
+import { mockViewportMatchMedia } from '../testing/mock-match-media';
 
 describe('NavMenuComponent', () => {
   let fixture: ComponentFixture<NavMenuComponent>;
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
+    mockViewportMatchMedia(true);
+
     await TestBed.configureTestingModule({
       imports: [NavMenuComponent],
       providers: [
@@ -32,6 +36,7 @@ describe('NavMenuComponent', () => {
 
   afterEach(() => {
     httpMock.verify();
+    localStorage.removeItem('knowly.sidebar.collapsed');
   });
 
   function flushSessionCheck(loggedIn: boolean): void {
@@ -649,5 +654,55 @@ describe('NavMenuComponent', () => {
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-articles"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeTruthy();
+  });
+
+  describe('collapse/expand (desktop rail)', () => {
+    it('keeps every data-testid/data-tour-id element present regardless of collapsed()', () => {
+      fixture.detectChanges();
+      flush({ memberships: [], globalPermissions: ['DASHBOARD_VIEW_GLOBAL'] });
+      fixture.detectChanges();
+
+      const sidebarState = TestBed.inject(SidebarStateService);
+      expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
+
+      sidebarState.setCollapsed(true);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('[data-tour-id="main-nav"]')).toBeFalsy(); // lives on app-shell, not nav-menu
+    });
+
+    it('the collapse/expand toggle button flips collapsed() and its aria-expanded attribute', () => {
+      fixture.detectChanges();
+      flush({ memberships: [] });
+      fixture.detectChanges();
+
+      const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
+        '[data-testid="nav-collapse-toggle"]',
+      );
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      expect(toggle.getAttribute('aria-controls')).toBe('nav-menu');
+
+      toggle.click();
+      fixture.detectChanges();
+
+      expect(TestBed.inject(SidebarStateService).collapsed()).toBe(true);
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it("a collapsed item's tooltip span is present with hover/focus-visible reveal classes", () => {
+      fixture.detectChanges();
+      flush({ memberships: [], globalPermissions: ['DASHBOARD_VIEW_GLOBAL'] });
+      fixture.detectChanges();
+
+      TestBed.inject(SidebarStateService).setCollapsed(true);
+      fixture.detectChanges();
+
+      const link = fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]');
+      const tooltip = link.querySelector('[data-testid="nav-tooltip"]');
+      expect(tooltip).toBeTruthy();
+      expect(tooltip.className).toContain('group-hover:opacity-100');
+      expect(tooltip.className).toContain('group-focus-visible:opacity-100');
+    });
   });
 });

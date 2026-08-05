@@ -262,7 +262,9 @@
     "members": "Members",
     "createTenant": "Create tenant",
     "switchTenant": "Switch tenant",
-    "leaveTenant": "Leave tenant"
+    "leaveTenant": "Leave tenant",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "logout": {
     "label": "Log out"

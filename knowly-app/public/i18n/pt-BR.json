@@ -265,7 +265,9 @@
     "members": "Membros",
     "createTenant": "Criar tenant",
     "switchTenant": "Trocar tenant",
-    "leaveTenant": "Sair do tenant"
+    "leaveTenant": "Sair do tenant",
+    "collapse": "Recolher menu",
+    "expand": "Expandir menu"
   },
   "members": {
     "add": "Adicionar membro",

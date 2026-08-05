@@ -8,6 +8,8 @@ import {
   LucideLayoutGrid,
   LucideLogOut,
   LucideMessagesSquare,
+  LucidePanelLeftClose,
+  LucidePanelLeftOpen,
   LucidePlus,
   LucideUsers,
 } from '@lucide/angular';
@@ -16,6 +18,7 @@ import { GlobalPermissionsService } from '../core/global-permissions.service';
 import { ALL_GLOBAL_PERMISSIONS } from '../core/global-permission';
 import { ActiveTenantService, TenantMembership } from '../core/active-tenant.service';
 import { AuthService } from '../core/auth.service';
+import { SidebarStateService } from '../core/sidebar-state.service';
 import { BrandWordmarkComponent } from '../shared/brand-wordmark.component';
 import { ErrorStateComponent } from '../shared/error-state.component';
 
@@ -66,13 +69,33 @@ const CATEGORY_LABEL_CLASS =
     LucidePlus,
     LucideArrowRightLeft,
     LucideLogOut,
+    LucidePanelLeftClose,
+    LucidePanelLeftOpen,
   ],
   template: `
     @if (authService.isLoggedIn()) {
-      <nav data-testid="nav-menu" class="flex h-full flex-col">
+      <nav id="nav-menu" data-testid="nav-menu" class="flex h-full flex-col">
         <a routerLink="/welcome" class="mb-6 flex items-center px-1">
           <app-brand-wordmark class="text-white" />
         </a>
+
+        <button
+          type="button"
+          data-testid="nav-collapse-toggle"
+          [class]="toggleButtonClass"
+          [attr.aria-expanded]="!sidebarState.collapsed()"
+          aria-controls="nav-menu"
+          (click)="sidebarState.toggle()"
+        >
+          @if (sidebarState.collapsed()) {
+            <svg lucidePanelLeftOpen [class]="iconClass" aria-hidden="true"></svg>
+          } @else {
+            <svg lucidePanelLeftClose [class]="iconClass" aria-hidden="true"></svg>
+          }
+          <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+            (sidebarState.collapsed() ? 'nav.expand' : 'nav.collapse') | transloco
+          }}</span>
+        </button>
 
         <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
           @for (group of overviewGroups(); track group.categoryKey) {
@@ -112,7 +135,17 @@ const CATEGORY_LABEL_CLASS =
                         <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
                       }
                     }
-                    {{ item.labelKey | transloco }}
+                    <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+                      item.labelKey | transloco
+                    }}</span>
+                    @if (sidebarState.collapsed()) {
+                      <span
+                        data-testid="nav-tooltip"
+                        class="absolute left-full ml-2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-fast ease-fluid group-hover:opacity-100 group-focus-visible:opacity-100"
+                      >
+                        {{ item.labelKey | transloco }}
+                      </span>
+                    }
                   </a>
                 </li>
               }
@@ -162,7 +195,17 @@ const CATEGORY_LABEL_CLASS =
                           <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
                         }
                       }
-                      {{ item.labelKey | transloco }}
+                      <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+                        item.labelKey | transloco
+                      }}</span>
+                      @if (sidebarState.collapsed()) {
+                        <span
+                          data-testid="nav-tooltip"
+                          class="absolute left-full ml-2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-fast ease-fluid group-hover:opacity-100 group-focus-visible:opacity-100"
+                        >
+                          {{ item.labelKey | transloco }}
+                        </span>
+                      }
                     </button>
                   } @else {
                     <a
@@ -195,7 +238,17 @@ const CATEGORY_LABEL_CLASS =
                           <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
                         }
                       }
-                      {{ item.labelKey | transloco }}
+                      <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+                        item.labelKey | transloco
+                      }}</span>
+                      @if (sidebarState.collapsed()) {
+                        <span
+                          data-testid="nav-tooltip"
+                          class="absolute left-full ml-2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-fast ease-fluid group-hover:opacity-100 group-focus-visible:opacity-100"
+                        >
+                          {{ item.labelKey | transloco }}
+                        </span>
+                      }
                     </a>
                   }
                 </li>
@@ -215,9 +268,12 @@ export class NavMenuComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly linkClass =
-    'group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
+    'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
   protected readonly iconClass = 'h-4 w-4 shrink-0';
   protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
+  protected readonly sidebarState = inject(SidebarStateService);
+  protected readonly toggleButtonClass =
+    'mb-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:bg-ink-800/60 hover:text-white focus-visible:ring-2 focus-visible:ring-signal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950';
 
   protected readonly leaveTenantError = signal<'network' | null>(null);
 
