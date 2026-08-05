@@ -56,6 +56,41 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
+**Current state (2026-08-05): follow-up Playwright QA pass over the
+soft-delete-everywhere work below found and fixed 3 more real gaps, plus ruled
+out a 4th as a false alarm from a broken dev-server process (not a code bug).
+All fixes are committed and both subprojects are fully green (859/859 backend
+tests via `./mvnw verify`, 669/669 frontend tests, format/build/lint clean).**
+(1) `ActiveTenantService#fetch()` (frontend) had no error handler on
+`GET /api/tenants/active`, so once a session's active tenant was soft-deleted
+(a 403 `TENANT_ACCESS_DENIED`), `activeTenantResolved()` never flipped `true`
+and every page gating on it (member dashboard, articles, conversations, ...)
+hung forever on its loading state — fixed with `catchError`, and the backend
+endpoint itself now self-heals: it clears the stale session attribute and
+returns `204` instead of repeating `403` forever. (2) The
+unassign-access-group/revoke-permission confirmation dialogs still said "This
+cannot be undone" in both locales, no longer accurate now that these are
+reactivatable soft-deletes — copy updated to reflect they can be reversed via
+the same panel. (3) Tenant deletion had a complete backend flow
+(`POST .../deletion-confirmation-token` + `DELETE /api/tenants/{id}`,
+`TENANT_DELETE`-gated) but zero frontend UI anywhere in `knowly-app` — added a
+staff-only "Delete" button + the same confirmation-dialog pattern as
+staff-user/member deletion to `select-tenant-page.component.ts` (the existing
+staff all-tenants listing). Also fixed in passing while investigating (2): a
+profile-edit-request's contact REMOVE change showed only the bare word
+"REMOVE" in the approver's inbox, no indication of which contact — root cause
+was `profile-fields-form.component.ts#diffContactChanges()` nulling out
+type/value/label for a REMOVE instead of carrying the original contact's
+values along (the backend already stores whatever it's sent verbatim). (4)
+A suspected 500 on `POST /api/auth/login-code/verify` for a soft-deleted user
+(contradicting the passing `verifyCodeForASoftDeletedUserIsRejectedLikeInvalidCredentials`
+integration test) turned out to be an artifact of the old dev server process
+having cascaded through unrelated startup failures (a stale `logback-spring.xml`
+parse error, then an `S3Client` bean failure) earlier in the session — the
+source `logback-spring.xml` itself was never actually broken. Reproduced
+cleanly against a freshly-restarted backend: correct `401 INVALID_CREDENTIALS`,
+matching the test. No code fix needed there.
+
 **Current state (2026-08-04): three manual, full-app Playwright QA passes (not
 a feature) found and fixed 17 real bugs across login, i18n, tenant-scoped
 routing, tenant creation, staff/tenant permission granting, chat, member/
