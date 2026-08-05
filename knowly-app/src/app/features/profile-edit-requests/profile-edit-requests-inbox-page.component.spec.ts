@@ -90,6 +90,38 @@ describe('ProfileEditRequestsInboxPageComponent', () => {
     expect(contactChangesText).toContain('jane@example.com');
   });
 
+  // profile-fields-form.component.ts's diffContactChanges() carries the original contact's
+  // type/value/label along with a REMOVE (rather than nulling them out) precisely so this
+  // inbox can show which contact is being removed instead of a bare "REMOVE" with no detail.
+  it('renders the removed contact\'s type/value detail for a REMOVE change, not a bare "REMOVE"', async () => {
+    await createFixture();
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/profile-edit-requests').flush([
+      {
+        ...request,
+        proposedContactChanges: [
+          {
+            action: 'REMOVE',
+            contactId: 12,
+            type: 'PHONE',
+            value: '+5511912345678',
+            label: null,
+            isPrimary: false,
+          },
+        ],
+      },
+    ]);
+    fixture.detectChanges();
+
+    const contactChangesText = fixture.nativeElement.querySelector(
+      '[data-testid="profile-edit-request-contact-changes-7"]',
+    ).textContent;
+    expect(contactChangesText).toContain('REMOVE');
+    expect(contactChangesText).toContain('PHONE');
+    expect(contactChangesText).toContain('+5511912345678');
+  });
+
   it('renders the requester name when present', async () => {
     await createFixture();
     fixture.detectChanges();

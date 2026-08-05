@@ -798,15 +798,19 @@ export class ProfileFieldsFormComponent {
       }
     }
 
-    for (const [id] of this.initialContactsById) {
+    for (const [id, original] of this.initialContactsById) {
       if (!currentIds.has(id)) {
+        // Carrying the original contact's type/value/label along with a REMOVE (rather than
+        // nulling them out, as before) is what lets an approver's profile-edit-requests inbox
+        // show which contact is being removed instead of a bare "REMOVE" with no detail --
+        // the backend stores whatever this sends verbatim, no server-side stripping.
         changes.push({
           action: 'REMOVE',
           contactId: id,
-          type: null,
-          value: null,
-          label: null,
-          isPrimary: null,
+          type: original.type,
+          value: original.value,
+          label: original.label,
+          isPrimary: original.isPrimary,
         });
       }
     }

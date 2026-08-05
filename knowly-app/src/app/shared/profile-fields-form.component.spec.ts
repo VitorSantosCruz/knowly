@@ -224,7 +224,10 @@ describe('ProfileFieldsFormComponent', () => {
     expect(changes.length).toBe(2);
   });
 
-  it('a REMOVE-only diff (deleting an original contact) emits a REMOVE change', async () => {
+  // Carries the original contact's type/value/label/isPrimary along with the REMOVE, rather
+  // than nulling them out -- otherwise an approver's profile-edit-requests inbox has no way to
+  // show which contact is being removed (backend stores whatever this payload sends verbatim).
+  it('a REMOVE-only diff (deleting an original contact) emits a REMOVE change carrying the original contact detail', async () => {
     await createFixture();
 
     input('profile-contact-remove-id-1').click();
@@ -235,7 +238,14 @@ describe('ProfileFieldsFormComponent', () => {
     submitForm();
 
     expect(emitted[0].contactChanges).toEqual([
-      { action: 'REMOVE', contactId: 1, type: null, value: null, label: null, isPrimary: null },
+      {
+        action: 'REMOVE',
+        contactId: 1,
+        type: 'PHONE',
+        value: '+5511987654321',
+        label: null,
+        isPrimary: true,
+      },
     ]);
   });
 
