@@ -1,0 +1,24 @@
+# Overrides the otel-lgtm image's baked-in dashboard provisioning
+# (/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml).
+#
+# The image ships 3 default dashboards (RED classic/native histogram, JVM
+# Overview) built for a Prometheus *scrape* model: every panel filters on an
+# `$instance` template variable that Prometheus itself injects on scrape.
+# This stack uses OTLP *push* (Micrometer -> OTel Collector -> Prometheus
+# remote-write), so no `instance` label is ever created and those dashboards
+# permanently show "No data" (see DECISIONS.md). The RED dashboards also
+# query OTel-semconv metric names (http_server_request_duration_seconds_*)
+# that don't match this app's Micrometer-emitted names
+# (http_server_requests_milliseconds_*), so they were doubly broken.
+#
+# Replaced with two hand-built dashboards keyed on `service_name` instead,
+# see ../dashboards/*.json.
+apiVersion: 1
+
+providers:
+  - name: 'knowly'
+    type: file
+    updateIntervalSeconds: 30
+    options:
+      path: /otel-lgtm/knowly-dashboards
+      foldersFromFilesStructure: false

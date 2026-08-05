@@ -130,3 +130,29 @@ bean, loads and runs cleanly with the version-pin fix in place).
   empty before this change and the mechanism proven not to crash after
   it — full live confirmation blocked by the unrelated MinIO/AWS-SDK
   startup bug above.
+
+## Follow-up (2026-08-05): replaced the 3 default dashboards
+
+The 3 dashboards `grafana-lgtm` auto-provisions out of the box (RED
+classic/native histogram, JVM Overview) were discovered permanently
+broken — "No data" on every panel — because they assume a Prometheus
+*scrape* model (`$instance` template var) and, for the RED ones,
+OTel-semconv metric names, neither of which apply to this stack (OTLP
+push, Micrometer's own `http_server_requests_milliseconds_*` names). See
+`../../../DECISIONS.md`'s "Replaced grafana-lgtm's default dashboards"
+entry for the full root-cause and rationale.
+
+Replaced with 2 hand-built dashboards keyed on `service_name`:
+- `knowly-api/observability/grafana/dashboards/knowly-red-metrics.json`
+  (uid `knowly-red-metrics`)
+- `knowly-api/observability/grafana/dashboards/knowly-jvm-overview.json`
+  (uid `knowly-jvm-overview`)
+
+Provisioned via a new file, `knowly-api/observability/grafana/provisioning/dashboards/knowly-dashboards.yaml`,
+bind-mounted read-only over the image's own provisioning file path in
+`compose.yaml`'s `grafana-lgtm` service (first config bind mount added
+to that service — read-only/config-only, doesn't touch the
+named-volumes-for-data rule). Verified live: each panel's interpolated
+PromQL query returned non-empty `result` via Grafana's datasource-proxy
+API against the running stack; the original 3 dashboards no longer
+appear in `/api/search`.

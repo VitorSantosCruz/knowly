@@ -17,6 +17,12 @@ services:
     tmpfs:
       - /tmp
       - /data
+    volumes:
+      # Overrides the image's baked-in dashboard provisioning (Prometheus-scrape/$instance
+      # based, doesn't match our OTLP-push/service_name-only metrics) with our own — see
+      # observability/grafana/provisioning/dashboards/knowly-dashboards.yaml for why.
+      - './observability/grafana/provisioning/dashboards/knowly-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml:ro'
+      - './observability/grafana/dashboards:/otel-lgtm/knowly-dashboards:ro'
     ports:
       - '127.0.0.1:3000:3000'
       - '127.0.0.1:4317:4317'

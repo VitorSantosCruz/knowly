@@ -2295,6 +2295,68 @@ of Grafana, no TLS, no retention tuning; do not treat it as
 production-ready or extend it externally without a fresh Tier 3
 conversation.
 
+### Replaced grafana-lgtm's default dashboards: `$instance`/OTel-semconv assumptions don't hold for this stack (2026-08-05)
+
+The `grafana/otel-lgtm` image auto-provisions 3 default dashboards ("RED
+Metrics (classic histogram)", "RED Metrics (native histogram)", "JVM
+Overview (OpenTelemetry)") via
+`/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml`
+baked into the image — no override existed in this repo before this
+entry. All three were permanently "No data" for two independent, stacked
+reasons, both worth remembering before trusting any pre-built
+Prometheus/Grafana dashboard against this stack again:
+
+1. **`$instance` doesn't exist here.** Every panel filters on an
+   `instance=~"$instance"` template variable that classic Prometheus
+   *scrape* auto-populates (`host:port` of the target). This stack uses
+   OTLP *push* (Micrometer → OTel Collector inside `grafana-lgtm` →
+   Prometheus remote-write, see the entry above) — Prometheus never
+   scrapes `knowly`, so it never injects `instance`, and the series only
+   carry `job`/`service_name`. The `$instance` variable's
+   `label_values(...)` query resolves to zero options, "All" becomes an
+   impossible regex, and every panel returns nothing — even though the
+   underlying metrics (`jvm_classes_loaded`, `jvm_memory_used_bytes`,
+   etc.) are present and correct in Prometheus. **Any future dashboard
+   in this repo must filter/group on `service_name`, not `instance`.**
+2. **The RED dashboards also target the wrong metric names.** Their
+   queries match OTel-semantic-convention names
+   (`http_server_request_duration_seconds_*` and siblings) — this app
+   emits Micrometer's own default HTTP timer names instead
+   (`http_server_requests_milliseconds_count/sum/bucket`, labels
+   `uri`/`method`/`status`/`outcome`/`error`/`exception`), because
+   `spring-boot-starter-opentelemetry` bridges Micrometer meters as-is
+   rather than translating them to semconv names. Fixing only the
+   `instance`→`service_name` filter would still have left these panels
+   empty. (The JVM dashboard's queries already tried both semconv *and*
+   Micrometer-style alternate names via regex, so its JVM panels — not
+   its embedded RED panels — worked once `instance` was fixed; the
+   *dashboard itself* was still replaced wholesale, see below.)
+
+**Decision**: hand-built two replacement dashboards from scratch, rather
+than patch the shipped ones or import another community dashboard
+sight-unseen, because a candidate would need to already assume
+`service_name`-keyed OTLP-push *and* Micrometer's `http_server_requests_*`
+naming — an unlikely combination to find pre-built. New files:
+`knowly-api/observability/grafana/dashboards/knowly-red-metrics.json`
+(request rate, 5xx error rate, p50/p95 duration by URI, requests-by-URI
+table) and `knowly-api/observability/grafana/dashboards/knowly-jvm-overview.json`
+(heap/non-heap memory, live/daemon threads, GC pause rate, classes
+loaded, process CPU) — both templated on a `$service_name` variable
+(multi-select, defaults to all), verified live against the running stack
+by querying each panel's interpolated PromQL through Grafana's
+datasource-proxy API and confirming non-empty `result`.
+
+Provisioned via
+`knowly-api/observability/grafana/provisioning/dashboards/knowly-dashboards.yaml`,
+which **overrides** (not appends to) the image's baked-in provisioning
+file via a read-only bind mount at the same in-container path
+(`compose.yaml`'s `grafana-lgtm` service) — this is the first
+config/provisioning bind mount for this service; it's read-only,
+config-only (not data), so doesn't conflict with the named-volumes-only
+rule that applies to persisted data. The 3 original dashboards are gone
+from Grafana's dashboard list (confirmed via `/api/search`), not left
+alongside as dead entries.
+
 ## `design-system-consistency-pass`: `SharedListComponent` gains an optional server-pagination mode, not a second component (Tier 2, 2026-08-05)
 
 **Decision**: `SharedListComponent` (`knowly-app/src/app/shared/shared-list/`)

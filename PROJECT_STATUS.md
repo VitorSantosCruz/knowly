@@ -1134,7 +1134,19 @@ rule.
   receives real `knowly` metrics/traces/logs once `./mvnw spring-boot:run`
   is up — see `observability-stack` in the feature table above and
   `specify/features/observability-stack/`. Local dev only; not
-  production-ready (no auth in front of Grafana, no TLS).
+  production-ready (no auth in front of Grafana, no TLS). **Dashboards
+  (2026-08-05)**: the image's 3 baked-in default dashboards (RED
+  classic/native histogram, JVM Overview) are permanently "No data" for
+  this stack — they assume Prometheus scrape (`$instance` label, which
+  OTLP push never populates) and, for the RED ones, OTel-semconv metric
+  names this app doesn't emit (it emits Micrometer's own
+  `http_server_requests_milliseconds_*`). Replaced with 2 hand-built
+  `service_name`-keyed dashboards provisioned from
+  `knowly-api/observability/grafana/dashboards/` (bind-mounted
+  read-only, overriding the image's own provisioning file) — see
+  `DECISIONS.md`'s "Replaced grafana-lgtm's default dashboards" entry
+  and `specify/features/observability-stack/PLAN.md`'s follow-up
+  section for the full root-cause and live-verification detail.
 - **Resolved (2026-08-04) — was misdiagnosed as an AWS SDK regression,
   actually a missing-env-var doc gap**: a fresh `./mvnw spring-boot:run`
   previously appeared to fail at startup with a `403 Forbidden` from
