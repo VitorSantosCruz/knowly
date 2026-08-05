@@ -2250,6 +2250,51 @@ later as a fix. If a genuinely new case seems to need physical deletion
 (e.g. purging encrypted PII past a legal retention window), that is Tier 3 —
 stop and ask, don't assume it's an exception to this rule.
 
+### Local observability stack: grafana-lgtm + OTLP push, Logback bridge for logs (2026-08-04)
+
+The app owner approved, as an already-cleared Tier 3 decision (new
+external dependencies), a full local observability stack: Prometheus +
+Loki + Tempo + Grafana for `knowly-api`. This entry records the choices
+already made, same style as the PrimeNG entry above. **What was
+discovered already in place, undocumented**, before any code changed
+for this: `compose.yaml`'s `grafana-lgtm` service
+(`grafana/otel-lgtm:0.29.2`, a single image bundling Grafana +
+Prometheus + Loki + Tempo + an OTel Collector, `127.0.0.1:3000` for the
+Grafana UI, `127.0.0.1:4317`/`4318` for OTLP ingest) and
+`spring-boot-starter-opentelemetry` in `pom.xml` — real `knowly` metrics
+and traces were already flowing to Prometheus/Tempo, confirmed live via
+Grafana's own datasource proxy. **Why `grafana-lgtm` over separate
+Prometheus/Loki/Tempo/Grafana containers**: it's a single image with
+datasources and cross-links (Loki→Tempo trace-id derived field,
+Prometheus exemplars→Tempo) already provisioned out of the box — no
+hand-written provisioning YAML needed, less compose surface area to
+maintain for a local-dev-only stack. **Why OTLP push (not Prometheus
+pull-scrape) for metrics**: `spring-boot-starter-opentelemetry` already
+defaults to pushing OTLP metrics/traces; adding a scrape config would be
+a second, redundant path to the same data (`micrometer-registry-prometheus`
+is present in `pom.xml` but currently unused/vestigial — not removed by
+this decision, but don't build new pull-scrape config against it without
+first checking whether OTLP push already covers the need). **Why a
+Logback OTel appender for logs, not Promtail**: `knowly-api` isn't
+containerized in local dev (`./mvnw spring-boot:run` against a
+compose-only infra stack), so there's no container log stream for
+Promtail to tail; a Logback appender
+(`io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0`,
+version-pinned against `opentelemetry-api-incubator:1.62.0-alpha` to
+match the SDK version Spring Boot's own dependency management fixes —
+see `specify/features/observability-stack/PLAN.md` for the real
+`NoClassDefFoundError` this mismatch caused) keeps every signal
+(metrics, traces, logs) on the same OTLP push path, sharing the same
+`OpenTelemetry` SDK instance and resource attributes. **Applies to new
+decisions**: don't introduce a second metrics/logs/traces backend
+(another Prometheus, another Loki, an OTel Collector config file) for
+any future observability need in this repo — extend `grafana-lgtm`'s
+usage (new dashboards, new log fields via `captureMdcAttributes`, new
+spans) instead. This is a **local-dev-only** stack — no auth in front
+of Grafana, no TLS, no retention tuning; do not treat it as
+production-ready or extend it externally without a fresh Tier 3
+conversation.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

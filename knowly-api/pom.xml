@@ -140,6 +140,31 @@
 			<artifactId>micrometer-registry-otlp</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- Bridges Logback -> the OTel SDK's LoggerProvider (already configured/exported by
+		     spring-boot-starter-opentelemetry for metrics/traces) so application logs are also
+		     pushed via OTLP to the grafana-lgtm stack's Loki, not just metrics/traces — see
+		     specify/features/observability-stack/PLAN.md and DECISIONS.md. Spring Boot's own
+		     OpenTelemetry starter has no auto-configured logging bridge (verified: no
+		     Otlp*Logging*AutoConfiguration class in spring-boot-actuator-autoconfigure:4.1.0),
+		     so this dependency + OpenTelemetryLogbackConfig (installs the appender
+		     programmatically against the app's real OpenTelemetry bean) is required. -->
+		<dependency>
+			<groupId>io.opentelemetry.instrumentation</groupId>
+			<artifactId>opentelemetry-logback-appender-1.0</artifactId>
+			<version>2.29.0-alpha</version>
+		</dependency>
+		<!-- Pinned to match the opentelemetry-sdk-logs:1.62.0 version Spring Boot's dependency
+		     management already fixes (see spring-boot-starter-opentelemetry above) -the
+		     appender's own transitive opentelemetry-instrumentation-api:2.29.0 otherwise pulls
+		     opentelemetry-api-incubator:1.63.0-alpha, one minor ahead, and 1.62.0's
+		     ExtendedSdkLogRecordBuilder references a class shape that jar doesn't have,
+		     surfacing as a NoClassDefFoundError on the very first log line at runtime (verified:
+		     reproduced via KnowlyApplicationTests#contextLoads before this pin was added). -->
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-api-incubator</artifactId>
+			<version>1.62.0-alpha</version>
+		</dependency>
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>

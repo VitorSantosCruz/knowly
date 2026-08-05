@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Adds an OpenTelemetryAppender alongside Spring Boot's default console appender so every
+  application log line is also pushed via OTLP to the grafana-lgtm stack's Loki -the same
+  backend metrics (Prometheus, via micrometer-registry-otlp) and traces (Tempo, via
+  micrometer-tracing-bridge-otel) already flow to. See
+  specify/features/observability-stack/PLAN.md and DECISIONS.md for why this is a Logback
+  appender (installed programmatically by OpenTelemetryLogbackConfig once the real
+  io.opentelemetry.api.OpenTelemetry bean exists) rather than a Promtail/file-tailing setup:
+  the app isn't containerized in local dev (it runs via `./mvnw spring-boot:run` against the
+  compose-only infra stack), so there's no container log stream for Promtail to tail, and this
+  keeps every telemetry signal on the same push based OTLP path.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml" />
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+
+    <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+        <captureExperimentalAttributes>true</captureExperimentalAttributes>
+        <captureMdcAttributes>traceId,tenantId,actorUserId</captureMdcAttributes>
+        <captureCodeAttributes>true</captureCodeAttributes>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="OTEL" />
+    </root>
+</configuration>
