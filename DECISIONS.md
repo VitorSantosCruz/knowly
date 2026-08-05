@@ -2350,6 +2350,28 @@ row's own click binding — noted here since it's a subtle
 event-bubbling interaction the PLAN's text didn't spell out, not a
 deviation from the PLAN's intent.
 
+**A second necessary extension, found while implementing Group 3
+(members-page's own-row swap, REQ-10)**: `SharedListRowAction`'s
+`rowActions()` input is one flat array, rendered identically for every
+row (`@for (action of rowActions(); ...)`) — there was no way to
+express "this action doesn't apply to *this specific* row" before this,
+only the existing per-row `disabled(row)`/`disabledReasonKey(row)`
+(which still *shows* the button, just inert). REQ-10 needs the
+viewer's own row to *omit* edit and delete entirely and show a
+different "my profile" action instead — genuinely per-row, unlike
+`select-tenant-page`'s all-or-nothing delete-action visibility (where
+PLAN explicitly declined to add a hidden flag, since a `computed()`
+returning an empty array already covers "all rows or none"). Added a
+`hidden?: (row: T) => boolean` predicate to `SharedListRowAction`,
+mirroring the shape of `disabled`, filtered per-row via a new
+`visibleRowActions(row)` method in the template. `members-page`'s
+`rowActions` is now one array of three actions (edit, delete, my
+profile) where each entry's `hidden` predicate decides whether it
+shows for a given row (edit/delete hidden when `row.userId ===
+ownUserId()`, my-profile hidden otherwise) — this is what makes a truly
+per-row action set possible from one shared, flat input, without
+forking the column/action config per row.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
