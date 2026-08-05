@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTransloco } from '@jsverse/transloco';
-import { LucideSquarePen, LucideTrash2 } from '@lucide/angular';
+import { LucideSquarePen, LucideTrash } from '@lucide/angular';
 import { SharedListComponent } from './shared-list.component';
 import {
   SharedListColumn,
@@ -221,7 +221,7 @@ describe('SharedListComponent', () => {
         onClick: () => undefined,
       },
       {
-        icon: LucideTrash2,
+        icon: LucideTrash,
         labelKey: 'sharedList.actions.delete',
         variant: 'danger',
         disabled: (row) => row.role === 'ADMIN',
