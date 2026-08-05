@@ -463,7 +463,7 @@ public class UserProfileService {
         UserProfile profile = requireUserProfile(user);
         Address address = addressRepository.findById(user.getId()).orElse(null);
         List<ContactDto> contacts =
-                contactRepository.findByUser(user).stream()
+                contactRepository.findByUserAndDeletedAtIsNull(user).stream()
                         .map(
                                 contact ->
                                         new ContactDto(

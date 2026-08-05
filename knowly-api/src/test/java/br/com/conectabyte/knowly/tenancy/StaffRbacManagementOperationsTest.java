@@ -48,6 +48,10 @@ class StaffRbacManagementOperationsTest {
     @Autowired private AuditEventRepository auditEventRepository;
     @Autowired private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private br.com.conectabyte.knowly.identity.ProfileEditRequestRepository
+            profileEditRequestRepository;
+
     @AfterEach
     void cleanUp() {
         SecurityContextHolder.clearContext();
@@ -90,7 +94,9 @@ class StaffRbacManagementOperationsTest {
      * admin that already has {@code AuditEvent} rows referencing it as actor.
      */
     private void resetAllStaffAdminsToStaff() {
-        userRepository.findByGlobalRoleIn(List.of(GlobalRole.STAFF_ADMIN)).stream()
+        userRepository
+                .findByGlobalRoleInAndDeletedAtIsNull(List.of(GlobalRole.STAFF_ADMIN))
+                .stream()
                 .forEach(
                         user -> {
                             user.setGlobalRole(GlobalRole.STAFF);
@@ -225,7 +231,32 @@ class StaffRbacManagementOperationsTest {
 
         staffService.deleteStaffUser(target.getId(), word);
 
-        assertThat(userRepository.findById(target.getId())).isEmpty();
+        // Logical delete (2026-08-04): the row stays, marked deletedAt, rather than being removed.
+        assertThat(userRepository.findById(target.getId())).isPresent();
+        assertThat(userRepository.findById(target.getId()).orElseThrow().getDeletedAt())
+                .isNotNull();
+    }
+
+    @Test
+    void deletionCancelsAnyPendingProfileEditRequestFromTheTarget() {
+        // A pending request to edit a profile that no longer effectively exists makes no sense
+        // to leave outstanding -- logical-delete-everywhere (2026-08-04).
+        User caller = staffAdmin("delete-cancels-request-caller@example.com");
+        User target = limitedStaff("delete-cancels-request-target@example.com");
+        var request =
+                profileEditRequestRepository.saveAndFlush(
+                        new br.com.conectabyte.knowly.identity.ProfileEditRequest(target));
+        authenticateAs(caller.getEmail());
+        String word =
+                deletionConfirmationTokenService.generate(
+                        "staff-user", target.getId().toString(), caller, null);
+
+        staffService.deleteStaffUser(target.getId(), word);
+
+        var reloaded = profileEditRequestRepository.findById(request.getId()).orElseThrow();
+        assertThat(reloaded.getStatus())
+                .isEqualTo(br.com.conectabyte.knowly.identity.ProfileEditRequestStatus.CANCELLED);
+        assertThat(reloaded.getResolvedAt()).isNotNull();
     }
 
     @Test
@@ -260,7 +291,10 @@ class StaffRbacManagementOperationsTest {
                         "staff-user", plainStaff.getId().toString(), caller, null);
         staffService.deleteStaffUser(plainStaff.getId(), wordForStaff);
 
-        assertThat(userRepository.findById(plainStaff.getId())).isEmpty();
+        // Logical delete (2026-08-04): the row stays, marked deletedAt, rather than being removed.
+        assertThat(userRepository.findById(plainStaff.getId())).isPresent();
+        assertThat(userRepository.findById(plainStaff.getId()).orElseThrow().getDeletedAt())
+                .isNotNull();
     }
 
     @Test
@@ -358,9 +392,12 @@ class StaffRbacManagementOperationsTest {
                         "staff-permission-batch", target.getId().toString(), caller, null);
         staffService.batchUpdatePermissions(target.getId(), Set.of(), word);
 
+        // Logical delete (2026-08-04): revoking sets deletedAt rather than removing the row, so
+        // it must be excluded from the not-deleted finder used by permission resolution/listing.
         assertThat(
-                        directGlobalPermissionGrantRepository.findByUserAndPermission(
-                                target, GlobalPermission.TENANT_CREATE))
+                        directGlobalPermissionGrantRepository
+                                .findByUserAndPermissionAndDeletedAtIsNull(
+                                        target, GlobalPermission.TENANT_CREATE))
                 .isEmpty();
     }
 

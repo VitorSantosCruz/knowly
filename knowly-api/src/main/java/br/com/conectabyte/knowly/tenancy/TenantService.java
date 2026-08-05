@@ -1,5 +1,6 @@
 package br.com.conectabyte.knowly.tenancy;
 
+import br.com.conectabyte.knowly.article.ArticleRepository;
 import br.com.conectabyte.knowly.audit.AuditEvent;
 import br.com.conectabyte.knowly.audit.AuditEventWriter;
 import br.com.conectabyte.knowly.audit.AuditLog;
@@ -7,6 +8,7 @@ import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.audit.RequiresGlobalPermission;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.conversation.ConversationRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.identity.ProfileCompletenessService;
@@ -59,6 +61,8 @@ public class TenantService {
     private final UserProfileRepository userProfileRepository;
     private final UserProfileService userProfileService;
     private final ProfileCompletenessService profileCompletenessService;
+    private final ArticleRepository articleRepository;
+    private final ConversationRepository conversationRepository;
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
     private final AuditEventWriter auditEventWriter;
 
@@ -83,6 +87,8 @@ public class TenantService {
             UserProfileRepository userProfileRepository,
             UserProfileService userProfileService,
             ProfileCompletenessService profileCompletenessService,
+            ArticleRepository articleRepository,
+            ConversationRepository conversationRepository,
             DeletionConfirmationTokenService deletionConfirmationTokenService,
             AuditEventWriter auditEventWriter) {
         this.tenantRepository = tenantRepository;
@@ -98,6 +104,8 @@ public class TenantService {
         this.userProfileRepository = userProfileRepository;
         this.userProfileService = userProfileService;
         this.profileCompletenessService = profileCompletenessService;
+        this.articleRepository = articleRepository;
+        this.conversationRepository = conversationRepository;
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
         this.auditEventWriter = auditEventWriter;
     }
@@ -316,7 +324,9 @@ public class TenantService {
     public Tenant createTenant(User actor, CreateTenantRequestDto request) {
         requireStaff(actor, GlobalPermission.TENANT_CREATE);
 
-        if (userRepository.findByEmailIgnoreCase(request.adminEmail()).isPresent()) {
+        if (userRepository
+                .findByEmailIgnoreCaseAndDeletedAtIsNull(request.adminEmail())
+                .isPresent()) {
             throw new TenantAlreadyExistsException();
         }
 
@@ -450,11 +460,13 @@ public class TenantService {
 
     /**
      * tenant-crud REQ-8/REQ-9/REQ-10/REQ-14/REQ-16: soft-deletes the tenant and, atomically in the
-     * same transaction, deactivates every one of its currently-active memberships (REQ-9) via a
-     * bulk update rather than a per-row loop (REQ-18: no volume-based blocking, must stay cheap
-     * regardless of membership count). {@code Article}/{@code Conversation}/{@code AccessGroup}/
-     * permission-grant rows are untouched by construction (REQ-10) -- nothing here reaches those
-     * tables.
+     * same transaction, deactivates every one of its currently-active memberships (REQ-9), and
+     * (2026-08-04 product decision superseding REQ-10's original "untouched by construction")
+     * cascades to every one of its still-live {@code Article}s/{@code Conversation}s -- a deleted
+     * tenant's own resources no longer make sense to keep live. {@code AccessGroup}/permission-
+     * grant rows are still untouched -- unreachable either way once the membership they hang off is
+     * deactivated. All three cascades are bulk updates, not a per-row loop (REQ-18: no volume-based
+     * blocking, must stay cheap regardless of row count).
      */
     @Transactional
     @RequiresGlobalPermission(GlobalPermission.TENANT_DELETE)
@@ -472,11 +484,13 @@ public class TenantService {
         }
 
         tenant.setDeletedAt(Instant.now());
-        // saveAndFlush, not save: deactivateAllByTenant below clears the persistence context
+        // saveAndFlush, not save: the bulk updates below clear the persistence context
         // (@Modifying(clearAutomatically = true)) -- this write must be flushed to the DB first or
         // it would be silently discarded by that clear rather than committed.
         tenantRepository.saveAndFlush(tenant);
         tenantMembershipRepository.deactivateAllByTenant(tenant);
+        articleRepository.deactivateAllByTenant(tenantId);
+        conversationRepository.softDeleteAllByTenant(tenantId);
     }
 
     /**
@@ -514,7 +528,7 @@ public class TenantService {
 
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
-        Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
+        Optional<User> existingUser = userRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email);
         requireNotSelfTarget(actor, existingUser.map(User::getId).orElse(null));
         boolean userAlreadyExisted = existingUser.isPresent();
         User user = existingUser.orElseGet(() -> createUserWithProfile(email, profile));
@@ -523,6 +537,9 @@ public class TenantService {
                 tenantMembershipRepository
                         .findByUserAndTenant(user, tenant)
                         .orElseGet(() -> new TenantMembership(user, tenant, resolvedRole));
+        // Reactivates a previously hard-deleted membership (deletedAt, distinct from active)
+        // instead of leaving it marked gone -- logical-delete-everywhere (2026-08-04).
+        membership.setDeletedAt(null);
         membership.setRole(resolvedRole);
 
         if (userAlreadyExisted) {
@@ -587,12 +604,12 @@ public class TenantService {
                         .orElseThrow(TenantAccessDeniedException::new);
         requireNotSelfTarget(actor, membership.getUser().getId());
         rejectAdminTarget(membership);
-        directPermissionGrantRepository
-                .findByTenantMembershipAndPermission(membership, permission)
-                .orElseGet(
-                        () ->
-                                directPermissionGrantRepository.save(
-                                        new DirectPermissionGrant(membership, permission)));
+        DirectPermissionGrant grant =
+                directPermissionGrantRepository
+                        .findByTenantMembershipAndPermission(membership, permission)
+                        .orElseGet(() -> new DirectPermissionGrant(membership, permission));
+        grant.setDeletedAt(null);
+        directPermissionGrantRepository.save(grant);
     }
 
     /** REQ-20: generation endpoint reuses the exact same guard as {@link #revokePermission}. */
@@ -637,7 +654,11 @@ public class TenantService {
         rejectAdminTarget(membership);
         directPermissionGrantRepository
                 .findByTenantMembershipAndPermission(membership, permission)
-                .ifPresent(directPermissionGrantRepository::delete);
+                .ifPresent(
+                        grant -> {
+                            grant.setDeletedAt(java.time.Instant.now());
+                            directPermissionGrantRepository.save(grant);
+                        });
     }
 
     private String permissionResourceId(Long membershipId, Permission permission) {
@@ -700,12 +721,12 @@ public class TenantService {
                         .findById(accessGroupId)
                         .orElseThrow(TenantAccessDeniedException::new);
 
-        userAccessGroupRepository
-                .findByTenantMembershipAndAccessGroup(membership, accessGroup)
-                .orElseGet(
-                        () ->
-                                userAccessGroupRepository.save(
-                                        new UserAccessGroup(membership, accessGroup)));
+        UserAccessGroup assignment =
+                userAccessGroupRepository
+                        .findByTenantMembershipAndAccessGroup(membership, accessGroup)
+                        .orElseGet(() -> new UserAccessGroup(membership, accessGroup));
+        assignment.setDeletedAt(null);
+        userAccessGroupRepository.save(assignment);
     }
 
     /** REQ-9/16: list a tenant's active members — admin (own tenant) or staff only. */
@@ -744,11 +765,15 @@ public class TenantService {
                         .orElseThrow(TenantAccessDeniedException::new);
 
         List<Permission> direct =
-                directPermissionGrantRepository.findByTenantMembership(membership).stream()
+                directPermissionGrantRepository
+                        .findByTenantMembershipAndDeletedAtIsNull(membership)
+                        .stream()
                         .map(DirectPermissionGrant::getPermission)
                         .toList();
         List<AccessGroupDto> groups =
-                userAccessGroupRepository.findByTenantMembership(membership).stream()
+                userAccessGroupRepository
+                        .findByTenantMembershipAndDeletedAtIsNull(membership)
+                        .stream()
                         .map(UserAccessGroup::getAccessGroup)
                         .map(AccessGroupDto::from)
                         .toList();
@@ -819,7 +844,11 @@ public class TenantService {
 
         userAccessGroupRepository
                 .findByTenantMembershipAndAccessGroup(membership, accessGroup)
-                .ifPresent(userAccessGroupRepository::delete);
+                .ifPresent(
+                        assignment -> {
+                            assignment.setDeletedAt(java.time.Instant.now());
+                            userAccessGroupRepository.save(assignment);
+                        });
     }
 
     /**
@@ -881,10 +910,15 @@ public class TenantService {
     }
 
     /**
-     * REQ-7/8/10/11: hard delete, requires a valid deletion-confirmation token, rejects self-target
-     * and the last {@code MEMBER_ADMIN} in the tenant (locked count); never blocked for a plain
-     * {@code MEMBER} target (including a tenant's lone {@code MEMBER}). Dependent grant/group rows
-     * are removed by the existing {@code ON DELETE CASCADE} FK (PLAN.md's "Data schema").
+     * REQ-7/8/10/11: logical delete (2026-08-04 standing decision: no destructive operation in the
+     * system may physically remove a row) via {@code deletedAt}, distinct from the plain-removal
+     * {@code active} flag {@link #removeMember} already uses -- requires a valid deletion-
+     * confirmation token, rejects self-target and the last {@code MEMBER_ADMIN} in the tenant
+     * (locked count); never blocked for a plain {@code MEMBER} target (including a tenant's lone
+     * {@code MEMBER}). Dependent {@code DirectPermissionGrant}/{@code UserAccessGroup} rows are
+     * left as-is -- every permission-resolution read already filters {@code deletedAt IS NULL} on
+     * the grant/assignment itself, and a {@code deletedAt}-marked membership is excluded from every
+     * membership listing/lookup, so they're unreachable either way.
      */
     @Transactional
     @AuditLog(
@@ -905,7 +939,9 @@ public class TenantService {
             requireNotLastMemberAdmin(tenantId, membershipId);
         }
 
-        tenantMembershipRepository.delete(membership);
+        membership.setActive(false);
+        membership.setDeletedAt(java.time.Instant.now());
+        tenantMembershipRepository.save(membership);
     }
 
     /**
@@ -961,7 +997,9 @@ public class TenantService {
 
         Set<Permission> current =
                 new HashSet<>(
-                        directPermissionGrantRepository.findByTenantMembership(membership).stream()
+                        directPermissionGrantRepository
+                                .findByTenantMembershipAndDeletedAtIsNull(membership)
+                                .stream()
                                 .map(DirectPermissionGrant::getPermission)
                                 .toList());
         Set<Permission> submitted = permissions == null ? Set.of() : permissions;
@@ -981,14 +1019,23 @@ public class TenantService {
         }
 
         for (Permission permission : added) {
-            directPermissionGrantRepository.save(new DirectPermissionGrant(membership, permission));
+            DirectPermissionGrant grant =
+                    directPermissionGrantRepository
+                            .findByTenantMembershipAndPermission(membership, permission)
+                            .orElseGet(() -> new DirectPermissionGrant(membership, permission));
+            grant.setDeletedAt(null);
+            directPermissionGrantRepository.save(grant);
             writeBatchAuditEvent(actor, tenantId, membershipId, "grant", permission);
         }
 
         for (Permission permission : removed) {
             directPermissionGrantRepository
                     .findByTenantMembershipAndPermission(membership, permission)
-                    .ifPresent(directPermissionGrantRepository::delete);
+                    .ifPresent(
+                            grant -> {
+                                grant.setDeletedAt(java.time.Instant.now());
+                                directPermissionGrantRepository.save(grant);
+                            });
             writeBatchAuditEvent(actor, tenantId, membershipId, "revoke", permission);
         }
     }

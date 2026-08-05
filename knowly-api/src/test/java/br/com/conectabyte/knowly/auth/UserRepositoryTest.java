@@ -92,7 +92,7 @@ class UserRepositoryTest {
         userRepository.saveAndFlush(new User("plain-role-search@example.com"));
 
         List<User> found =
-                userRepository.findByGlobalRoleIn(
+                userRepository.findByGlobalRoleInAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN));
 
         assertThat(found)
@@ -114,7 +114,7 @@ class UserRepositoryTest {
         userRepository.saveAndFlush(staffOther);
 
         List<User> found =
-                userRepository.findByGlobalRoleInAndEmailContainingIgnoreCase(
+                userRepository.findByGlobalRoleInAndEmailContainingIgnoreCaseAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN), "findme-substring");
 
         assertThat(found)
@@ -125,7 +125,7 @@ class UserRepositoryTest {
     @Test
     void returnsEmptyWhenNoUserMatchesGlobalRoleAndEmailSubstring() {
         List<User> found =
-                userRepository.findByGlobalRoleInAndEmailContainingIgnoreCase(
+                userRepository.findByGlobalRoleInAndEmailContainingIgnoreCaseAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN), "no-such-user-xyz");
 
         assertThat(found).isEmpty();
@@ -134,7 +134,7 @@ class UserRepositoryTest {
     @Test
     void countsOnlyStaffAndStaffAdminRolesAndExcludesUsersWithNoGlobalRole() {
         long baseline =
-                userRepository.countByGlobalRoleIn(
+                userRepository.countByGlobalRoleInAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN));
 
         User staff = new User("staff-count@example.com");
@@ -148,7 +148,7 @@ class UserRepositoryTest {
         userRepository.saveAndFlush(new User("plain-count@example.com"));
 
         long count =
-                userRepository.countByGlobalRoleIn(
+                userRepository.countByGlobalRoleInAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN));
 
         assertThat(count).isEqualTo(baseline + 2);
@@ -156,7 +156,7 @@ class UserRepositoryTest {
 
     @Test
     void countByGlobalRoleInReturnsZeroForAnEmptyRoleList() {
-        long count = userRepository.countByGlobalRoleIn(List.of());
+        long count = userRepository.countByGlobalRoleInAndDeletedAtIsNull(List.of());
 
         assertThat(count).isZero();
     }

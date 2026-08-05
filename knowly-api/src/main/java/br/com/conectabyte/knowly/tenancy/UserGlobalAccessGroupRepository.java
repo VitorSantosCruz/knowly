@@ -8,8 +8,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface UserGlobalAccessGroupRepository
         extends JpaRepository<UserGlobalAccessGroup, Long> {
 
-    List<UserGlobalAccessGroup> findByUser(User user);
+    List<UserGlobalAccessGroup> findByUserAndDeletedAtIsNull(User user);
 
+    /** Used only by assignment-resolution/listing reads -- excludes unassigned rows. */
+    Optional<UserGlobalAccessGroup> findByUserAndGlobalAccessGroupAndDeletedAtIsNull(
+            User user, GlobalAccessGroup globalAccessGroup);
+
+    /**
+     * Used only by the assign/unassign write path, regardless of current deleted state, so an
+     * unassigned-then-reassigned group reactivates the existing row instead of colliding with the
+     * partial unique index -- logical-delete-everywhere (2026-08-04).
+     */
     Optional<UserGlobalAccessGroup> findByUserAndGlobalAccessGroup(
             User user, GlobalAccessGroup globalAccessGroup);
 }

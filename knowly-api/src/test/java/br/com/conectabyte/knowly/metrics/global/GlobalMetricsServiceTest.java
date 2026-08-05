@@ -129,7 +129,7 @@ class GlobalMetricsServiceTest {
                 tenantRepository.countByCreatedAtGreaterThanEqual(START_OF_CURRENT_UTC_MONTH);
         long articlesReadBaseline = messageArticleCitationRepository.count();
         long staffCountBaseline =
-                userRepository.countByGlobalRoleIn(
+                userRepository.countByGlobalRoleInAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN));
 
         staffAdmin("global-metrics-actor@example.com");

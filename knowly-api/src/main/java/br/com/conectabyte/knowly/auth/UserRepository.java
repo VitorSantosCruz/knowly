@@ -14,22 +14,29 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmailIgnoreCase(String email);
 
-    List<User> findByGlobalRoleIn(List<GlobalRole> globalRoles);
+    /**
+     * Used by existence/uniqueness checks (invite dedup, staff creation) so a soft-deleted user's
+     * email is treated as available for reuse -- logical-delete-everywhere (2026-08-04).
+     */
+    Optional<User> findByEmailIgnoreCaseAndDeletedAtIsNull(String email);
 
-    List<User> findByGlobalRoleInAndEmailContainingIgnoreCase(
+    List<User> findByGlobalRoleInAndDeletedAtIsNull(List<GlobalRole> globalRoles);
+
+    List<User> findByGlobalRoleInAndEmailContainingIgnoreCaseAndDeletedAtIsNull(
             List<GlobalRole> globalRoles, String email);
 
-    long countByGlobalRoleIn(List<GlobalRole> globalRoles);
+    long countByGlobalRoleInAndDeletedAtIsNull(List<GlobalRole> globalRoles);
 
     /**
      * specify/features/staff-rbac-management-operations/PLAN.md: pessimistic write lock over every
      * user of {@code role}, used by demote/delete-{@code STAFF_ADMIN} to close the TOCTOU window on
      * the last-admin floor check -- locks every current holder (including the target), so a second
      * concurrent demote/delete against a different "last remaining" admin blocks until the first
-     * transaction commits/rolls back.
+     * transaction commits/rolls back. Excludes soft-deleted users (logical-delete-everywhere,
+     * 2026-08-04) -- a deleted admin no longer occupies a floor-check seat.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from User u where u.globalRole = :role")
+    @Query("select u from User u where u.globalRole = :role and u.deletedAt is null")
     List<User> findByGlobalRoleForUpdate(GlobalRole role);
 
     long countByGlobalRoleInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(

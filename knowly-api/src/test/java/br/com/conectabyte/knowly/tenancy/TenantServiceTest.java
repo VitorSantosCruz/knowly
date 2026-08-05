@@ -4,10 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.article.Article;
+import br.com.conectabyte.knowly.article.ArticleRepository;
 import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.conversation.Conversation;
+import br.com.conectabyte.knowly.conversation.ConversationRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.identity.ContactType;
 import br.com.conectabyte.knowly.identity.dto.ContactDto;
@@ -62,6 +66,8 @@ class TenantServiceTest {
     @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
     @Autowired private DirectPermissionGrantRepository directPermissionGrantRepository;
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
+    @Autowired private ArticleRepository articleRepository;
+    @Autowired private ConversationRepository conversationRepository;
 
     private String memberRemovalWord(User actor, Long membershipId) {
         return deletionConfirmationTokenService.generate(
@@ -1311,6 +1317,34 @@ class TenantServiceTest {
         assertThat(persisted.getDeletedAt()).isNotNull();
         assertThat(tenantMembershipRepository.findById(membership.getId()))
                 .hasValueSatisfying(m -> assertThat(m.isActive()).isFalse());
+    }
+
+    @Test
+    void deleteTenantCascadesToItsOwnArticlesAndConversations() {
+        // 2026-08-04 product decision superseding tenant-crud REQ-10's original "untouched by
+        // construction": a deleted tenant's own resources no longer make sense to keep live.
+        User staff = staffAdmin("delete-cascade@example.com");
+        authenticateAs("delete-cascade@example.com");
+        tenantContext.setStaff(true);
+        tenantContext.setStaffAdmin(true);
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Cascade Co"));
+        User owner = userRepository.saveAndFlush(new User("delete-cascade-owner@example.com"));
+        Article article =
+                articleRepository.saveAndFlush(
+                        new Article(tenant, "Cascade Article", "key", "file.txt", "text/plain"));
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner));
+        String word = tenantDeletionWord(staff, tenant.getId());
+
+        tenantService.deleteTenant(staff, tenant.getId(), word);
+
+        assertThat(articleRepository.findById(article.getId()).orElseThrow().isActive()).isFalse();
+        assertThat(
+                        conversationRepository
+                                .findById(conversation.getId())
+                                .orElseThrow()
+                                .getDeletedAt())
+                .isNotNull();
     }
 
     @Test

@@ -54,7 +54,7 @@ public class ProfileCompletenessService {
             return false;
         }
 
-        return contactRepository.countByUser(user) > 0;
+        return contactRepository.countByUserAndDeletedAtIsNull(user) > 0;
     }
 
     private boolean isBlank(String value) {

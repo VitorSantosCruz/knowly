@@ -64,6 +64,10 @@ public class Address {
     @Column(name = "country_code", nullable = false, length = 2)
     private String countryCode;
 
+    /** Set alongside the owning {@link User}'s own deletedAt (2026-08-04 standing decision). */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

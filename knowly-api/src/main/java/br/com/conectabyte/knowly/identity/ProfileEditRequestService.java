@@ -270,7 +270,7 @@ public class ProfileEditRequestService {
         }
 
         for (User staff :
-                userRepository.findByGlobalRoleIn(
+                userRepository.findByGlobalRoleInAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF_ADMIN, GlobalRole.STAFF))) {
             if (staff.getGlobalRole() == GlobalRole.STAFF_ADMIN
                     || globalPermissionService.hasPermission(

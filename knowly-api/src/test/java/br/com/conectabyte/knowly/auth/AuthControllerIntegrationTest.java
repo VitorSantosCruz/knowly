@@ -172,6 +172,33 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
+    void verifyCodeForASoftDeletedUserIsRejectedLikeInvalidCredentials() throws Exception {
+        // Logical-delete-everywhere (2026-08-04): a soft-deleted account must never get a
+        // session -- found live when the fix that made staff-user deletion actually work
+        // (previously 500'd) surfaced this as the next thing to get right.
+        User user = userRepository.saveAndFlush(new User("code-deleted@example.com"));
+        user.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(user);
+        String code = loginCodeService.generate("code-deleted@example.com");
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        var result =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"code-deleted@example.com\",\"code\":\""
+                                        + code
+                                        + "\"}")
+                        .exchange();
+
+        assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(result.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                .noneMatch(header -> header.contains("SESSION"));
+    }
+
+    @Test
     void locksOutAfterThreeWrongCodeAttemptsEvenForANonExistingEmail() {
         String email = "code-lockout@example.com";
         String body = "{\"email\":\"" + email + "\",\"code\":\"000000\"}";

@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,10 +23,13 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+/**
+ * Uniqueness on {@code (user_id, permission)} is enforced by the partial index {@code
+ * ux_direct_global_permission_grants_user_permission} ({@code WHERE deleted_at IS NULL}, V28) --
+ * not a table-level constraint, so a revoked-then-re-granted permission doesn't collide.
+ */
 @Entity
-@Table(
-        name = "direct_global_permission_grants",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "permission"}))
+@Table(name = "direct_global_permission_grants")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -46,6 +48,13 @@ public class DirectGlobalPermissionGrant {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 100)
     private GlobalPermission permission;
+
+    /**
+     * Logical delete (2026-08-04 standing decision) -- revoke sets this instead of deleting the
+     * row; re-granting the same permission reactivates it instead of inserting a duplicate.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

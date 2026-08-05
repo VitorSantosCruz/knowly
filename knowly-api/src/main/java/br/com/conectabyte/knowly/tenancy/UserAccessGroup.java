@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,11 +20,13 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+/**
+ * Uniqueness on {@code (tenant_membership_id, access_group_id)} is enforced by the partial index
+ * {@code ux_user_access_groups_membership_group} ({@code WHERE deleted_at IS NULL}, V28) -- not a
+ * table-level constraint, so unassign-then-reassign doesn't collide.
+ */
 @Entity
-@Table(
-        name = "user_access_groups",
-        uniqueConstraints =
-                @UniqueConstraint(columnNames = {"tenant_membership_id", "access_group_id"}))
+@Table(name = "user_access_groups")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -44,6 +45,13 @@ public class UserAccessGroup {
     @ManyToOne(optional = false)
     @JoinColumn(name = "access_group_id", nullable = false)
     private AccessGroup accessGroup;
+
+    /**
+     * Logical delete (2026-08-04 standing decision) -- unassign sets this instead of deleting the
+     * row; reassigning the same group reactivates it instead of inserting a duplicate.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreatedDate

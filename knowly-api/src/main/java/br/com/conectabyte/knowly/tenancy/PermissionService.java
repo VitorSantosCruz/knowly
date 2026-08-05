@@ -29,12 +29,16 @@ public class PermissionService {
     public Set<Permission> effectivePermissions(TenantMembership membership) {
         Set<Permission> permissions = EnumSet.noneOf(Permission.class);
 
-        directPermissionGrantRepository.findByTenantMembership(membership).stream()
+        directPermissionGrantRepository
+                .findByTenantMembershipAndDeletedAtIsNull(membership)
+                .stream()
                 .map(DirectPermissionGrant::getPermission)
                 .forEach(permissions::add);
 
         List<AccessGroup> groups =
-                userAccessGroupRepository.findByTenantMembership(membership).stream()
+                userAccessGroupRepository
+                        .findByTenantMembershipAndDeletedAtIsNull(membership)
+                        .stream()
                         .map(UserAccessGroup::getAccessGroup)
                         .collect(Collectors.toList());
 

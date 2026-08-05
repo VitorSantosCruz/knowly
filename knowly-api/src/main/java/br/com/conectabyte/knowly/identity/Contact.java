@@ -58,6 +58,13 @@ public class Contact {
     @Column(name = "is_primary", nullable = false)
     private boolean primary;
 
+    /**
+     * Logical delete (2026-08-04 standing decision): {@link ContactService#removeContact} sets this
+     * instead of physically removing the row.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

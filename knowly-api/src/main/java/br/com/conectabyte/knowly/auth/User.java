@@ -50,6 +50,10 @@ public class User {
     @Column(name = "onboarding_completed_at")
     private Instant onboardingCompletedAt;
 
+    /** Logical delete (2026-08-04 standing decision): never physically remove a User row. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

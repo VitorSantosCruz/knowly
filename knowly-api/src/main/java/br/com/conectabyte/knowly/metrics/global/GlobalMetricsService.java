@@ -62,7 +62,7 @@ public class GlobalMetricsService {
                 tenantRepository.countByCreatedAtGreaterThanEqual(startOfCurrentUtcMonth);
         long articlesReadTotal = messageArticleCitationRepository.count();
         long staffCount =
-                userRepository.countByGlobalRoleIn(
+                userRepository.countByGlobalRoleInAndDeletedAtIsNull(
                         List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN));
 
         return new GlobalMetricsDto(
@@ -140,7 +140,10 @@ public class GlobalMetricsService {
                                         userRepository
                                                 .countByGlobalRoleInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
                                                         STAFF_ROLES, start, now))
-                        .orElseGet(() -> userRepository.countByGlobalRoleIn(STAFF_ROLES));
+                        .orElseGet(
+                                () ->
+                                        userRepository.countByGlobalRoleInAndDeletedAtIsNull(
+                                                STAFF_ROLES));
         Long staffWindowPrevious =
                 previousStart
                         .map(

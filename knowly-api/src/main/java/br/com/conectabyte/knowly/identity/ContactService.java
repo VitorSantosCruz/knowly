@@ -41,7 +41,7 @@ public class ContactService {
         String normalizedValue = normalizeIfPhone(type, value);
         validateFormat(type, normalizedValue);
 
-        if (contactRepository.countByUser(user) >= MAX_CONTACTS_PER_USER) {
+        if (contactRepository.countByUserAndDeletedAtIsNull(user) >= MAX_CONTACTS_PER_USER) {
             throw new ContactCapExceededException();
         }
 
@@ -78,8 +78,10 @@ public class ContactService {
         return contactRepository.save(contact);
     }
 
+    /** Logical delete (2026-08-04 standing decision): never physically remove a Contact row. */
     public void removeContact(Contact contact) {
-        contactRepository.delete(contact);
+        contact.setDeletedAt(java.time.Instant.now());
+        contactRepository.save(contact);
     }
 
     /**
@@ -126,7 +128,7 @@ public class ContactService {
     }
 
     private void clearExistingPrimary(User user, ContactType type) {
-        contactRepository.findByUserAndType(user, type).stream()
+        contactRepository.findByUserAndTypeAndDeletedAtIsNull(user, type).stream()
                 .filter(Contact::isPrimary)
                 .forEach(
                         existing -> {

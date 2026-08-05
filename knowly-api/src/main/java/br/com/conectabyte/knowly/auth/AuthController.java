@@ -283,6 +283,12 @@ public class AuthController {
         }
 
         User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        // Logical-delete-everywhere (2026-08-04): a soft-deleted user must never get a session at
+        // all, not merely one with zero authorities -- treat it identically to invalid
+        // credentials rather than falling into the "no such user yet" SelectionPending outcome.
+        if (user != null && user.getDeletedAt() != null) {
+            throw new InvalidCredentialsException();
+        }
         List<GrantedAuthority> authorities = List.of();
         TenantSessionOutcome outcome =
                 user == null

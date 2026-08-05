@@ -48,6 +48,13 @@ public class Conversation {
 
     @Column private String title;
 
+    /**
+     * Set alongside its owning {@link Tenant}'s own deletedAt (2026-08-04 standing decision): a
+     * deleted tenant's own conversations no longer make sense to keep live.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

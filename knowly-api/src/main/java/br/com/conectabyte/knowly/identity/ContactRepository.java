@@ -6,9 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ContactRepository extends JpaRepository<Contact, Long> {
 
-    List<Contact> findByUser(User user);
+    List<Contact> findByUserAndDeletedAtIsNull(User user);
 
-    long countByUser(User user);
+    long countByUserAndDeletedAtIsNull(User user);
 
-    List<Contact> findByUserAndType(User user, ContactType type);
+    List<Contact> findByUserAndTypeAndDeletedAtIsNull(User user, ContactType type);
 }

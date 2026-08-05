@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +16,18 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     Optional<Conversation> findByIdAndOwnerId(Long id, Long ownerId);
 
     long countByTenantId(Long tenantId);
+
+    /**
+     * Cascades a tenant's own {@code deletedAt} to every one of its still-live conversations
+     * (2026-08-04 product decision: a deleted tenant's own resources no longer make sense to keep
+     * live) -- bulk update, not a Java loop, same reasoning as {@code
+     * TenantMembershipRepository#deactivateAllByTenant}.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+            "update Conversation c set c.deletedAt = CURRENT_TIMESTAMP where c.tenant.id ="
+                    + " :tenantId and c.deletedAt is null")
+    void softDeleteAllByTenant(@Param("tenantId") Long tenantId);
 
     long countByTenantIdAndCreatedAtGreaterThanEqual(Long tenantId, Instant from);
 

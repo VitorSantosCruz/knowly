@@ -12,6 +12,10 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
 import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
+import br.com.conectabyte.knowly.identity.AddressRepository;
+import br.com.conectabyte.knowly.identity.ContactRepository;
+import br.com.conectabyte.knowly.identity.ProfileEditRequestRepository;
+import br.com.conectabyte.knowly.identity.ProfileEditRequestStatus;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.identity.UserProfileService;
@@ -52,6 +56,9 @@ public class StaffService {
     private final AuditEventRepository auditEventRepository;
     private final UserProfileRepository userProfileRepository;
     private final UserProfileService userProfileService;
+    private final AddressRepository addressRepository;
+    private final ContactRepository contactRepository;
+    private final ProfileEditRequestRepository profileEditRequestRepository;
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
     private final AuditEventWriter auditEventWriter;
 
@@ -72,6 +79,9 @@ public class StaffService {
             AuditEventRepository auditEventRepository,
             UserProfileRepository userProfileRepository,
             UserProfileService userProfileService,
+            AddressRepository addressRepository,
+            ContactRepository contactRepository,
+            ProfileEditRequestRepository profileEditRequestRepository,
             DeletionConfirmationTokenService deletionConfirmationTokenService,
             AuditEventWriter auditEventWriter) {
         this.userRepository = userRepository;
@@ -83,6 +93,9 @@ public class StaffService {
         this.oneTimePasswordService = oneTimePasswordService;
         this.userProfileRepository = userProfileRepository;
         this.userProfileService = userProfileService;
+        this.addressRepository = addressRepository;
+        this.contactRepository = contactRepository;
+        this.profileEditRequestRepository = profileEditRequestRepository;
         this.mailService = mailService;
         this.auditEventRepository = auditEventRepository;
         this.deletionConfirmationTokenService = deletionConfirmationTokenService;
@@ -109,7 +122,7 @@ public class StaffService {
             enforceStaffCeiling(GlobalRole.STAFF);
         }
 
-        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+        if (userRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email).isPresent()) {
             throw new StaffUserAlreadyExistsException();
         }
 
@@ -136,11 +149,11 @@ public class StaffService {
         enforceStaffCeiling(user.getGlobalRole());
 
         List<GlobalPermission> direct =
-                directGlobalPermissionGrantRepository.findByUser(user).stream()
+                directGlobalPermissionGrantRepository.findByUserAndDeletedAtIsNull(user).stream()
                         .map(DirectGlobalPermissionGrant::getPermission)
                         .toList();
         List<GlobalAccessGroupDto> groups =
-                userGlobalAccessGroupRepository.findByUser(user).stream()
+                userGlobalAccessGroupRepository.findByUserAndDeletedAtIsNull(user).stream()
                         .map(UserGlobalAccessGroup::getGlobalAccessGroup)
                         .map(GlobalAccessGroupDto::from)
                         .toList();
@@ -148,7 +161,9 @@ public class StaffService {
                 globalPermissionService.effectivePermissions(user).stream().toList();
         boolean isLastAdminOfType =
                 user.getGlobalRole() == GlobalRole.STAFF_ADMIN
-                        && userRepository.countByGlobalRoleIn(List.of(GlobalRole.STAFF_ADMIN)) == 1;
+                        && userRepository.countByGlobalRoleInAndDeletedAtIsNull(
+                                        List.of(GlobalRole.STAFF_ADMIN))
+                                == 1;
 
         return new StaffUserDetailDto(
                 user.getId(),
@@ -168,12 +183,12 @@ public class StaffService {
         enforceStaffCeiling(user.getGlobalRole());
         rejectAdminTarget(user);
 
-        directGlobalPermissionGrantRepository
-                .findByUserAndPermission(user, permission)
-                .orElseGet(
-                        () ->
-                                directGlobalPermissionGrantRepository.save(
-                                        new DirectGlobalPermissionGrant(user, permission)));
+        DirectGlobalPermissionGrant grant =
+                directGlobalPermissionGrantRepository
+                        .findByUserAndPermission(user, permission)
+                        .orElseGet(() -> new DirectGlobalPermissionGrant(user, permission));
+        grant.setDeletedAt(null);
+        directGlobalPermissionGrantRepository.save(grant);
     }
 
     /** REQ-26: generation endpoint reuses the exact same guard as {@link #revokePermission}. */
@@ -204,7 +219,11 @@ public class StaffService {
 
         directGlobalPermissionGrantRepository
                 .findByUserAndPermission(user, permission)
-                .ifPresent(directGlobalPermissionGrantRepository::delete);
+                .ifPresent(
+                        grant -> {
+                            grant.setDeletedAt(java.time.Instant.now());
+                            directGlobalPermissionGrantRepository.save(grant);
+                        });
     }
 
     /**
@@ -220,9 +239,10 @@ public class StaffService {
         List<GlobalRole> staffRoles = List.of(GlobalRole.STAFF, GlobalRole.STAFF_ADMIN);
         List<User> users =
                 (emailFilter == null || emailFilter.isBlank())
-                        ? userRepository.findByGlobalRoleIn(staffRoles)
-                        : userRepository.findByGlobalRoleInAndEmailContainingIgnoreCase(
-                                staffRoles, emailFilter);
+                        ? userRepository.findByGlobalRoleInAndDeletedAtIsNull(staffRoles)
+                        : userRepository
+                                .findByGlobalRoleInAndEmailContainingIgnoreCaseAndDeletedAtIsNull(
+                                        staffRoles, emailFilter);
 
         return users.stream().map(StaffUserSummaryDto::from).toList();
     }
@@ -267,12 +287,12 @@ public class StaffService {
         rejectAdminTarget(user);
         GlobalAccessGroup accessGroup = requireAccessGroup(accessGroupId);
 
-        userGlobalAccessGroupRepository
-                .findByUserAndGlobalAccessGroup(user, accessGroup)
-                .orElseGet(
-                        () ->
-                                userGlobalAccessGroupRepository.save(
-                                        new UserGlobalAccessGroup(user, accessGroup)));
+        UserGlobalAccessGroup assignment =
+                userGlobalAccessGroupRepository
+                        .findByUserAndGlobalAccessGroup(user, accessGroup)
+                        .orElseGet(() -> new UserGlobalAccessGroup(user, accessGroup));
+        assignment.setDeletedAt(null);
+        userGlobalAccessGroupRepository.save(assignment);
     }
 
     /** REQ-29: generation endpoint reuses the exact same guard as {@link #unassignAccessGroup}. */
@@ -305,7 +325,11 @@ public class StaffService {
 
         userGlobalAccessGroupRepository
                 .findByUserAndGlobalAccessGroup(user, accessGroup)
-                .ifPresent(userGlobalAccessGroupRepository::delete);
+                .ifPresent(
+                        assignment -> {
+                            assignment.setDeletedAt(java.time.Instant.now());
+                            userGlobalAccessGroupRepository.save(assignment);
+                        });
     }
 
     /**
@@ -387,15 +411,23 @@ public class StaffService {
     }
 
     /**
-     * REQ-7/8/10/11: hard delete, requires a valid deletion-confirmation token, rejects self-target
-     * and the last {@code STAFF_ADMIN} (locked count); never blocked for a plain {@code STAFF}
-     * target. Dependent {@code DirectGlobalPermissionGrant}/{@code UserGlobalAccessGroup} rows are
-     * removed by the existing {@code ON DELETE CASCADE} FK (see PLAN.md's "Data schema"). Gate
-     * reconnected from the pre-{@code permission-granularity-model} {@code STAFF_PERMISSION_MANAGE}
-     * fallback to {@code STAFF_USER_DELETE} (per {@code staff-rbac-management-operations} PLAN.md's
-     * "Implementation notes"), now that the granular permission exists; combined with {@code
-     * enforceStaffCeiling} below, this remains reachable only by a {@code STAFF_ADMIN} caller in
-     * practice for a {@code STAFF}/{@code STAFF_ADMIN} target, as already documented there.
+     * REQ-7/8/10/11: logical delete (2026-08-04 standing decision: no destructive operation in the
+     * system may physically remove a row), requires a valid deletion-confirmation token, rejects
+     * self-target and the last {@code STAFF_ADMIN} (locked count); never blocked for a plain {@code
+     * STAFF} target. Cascades to the tightly-owned 1:1 {@code UserProfile}/{@code Address} rows and
+     * every {@code Contact} (each gets its own {@code deletedAt}, alongside the {@link User}'s) --
+     * these previously blocked a physical {@code userRepository.delete(user)} with an unhandled FK
+     * violation (found live 2026-08-04: deleting any real staff account 500'd, since every staff
+     * user has a mandatory profile and virtually all have at least one {@code audit_events} row).
+     * {@code DirectGlobalPermissionGrant}/{@code UserGlobalAccessGroup} rows are left as-is --
+     * they're no longer reachable once {@code deletedAt} blocks login, and every permission-
+     * resolution read already filters {@code deletedAt IS NULL} on the grant/assignment itself.
+     * Gate reconnected from the pre-{@code permission-granularity-model} {@code
+     * STAFF_PERMISSION_MANAGE} fallback to {@code STAFF_USER_DELETE} (per {@code
+     * staff-rbac-management-operations} PLAN.md's "Implementation notes"), now that the granular
+     * permission exists; combined with {@code enforceStaffCeiling} below, this remains reachable
+     * only by a {@code STAFF_ADMIN} caller in practice for a {@code STAFF}/{@code STAFF_ADMIN}
+     * target, as already documented there.
      */
     @Transactional
     @RequiresGlobalPermission(GlobalPermission.STAFF_USER_DELETE)
@@ -414,7 +446,24 @@ public class StaffService {
             requireNotLastStaffAdmin(userId);
         }
 
-        userRepository.delete(user);
+        java.time.Instant now = java.time.Instant.now();
+        user.setDeletedAt(now);
+        userRepository.save(user);
+
+        userProfileRepository.findById(userId).ifPresent(profile -> profile.setDeletedAt(now));
+        addressRepository.findById(userId).ifPresent(address -> address.setDeletedAt(now));
+        contactRepository.findByUserAndDeletedAtIsNull(user).forEach(c -> c.setDeletedAt(now));
+
+        // A pending request to edit a profile that no longer effectively exists makes no sense
+        // to leave outstanding -- logical-delete-everywhere (2026-08-04).
+        profileEditRequestRepository
+                .findByRequesterAndStatus(user, ProfileEditRequestStatus.PENDING)
+                .ifPresent(
+                        request -> {
+                            request.setStatus(ProfileEditRequestStatus.CANCELLED);
+                            request.setResolvedAt(now);
+                            profileEditRequestRepository.save(request);
+                        });
     }
 
     /**
@@ -448,7 +497,9 @@ public class StaffService {
 
         Set<GlobalPermission> current =
                 new HashSet<>(
-                        directGlobalPermissionGrantRepository.findByUser(user).stream()
+                        directGlobalPermissionGrantRepository
+                                .findByUserAndDeletedAtIsNull(user)
+                                .stream()
                                 .map(DirectGlobalPermissionGrant::getPermission)
                                 .toList());
         Set<GlobalPermission> submitted = permissions == null ? Set.of() : permissions;
@@ -468,15 +519,23 @@ public class StaffService {
         }
 
         for (GlobalPermission permission : added) {
-            directGlobalPermissionGrantRepository.save(
-                    new DirectGlobalPermissionGrant(user, permission));
+            DirectGlobalPermissionGrant grant =
+                    directGlobalPermissionGrantRepository
+                            .findByUserAndPermission(user, permission)
+                            .orElseGet(() -> new DirectGlobalPermissionGrant(user, permission));
+            grant.setDeletedAt(null);
+            directGlobalPermissionGrantRepository.save(grant);
             writeBatchAuditEvent(userId, "grant", permission);
         }
 
         for (GlobalPermission permission : removed) {
             directGlobalPermissionGrantRepository
                     .findByUserAndPermission(user, permission)
-                    .ifPresent(directGlobalPermissionGrantRepository::delete);
+                    .ifPresent(
+                            grant -> {
+                                grant.setDeletedAt(java.time.Instant.now());
+                                directGlobalPermissionGrantRepository.save(grant);
+                            });
             writeBatchAuditEvent(userId, "revoke", permission);
         }
     }

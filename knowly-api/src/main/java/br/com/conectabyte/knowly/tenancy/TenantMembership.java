@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,10 +26,16 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+/**
+ * Uniqueness on {@code (user_id, tenant_id)} is enforced by the partial index {@code
+ * ux_tenant_memberships_user_tenant} ({@code WHERE deleted_at IS NULL}, V28) -- not a table-level
+ * constraint, so a hard-deleted membership doesn't block the user re-joining the tenant later.
+ * {@code deletedAt} is distinct from the existing {@code active} flag: {@code active=false} is an
+ * ordinary tenant-side removal (membership row and its history stay, REQ-9); {@code deletedAt} is
+ * the stronger hard-delete action (REQ-7/8/10/11), now logical instead of physical (2026-08-04).
+ */
 @Entity
-@Table(
-        name = "tenant_memberships",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "tenant_id"}))
+@Table(name = "tenant_memberships")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @FilterDef(
@@ -64,6 +69,9 @@ public class TenantMembership {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private MembershipStatus status = MembershipStatus.ACTIVE;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

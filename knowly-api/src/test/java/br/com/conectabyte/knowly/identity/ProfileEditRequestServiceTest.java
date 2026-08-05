@@ -160,7 +160,7 @@ class ProfileEditRequestServiceTest {
 
         UserProfile reloaded = userProfileRepository.findById(requester.getId()).orElseThrow();
         assertThat(reloaded.getFullName()).isEqualTo("Contact Approved Name");
-        List<Contact> contacts = contactRepository.findByUser(requester);
+        List<Contact> contacts = contactRepository.findByUserAndDeletedAtIsNull(requester);
         assertThat(contacts).hasSize(1);
         assertThat(contacts.get(0).getType()).isEqualTo(ContactType.PHONE);
     }

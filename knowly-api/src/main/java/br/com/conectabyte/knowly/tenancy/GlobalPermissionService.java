@@ -26,12 +26,12 @@ public class GlobalPermissionService {
     public Set<GlobalPermission> effectivePermissions(User user) {
         Set<GlobalPermission> permissions = EnumSet.noneOf(GlobalPermission.class);
 
-        directGlobalPermissionGrantRepository.findByUser(user).stream()
+        directGlobalPermissionGrantRepository.findByUserAndDeletedAtIsNull(user).stream()
                 .map(DirectGlobalPermissionGrant::getPermission)
                 .forEach(permissions::add);
 
         List<GlobalAccessGroup> groups =
-                userGlobalAccessGroupRepository.findByUser(user).stream()
+                userGlobalAccessGroupRepository.findByUserAndDeletedAtIsNull(user).stream()
                         .map(UserGlobalAccessGroup::getGlobalAccessGroup)
                         .collect(Collectors.toList());
 

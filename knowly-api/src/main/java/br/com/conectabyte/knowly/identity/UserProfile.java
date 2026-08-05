@@ -65,6 +65,10 @@ public class UserProfile {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    /** Set alongside the owning {@link User}'s own deletedAt (2026-08-04 standing decision). */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -227,7 +227,11 @@ class TenantRbacManagementOperationsTest {
 
         tenantService.hardDeleteMember(caller.getUser(), tenant.getId(), target.getId(), word);
 
-        assertThat(tenantMembershipRepository.findById(target.getId())).isEmpty();
+        // Logical delete (2026-08-04): the row stays, marked deletedAt, rather than being removed.
+        TenantMembership reloaded =
+                tenantMembershipRepository.findById(target.getId()).orElseThrow();
+        assertThat(reloaded.getDeletedAt()).isNotNull();
+        assertThat(reloaded.isActive()).isFalse();
     }
 
     @Test
@@ -268,7 +272,13 @@ class TenantRbacManagementOperationsTest {
 
         tenantService.hardDeleteMember(caller.getUser(), tenant.getId(), loneMember.getId(), word);
 
-        assertThat(tenantMembershipRepository.findById(loneMember.getId())).isEmpty();
+        // Logical delete (2026-08-04): the row stays, marked deletedAt, rather than being removed.
+        assertThat(
+                        tenantMembershipRepository
+                                .findById(loneMember.getId())
+                                .orElseThrow()
+                                .getDeletedAt())
+                .isNotNull();
     }
 
     @Test
@@ -423,9 +433,12 @@ class TenantRbacManagementOperationsTest {
         tenantService.batchUpdatePermissions(
                 caller.getUser(), tenant.getId(), target.getId(), Set.of(), word);
 
+        // Logical delete (2026-08-04): revoking sets deletedAt rather than removing the row, so
+        // it must be excluded from the not-deleted finder used by permission resolution/listing.
         assertThat(
-                        directPermissionGrantRepository.findByTenantMembershipAndPermission(
-                                target, Permission.TENANT_MEMBER_MANAGE))
+                        directPermissionGrantRepository
+                                .findByTenantMembershipAndPermissionAndDeletedAtIsNull(
+                                        target, Permission.TENANT_MEMBER_MANAGE))
                 .isEmpty();
     }
 
