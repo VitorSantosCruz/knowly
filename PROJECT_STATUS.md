@@ -57,12 +57,26 @@
 >    <what it is>"), not just "in progress."
 
 **Current state (2026-08-04): three manual, full-app Playwright QA passes (not
-a feature) found and fixed 16 real bugs across login, i18n, tenant-scoped
+a feature) found and fixed 17 real bugs across login, i18n, tenant-scoped
 routing, tenant creation, staff/tenant permission granting, chat, member/
 staff-user creation, identity, and support tickets — see the "Known
 operational/tooling notes" section and each affected feature's row below for
-detail, and `git log` since `66a4ae9` for the individual commits. All 16 are
-now closed; there is no carried-over bug from this pass.** Bug #16
+detail, and `git log` since `66a4ae9` for the individual commits. All 17 are
+now closed; there is no carried-over bug from this pass.** Bug #17
+(`59cd5d5`, the session's biggest): deleting any real staff user 500'd —
+`StaffService#deleteStaffUser` called `userRepository.delete(user)` directly,
+and every staff account has at least a mandatory `user_profiles` row (and
+virtually all have `audit_events` rows from just logging in), with none of
+the 15 FK references onto `users.id` carrying `ON DELETE CASCADE`. Root-cause
+discussion escalated into a standing, system-wide architectural decision —
+**no destructive operation may physically remove a row, ever** — see
+`DECISIONS.md`'s "Logical delete is now a standing, system-wide rule" entry
+for the full rationale and consequences (partial unique indexes, reactivate-
+on-regrant, deletedAt-filtered permission-resolution reads, tenant-delete
+now cascading to its own articles/conversations, login rejection for a
+deleted account). Migration `V28` retrofits `deleted_at` onto every entity
+that was previously hard-deleted or needed the stronger marker; 850/850
+backend tests green (`./mvnw verify`), spotless clean. Bug #16
 (`65c8c23`): viewing a staff user's audit trail after a batch permission
 update, a deletion-confirmation-token generate/validate, or a denied
 tenant-member-creation attempt rendered the raw backend action string

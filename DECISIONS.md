@@ -2183,6 +2183,73 @@ template projection, and that should be the default unless a case
 genuinely needs to project arbitrary markup a data-shaped input can't
 express.
 
+### Logical delete is now a standing, system-wide rule — no destructive operation may physically remove a row (Tier 3, user-confirmed 2026-08-04)
+
+Found live: `StaffService#deleteStaffUser` called `userRepository.delete(user)`
+directly and 500'd for any real staff account, since every staff user has at
+least a mandatory `user_profiles` row (and virtually all have `audit_events`
+rows from just logging in) and none of the 15 FK references onto `users.id`
+have `ON DELETE CASCADE`. The first fix proposed was schema-level (`CASCADE`
+on the tightly-owned tables, `SET NULL` on `audit_events.actor_user_id`). The
+user redirected: **the fix belongs in policy, not schema** — nothing in this
+system should ever be a physical delete. "Excluir" in every screen must mean
+logical delete (a `deleted_at`/status marker), full stop.
+
+**Rule, as given:** every destructive operation is logical. Additionally,
+tightly-coupled owned resources cascade together: a `User` and its
+`UserProfile`/`Address`/`Contact`s are one unit — if the user doesn't
+effectively exist, neither does its profile data. A `Tenant` and its own
+resources are the same relationship — deleting a tenant cascades to *its*
+`Article`s and `Conversation`s (this explicitly supersedes `tenant-crud`
+REQ-10's original "untouched by construction" scope decision). A pending
+`ProfileEditRequest` whose target profile no longer effectively exists gets
+cancelled, not left outstanding forever.
+
+**What "every, absolutely every" turned out to mean in practice** (see
+`git log` for the commit implementing this): the 8 JPA-level physical-delete
+call sites existing at the time — `StaffService#deleteStaffUser`,
+`TenantService#hardDeleteMember`, and the revoke/unassign paths for
+`DirectGlobalPermissionGrant`/`UserGlobalAccessGroup` (global-scope) and
+`DirectPermissionGrant`/`UserAccessGroup` (tenant-scope) — all converted to
+set `deletedAt` instead of deleting. `ContactService#removeContact` (a ninth
+site, not literally named "delete") converted the same way. `TenantMembership`
+already had an `active` boolean for ordinary removal (`removeMember`) —
+`deletedAt` is a **separate**, stronger marker for the hard-delete action
+specifically, not a replacement for `active`; don't conflate the two when
+touching membership code. `Tenant` (`deleted_at`, V25) and `Article` (`active`
+flag) already had their own soft-delete before this — this decision's scope
+was retrofitting the remaining hard-delete call sites to match, not
+introducing the concept.
+
+**Consequences that are easy to miss when adding a new grant/assignment
+type:** (1) the unique constraint backing "one active grant per (subject,
+permission)" must become a partial index (`WHERE deleted_at IS NULL`, see
+migration `V28`), or re-granting a revoked permission collides; (2) the
+grant/assign write path must reactivate a found-but-deleted row
+(`grant.setDeletedAt(null)`) rather than blindly `orElseGet(() -> save(new
+...))`, or a duplicate row accumulates; (3) **every** permission-resolution
+read (`GlobalPermissionService`/`PermissionService`'s `effectivePermissions`)
+and every listing/lookup read (staff user search, admin-floor-lock queries,
+email/tax-id uniqueness checks) must filter `deletedAt IS NULL` explicitly —
+this is security-critical, since a missed filter silently re-grants a
+permission the caller believes was revoked, or lets a soft-deleted account's
+email block a legitimate new signup.
+
+**Login is a special case, not just another read filter:** `AuthController`
+rejects a soft-deleted user's login outright (`InvalidCredentialsException`,
+same as a wrong code/password) rather than falling into the "no such user
+yet" `SelectionPending` branch — that branch still hands out a real,
+authenticated zero-authority session, which a soft-deleted account must
+never receive.
+
+**Applies to new decisions:** any future hard/physical delete anywhere in
+this codebase (a new entity, a new admin action, a bulk cleanup job) is
+**out of bounds by default** — it needs a `deleted_at` (or equivalent status
+marker) and a filtered read path from the moment it's designed, not added
+later as a fix. If a genuinely new case seems to need physical deletion
+(e.g. purging encrypted PII past a legal retention window), that is Tier 3 —
+stop and ask, don't assume it's an exception to this rule.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
