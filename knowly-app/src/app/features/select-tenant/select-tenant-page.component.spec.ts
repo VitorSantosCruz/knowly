@@ -272,6 +272,53 @@ describe('SelectTenantPageComponent', () => {
     vi.useRealTimers();
   });
 
+  it('does not show a delete button when the caller lacks TENANT_DELETE', () => {
+    fixture.detectChanges();
+    flushGlobalPermissions([]);
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    flushAllTenants([{ id: 1, name: 'Acme' }]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="select-tenant-delete-1"]'),
+    ).toBeFalsy();
+  });
+
+  it('shows a delete button per tenant when the caller holds TENANT_DELETE, and deleting removes it from the list after confirmation', () => {
+    fixture.detectChanges();
+    flushGlobalPermissions(['TENANT_DELETE']);
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    flushAllTenants([
+      { id: 1, name: 'Acme' },
+      { id: 2, name: 'Other Co' },
+    ]);
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="select-tenant-delete-1"]').click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/1/deletion-confirmation-token')
+      .flush({ word: 'confirm-word' });
+    fixture.detectChanges();
+
+    const dialog = fixture.nativeElement.querySelector('[data-testid="confirm-dialog-input"]');
+    dialog.value = 'confirm-word';
+    dialog.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="confirm-dialog-confirm"]').click();
+
+    const deleteReq = httpMock.expectOne('/api/tenants/1');
+    expect(deleteReq.request.method).toBe('DELETE');
+    expect(deleteReq.request.body).toEqual({ word: 'confirm-word' });
+    deleteReq.flush({});
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Acme');
+    expect(fixture.nativeElement.textContent).toContain('Other Co');
+  });
+
   it('navigating pages after a search keeps the search term on the request', () => {
     vi.useFakeTimers();
     fixture.detectChanges();

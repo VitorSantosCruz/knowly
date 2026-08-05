@@ -90,16 +90,33 @@ public class TenantController {
      * TenantContext#getActiveTenantId()}, so it works for both staff acting as a tenant -- no real
      * {@code TenantMembership} row -- and a regular member with one). {@code 204} when there is no
      * active tenant.
+     *
+     * <p>Logical-delete-everywhere (2026-08-05): if the session's active tenant was soft-deleted
+     * out from under it (e.g. staff deletes the tenant the caller currently has selected), {@link
+     * TenantService#getActiveTenant} throws {@link TenantAccessDeniedException} rather than
+     * silently succeeding -- correct everywhere else this exception is used, but here it left the
+     * session pointing at a dead tenant forever: every subsequent poll of this same endpoint kept
+     * 403ing instead of self-healing, and the frontend had no way to recover without an explicit
+     * clear. Treat that specific case as "no active tenant" -- drop the stale session attribute and
+     * return 204, the same outcome a caller with no active tenant at all would see.
      */
     @GetMapping("/active")
-    public ResponseEntity<ActiveTenantDto> getActiveTenant() {
+    public ResponseEntity<ActiveTenantDto> getActiveTenant(HttpServletRequest httpRequest) {
         Long tenantId = tenantContext.getActiveTenantId().orElse(null);
 
         if (tenantId == null) {
             return ResponseEntity.noContent().build();
         }
 
-        return ResponseEntity.ok(tenantService.getActiveTenant(currentUser(), tenantId));
+        try {
+            return ResponseEntity.ok(tenantService.getActiveTenant(currentUser(), tenantId));
+        } catch (TenantAccessDeniedException ex) {
+            HttpSession session = httpRequest.getSession(false);
+            if (session != null) {
+                session.removeAttribute(TenantSessionKeys.ACTIVE_TENANT_ID);
+            }
+            return ResponseEntity.noContent().build();
+        }
     }
 
     @GetMapping("/permissions")

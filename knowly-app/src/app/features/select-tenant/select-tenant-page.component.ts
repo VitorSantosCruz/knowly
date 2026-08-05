@@ -1,7 +1,15 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { Subject, catchError, debounceTime, distinctUntilChanged, of } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  Subject,
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  of,
+} from 'rxjs';
 import { LucidePlus } from '@lucide/angular';
 import { buttonClass } from '../../shared/button-classes';
 import {
@@ -11,6 +19,7 @@ import {
   TenantSummary,
 } from '../../core/active-tenant.service';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
+import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 
 interface TenantOption {
   tenantId: number;
@@ -21,7 +30,7 @@ const PAGE_SIZE = 20;
 
 @Component({
   selector: 'app-select-tenant-page',
-  imports: [TranslocoPipe, RouterLink, LucidePlus],
+  imports: [TranslocoPipe, RouterLink, LucidePlus, ConfirmDialogComponent],
   template: `
     <div data-testid="select-tenant-page" class="page-shell">
       <div class="enter-fluid mb-6 flex items-center justify-between gap-3">
@@ -58,7 +67,7 @@ const PAGE_SIZE = 20;
       @if (options().length > 0) {
         <ul role="listbox" class="flex w-full flex-col gap-2 border-0">
           @for (option of options(); track option.tenantId) {
-            <li role="option" aria-selected="false">
+            <li role="option" aria-selected="false" class="flex items-center gap-2">
               <button
                 type="button"
                 [attr.data-testid]="'select-tenant-' + option.tenantId"
@@ -67,6 +76,16 @@ const PAGE_SIZE = 20;
               >
                 {{ option.tenantName }}
               </button>
+              @if (canDeleteTenant()) {
+                <button
+                  type="button"
+                  [attr.data-testid]="'select-tenant-delete-' + option.tenantId"
+                  class="shrink-0 text-sm text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                  (click)="onDelete(option)"
+                >
+                  {{ 'selectTenant.delete' | transloco }}
+                </button>
+              }
             </li>
           }
         </ul>
@@ -105,6 +124,16 @@ const PAGE_SIZE = 20;
         </div>
       }
     </div>
+    @if (pendingDelete(); as tenant) {
+      <app-confirm-dialog
+        [open]="true"
+        [message]="'selectTenant.confirmDelete' | transloco: { name: tenant.tenantName }"
+        [fetchToken]="deletionTokenFetcher(tenant.tenantId)"
+        [retryToken]="deleteRetryToken()"
+        (confirm)="confirmDelete($event)"
+        (dismissed)="cancelDelete()"
+      />
+    }
   `,
 })
 export class SelectTenantPageComponent implements OnInit {
@@ -125,6 +154,14 @@ export class SelectTenantPageComponent implements OnInit {
   protected readonly canCreateTenant = computed(() =>
     this.globalPermissionsService.has('TENANT_CREATE'),
   );
+  // Backend gates deletion on the global TENANT_DELETE permission
+  // (@RequiresGlobalPermission), staff-only -- a regular member never reaches the fallback
+  // (all-tenants) listing this button lives in anyway, since they always have memberships.
+  protected readonly canDeleteTenant = computed(() =>
+    this.globalPermissionsService.has('TENANT_DELETE'),
+  );
+  protected readonly pendingDelete = signal<TenantOption | null>(null);
+  protected readonly deleteRetryToken = signal(0);
 
   private readonly searchInput$ = new Subject<string>();
 
@@ -163,6 +200,46 @@ export class SelectTenantPageComponent implements OnInit {
     this.activeTenantService
       .selectTenant(option.tenantId, option.tenantName)
       .subscribe(() => this.router.navigateByUrl('/welcome'));
+  }
+
+  protected onDelete(option: TenantOption): void {
+    this.pendingDelete.set(option);
+  }
+
+  protected deletionTokenFetcher(tenantId: number): () => Observable<string> {
+    return () => this.activeTenantService.generateDeletionConfirmationToken(tenantId);
+  }
+
+  protected confirmDelete(word: string): void {
+    const tenant = this.pendingDelete();
+
+    if (tenant === null) {
+      return;
+    }
+
+    this.activeTenantService
+      .deleteTenant(tenant.tenantId, word)
+      .pipe(
+        catchError((err) => {
+          if (err.status === 400) {
+            this.deleteRetryToken.update((n) => n + 1);
+          } else {
+            this.pendingDelete.set(null);
+            this.deleteRetryToken.set(0);
+          }
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.pendingDelete.set(null);
+        this.deleteRetryToken.set(0);
+        this.options.update((current) => current.filter((o) => o.tenantId !== tenant.tenantId));
+      });
+  }
+
+  protected cancelDelete(): void {
+    this.pendingDelete.set(null);
+    this.deleteRetryToken.set(0);
   }
 
   private fetchFallbackTenants(): void {

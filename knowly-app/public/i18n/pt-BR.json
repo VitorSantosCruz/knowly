@@ -280,8 +280,8 @@
     "unassign": "Remover atribuição",
     "createGroup": "Criar grupo",
     "confirmRemove": "Remover {{email}}? Isso não pode ser desfeito.",
-    "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Isso não pode ser desfeito.",
-    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito.",
+    "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Você pode concedê-la novamente depois.",
+    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Você pode atribuí-lo novamente depois.",
     "title": "Membros",
     "columns": {
       "email": "E-mail",
@@ -332,8 +332,8 @@
     "assign": "Atribuir",
     "unassign": "Remover atribuição",
     "createGroup": "Criar grupo",
-    "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Isso não pode ser desfeito.",
-    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Isso não pode ser desfeito.",
+    "confirmRevokePermission": "Revogar '{{permission}}' de {{email}}? Você pode concedê-la novamente depois.",
+    "confirmUnassignGroup": "Remover atribuição de '{{group}}' de {{email}}? Você pode atribuí-lo novamente depois.",
     "auditTrail": {
       "title": "Trilha de auditoria",
       "occurredAt": "Ocorrido em",
@@ -405,7 +405,9 @@
     "searchPlaceholder": "Buscar por nome, CNPJ ou razão social",
     "previousPage": "Anterior",
     "nextPage": "Próximo",
-    "noSearchResults": "Nenhum tenant corresponde à sua busca."
+    "noSearchResults": "Nenhum tenant corresponde à sua busca.",
+    "delete": "Excluir",
+    "confirmDelete": "Excluir o tenant '{{name}}'? Isso desativa suas associações e desativa seus artigos e conversas."
   },
   "tenantCreate": {
     "title": "Criar tenant",

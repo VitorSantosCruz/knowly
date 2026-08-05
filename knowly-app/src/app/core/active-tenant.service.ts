@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, of, tap } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 export interface TenantMembership {
   tenantId: number;
@@ -113,19 +114,28 @@ export class ActiveTenantService {
    * is authoritative for both the staff and regular-member cases and that workaround is no
    * longer needed — removed rather than kept as dead code.
    */
+  /**
+   * GET /api/tenants/active errors (e.g. 403 TENANT_ACCESS_DENIED, surfaced when the session's
+   * active tenant was deleted out from under it) are treated the same as "no active tenant"
+   * rather than left to propagate — an uncaught error here used to skip the subscribe callback
+   * entirely, so activeTenantResolved() never flipped true and every page gating on it (member
+   * dashboard, articles, conversations, ...) hung on its loading state forever.
+   */
   fetch(): void {
-    this.getActive().subscribe((active) => {
-      if (active) {
-        this._activeTenantId.set(active.tenantId);
-        this._activeTenantName.set(active.tenantName);
-        this._activeTenantRole.set(active.role ?? null);
-      } else {
-        this._activeTenantId.set(null);
-        this._activeTenantName.set(null);
-        this._activeTenantRole.set(null);
-      }
-      this._activeTenantResolved.set(true);
-    });
+    this.getActive()
+      .pipe(catchError(() => of(null)))
+      .subscribe((active) => {
+        if (active) {
+          this._activeTenantId.set(active.tenantId);
+          this._activeTenantName.set(active.tenantName);
+          this._activeTenantRole.set(active.role ?? null);
+        } else {
+          this._activeTenantId.set(null);
+          this._activeTenantName.set(null);
+          this._activeTenantRole.set(null);
+        }
+        this._activeTenantResolved.set(true);
+      });
   }
 
   /**
@@ -176,5 +186,20 @@ export class ActiveTenantService {
         this._activeTenantName.set(tenantName);
       }),
     );
+  }
+
+  /**
+   * TENANT_DELETE-gated (backend `@RequiresGlobalPermission`) -- staff only, same
+   * security-phrase confirmation pattern as staff-user deletion
+   * ({@link StaffUserService#generateDeletionConfirmationToken}/{@link StaffUserService#delete}).
+   */
+  generateDeletionConfirmationToken(tenantId: number): Observable<string> {
+    return this.http
+      .post<{ word: string }>(`/api/tenants/${tenantId}/deletion-confirmation-token`, {})
+      .pipe(map((res) => res.word));
+  }
+
+  deleteTenant(tenantId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/tenants/${tenantId}`, { body: { word } });
   }
 }

@@ -344,6 +344,39 @@ class TenantDeleteIntegrationTest {
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
 
+    // Regression (2026-08-05): GET /api/tenants/active used to 403 forever once the session's
+    // own active tenant was soft-deleted out from under it (e.g. by staff, mid-session) --
+    // TenantAccessDeniedException propagated straight through with no self-heal, so every
+    // subsequent poll of this same endpoint kept 403ing and the frontend had no way to recover
+    // without an explicit /active/clear. It must instead behave exactly like "no active tenant":
+    // 204, with the stale session attribute dropped so a later request doesn't even need to hit
+    // the DB to know there's nothing to resolve.
+    @Test
+    void gettingActiveTenantAfterItWasSoftDeletedSelfHealsTo204InsteadOfForbidden() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Active Self Heal Co"));
+        User member = userRepository.saveAndFlush(new User("delete-active-selfheal@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(member, tenant, MembershipRole.MEMBER));
+
+        Cookie session = logIn("delete-active-selfheal@example.com");
+
+        var activeBeforeDelete =
+                mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+        assertThat(activeBeforeDelete).hasStatus(HttpStatus.OK);
+
+        tenant.setDeletedAt(java.time.Instant.now());
+        tenantRepository.saveAndFlush(tenant);
+
+        var activeAfterDelete = mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+        assertThat(activeAfterDelete).hasStatus(HttpStatus.NO_CONTENT);
+
+        // Confirms the session attribute was actually dropped, not just this one response
+        // papered over -- a repeat call must also 204 without depending on a fresh lookup finding
+        // the same soft-deleted tenant again.
+        var activeAgain = mockMvc.get().uri("/api/tenants/active").cookie(session).exchange();
+        assertThat(activeAgain).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
     // REQ-12: a new tenant creation reusing a soft-deleted tenant's taxId succeeds, confirmed from
     // the API layer (not just the migration's raw-SQL constraint test).
 

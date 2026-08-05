@@ -280,8 +280,8 @@
     "unassign": "Unassign",
     "createGroup": "Create group",
     "confirmRemove": "Remove {{email}}? This cannot be undone.",
-    "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? This cannot be undone.",
-    "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? This cannot be undone.",
+    "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? You can grant it again afterward.",
+    "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? You can assign it again afterward.",
     "title": "Members",
     "columns": {
       "email": "Email",
@@ -332,8 +332,8 @@
     "assign": "Assign",
     "unassign": "Unassign",
     "createGroup": "Create group",
-    "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? This cannot be undone.",
-    "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? This cannot be undone.",
+    "confirmRevokePermission": "Revoke '{{permission}}' from {{email}}? You can grant it again afterward.",
+    "confirmUnassignGroup": "Unassign '{{group}}' from {{email}}? You can assign it again afterward.",
     "auditTrail": {
       "title": "Audit trail",
       "occurredAt": "Occurred at",
@@ -405,7 +405,9 @@
     "searchPlaceholder": "Search by name, CNPJ, or razão social",
     "previousPage": "Previous",
     "nextPage": "Next",
-    "noSearchResults": "No tenants match your search."
+    "noSearchResults": "No tenants match your search.",
+    "delete": "Delete",
+    "confirmDelete": "Delete tenant '{{name}}'? This deactivates its memberships and deactivates its articles and conversations."
   },
   "tenantCreate": {
     "title": "Create tenant",

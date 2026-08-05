@@ -89,6 +89,20 @@ describe('ActiveTenantService', () => {
     expect(service.activeTenantRole()).toBeNull();
   });
 
+  it('resolves to no active tenant (not stuck loading) when GET /api/tenants/active errors, e.g. 403 TENANT_ACCESS_DENIED from a deleted active tenant', () => {
+    service.fetch();
+    expect(service.activeTenantResolved()).toBe(false);
+
+    httpMock
+      .expectOne('/api/tenants/active')
+      .flush({ code: 'TENANT_ACCESS_DENIED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(service.activeTenantResolved()).toBe(true);
+    expect(service.activeTenantId()).toBeNull();
+    expect(service.activeTenantName()).toBeNull();
+    expect(service.activeTenantRole()).toBeNull();
+  });
+
   it('getActive() resolves null for a 204 response', () => {
     let result: unknown = 'unset';
     service.getActive().subscribe((active) => (result = active));
