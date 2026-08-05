@@ -55,3 +55,17 @@ export interface SharedListSortState {
 }
 
 export type SharedListError = 'network' | 'permission-denied' | null;
+
+/**
+ * Server-pagination mode contract — see PLAN.md's "shared-list.model.ts
+ * /shared-list.component.ts gain an optional server-pagination mode, not
+ * a second component" decision. When passed to `SharedListComponent`,
+ * `rows()` is expected to already be the current page's content (host
+ * fetches per-page), and `visibleRows()`/`totalCount()` no longer
+ * filter/sort client-side.
+ */
+export interface SharedListServerPagination {
+  page: number;
+  totalPages: number;
+  totalElements: number;
+}

@@ -308,7 +308,9 @@
     "showingRange": "Mostrando {{from}}-{{to}} de {{total}}",
     "actions": {
       "edit": "Editar",
-      "delete": "Excluir"
+      "delete": "Excluir",
+      "history": "Ver histórico",
+      "myProfile": "Meu perfil"
     },
     "empty": {
       "default": "Nada por aqui ainda.",
@@ -318,7 +320,9 @@
     },
     "noResults": "Nenhum resultado para sua busca.",
     "clearFilters": "Limpar filtros",
-    "sortBy": "Ordenar por"
+    "sortBy": "Ordenar por",
+    "previousPage": "Anterior",
+    "nextPage": "Próxima"
   },
   "staffDirectory": {
     "searchPlaceholder": "Buscar por e-mail…",

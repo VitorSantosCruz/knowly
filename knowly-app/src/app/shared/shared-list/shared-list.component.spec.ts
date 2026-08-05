@@ -2,7 +2,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTransloco } from '@jsverse/transloco';
 import { LucideSquarePen, LucideTrash2 } from '@lucide/angular';
 import { SharedListComponent } from './shared-list.component';
-import { SharedListColumn, SharedListRowAction } from './shared-list.model';
+import {
+  SharedListColumn,
+  SharedListRowAction,
+  SharedListServerPagination,
+} from './shared-list.model';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 
 interface Row {
@@ -259,6 +263,116 @@ describe('SharedListComponent', () => {
       el<HTMLButtonElement>('shared-list-action-sharedList.actions.edit-1')!.click();
 
       expect(clicked).toEqual([ROWS[0]]);
+    });
+  });
+
+  describe('server-pagination mode', () => {
+    const serverPagination: SharedListServerPagination = {
+      page: 0,
+      totalPages: 3,
+      totalElements: 3,
+    };
+
+    it('does not filter/sort rows client-side when serverPagination is non-null, even with a search term', async () => {
+      await setup({ searchable: true, serverPagination });
+
+      const input = el<HTMLInputElement>('shared-list-search')!;
+      input.value = 'amy';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(el('shared-list-row-1')).toBeTruthy();
+      expect(el('shared-list-row-2')).toBeTruthy();
+      expect(el('shared-list-row-3')).toBeTruthy();
+    });
+
+    it('renders prev/next pagination controls only when serverPagination is non-null and totalPages > 1', async () => {
+      await setup({ serverPagination });
+      expect(el('shared-list-prev-page')).toBeTruthy();
+      expect(el('shared-list-next-page')).toBeTruthy();
+    });
+
+    it('hides pagination controls when totalPages <= 1', async () => {
+      await setup({ serverPagination: { page: 0, totalPages: 1, totalElements: 1 } });
+      expect(el('shared-list-prev-page')).toBeNull();
+      expect(el('shared-list-next-page')).toBeNull();
+    });
+
+    it('hides pagination controls when serverPagination is null', async () => {
+      await setup();
+      expect(el('shared-list-prev-page')).toBeNull();
+      expect(el('shared-list-next-page')).toBeNull();
+    });
+
+    it('disables prev at page 0 and next at the last page, emitting pageChange with the right delta', async () => {
+      await setup({ serverPagination: { page: 0, totalPages: 2, totalElements: 2 } });
+      const emitted: number[] = [];
+      fixture.componentInstance.pageChange.subscribe((v) => emitted.push(v));
+
+      const prev = el<HTMLButtonElement>('shared-list-prev-page')!;
+      const next = el<HTMLButtonElement>('shared-list-next-page')!;
+      expect(prev.disabled).toBe(true);
+      expect(next.disabled).toBe(false);
+
+      next.click();
+      expect(emitted).toEqual([1]);
+    });
+
+    it('disables next at the last page', async () => {
+      await setup({ serverPagination: { page: 1, totalPages: 2, totalElements: 2 } });
+      const prev = el<HTMLButtonElement>('shared-list-prev-page')!;
+      const next = el<HTMLButtonElement>('shared-list-next-page')!;
+      expect(prev.disabled).toBe(false);
+      expect(next.disabled).toBe(true);
+
+      const emitted: number[] = [];
+      fixture.componentInstance.pageChange.subscribe((v) => emitted.push(v));
+      prev.click();
+      expect(emitted).toEqual([-1]);
+    });
+
+    it('emits searchChange with the typed term in server-pagination mode', async () => {
+      await setup({ searchable: true, serverPagination });
+      let emitted = '';
+      fixture.componentInstance.searchChange.subscribe((v) => (emitted = v));
+
+      const input = el<HTMLInputElement>('shared-list-search')!;
+      input.value = 'amy';
+      input.dispatchEvent(new Event('input'));
+
+      expect(emitted).toBe('amy');
+    });
+
+    it('emits searchChange with the typed term in memory-pagination mode too', async () => {
+      await setup({ searchable: true });
+      let emitted = '';
+      fixture.componentInstance.searchChange.subscribe((v) => (emitted = v));
+
+      const input = el<HTMLInputElement>('shared-list-search')!;
+      input.value = 'jane';
+      input.dispatchEvent(new Event('input'));
+
+      expect(emitted).toBe('jane');
+    });
+
+    it('emits rowClick when a row is clicked, in memory mode', async () => {
+      await setup();
+      let emitted: Row | null = null;
+      fixture.componentInstance.rowClick.subscribe((v) => (emitted = v));
+
+      el<HTMLTableRowElement>('shared-list-row-1')!.click();
+
+      expect(emitted).toEqual(ROWS[0]);
+    });
+
+    it('emits rowClick when a row is clicked, in server-pagination mode', async () => {
+      await setup({ serverPagination });
+      let emitted: Row | null = null;
+      fixture.componentInstance.rowClick.subscribe((v) => (emitted = v));
+
+      el<HTMLTableRowElement>('shared-list-row-2')!.click();
+
+      expect(emitted).toEqual(ROWS[1]);
     });
   });
 

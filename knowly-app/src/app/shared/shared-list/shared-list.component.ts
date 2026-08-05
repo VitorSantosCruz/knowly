@@ -12,6 +12,8 @@ import {
 import { TranslocoPipe } from '@jsverse/transloco';
 import {
   LucideChevronDown,
+  LucideChevronLeft,
+  LucideChevronRight,
   LucideChevronUp,
   LucideChevronsUpDown,
   LucideInbox,
@@ -23,6 +25,7 @@ import {
   SharedListColumn,
   SharedListError,
   SharedListRowAction,
+  SharedListServerPagination,
   SharedListSortState,
 } from './shared-list.model';
 
@@ -45,6 +48,8 @@ import {
     LucideChevronsUpDown,
     LucideChevronUp,
     LucideChevronDown,
+    LucideChevronLeft,
+    LucideChevronRight,
     LucideInbox,
   ],
   template: `
@@ -224,6 +229,7 @@ import {
             @for (row of visibleRows(); track rowId()(row)) {
               <tr
                 [attr.data-testid]="'shared-list-row-' + rowId()(row)"
+                (click)="rowClick.emit(row)"
                 class="border-b border-ink-100 transition-colors duration-fast ease-fluid last:border-b-0 hover:bg-ink-50 dark:border-ink-800/50 dark:hover:bg-ink-800/60"
               >
                 @if (selectable()) {
@@ -232,6 +238,7 @@ import {
                       type="checkbox"
                       [attr.data-testid]="'shared-list-select-' + rowId()(row)"
                       [checked]="isSelected(row)"
+                      (click)="$event.stopPropagation()"
                       (change)="onToggleRow(row)"
                       class="h-4 w-4 rounded border-ink-300 text-signal-600 focus:ring-signal-500 focus-visible:ring-2 focus-visible:ring-signal-500 focus-visible:ring-offset-2 dark:border-ink-600 dark:bg-ink-800 dark:focus-visible:ring-offset-ink-900"
                     />
@@ -297,7 +304,7 @@ import {
                           [disabled]="isActionDisabled(action, row)"
                           [attr.title]="actionTitle(action, row)"
                           [class]="rowActionButtonClass(action)"
-                          (click)="action.onClick(row)"
+                          (click)="$event.stopPropagation(); action.onClick(row)"
                         >
                           <span [attr.aria-label]="action.labelKey | transloco">
                             <ng-container [ngComponentOutlet]="action.icon" />
@@ -312,6 +319,34 @@ import {
           }
         </tbody>
       </table>
+      @if (serverPagination(); as pagination) {
+        @if (pagination.totalPages > 1) {
+          <div
+            class="flex items-center justify-between gap-3 border-t border-ink-200/70 px-6 py-4 dark:border-ink-800/70"
+          >
+            <button
+              type="button"
+              data-testid="shared-list-prev-page"
+              [disabled]="pagination.page === 0"
+              [class]="paginationButtonClass"
+              (click)="pageChange.emit(-1)"
+            >
+              <svg lucideChevronLeft class="h-4 w-4" aria-hidden="true"></svg>
+              {{ 'sharedList.previousPage' | transloco }}
+            </button>
+            <button
+              type="button"
+              data-testid="shared-list-next-page"
+              [disabled]="pagination.page === pagination.totalPages - 1"
+              [class]="paginationButtonClass"
+              (click)="pageChange.emit(1)"
+            >
+              {{ 'sharedList.nextPage' | transloco }}
+              <svg lucideChevronRight class="h-4 w-4" aria-hidden="true"></svg>
+            </button>
+          </div>
+        }
+      }
     </div>
   `,
 })
@@ -327,9 +362,15 @@ export class SharedListComponent<T> {
   readonly selectable = input<boolean>(false);
   readonly searchable = input<boolean>(false);
   readonly searchPlaceholder = input<string>('');
+  readonly serverPagination = input<SharedListServerPagination | null>(null);
 
   readonly selectionChange = output<(string | number)[]>();
   readonly sortChange = output<SharedListSortState | null>();
+  readonly pageChange = output<-1 | 1>();
+  readonly searchChange = output<string>();
+  readonly rowClick = output<T>();
+
+  protected readonly paginationButtonClass = buttonClass('secondary');
 
   protected readonly searchTerm = signal('');
   protected readonly sortState = signal<SharedListSortState | null>(null);
@@ -361,6 +402,10 @@ export class SharedListComponent<T> {
   });
 
   protected readonly visibleRows = computed(() => {
+    if (this.serverPagination() !== null) {
+      return this.rows();
+    }
+
     const sort = this.sortState();
     const rows = [...this.filteredRows()];
 
@@ -392,7 +437,10 @@ export class SharedListComponent<T> {
     return rows;
   });
 
-  protected readonly totalCount = computed(() => this.filteredRows().length);
+  protected readonly totalCount = computed(() => {
+    const serverPagination = this.serverPagination();
+    return serverPagination !== null ? serverPagination.totalElements : this.filteredRows().length;
+  });
   protected readonly rangeFrom = computed(() => (this.totalCount() === 0 ? 0 : 1));
   protected readonly rangeTo = computed(() => this.visibleRows().length);
 
@@ -478,6 +526,7 @@ export class SharedListComponent<T> {
 
   protected onSearch(term: string): void {
     this.searchTerm.set(term);
+    this.searchChange.emit(term);
   }
 
   protected onClearFilters(): void {

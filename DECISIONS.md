@@ -2295,6 +2295,61 @@ of Grafana, no TLS, no retention tuning; do not treat it as
 production-ready or extend it externally without a fresh Tier 3
 conversation.
 
+## `design-system-consistency-pass`: `SharedListComponent` gains an optional server-pagination mode, not a second component (Tier 2, 2026-08-05)
+
+**Decision**: `SharedListComponent` (`knowly-app/src/app/shared/shared-list/`)
+already served every in-memory-paginated listing screen in this app
+(staff directory, tenant members). `select-tenant-page`'s staff-only
+all-tenants fallback, and the new staff-user audit-trail page, are
+server-paginated instead — the host fetches one page at a time from the
+backend rather than holding every row in memory. Rather than forking a
+second list component for that one behavioral difference, `shared-list.model.ts`
+gained a `SharedListServerPagination { page; totalPages; totalElements }`
+type and `shared-list.component.ts` gained a matching optional
+`serverPagination` input plus `pageChange`/`searchChange`/`rowClick`
+outputs. When `serverPagination()` is non-null, `visibleRows()`/`totalCount()`
+skip the client-side filter/sort entirely and trust the host to have
+already passed the current page's (already-filtered) rows; prev/next
+controls render (hidden at `totalPages <= 1`, disabled at either
+boundary) and emit `pageChange` instead of mutating any list-owned
+state.
+
+**Why extend the existing component instead of forking one**: columns,
+row actions, search-input rendering, skeleton rows, and empty/error
+states are identical between the two data-sourcing modes — only *how*
+`visibleRows`/`totalCount` are computed and how a page change is
+signaled differ. A second component would have meant keeping two
+templates in lockstep for every future layout tweak (REQ-4's whole
+point is one consistent list surface). This is genuinely new precedent
+in this codebase — no existing component had "two data-sourcing modes
+behind one input surface" before this — hence Tier 2 and recorded here
+rather than left implicit in the diff.
+
+**Follow-on `rowClick`**: needed independently once `select-tenant-page`
+moved off its hand-rolled `<ul>`/`<button>`-per-row markup — row
+selection (navigating into a tenant) has no equivalent in
+`SharedListColumn`/`SharedListRowAction` (a *row action* is a distinct,
+icon-scoped affordance, not "click anywhere on the row"). Rather than
+solving this ad hoc per consumer, `rowClick = output<T>()` was added
+once on the shared component (`<tr (click)="rowClick.emit(row)">`),
+consumed today by `select-tenant-page` (row click selects a tenant) and
+by nothing else yet, but generalized since `members-page`/
+`staff-directory-page` had the same "click a row to open its detail
+panel" shape before this pass moved their actions to explicit icons —
+documented so a future add-back of row-click-to-open-detail doesn't
+reinvent this.
+
+**A necessary correction found during implementation, not itself part
+of the PLAN**: row actions live *inside* the same `<tr>` that now has
+`(click)="rowClick.emit(row)")`; without `$event.stopPropagation()` on
+each row-action button's (and the row-selection checkbox's) own click
+handler, clicking "delete" on a row would also fire `rowClick` for that
+row (e.g. navigating away mid-delete-dialog-open on `select-tenant-page`).
+Both handlers now stop propagation before/instead of bubbling to the
+row's own click binding — noted here since it's a subtle
+event-bubbling interaction the PLAN's text didn't spell out, not a
+deviation from the PLAN's intent.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

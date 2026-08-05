@@ -308,7 +308,9 @@
     "showingRange": "Showing {{from}}-{{to}} of {{total}}",
     "actions": {
       "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "history": "View history",
+      "myProfile": "My profile"
     },
     "empty": {
       "default": "Nothing here yet.",
@@ -318,7 +320,9 @@
     },
     "noResults": "No results match your search.",
     "clearFilters": "Clear filters",
-    "sortBy": "Sort by"
+    "sortBy": "Sort by",
+    "previousPage": "Previous",
+    "nextPage": "Next"
   },
   "staffDirectory": {
     "searchPlaceholder": "Search by email…",
