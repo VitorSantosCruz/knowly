@@ -10,7 +10,7 @@ import {
   distinctUntilChanged,
   of,
 } from 'rxjs';
-import { LucidePlus } from '@lucide/angular';
+import { LucidePlus, LucideTrash } from '@lucide/angular';
 import { buttonClass } from '../../shared/button-classes';
 import {
   ActiveTenantService,
@@ -20,6 +20,8 @@ import {
 } from '../../core/active-tenant.service';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
+import { SharedListComponent } from '../../shared/shared-list/shared-list.component';
+import { SharedListColumn, SharedListRowAction } from '../../shared/shared-list/shared-list.model';
 
 interface TenantOption {
   tenantId: number;
@@ -30,7 +32,7 @@ const PAGE_SIZE = 20;
 
 @Component({
   selector: 'app-select-tenant-page',
-  imports: [TranslocoPipe, RouterLink, LucidePlus, ConfirmDialogComponent],
+  imports: [TranslocoPipe, RouterLink, LucidePlus, ConfirmDialogComponent, SharedListComponent],
   template: `
     <div data-testid="select-tenant-page" class="page-shell">
       <div class="enter-fluid mb-6 flex items-center justify-between gap-3">
@@ -48,81 +50,20 @@ const PAGE_SIZE = 20;
           </a>
         }
       </div>
-      @if (isFallback()) {
-        <div class="enter-fluid mb-4">
-          <label for="select-tenant-search" class="sr-only">
-            {{ 'selectTenant.searchLabel' | transloco }}
-          </label>
-          <input
-            id="select-tenant-search"
-            type="search"
-            data-testid="select-tenant-search"
-            [placeholder]="'selectTenant.searchPlaceholder' | transloco"
-            [attr.aria-label]="'selectTenant.searchLabel' | transloco"
-            class="block w-full rounded-xl border border-ink-200/70 bg-white px-4 py-2 text-sm text-ink-900 dark:border-ink-800/70 dark:bg-ink-900 dark:text-white"
-            (input)="onSearchInput($event)"
-          />
-        </div>
-      }
-      @if (options().length > 0) {
-        <ul role="listbox" class="flex w-full flex-col gap-2 border-0">
-          @for (option of options(); track option.tenantId) {
-            <li role="option" aria-selected="false" class="flex items-center gap-2">
-              <button
-                type="button"
-                [attr.data-testid]="'select-tenant-' + option.tenantId"
-                class="block w-full rounded-xl border border-ink-200/70 bg-white px-4 py-3 text-left text-sm text-ink-900 transition-colors duration-fast ease-fluid hover:border-signal-400 dark:border-ink-800/70 dark:bg-ink-900 dark:text-white dark:hover:border-signal-500"
-                (click)="onSelect(option)"
-              >
-                {{ option.tenantName }}
-              </button>
-              @if (canDeleteTenant()) {
-                <button
-                  type="button"
-                  [attr.data-testid]="'select-tenant-delete-' + option.tenantId"
-                  class="shrink-0 text-sm text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                  (click)="onDelete(option)"
-                >
-                  {{ 'selectTenant.delete' | transloco }}
-                </button>
-              }
-            </li>
-          }
-        </ul>
-      } @else if (loaded() && isFallback() && fallbackError() === null) {
-        <p
-          data-testid="select-tenant-no-results"
-          class="enter-fluid text-ink-600 dark:text-ink-400"
-        >
-          {{ 'selectTenant.noSearchResults' | transloco }}
-        </p>
-      } @else if (loaded()) {
-        <p data-testid="select-tenant-empty" class="enter-fluid text-ink-600 dark:text-ink-400">
-          {{ 'selectTenant.empty' | transloco }}
-        </p>
-      }
-      @if (isFallback() && totalPages() > 1) {
-        <div class="enter-fluid mt-4 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            data-testid="select-tenant-prev-page"
-            [class]="pageButtonClass"
-            [disabled]="page() === 0"
-            (click)="onPageChange(-1)"
-          >
-            {{ 'selectTenant.previousPage' | transloco }}
-          </button>
-          <button
-            type="button"
-            data-testid="select-tenant-next-page"
-            [class]="pageButtonClass"
-            [disabled]="page() === totalPages() - 1"
-            (click)="onPageChange(1)"
-          >
-            {{ 'selectTenant.nextPage' | transloco }}
-          </button>
-        </div>
-      }
+      <app-shared-list
+        [title]="'selectTenant.title' | transloco"
+        [rows]="options()"
+        [columns]="columns"
+        [rowId]="rowIdFn"
+        [rowActions]="rowActions()"
+        [searchable]="isFallback()"
+        [searchPlaceholder]="'selectTenant.searchPlaceholder' | transloco"
+        [serverPagination]="serverPagination()"
+        emptyMessageKey="selectTenant.empty"
+        (searchChange)="onSearchInput($event)"
+        (pageChange)="onPageChange($event)"
+        (rowClick)="onSelect($event)"
+      />
     </div>
     @if (pendingDelete(); as tenant) {
       <app-confirm-dialog
@@ -142,7 +83,31 @@ export class SelectTenantPageComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly createTenantLinkClass = buttonClass('primary');
-  protected readonly pageButtonClass = buttonClass('secondary');
+  protected readonly rowIdFn = (option: TenantOption): number => option.tenantId;
+  protected readonly columns: SharedListColumn<TenantOption>[] = [
+    {
+      key: 'tenantName',
+      headerKey: 'selectTenant.title',
+      render: (option) => ({ type: 'text', value: option.tenantName }),
+    },
+  ];
+  protected readonly serverPagination = computed(() =>
+    this.isFallback()
+      ? { page: this.page(), totalPages: this.totalPages(), totalElements: this.totalElements() }
+      : null,
+  );
+  protected readonly rowActions = computed<SharedListRowAction<TenantOption>[]>(() =>
+    this.canDeleteTenant()
+      ? [
+          {
+            icon: LucideTrash,
+            labelKey: 'selectTenant.delete',
+            variant: 'danger',
+            onClick: (option: TenantOption) => this.onDelete(option),
+          },
+        ]
+      : [],
+  );
   protected readonly options = signal<TenantOption[]>([]);
   protected readonly loaded = signal(false);
   protected readonly isFallback = signal(false);
@@ -186,8 +151,7 @@ export class SelectTenantPageComponent implements OnInit {
     });
   }
 
-  protected onSearchInput(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  protected onSearchInput(value: string): void {
     this.searchInput$.next(value);
   }
 

@@ -38,6 +38,16 @@ describe('SelectTenantPageComponent', () => {
     httpMock.expectOne('/api/staff/permissions').flush({ permissions });
   }
 
+  function row(tenantId: number): HTMLElement | null {
+    return fixture.nativeElement.querySelector(`[data-testid="shared-list-row-${tenantId}"]`);
+  }
+
+  function deleteAction(tenantId: number): HTMLButtonElement | null {
+    return fixture.nativeElement.querySelector(
+      `[data-testid="shared-list-action-selectTenant.delete-${tenantId}"]`,
+    );
+  }
+
   it('lists the memberships to choose from', () => {
     fixture.detectChanges();
     flushGlobalPermissions();
@@ -51,7 +61,7 @@ describe('SelectTenantPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Other Co');
   });
 
-  it('selecting a tenant posts the choice and navigates to the dashboard', () => {
+  it('selecting a tenant (row click) posts the choice and navigates to the dashboard', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     fixture.detectChanges();
     flushGlobalPermissions();
@@ -61,7 +71,7 @@ describe('SelectTenantPageComponent', () => {
     ]);
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="select-tenant-2"]').click();
+    row(2)!.click();
 
     const req = httpMock.expectOne('/api/tenants/active');
     expect(req.request.method).toBe('POST');
@@ -104,7 +114,7 @@ describe('SelectTenantPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Other Co');
   });
 
-  it('selecting a tenant from the staff fallback posts the choice and navigates to the dashboard', () => {
+  it('selecting a tenant from the staff fallback (row click) posts the choice and navigates to the dashboard', () => {
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');
     fixture.detectChanges();
     flushGlobalPermissions();
@@ -112,7 +122,7 @@ describe('SelectTenantPageComponent', () => {
     flushAllTenants([{ id: 1, name: 'Acme' }]);
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="select-tenant-1"]').click();
+    row(1)!.click();
 
     const req = httpMock.expectOne('/api/tenants/active');
     expect(req.request.method).toBe('POST');
@@ -146,20 +156,30 @@ describe('SelectTenantPageComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="create-tenant-link"]')).toBeFalsy();
   });
 
-  it('shows the distinct no-results state (not the network-failure empty state) when the system genuinely has zero tenants', () => {
+  it('shows the distinct no-results state (not the empty state) when a search yields zero matches', () => {
+    vi.useFakeTimers();
     fixture.detectChanges();
     flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([]);
+    flushAllTenants([{ id: 1, name: 'Acme' }]);
+    fixture.detectChanges();
+
+    const searchInput = fixture.nativeElement.querySelector('[data-testid="shared-list-search"]');
+    searchInput.value = 'zzz';
+    searchInput.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(300);
+
     flushAllTenants([], { totalElements: 0, totalPages: 0 });
     fixture.detectChanges();
 
     expect(
-      fixture.nativeElement.querySelector('[data-testid="select-tenant-no-results"]'),
+      fixture.nativeElement.querySelector('[data-testid="shared-list-no-results"]'),
     ).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="select-tenant-empty"]')).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('[data-testid="shared-list-empty"]')).toBeFalsy();
+    vi.useRealTimers();
   });
 
-  it('shows an empty state when the all-tenants fallback request itself fails', () => {
+  it('shows the empty state when the all-tenants fallback request itself fails', () => {
     fixture.detectChanges();
     flushGlobalPermissions();
     httpMock.expectOne('/api/tenants/memberships').flush([]);
@@ -168,34 +188,10 @@ describe('SelectTenantPageComponent', () => {
       .flush({ code: 'PERMISSION_DENIED' }, { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('[data-testid="select-tenant-empty"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="shared-list-empty"]')).toBeTruthy();
     expect(
-      fixture.nativeElement.querySelector('[data-testid="select-tenant-no-results"]'),
+      fixture.nativeElement.querySelector('[data-testid="shared-list-no-results"]'),
     ).toBeFalsy();
-  });
-
-  it('shows a distinct "no results" message when a search yields zero matches', () => {
-    vi.useFakeTimers();
-    fixture.detectChanges();
-    flushGlobalPermissions();
-    httpMock.expectOne('/api/tenants/memberships').flush([]);
-    flushAllTenants([{ id: 1, name: 'Acme' }]);
-    fixture.detectChanges();
-
-    fixture.nativeElement.querySelector('[data-testid="select-tenant-search"]').value = 'zzz';
-    fixture.nativeElement
-      .querySelector('[data-testid="select-tenant-search"]')
-      .dispatchEvent(new Event('input'));
-    vi.advanceTimersByTime(300);
-
-    flushAllTenants([], { totalElements: 0, totalPages: 0 });
-    fixture.detectChanges();
-
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="select-tenant-no-results"]'),
-    ).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="select-tenant-empty"]')).toBeFalsy();
-    vi.useRealTimers();
   });
 
   it('pagination buttons step through pages and are disabled at the edges', () => {
@@ -205,8 +201,8 @@ describe('SelectTenantPageComponent', () => {
     flushAllTenants([{ id: 1, name: 'Acme' }], { page: 0, totalPages: 2, totalElements: 2 });
     fixture.detectChanges();
 
-    const prevBtn = fixture.nativeElement.querySelector('[data-testid="select-tenant-prev-page"]');
-    const nextBtn = fixture.nativeElement.querySelector('[data-testid="select-tenant-next-page"]');
+    const prevBtn = fixture.nativeElement.querySelector('[data-testid="shared-list-prev-page"]');
+    const nextBtn = fixture.nativeElement.querySelector('[data-testid="shared-list-next-page"]');
     expect(prevBtn.disabled).toBe(true);
     expect(nextBtn.disabled).toBe(false);
 
@@ -235,7 +231,7 @@ describe('SelectTenantPageComponent', () => {
     flushAllTenants([{ id: 1, name: 'Acme' }], { page: 0, totalPages: 2, totalElements: 2 });
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="select-tenant-next-page"]').click();
+    fixture.nativeElement.querySelector('[data-testid="shared-list-next-page"]').click();
     httpMock
       .expectOne((r) => r.url === '/api/tenants' && r.params.get('page') === '1')
       .flush({
@@ -247,7 +243,7 @@ describe('SelectTenantPageComponent', () => {
       });
     fixture.detectChanges();
 
-    const searchInput = fixture.nativeElement.querySelector('[data-testid="select-tenant-search"]');
+    const searchInput = fixture.nativeElement.querySelector('[data-testid="shared-list-search"]');
     searchInput.value = 'ac';
     searchInput.dispatchEvent(new Event('input'));
 
@@ -272,19 +268,17 @@ describe('SelectTenantPageComponent', () => {
     vi.useRealTimers();
   });
 
-  it('does not show a delete button when the caller lacks TENANT_DELETE', () => {
+  it('does not show a delete action when the caller lacks TENANT_DELETE', () => {
     fixture.detectChanges();
     flushGlobalPermissions([]);
     httpMock.expectOne('/api/tenants/memberships').flush([]);
     flushAllTenants([{ id: 1, name: 'Acme' }]);
     fixture.detectChanges();
 
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="select-tenant-delete-1"]'),
-    ).toBeFalsy();
+    expect(deleteAction(1)).toBeFalsy();
   });
 
-  it('shows a delete button per tenant when the caller holds TENANT_DELETE, and deleting removes it from the list after confirmation', () => {
+  it('shows an icon-only delete row action per tenant when the caller holds TENANT_DELETE, and deleting removes it from the list after confirmation', () => {
     fixture.detectChanges();
     flushGlobalPermissions(['TENANT_DELETE']);
     httpMock.expectOne('/api/tenants/memberships').flush([]);
@@ -294,7 +288,9 @@ describe('SelectTenantPageComponent', () => {
     ]);
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="select-tenant-delete-1"]').click();
+    const deleteButton = deleteAction(1)!;
+    expect(deleteButton.textContent?.trim()).toBe('');
+    deleteButton.click();
     fixture.detectChanges();
 
     httpMock
@@ -319,6 +315,24 @@ describe('SelectTenantPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Other Co');
   });
 
+  it('clicking the delete row action does not also trigger row-click selection', () => {
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+    fixture.detectChanges();
+    flushGlobalPermissions(['TENANT_DELETE']);
+    httpMock.expectOne('/api/tenants/memberships').flush([]);
+    flushAllTenants([{ id: 1, name: 'Acme' }]);
+    fixture.detectChanges();
+
+    deleteAction(1)!.click();
+    fixture.detectChanges();
+
+    httpMock.expectOne('/api/tenants/1/deletion-confirmation-token').flush({ word: 'x' });
+    fixture.detectChanges();
+
+    expect(navigateSpy).not.toHaveBeenCalled();
+    fixture.nativeElement.querySelector('[data-testid="confirm-dialog-cancel"]').click();
+  });
+
   it('navigating pages after a search keeps the search term on the request', () => {
     vi.useFakeTimers();
     fixture.detectChanges();
@@ -327,7 +341,7 @@ describe('SelectTenantPageComponent', () => {
     flushAllTenants([{ id: 1, name: 'Acme' }]);
     fixture.detectChanges();
 
-    const searchInput = fixture.nativeElement.querySelector('[data-testid="select-tenant-search"]');
+    const searchInput = fixture.nativeElement.querySelector('[data-testid="shared-list-search"]');
     searchInput.value = 'co';
     searchInput.dispatchEvent(new Event('input'));
     vi.advanceTimersByTime(300);
@@ -343,7 +357,7 @@ describe('SelectTenantPageComponent', () => {
       });
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="select-tenant-next-page"]').click();
+    fixture.nativeElement.querySelector('[data-testid="shared-list-next-page"]').click();
 
     const req = httpMock.expectOne(
       (r) =>
