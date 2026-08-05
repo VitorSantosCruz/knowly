@@ -38,8 +38,17 @@ any feature, read
    ```sh
    docker compose up -d
    ```
-3. Run the application:
+3. Export the same variables into your shell, then run the application.
+   `docker compose` auto-loads `.env` for the *containers* it starts,
+   but that does not export those variables into your own shell/Maven
+   process — without this step, Spring resolves e.g.
+   `${MINIO_ROOT_USER}` to the literal, unresolved placeholder string
+   instead of failing loudly, which MinIO then rejects as an invalid
+   access key (surfaces as a generic `403 Forbidden` from
+   `ArticleStorageService#ensureBucketExists` at startup, not an
+   obviously-credentials-related error):
    ```sh
+   set -a; source .env; set +a
    ./mvnw spring-boot:run
    ```
 
