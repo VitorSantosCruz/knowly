@@ -20,6 +20,7 @@ import { ChatPageComponent } from './features/chat/chat-page.component';
 import { ConversationDetailComponent } from './features/chat/conversation-detail.component';
 import { NewConversationDialogComponent } from './features/chat/new-conversation-dialog.component';
 import { SupportPageComponent } from './features/support/support-page.component';
+import { StaffUserAuditPageComponent } from './features/user-management/staff-user-audit-page.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
@@ -66,6 +67,16 @@ export const routes: Routes = [
     path: 'staff/access-groups',
     component: AccessGroupManagementPageComponent,
     canActivate: [accessGroupManagementGuard],
+  },
+  // REQ-6/7/8 (design-system-consistency-pass): only ever reachable from the history row
+  // action on staff-directory-page, itself already gated on AUDIT_TRAIL_VIEW client-side —
+  // staffGuard is the same fixed permission check used elsewhere for staff-only routes; the
+  // real authorization boundary is GET /api/staff/users/{userId}/audit-trail's own
+  // AUDIT_TRAIL_VIEW check server-side.
+  {
+    path: 'staff/users/:userId/audit',
+    component: StaffUserAuditPageComponent,
+    canActivate: [staffGuard],
   },
   {
     path: 'conversations',

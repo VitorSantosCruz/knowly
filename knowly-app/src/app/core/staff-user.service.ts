@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { GlobalPermission } from './global-permission';
 import { MandatoryProfileFields } from './profile.service';
+import { PageResponse } from './active-tenant.service';
 
 export type GlobalRole = 'STAFF' | 'STAFF_ADMIN';
 
@@ -114,8 +115,11 @@ export class StaffUserService {
       .pipe(map((res) => res.word));
   }
 
-  getAuditTrail(userId: number): Observable<AuditEvent[]> {
-    return this.http.get<AuditEvent[]>(`/api/staff/users/${userId}/audit-trail`);
+  getAuditTrail(userId: number, page: number, size: number): Observable<PageResponse<AuditEvent>> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PageResponse<AuditEvent>>(`/api/staff/users/${userId}/audit-trail`, {
+      params,
+    });
   }
 
   demote(userId: number): Observable<void> {

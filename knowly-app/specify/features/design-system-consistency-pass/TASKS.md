@@ -175,35 +175,35 @@ of Group 1 and of each other.
 > reconcile both PLAN.md files before writing any code below — do not
 > guess a shape that doesn't match the real backend.
 
-- [ ] 39. Confirm the backend endpoint's actual response shape matches
+- [x] 39. Confirm the backend endpoint's actual response shape matches
        this feature's PLAN.md contract table (or update the table with
        a documented correction if it doesn't) before proceeding.
-- [ ] 40. Add `getAuditTrail(userId, page, size)` to `staff-user.service.ts`
+- [x] 40. Add `getAuditTrail(userId, page, size)` to `staff-user.service.ts`
        (or equivalent) calling the confirmed endpoint, returning
        `PageResponse<AuditEventDto>`. Write its spec (Red) first, then
        implement (Green).
-- [ ] 41. Write `staff-user-audit-page.component.spec.ts` cases (Red):
+- [x] 41. Write `staff-user-audit-page.component.spec.ts` cases (Red):
        reads `userId` from `ActivatedRoute.paramMap`; renders paginated
        events (one `occurredAt` column, formatted via the existing
        `formatAuditTimestamp`/`translateAuditAction` helpers) through
        `<app-shared-list>` with `serverPagination` always set, no row
        actions.
-- [ ] 42. Implement `staff-user-audit-page.component.ts` for task 41
+- [x] 42. Implement `staff-user-audit-page.component.ts` for task 41
        (Green).
-- [ ] 43. Write spec cases (Red): changing page (`pageChange`) re-fetches
+- [x] 43. Write spec cases (Red): changing page (`pageChange`) re-fetches
        the next page from the service; `permission-denied`/`network`
        error states render the existing shared error components,
        matching the `'network' | 'permission-denied' | null` convention.
-- [ ] 44. Implement the page-change refetch and error-state handling for
+- [x] 44. Implement the page-change refetch and error-state handling for
        task 43 (Green).
-- [ ] 45. Write `staff-directory-page.component.spec.ts` case (Red)
+- [x] 45. Write `staff-directory-page.component.spec.ts` case (Red)
        (extends task 36/37's suite): clicking the history row action
        navigates to `/staff/users/:userId/audit`.
-- [ ] 46. Add the `{ path: 'staff/users/:userId/audit', component:
+- [x] 46. Add the `{ path: 'staff/users/:userId/audit', component:
        StaffUserAuditPageComponent, canActivate: [staffGuard] }` route
        to `app.routes.ts` and wire the history action's navigation for
        task 45 (Green).
-- [ ] 47. Run `npm run format:check && npm test && npm run build && npm run lint`,
+- [x] 47. Run `npm run format:check && npm test && npm run build && npm run lint`,
        confirm green, commit
        (`feat(design-system-consistency-pass): add paginated staff-user audit-trail page`).
 

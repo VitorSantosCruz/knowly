@@ -163,12 +163,16 @@ describe('StaffUserService', () => {
     expect(result).toBe('correct-horse');
   });
 
-  it('getAuditTrail() fetches the target user audit trail', () => {
-    service.getAuditTrail(1).subscribe();
+  it('getAuditTrail() fetches a page of the target user audit trail', () => {
+    let result: unknown;
+    service.getAuditTrail(1, 0, 20).subscribe((page) => (result = page));
 
-    const req = httpMock.expectOne('/api/staff/users/1/audit-trail');
+    const req = httpMock.expectOne('/api/staff/users/1/audit-trail?page=0&size=20');
     expect(req.request.method).toBe('GET');
-    req.flush([]);
+    const page = { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 };
+    req.flush(page);
+
+    expect(result).toEqual(page);
   });
 
   it('demote() posts to the demote endpoint', () => {
