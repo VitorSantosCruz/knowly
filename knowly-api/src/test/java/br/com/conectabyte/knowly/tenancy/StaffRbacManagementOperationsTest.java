@@ -60,18 +60,14 @@ class StaffRbacManagementOperationsTest {
 
     // NB: tenantContext.isStaffAdmin() is what GlobalPermissionAspect/PermissionAspect actually
     // consult -- it must reflect the user being authenticated *as*, not whichever fixture was
-    // last created via staffAdmin()/limitedStaff(). authenticateAs(User) re-derives it fresh from
-    // the DB every call so call order among fixture-creation helpers never leaks into it.
+    // last created via staffAdmin()/limitedStaff(). Re-derives it fresh from the DB every call so
+    // call order among fixture-creation helpers never leaks into it.
     private void authenticateAs(String email) {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(new UsernamePasswordAuthenticationToken(email, null, List.of()));
         SecurityContextHolder.setContext(context);
         User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         tenantContext.setStaffAdmin(user.getGlobalRole() == GlobalRole.STAFF_ADMIN);
-    }
-
-    private void authenticateAs(User user) {
-        authenticateAs(user.getEmail());
     }
 
     private User staffAdmin(String email) {
