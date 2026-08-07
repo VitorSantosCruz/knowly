@@ -690,7 +690,7 @@ describe('NavMenuComponent', () => {
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
     });
 
-    it("a collapsed item's tooltip span is present with hover/focus-visible reveal classes", () => {
+    it('a collapsed item shows a floating tooltip with its label on hover, positioned off the real icon rect', () => {
       fixture.detectChanges();
       flush({ memberships: [], globalPermissions: ['DASHBOARD_VIEW_GLOBAL'] });
       fixture.detectChanges();
@@ -698,11 +698,35 @@ describe('NavMenuComponent', () => {
       TestBed.inject(SidebarStateService).setCollapsed(true);
       fixture.detectChanges();
 
-      const link = fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]');
-      const tooltip = link.querySelector('[data-testid="nav-tooltip"]');
+      expect(fixture.nativeElement.querySelector('[data-testid="nav-tooltip"]')).toBeNull();
+
+      const link: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="nav-dashboard"]',
+      );
+      link.dispatchEvent(new Event('mouseenter'));
+      fixture.detectChanges();
+
+      const tooltip = fixture.nativeElement.querySelector('[data-testid="nav-tooltip"]');
       expect(tooltip).toBeTruthy();
-      expect(tooltip.className).toContain('group-hover:opacity-100');
-      expect(tooltip.className).toContain('group-focus-visible:opacity-100');
+      expect(tooltip.textContent.trim()).toBe('Dashboard');
+
+      link.dispatchEvent(new Event('mouseleave'));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-testid="nav-tooltip"]')).toBeNull();
+    });
+
+    it('does not show the floating tooltip when the sidebar is expanded', () => {
+      fixture.detectChanges();
+      flush({ memberships: [], globalPermissions: ['DASHBOARD_VIEW_GLOBAL'] });
+      fixture.detectChanges();
+
+      const link: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="nav-dashboard"]',
+      );
+      link.dispatchEvent(new Event('mouseenter'));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="nav-tooltip"]')).toBeNull();
     });
   });
 });

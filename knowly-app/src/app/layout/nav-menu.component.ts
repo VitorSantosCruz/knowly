@@ -76,7 +76,7 @@ const CATEGORY_LABEL_CLASS =
     @if (authService.isLoggedIn()) {
       <nav id="nav-menu" data-testid="nav-menu" class="flex h-full flex-col">
         <a routerLink="/welcome" class="mb-6 flex items-center px-1">
-          <app-brand-wordmark class="text-white" />
+          <app-brand-wordmark class="text-white" [compact]="sidebarState.collapsed()" />
         </a>
 
         <button
@@ -113,6 +113,10 @@ const CATEGORY_LABEL_CLASS =
                     [routerLink]="item.routerLink"
                     routerLinkActive="active-nav-link"
                     [class]="linkClass"
+                    (mouseenter)="onNavItemHover($event, item.labelKey)"
+                    (mouseleave)="onNavItemUnhover()"
+                    (focus)="onNavItemHover($event, item.labelKey)"
+                    (blur)="onNavItemUnhover()"
                   >
                     @switch (item.icon) {
                       @case ('layout-grid') {
@@ -140,14 +144,6 @@ const CATEGORY_LABEL_CLASS =
                     <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
                       item.labelKey | transloco
                     }}</span>
-                    @if (sidebarState.collapsed()) {
-                      <span
-                        data-testid="nav-tooltip"
-                        class="absolute left-full ml-2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-fast ease-fluid group-hover:opacity-100 group-focus-visible:opacity-100"
-                      >
-                        {{ item.labelKey | transloco }}
-                      </span>
-                    }
                   </a>
                 </li>
               }
@@ -175,6 +171,10 @@ const CATEGORY_LABEL_CLASS =
                       [attr.data-tour-id]="item.tourId"
                       [class]="linkClass"
                       (click)="item.onClick()"
+                      (mouseenter)="onNavItemHover($event, item.labelKey)"
+                      (mouseleave)="onNavItemUnhover()"
+                      (focus)="onNavItemHover($event, item.labelKey)"
+                      (blur)="onNavItemUnhover()"
                     >
                       @switch (item.icon) {
                         @case ('layout-grid') {
@@ -202,14 +202,6 @@ const CATEGORY_LABEL_CLASS =
                       <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
                         item.labelKey | transloco
                       }}</span>
-                      @if (sidebarState.collapsed()) {
-                        <span
-                          data-testid="nav-tooltip"
-                          class="absolute left-full ml-2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-fast ease-fluid group-hover:opacity-100 group-focus-visible:opacity-100"
-                        >
-                          {{ item.labelKey | transloco }}
-                        </span>
-                      }
                     </button>
                   } @else {
                     <a
@@ -218,6 +210,10 @@ const CATEGORY_LABEL_CLASS =
                       [routerLink]="item.routerLink"
                       routerLinkActive="active-nav-link"
                       [class]="linkClass"
+                      (mouseenter)="onNavItemHover($event, item.labelKey)"
+                      (mouseleave)="onNavItemUnhover()"
+                      (focus)="onNavItemHover($event, item.labelKey)"
+                      (blur)="onNavItemUnhover()"
                     >
                       @switch (item.icon) {
                         @case ('layout-grid') {
@@ -245,20 +241,35 @@ const CATEGORY_LABEL_CLASS =
                       <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
                         item.labelKey | transloco
                       }}</span>
-                      @if (sidebarState.collapsed()) {
-                        <span
-                          data-testid="nav-tooltip"
-                          class="absolute left-full ml-2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-fast ease-fluid group-hover:opacity-100 group-focus-visible:opacity-100"
-                        >
-                          {{ item.labelKey | transloco }}
-                        </span>
-                      }
                     </a>
                   }
                 </li>
               }
             </ul>
           </div>
+        }
+
+        <!--
+          Rendered as a direct child of nav, NOT nested inside the scrollable overview div
+          above: that div has overflow-y-auto, and per the CSS overflow spec, an axis left as
+          visible computes to auto as soon as the other axis isn't visible — so any descendant
+          that visually pokes out past the collapsed 72px rail (this tooltip's whole purpose)
+          silently forces a phantom horizontal scrollbar onto the entire nav, at rest, not just
+          while hovering. Being outside that div's subtree entirely — not merely position:fixed,
+          which still counts toward an ancestor's scrollable-overflow region if it's DOM-nested
+          inside it — is what actually keeps it out of that measurement. Position is computed in
+          JS (onNavItemHover) off the hovered/focused item's real bounding rect, since a pure-CSS
+          left:100% would need this element nested inside the item it's labeling.
+        -->
+        @if (hoveredTooltip(); as tooltip) {
+          <span
+            data-testid="nav-tooltip"
+            class="fixed z-50 -translate-y-1/2 rounded-md bg-ink-800 px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg"
+            [style.top.px]="tooltip.top"
+            [style.left.px]="tooltip.left"
+          >
+            {{ tooltip.labelKey | transloco }}
+          </span>
         }
       </nav>
     }
@@ -272,10 +283,32 @@ export class NavMenuComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly linkClass =
-    'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
+    'relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
   protected readonly iconClass = 'h-4 w-4 shrink-0';
   protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
   protected readonly sidebarState = inject(SidebarStateService);
+
+  // A single floating tooltip (rendered outside the scrollable nav-items div, see the template
+  // comment above it) rather than one-per-item: only one can ever be visible at a time (hover/
+  // focus is exclusive), and this is what lets its position escape that div's overflow-y-auto
+  // subtree entirely instead of just being clipped/measured differently within it.
+  protected readonly hoveredTooltip = signal<{
+    top: number;
+    left: number;
+    labelKey: string;
+  } | null>(null);
+
+  protected onNavItemHover(event: Event, labelKey: string): void {
+    if (!this.sidebarState.collapsed()) {
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.hoveredTooltip.set({ top: rect.top + rect.height / 2, left: rect.right + 8, labelKey });
+  }
+
+  protected onNavItemUnhover(): void {
+    this.hoveredTooltip.set(null);
+  }
   protected readonly toggleButtonClass =
     'mb-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:bg-ink-800/60 hover:text-white focus-visible:ring-2 focus-visible:ring-signal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950';
 
