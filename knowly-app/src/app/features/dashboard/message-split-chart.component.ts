@@ -70,7 +70,9 @@ const DONUT_OPTIONS = {
           [options]="donutOptions"
           height="220px"
         />
-        <table class="sr-only">
+        <!-- block: table elements ignore height:1px+overflow:hidden and keep their content-driven
+             height even with sr-only applied (a real browser table-layout quirk) -->
+        <table class="sr-only block">
           <caption>
             Message split
           </caption>

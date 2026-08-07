@@ -91,7 +91,9 @@ export const SPARKLINE_OPTIONS = {
               height="48px"
             />
           </div>
-          <table class="sr-only">
+          <!-- block: table elements ignore height:1px+overflow:hidden and keep their content-driven
+               height even with sr-only applied (a real browser table-layout quirk) -->
+          <table class="sr-only block">
             <caption>
               {{
                 label()

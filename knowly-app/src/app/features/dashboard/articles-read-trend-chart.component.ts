@@ -44,7 +44,9 @@ const CHART_OPTIONS = { plugins: { legend: { display: false } } };
           [options]="chartOptions"
           height="220px"
         />
-        <table class="sr-only">
+        <!-- block: table elements ignore height:1px+overflow:hidden and keep their content-driven
+             height even with sr-only applied (a real browser table-layout quirk) -->
+        <table class="sr-only block">
           <caption>
             {{
               'dashboard.trends.articlesReadChartLabel' | transloco
