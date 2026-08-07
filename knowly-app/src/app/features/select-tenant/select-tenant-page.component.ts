@@ -93,7 +93,12 @@ export class SelectTenantPageComponent implements OnInit {
   ];
   protected readonly serverPagination = computed(() =>
     this.isFallback()
-      ? { page: this.page(), totalPages: this.totalPages(), totalElements: this.totalElements() }
+      ? {
+          page: this.page(),
+          pageSize: PAGE_SIZE,
+          totalPages: this.totalPages(),
+          totalElements: this.totalElements(),
+        }
       : null,
   );
   protected readonly rowActions = computed<SharedListRowAction<TenantOption>[]>(() =>

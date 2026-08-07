@@ -75,6 +75,7 @@ export type SharedListError = 'network' | 'permission-denied' | null;
  */
 export interface SharedListServerPagination {
   page: number;
+  pageSize: number;
   totalPages: number;
   totalElements: number;
 }

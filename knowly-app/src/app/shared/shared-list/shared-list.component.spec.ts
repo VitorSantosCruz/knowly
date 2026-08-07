@@ -285,6 +285,7 @@ describe('SharedListComponent', () => {
   describe('server-pagination mode', () => {
     const serverPagination: SharedListServerPagination = {
       page: 0,
+      pageSize: 20,
       totalPages: 3,
       totalElements: 3,
     };
@@ -308,8 +309,17 @@ describe('SharedListComponent', () => {
       expect(el('shared-list-next-page')).toBeTruthy();
     });
 
+    it('offsets the showing-range by page*pageSize instead of always starting at 1', async () => {
+      // Real bug: rangeFrom was hardcoded to 1 and rangeTo to the current page's row count,
+      // so every page showed "1-N" instead of e.g. page 1 (0-indexed) showing "21-23".
+      await setup({
+        serverPagination: { page: 1, pageSize: 20, totalPages: 2, totalElements: 23 },
+      });
+      expect(el('shared-list-count')?.textContent).toContain('21-23');
+    });
+
     it('hides pagination controls when totalPages <= 1', async () => {
-      await setup({ serverPagination: { page: 0, totalPages: 1, totalElements: 1 } });
+      await setup({ serverPagination: { page: 0, pageSize: 20, totalPages: 1, totalElements: 1 } });
       expect(el('shared-list-prev-page')).toBeNull();
       expect(el('shared-list-next-page')).toBeNull();
     });
@@ -321,7 +331,7 @@ describe('SharedListComponent', () => {
     });
 
     it('disables prev at page 0 and next at the last page, emitting pageChange with the right delta', async () => {
-      await setup({ serverPagination: { page: 0, totalPages: 2, totalElements: 2 } });
+      await setup({ serverPagination: { page: 0, pageSize: 20, totalPages: 2, totalElements: 2 } });
       const emitted: number[] = [];
       fixture.componentInstance.pageChange.subscribe((v) => emitted.push(v));
 
@@ -335,7 +345,7 @@ describe('SharedListComponent', () => {
     });
 
     it('disables next at the last page', async () => {
-      await setup({ serverPagination: { page: 1, totalPages: 2, totalElements: 2 } });
+      await setup({ serverPagination: { page: 1, pageSize: 20, totalPages: 2, totalElements: 2 } });
       const prev = el<HTMLButtonElement>('shared-list-prev-page')!;
       const next = el<HTMLButtonElement>('shared-list-next-page')!;
       expect(prev.disabled).toBe(false);

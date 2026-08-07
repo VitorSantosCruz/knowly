@@ -57,6 +57,7 @@ export class StaffUserAuditPageComponent implements OnInit {
 
   protected readonly serverPagination = computed(() => ({
     page: this.page(),
+    pageSize: PAGE_SIZE,
     totalPages: this.totalPages(),
     totalElements: this.totalElements(),
   }));

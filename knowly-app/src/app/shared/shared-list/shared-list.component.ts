@@ -441,8 +441,19 @@ export class SharedListComponent<T> {
     const serverPagination = this.serverPagination();
     return serverPagination !== null ? serverPagination.totalElements : this.filteredRows().length;
   });
-  protected readonly rangeFrom = computed(() => (this.totalCount() === 0 ? 0 : 1));
-  protected readonly rangeTo = computed(() => this.visibleRows().length);
+  protected readonly rangeFrom = computed(() => {
+    if (this.totalCount() === 0) {
+      return 0;
+    }
+    const serverPagination = this.serverPagination();
+    return serverPagination !== null ? serverPagination.page * serverPagination.pageSize + 1 : 1;
+  });
+  protected readonly rangeTo = computed(() => {
+    const serverPagination = this.serverPagination();
+    return serverPagination !== null
+      ? serverPagination.page * serverPagination.pageSize + this.visibleRows().length
+      : this.visibleRows().length;
+  });
 
   protected readonly allVisibleSelected = computed(() => {
     const visible = this.visibleRows();
