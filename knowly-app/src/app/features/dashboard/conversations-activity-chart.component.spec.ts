@@ -82,7 +82,7 @@ describe('ConversationsActivityChartComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-chart-canvas')).toBeTruthy();
-    const table = fixture.nativeElement.querySelector('table.sr-only');
+    const table = fixture.nativeElement.querySelector('[data-testid="a11y-table"] table');
     expect(table).toBeTruthy();
     const rows = table.querySelectorAll('tbody tr');
     expect(rows).toHaveLength(2);

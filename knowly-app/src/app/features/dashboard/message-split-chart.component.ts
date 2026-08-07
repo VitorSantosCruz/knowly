@@ -70,27 +70,37 @@ const DONUT_OPTIONS = {
           [options]="donutOptions"
           height="220px"
         />
-        <!-- block: table elements ignore height:1px+overflow:hidden and keep their content-driven
-             height even with sr-only applied (a real browser table-layout quirk) -->
-        <table class="sr-only block">
-          <caption>
-            Message split
-          </caption>
-          <thead>
-            <tr>
-              <th>Role</th>
-              <th>Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of toRows(data); track row.label) {
+        <!-- position:fixed, not the sr-only utility's position:absolute: browser table-layout
+             fixup synthesizes an anonymous, unclipped table around a table-role descendant
+             (tbody/tr) whenever its parent stops being display:table, and that synthesized
+             wrapper can retain a stale content height across a resize even inside a properly
+             clipped (position:absolute) div. position:fixed removes this whole subtree from
+             every ancestor's layout/scroll computation outright, sidestepping the fixup
+             entirely rather than relying on it being clipped correctly. -->
+        <div
+          data-testid="a11y-table"
+          class="fixed h-px w-px overflow-hidden border-0 p-0 whitespace-nowrap opacity-0 [clip-path:inset(50%)]"
+        >
+          <table>
+            <caption>
+              Message split
+            </caption>
+            <thead>
               <tr>
-                <td>{{ row.label }}</td>
-                <td>{{ row.count }}</td>
+                <th>Role</th>
+                <th>Count</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (row of toRows(data); track row.label) {
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.count }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </div>
   `,

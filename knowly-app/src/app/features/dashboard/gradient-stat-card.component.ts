@@ -59,30 +59,40 @@ import {
             height="48px"
           />
         </div>
-        <!-- block: table elements ignore height:1px+overflow:hidden and keep their content-driven
-             height even with sr-only applied (a real browser table-layout quirk) -->
-        <table class="sr-only block">
-          <caption>
-            {{
-              label()
-            }}
-            trend
-          </caption>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (day of sparklineData(); track day.date) {
+        <!-- position:fixed, not the sr-only utility's position:absolute: browser table-layout
+             fixup synthesizes an anonymous, unclipped table around a table-role descendant
+             (tbody/tr) whenever its parent stops being display:table, and that synthesized
+             wrapper can retain a stale content height across a resize even inside a properly
+             clipped (position:absolute) div. position:fixed removes this whole subtree from
+             every ancestor's layout/scroll computation outright, sidestepping the fixup
+             entirely rather than relying on it being clipped correctly. -->
+        <div
+          data-testid="a11y-table"
+          class="fixed h-px w-px overflow-hidden border-0 p-0 whitespace-nowrap opacity-0 [clip-path:inset(50%)]"
+        >
+          <table>
+            <caption>
+              {{
+                label()
+              }}
+              trend
+            </caption>
+            <thead>
               <tr>
-                <td>{{ day.date }}</td>
-                <td>{{ day.count }}</td>
+                <th>Date</th>
+                <th>Value</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (day of sparklineData(); track day.date) {
+                <tr>
+                  <td>{{ day.date }}</td>
+                  <td>{{ day.count }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
 
       @if (subtitle()) {

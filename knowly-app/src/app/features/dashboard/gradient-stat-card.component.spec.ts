@@ -89,7 +89,7 @@ describe('GradientStatCardComponent', () => {
 
     const el = fixture.nativeElement;
     expect(el.querySelector('app-chart-canvas')).toBeTruthy();
-    const table = el.querySelector('table.sr-only');
+    const table = el.querySelector('[data-testid="a11y-table"] table');
     expect(table).toBeTruthy();
     expect(table.textContent).toContain('2026-07-01');
     expect(table.textContent).toContain('3');
@@ -101,7 +101,7 @@ describe('GradientStatCardComponent', () => {
 
     const el = fixture.nativeElement;
     expect(el.querySelector('app-chart-canvas')).toBeFalsy();
-    expect(el.querySelector('table.sr-only')).toBeFalsy();
+    expect(el.querySelector('[data-testid="a11y-table"] table')).toBeFalsy();
     expect(el.querySelector('[data-testid="stat-card-value"]').textContent).toContain('12');
   });
 
