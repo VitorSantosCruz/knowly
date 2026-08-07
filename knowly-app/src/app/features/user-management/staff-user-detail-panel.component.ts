@@ -5,6 +5,7 @@ import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-perm
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { ProfileService } from '../../core/profile.service';
 import {
+  AuditEvent,
   GlobalAccessGroup,
   StaffUserDetail,
   StaffUserService,
@@ -14,9 +15,15 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { translatePermissionLabel } from '../../shared/permission-labels';
+import { formatAuditTimestamp } from '../../shared/audit-timestamp';
+import { translateAuditAction } from '../../shared/audit-trail-labels';
+import { SharedListComponent } from '../../shared/shared-list/shared-list.component';
+import { SharedListColumn, SharedListError } from '../../shared/shared-list/shared-list.model';
 import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
+
+const AUDIT_PAGE_SIZE = 20;
 
 @Component({
   selector: 'app-staff-user-detail-panel',
@@ -26,6 +33,7 @@ type DetailError = 'network' | 'permission-denied' | null;
     NoAccessStateComponent,
     ProfileSectionComponent,
     ConfirmDialogComponent,
+    SharedListComponent,
   ],
   template: `
     @if (error() === 'permission-denied') {
@@ -250,6 +258,22 @@ type DetailError = 'network' | 'permission-denied' | null;
           [hideEditToggle]="true"
           [editTrigger]="editProfileTrigger()"
         />
+
+        @if (globalPermissionsService.has('AUDIT_TRAIL_VIEW')) {
+          <section data-testid="staff-audit-trail" class="mt-5">
+            <app-shared-list
+              [title]="'staffDirectory.auditTrail.title' | transloco"
+              [rows]="auditEvents()"
+              [columns]="auditColumns"
+              [rowId]="auditRowId"
+              [loading]="auditLoading()"
+              [error]="auditError()"
+              [serverPagination]="auditServerPagination()"
+              emptyMessageKey="staffDirectory.auditTrail.noHistory"
+              (pageChange)="onAuditPageChange($event)"
+            />
+          </section>
+        }
       </div>
 
       @if (pendingPermissionRevoke(); as permission) {
@@ -324,6 +348,36 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   protected readonly pendingDemote = signal(false);
   protected readonly pendingPromote = signal(false);
 
+  // REQ-6/7/8 follow-up: the audit trail lives here now, as an always-visible section next to
+  // Permissions/Access groups, instead of the "History" row action navigating to its own
+  // /staff/users/:userId/audit route — Edit and History both just open this one panel now.
+  protected readonly auditEvents = signal<AuditEvent[]>([]);
+  protected readonly auditLoading = signal(false);
+  protected readonly auditError = signal<SharedListError>(null);
+  protected readonly auditPage = signal(0);
+  protected readonly auditTotalPages = signal(0);
+  protected readonly auditTotalElements = signal(0);
+
+  protected readonly auditRowId = (row: AuditEvent): number => this.auditEvents().indexOf(row);
+
+  protected readonly auditServerPagination = computed(() => ({
+    page: this.auditPage(),
+    pageSize: AUDIT_PAGE_SIZE,
+    totalPages: this.auditTotalPages(),
+    totalElements: this.auditTotalElements(),
+  }));
+
+  protected readonly auditColumns: SharedListColumn<AuditEvent>[] = [
+    {
+      key: 'occurredAt',
+      headerKey: 'staffDirectory.auditTrail.occurredAt',
+      render: (row) => ({
+        type: 'text',
+        value: `${formatAuditTimestamp(row.occurredAt)} — ${translateAuditAction(row.action, this.transloco)}`,
+      }),
+    },
+  ];
+
   // REQ-15/16: local, unsaved switches state. Seeded from `directPermissions` on every
   // load/refresh (see `loadDetail`), only mutated locally by `onTogglePermission`.
   protected readonly pendingPermissions = signal<Set<GlobalPermission>>(new Set());
@@ -370,6 +424,42 @@ export class StaffUserDetailPanelComponent implements OnChanges {
     this.loadDetail();
     this.loadAccessGroups();
     this.loadOwnUserId();
+    this.auditPage.set(0);
+    this.loadAuditPage();
+  }
+
+  protected onAuditPageChange(delta: -1 | 1): void {
+    this.auditPage.set(this.auditPage() + delta);
+    this.loadAuditPage();
+  }
+
+  private loadAuditPage(): void {
+    if (!this.globalPermissionsService.has('AUDIT_TRAIL_VIEW')) {
+      return;
+    }
+
+    this.auditLoading.set(true);
+    this.auditError.set(null);
+
+    this.staffUserService
+      .getAuditTrail(this.userId(), this.auditPage(), AUDIT_PAGE_SIZE)
+      .pipe(
+        catchError((err) => {
+          this.auditError.set(err.status === 403 ? 'permission-denied' : 'network');
+          return of(null);
+        }),
+      )
+      .subscribe((response) => {
+        this.auditLoading.set(false);
+
+        if (response === null) {
+          return;
+        }
+
+        this.auditEvents.set(response.content);
+        this.auditTotalPages.set(response.totalPages);
+        this.auditTotalElements.set(response.totalElements);
+      });
   }
 
   private loadOwnUserId(): void {

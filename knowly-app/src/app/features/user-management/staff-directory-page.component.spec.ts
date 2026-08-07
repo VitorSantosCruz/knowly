@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router, provideRouter } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { StaffDirectoryPageComponent } from './staff-directory-page.component';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
@@ -303,9 +303,7 @@ describe('StaffDirectoryPageComponent', () => {
       ).toBeFalsy();
     });
 
-    it('clicking the history row action navigates to /staff/users/:userId/audit', () => {
-      const router = TestBed.inject(Router);
-      const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+    it('clicking the history row action opens the same detail panel Edit does, not a separate page', () => {
       const permissionsService = TestBed.inject(GlobalPermissionsService);
       permissionsService.fetch();
       flushGlobalPermissions(['AUDIT_TRAIL_VIEW']);
@@ -319,8 +317,59 @@ describe('StaffDirectoryPageComponent', () => {
       fixture.nativeElement
         .querySelector('[data-testid="shared-list-action-sharedList.actions.history-1"]')
         .click();
+      fixture.detectChanges();
 
-      expect(navigateSpy).toHaveBeenCalledWith('/staff/users/1/audit');
+      httpMock.expectOne('/api/staff/users/1/permissions').flush({
+        userId: 1,
+        email: 'staffer@example.com',
+        globalRole: 'STAFF',
+        directPermissions: [],
+        accessGroups: [],
+        effectivePermissions: [],
+        isLastAdminOfType: false,
+      });
+      httpMock.expectOne('/api/staff/access-groups').flush([]);
+      httpMock.expectOne('/api/staff/users/1/audit-trail?page=0&size=20').flush({
+        content: [],
+        page: 0,
+        size: 20,
+        totalElements: 0,
+        totalPages: 0,
+      });
+      fixture.detectChanges();
+      httpMock.expectOne('/api/users/1/profile').flush({
+        userId: 1,
+        email: 'staffer@example.com',
+        fields: {
+          fullName: 'Staffer',
+          cpf: '111.111.111-11',
+          rg: '11.111.111-1',
+          rgOrgaoEmissor: 'SSP',
+          birthDate: '1990-01-01',
+          address: null,
+          contacts: [],
+        },
+        avatarUrl: null,
+      });
+      httpMock.expectOne('/api/users/me/profile').flush({
+        userId: 999,
+        email: 'me@example.com',
+        fields: {
+          fullName: 'Me',
+          cpf: null,
+          rg: null,
+          rgOrgaoEmissor: null,
+          birthDate: null,
+          address: null,
+          contacts: [],
+        },
+        avatarUrl: null,
+      });
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]'),
+      ).toBeTruthy();
     });
   });
 });

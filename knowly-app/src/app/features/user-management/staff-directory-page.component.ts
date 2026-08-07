@@ -1,5 +1,4 @@
 import { Component, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
-import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { LucideHistory, LucideSquarePen, LucideTrash } from '@lucide/angular';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
@@ -158,7 +157,6 @@ const EMPTY_FIELDS: ProfileFields = {
 })
 export class StaffDirectoryPageComponent implements OnInit {
   private readonly staffUserService = inject(StaffUserService);
-  private readonly router = inject(Router);
   protected readonly globalPermissionsService = inject(GlobalPermissionsService);
 
   protected readonly addButtonClass = buttonClass('primary');
@@ -215,7 +213,10 @@ export class StaffDirectoryPageComponent implements OnInit {
   // REQ-6/7/8: edit/delete/history become list row actions; history is itself gated
   // (appsec review, 2026-08-05) on AUDIT_TRAIL_VIEW — offered only to a viewer the
   // backend endpoint would actually accept, not merely disabled, to avoid a
-  // permission-denied flash after navigating in.
+  // permission-denied flash after navigating in. Follow-up: History used to navigate to its own
+  // /staff/users/:userId/audit route, landing on a visually different screen than Edit's inline
+  // panel for what a user flagged as the same kind of action on the same row — it now opens that
+  // same panel too (the audit trail is an always-visible section inside it).
   protected readonly rowActions = computed<SharedListRowAction<StaffUserSummary>[]>(() => {
     const actions: SharedListRowAction<StaffUserSummary>[] = [
       {
@@ -237,7 +238,7 @@ export class StaffDirectoryPageComponent implements OnInit {
         icon: LucideHistory,
         labelKey: 'sharedList.actions.history',
         variant: 'secondary',
-        onClick: (row) => this.router.navigateByUrl(`/staff/users/${row.id}/audit`),
+        onClick: (row) => this.openPanel(row.id),
       });
     }
 
@@ -279,6 +280,12 @@ export class StaffDirectoryPageComponent implements OnInit {
     } else {
       this.pendingEditMode = true;
     }
+  }
+
+  /** Called by the "History" row action — same panel as Edit, just without triggering its
+   * profile-edit toggle; the audit trail is an always-visible section further down the panel. */
+  protected openPanel(userId: number): void {
+    this.selectedUserId.set(userId);
   }
 
   protected onDeleteStaffUser(staffUser: StaffUserSummary): void {

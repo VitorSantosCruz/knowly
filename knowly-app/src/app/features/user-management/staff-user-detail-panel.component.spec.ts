@@ -5,6 +5,7 @@ import { provideTransloco } from '@jsverse/transloco';
 import { StaffUserDetailPanelComponent } from './staff-user-detail-panel.component';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import { GlobalPermission } from '../../core/global-permission';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
 
 describe('StaffUserDetailPanelComponent', () => {
   let fixture: ComponentFixture<StaffUserDetailPanelComponent>;
@@ -81,12 +82,34 @@ describe('StaffUserDetailPanelComponent', () => {
     detail: typeof staffDetail | typeof adminDetail,
     viewerIsStaffAdmin: boolean,
     accessGroups: unknown[] = [],
+    grantAuditTrailView = false,
   ): Promise<void> {
     await createFixture(viewerIsStaffAdmin);
+
+    // Must be fetched/flushed before the first detectChanges() — ngOnChanges (which decides
+    // whether to fire the audit-trail request at all) fires on that first call, and
+    // GlobalPermissionsService#has() reads a signal that's only populated once this resolves.
+    if (grantAuditTrailView) {
+      TestBed.inject(GlobalPermissionsService).fetch();
+      httpMock.expectOne('/api/staff/permissions').flush({
+        permissions: ['AUDIT_TRAIL_VIEW'],
+        isStaffAccount: true,
+      });
+    }
+
     fixture.detectChanges();
 
     httpMock.expectOne('/api/staff/users/1/permissions').flush(detail);
     httpMock.expectOne('/api/staff/access-groups').flush(accessGroups);
+    if (grantAuditTrailView) {
+      httpMock.expectOne('/api/staff/users/1/audit-trail?page=0&size=20').flush({
+        content: [],
+        page: 0,
+        size: 20,
+        totalElements: 0,
+        totalPages: 0,
+      });
+    }
     fixture.detectChanges();
     flushProfile();
     flushOwnProfile();
@@ -104,10 +127,70 @@ describe('StaffUserDetailPanelComponent', () => {
     expect(children.indexOf(header)).toBe(0);
   });
 
-  it('no longer embeds the (unpaginated) audit-trail table (replaced by the /staff/users/:userId/audit route, REQ-8)', async () => {
+  it('omits the audit-trail section entirely when the viewer lacks AUDIT_TRAIL_VIEW', async () => {
     await open(staffDetail, true);
 
     expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
+  });
+
+  describe('audit trail section (Edit and History both open this same panel)', () => {
+    const auditPage0 = {
+      content: [
+        {
+          occurredAt: '2026-01-01T10:00:00Z',
+          action: 'STAFF_USER_CREATE',
+          resourceType: 'StaffUser',
+          resourceId: '1',
+          tenantId: null,
+          outcome: 'SUCCESS',
+          metadata: null,
+        },
+      ],
+      page: 0,
+      size: 20,
+      totalElements: 21,
+      totalPages: 2,
+    };
+
+    async function openWithAudit(): Promise<void> {
+      await createFixture(true);
+      TestBed.inject(GlobalPermissionsService).fetch();
+      httpMock
+        .expectOne('/api/staff/permissions')
+        .flush({ permissions: ['AUDIT_TRAIL_VIEW'], isStaffAccount: true });
+      fixture.detectChanges();
+
+      httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
+      httpMock.expectOne('/api/staff/access-groups').flush([]);
+      httpMock.expectOne('/api/staff/users/1/audit-trail?page=0&size=20').flush(auditPage0);
+      fixture.detectChanges();
+      flushProfile();
+      flushOwnProfile();
+      fixture.detectChanges();
+    }
+
+    it('renders the audit trail as a paginated section when the viewer holds AUDIT_TRAIL_VIEW', async () => {
+      await openWithAudit();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('[data-testid="shared-list-row-0"]')).toBeTruthy();
+      expect(fixture.nativeElement.textContent).toContain('1-1');
+    });
+
+    it('fetches the next page from the same panel on pageChange, offsetting the showing-range', async () => {
+      await openWithAudit();
+
+      fixture.nativeElement.querySelector('[data-testid="shared-list-next-page"]').click();
+
+      httpMock.expectOne('/api/staff/users/1/audit-trail?page=1&size=20').flush({
+        ...auditPage0,
+        page: 1,
+        content: [auditPage0.content[0]],
+      });
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('21-21');
+    });
   });
 
   it('openInEditMode() puts the embedded profile section into edit mode', async () => {
