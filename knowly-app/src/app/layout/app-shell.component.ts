@@ -42,7 +42,7 @@ const BARE_ROUTES = ['/login'];
       </div>
     } @else {
       <div
-        class="flex min-h-dvh bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
+        class="flex h-dvh overflow-hidden bg-ink-50 text-ink-900 transition-colors duration-base ease-fluid dark:bg-ink-950 dark:text-ink-50"
       >
         @if (!sidebarState.viewportIsDesktop() && sidebarState.mobileOpen()) {
           <button
@@ -56,10 +56,10 @@ const BARE_ROUTES = ['/login'];
         <aside [class]="asideClass()">
           <app-nav-menu class="flex min-h-0 flex-1 flex-col" />
         </aside>
-        <div class="flex min-w-0 flex-1 flex-col">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
           <header
             data-tour-id="main-nav"
-            class="dark sticky top-0 z-10 flex h-14 shrink-0 items-center justify-end gap-1 border-b border-ink-800 bg-ink-950/95 px-4 backdrop-blur-md"
+            class="dark z-10 flex h-14 shrink-0 items-center justify-end gap-1 border-b border-ink-800 bg-ink-950/95 px-4 backdrop-blur-md"
           >
             <button
               type="button"
@@ -74,7 +74,7 @@ const BARE_ROUTES = ['/login'];
             <app-theme-toggle />
             <app-avatar-menu />
           </header>
-          <main class="min-w-0 flex-1 bg-ink-50 dark:bg-ink-950">
+          <main class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-ink-50 dark:bg-ink-950">
             <router-outlet />
           </main>
         </div>
