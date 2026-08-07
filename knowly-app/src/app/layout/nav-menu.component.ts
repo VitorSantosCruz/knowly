@@ -97,7 +97,7 @@ const CATEGORY_LABEL_CLASS =
           />
         </a>
 
-        <div class="nav-scroll flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+        <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           @for (group of overviewGroups(); track group.categoryKey) {
             <ul class="w-full border-0 bg-transparent p-0">
               <li>
