@@ -16,17 +16,17 @@ describe('toDonutData', () => {
       ],
     });
 
-    expect(result).toEqual({
-      labels: ['USER', 'ASSISTANT'],
-      datasets: [{ data: [5, 9] }],
-    });
+    expect(result.labels).toEqual(['USER', 'ASSISTANT']);
+    expect(result.datasets[0].data).toEqual([5, 9]);
+    // Two distinct, non-transparent fill colors - the actual bug this chart shipped with.
+    expect(result.datasets[0].backgroundColor).toHaveLength(2);
+    expect(new Set(result.datasets[0].backgroundColor).size).toBe(2);
   });
 
   it('returns zeros for no days', () => {
-    expect(toDonutData({ days: [] })).toEqual({
-      labels: ['USER', 'ASSISTANT'],
-      datasets: [{ data: [0, 0] }],
-    });
+    const result = toDonutData({ days: [] });
+    expect(result.labels).toEqual(['USER', 'ASSISTANT']);
+    expect(result.datasets[0].data).toEqual([0, 0]);
   });
 });
 

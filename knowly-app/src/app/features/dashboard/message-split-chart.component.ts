@@ -19,8 +19,29 @@ export interface MessagesTimeseriesResponse {
 
 export interface DonutChartData {
   labels: string[];
-  datasets: { data: number[] }[];
+  datasets: {
+    data: number[];
+    backgroundColor: string[];
+    borderColor: string;
+    borderWidth: number;
+  }[];
 }
+
+/**
+ * knowly's palette is deliberately one hue family (violet, varying only in
+ * lightness/saturation - see this file's own brand comment in styles.css), so
+ * there's no second hue available for a true categorical pair here. Running
+ * this pair through the dataviz skill's validator confirmed every same-hue
+ * candidate (signal-500 vs any ink-* step) fails its normal-vision-floor
+ * check - full-color readers can't reliably tell two violets apart by hue
+ * alone. Pairing the vivid accent against a near-neutral instead (an
+ * "accent vs. rest" read, not two equally-weighted categories) passes with a
+ * wide margin (ΔE ~45) and is the correct call for a two-slice donut where
+ * one slice is the thing worth drawing the eye to.
+ */
+const USER_COLOR = '#dcd0f0'; // ink-200
+const ASSISTANT_COLOR = '#9d3df0'; // signal-500
+const SEGMENT_GAP_COLOR = '#251640'; // ink-900, matches this card's own gradient start
 
 export function toDonutData(response: MessagesTimeseriesResponse): DonutChartData {
   const userTotal = response.days.reduce((sum, day) => sum + day.userCount, 0);
@@ -28,7 +49,14 @@ export function toDonutData(response: MessagesTimeseriesResponse): DonutChartDat
 
   return {
     labels: ['USER', 'ASSISTANT'],
-    datasets: [{ data: [userTotal, assistantTotal] }],
+    datasets: [
+      {
+        data: [userTotal, assistantTotal],
+        backgroundColor: [USER_COLOR, ASSISTANT_COLOR],
+        borderColor: SEGMENT_GAP_COLOR,
+        borderWidth: 2,
+      },
+    ],
   };
 }
 
