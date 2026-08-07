@@ -1,13 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="knowly">
-  <defs>
-    <linearGradient id="knowlyMarkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#9d3df0" />
-      <stop offset="100%" stop-color="#8321d6" />
-    </linearGradient>
-  </defs>
-  <g transform="translate(-21.227 -4.365) scale(0.07202)" fill="url(#knowlyMarkGradient)">
-    <path
-      d="
+import { Component, input } from '@angular/core';
+
+/**
+ * The knowly icon mark: a "K" monogram with an open-book flourish off the
+ * diagonal stroke — the source artwork for this project's brand identity,
+ * supplied as `knowly.svg` at the repo root (single black fill path,
+ * 1024x544 canvas). This component inlines that same path data with
+ * `fill="currentColor"` (so callers control light/dark contrast via the
+ * `class` they pass in, same convention as BrandWordmarkComponent) and a
+ * viewBox cropped tightly to the artwork's real bounding box (the source
+ * file's 1024x544 canvas is mostly empty margin around a ~305x361 mark).
+ *
+ * Used wherever there isn't room for the full "knowly." wordmark — e.g.
+ * BrandWordmarkComponent's `compact` variant, itself used by the
+ * collapsed sidebar rail (nav-menu.component.ts).
+ */
+@Component({
+  selector: 'app-brand-mark',
+  template: `
+    <svg
+      viewBox="355.46 93.12 322.84 379.28"
+      [class]="heightClass() + ' w-auto align-middle ' + extraClass()"
+      role="img"
+      aria-label="knowly"
+    >
+      <path
+        fill="currentColor"
+        d="
 M558.523560,403.408813
 	C548.955444,388.146820 540.356628,372.658203 528.857971,359.141785
 	C516.724976,344.879791 502.206116,335.108276 482.593414,335.113098
@@ -135,6 +153,21 @@ M624.119568,191.687469
 	C589.300720,197.968506 600.935425,196.551895 612.868286,198.230606
 	C620.505920,199.305099 620.485535,199.449997 624.119568,191.687469
 z"
-    />
-  </g>
-</svg>
+      />
+    </svg>
+  `,
+})
+export class BrandMarkComponent {
+  /** Extra classes applied to the root <svg> — use to set text color per call site. */
+  readonly class = input<string>('');
+  /**
+   * Height utility class, kept as its own binding (not folded into `class`) so a caller
+   * overriding it never ends up with two conflicting `h-*` utilities in the same class list —
+   * Tailwind's generated stylesheet order (not source order) decides which wins in that case.
+   */
+  readonly heightClass = input<string>('h-6');
+
+  protected extraClass(): string {
+    return this.class();
+  }
+}

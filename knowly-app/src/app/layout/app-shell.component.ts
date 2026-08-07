@@ -54,7 +54,7 @@ const BARE_ROUTES = ['/login'];
           ></button>
         }
         <aside [class]="asideClass()">
-          <app-nav-menu />
+          <app-nav-menu class="flex min-h-0 flex-1 flex-col" />
         </aside>
         <div class="flex min-w-0 flex-1 flex-col">
           <header

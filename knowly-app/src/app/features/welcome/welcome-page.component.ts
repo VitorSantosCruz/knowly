@@ -8,15 +8,25 @@ import { GlobalPermissionsService } from '../../core/global-permissions.service'
 import { OnboardingService } from '../../core/onboarding.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { TourService } from '../../core/tour.service';
+import { BrandMarkComponent } from '../../shared/brand-mark.component';
 
 @Component({
   selector: 'app-welcome-page',
-  imports: [TranslocoPipe, RouterLink, LucideBookOpen, LucideQuote, LucideShieldCheck, LucideLock],
+  imports: [
+    TranslocoPipe,
+    RouterLink,
+    LucideBookOpen,
+    LucideQuote,
+    LucideShieldCheck,
+    LucideLock,
+    BrandMarkComponent,
+  ],
   template: `
     <div data-testid="welcome-page" class="page-shell">
       <div
         class="enter-fluid rounded-2xl border border-ink-200 bg-white p-8 shadow-sm sm:p-10 dark:border-ink-800 dark:bg-ink-900 dark:shadow-none"
       >
+        <app-brand-mark heightClass="h-24" class="mb-4 text-ink-900 dark:text-white" />
         @if (tenantName(); as name) {
           <h1
             data-testid="welcome-greeting"
@@ -32,7 +42,7 @@ import { TourService } from '../../core/tour.service';
             {{ 'welcome.staffGreeting' | transloco }}
           </h1>
         }
-        <p class="mt-3 max-w-2xl text-ink-600 dark:text-ink-400">
+        <p class="mt-3 text-ink-600 dark:text-ink-400">
           {{ 'welcome.pitch' | transloco }}
         </p>
         @if (tenantName()) {
@@ -108,7 +118,7 @@ import { TourService } from '../../core/tour.service';
         <h2 class="font-display text-xl font-semibold tracking-tight text-ink-900 dark:text-white">
           {{ 'welcome.about.title' | transloco }}
         </h2>
-        <p class="mt-3 max-w-3xl text-ink-600 dark:text-ink-400">
+        <p class="mt-3 text-ink-600 dark:text-ink-400">
           {{ 'welcome.about.intro' | transloco }}
         </p>
         <div class="mt-6 grid gap-4 sm:grid-cols-2">

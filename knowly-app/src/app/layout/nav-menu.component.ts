@@ -11,6 +11,7 @@ import {
   LucidePanelLeftClose,
   LucidePanelLeftOpen,
   LucidePlus,
+  LucideUserPen,
   LucideUsers,
 } from '@lucide/angular';
 import { PermissionsService } from '../core/permissions.service';
@@ -23,7 +24,14 @@ import { BrandWordmarkComponent } from '../shared/brand-wordmark.component';
 import { ErrorStateComponent } from '../shared/error-state.component';
 
 type NavIconName =
-  'layout-grid' | 'book-open' | 'messages-square' | 'users' | 'plus' | 'swap' | 'log-out';
+  | 'layout-grid'
+  | 'book-open'
+  | 'messages-square'
+  | 'users'
+  | 'user-pen'
+  | 'plus'
+  | 'swap'
+  | 'log-out';
 
 /**
  * A nav item carrying the fields this sidebar's template needs:
@@ -66,6 +74,7 @@ const CATEGORY_LABEL_CLASS =
     LucideBookOpen,
     LucideMessagesSquare,
     LucideUsers,
+    LucideUserPen,
     LucidePlus,
     LucideArrowRightLeft,
     LucideLogOut,
@@ -75,29 +84,20 @@ const CATEGORY_LABEL_CLASS =
   template: `
     @if (authService.isLoggedIn()) {
       <nav id="nav-menu" data-testid="nav-menu" class="flex h-full flex-col">
-        <a routerLink="/welcome" class="mb-6 flex items-center px-1">
-          <app-brand-wordmark class="text-white" [compact]="sidebarState.collapsed()" />
+        <a
+          routerLink="/welcome"
+          [class]="
+            'mb-6 flex items-center ' + (sidebarState.collapsed() ? 'justify-center px-0' : 'px-1')
+          "
+        >
+          <app-brand-wordmark
+            class="text-white"
+            [compact]="sidebarState.collapsed()"
+            heightClass="h-10"
+          />
         </a>
 
-        <button
-          type="button"
-          data-testid="nav-collapse-toggle"
-          [class]="toggleButtonClass"
-          [attr.aria-expanded]="!sidebarState.collapsed()"
-          aria-controls="nav-menu"
-          (click)="sidebarState.toggle()"
-        >
-          @if (sidebarState.collapsed()) {
-            <svg lucidePanelLeftOpen [class]="iconClass" aria-hidden="true"></svg>
-          } @else {
-            <svg lucidePanelLeftClose [class]="iconClass" aria-hidden="true"></svg>
-          }
-          <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
-            (sidebarState.collapsed() ? 'nav.expand' : 'nav.collapse') | transloco
-          }}</span>
-        </button>
-
-        <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
+        <div class="nav-scroll flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           @for (group of overviewGroups(); track group.categoryKey) {
             <ul class="w-full border-0 bg-transparent p-0">
               <li>
@@ -131,6 +131,9 @@ const CATEGORY_LABEL_CLASS =
                       @case ('users') {
                         <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
                       }
+                      @case ('user-pen') {
+                        <svg lucideUserPen [class]="iconClass" aria-hidden="true"></svg>
+                      }
                       @case ('plus') {
                         <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
                       }
@@ -149,105 +152,123 @@ const CATEGORY_LABEL_CLASS =
               }
             </ul>
           }
+
+          @if (workspaceGroup(); as group) {
+            <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
+              @if (leaveTenantError() === 'network') {
+                <app-error-state />
+              }
+              <ul class="w-full border-0 bg-transparent p-0">
+                <li>
+                  <span [class]="sidebarState.collapsed() ? 'sr-only' : categoryLabelClass">{{
+                    group.categoryKey | transloco
+                  }}</span>
+                </li>
+                @for (item of group.items; track item.testId) {
+                  <li>
+                    @if (item.onClick) {
+                      <button
+                        type="button"
+                        [attr.data-testid]="item.testId"
+                        [attr.data-tour-id]="item.tourId"
+                        [class]="linkClass"
+                        (click)="item.onClick()"
+                        (mouseenter)="onNavItemHover($event, item.labelKey)"
+                        (mouseleave)="onNavItemUnhover()"
+                        (focus)="onNavItemHover($event, item.labelKey)"
+                        (blur)="onNavItemUnhover()"
+                      >
+                        @switch (item.icon) {
+                          @case ('layout-grid') {
+                            <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('book-open') {
+                            <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('messages-square') {
+                            <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('users') {
+                            <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('plus') {
+                            <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('swap') {
+                            <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('log-out') {
+                            <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                        }
+                        <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+                          item.labelKey | transloco
+                        }}</span>
+                      </button>
+                    } @else {
+                      <a
+                        [attr.data-testid]="item.testId"
+                        [attr.data-tour-id]="item.tourId"
+                        [routerLink]="item.routerLink"
+                        routerLinkActive="active-nav-link"
+                        [class]="linkClass"
+                        (mouseenter)="onNavItemHover($event, item.labelKey)"
+                        (mouseleave)="onNavItemUnhover()"
+                        (focus)="onNavItemHover($event, item.labelKey)"
+                        (blur)="onNavItemUnhover()"
+                      >
+                        @switch (item.icon) {
+                          @case ('layout-grid') {
+                            <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('book-open') {
+                            <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('messages-square') {
+                            <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('users') {
+                            <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('plus') {
+                            <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('swap') {
+                            <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                          @case ('log-out') {
+                            <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
+                          }
+                        }
+                        <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+                          item.labelKey | transloco
+                        }}</span>
+                      </a>
+                    }
+                  </li>
+                }
+              </ul>
+            </div>
+          }
         </div>
 
-        @if (workspaceGroup(); as group) {
-          <div class="mt-4 flex flex-col gap-1 border-t border-ink-800/60 pt-4">
-            @if (leaveTenantError() === 'network') {
-              <app-error-state />
-            }
-            <ul class="w-full border-0 bg-transparent p-0">
-              <li>
-                <span [class]="sidebarState.collapsed() ? 'sr-only' : categoryLabelClass">{{
-                  group.categoryKey | transloco
-                }}</span>
-              </li>
-              @for (item of group.items; track item.testId) {
-                <li>
-                  @if (item.onClick) {
-                    <button
-                      type="button"
-                      [attr.data-testid]="item.testId"
-                      [attr.data-tour-id]="item.tourId"
-                      [class]="linkClass"
-                      (click)="item.onClick()"
-                      (mouseenter)="onNavItemHover($event, item.labelKey)"
-                      (mouseleave)="onNavItemUnhover()"
-                      (focus)="onNavItemHover($event, item.labelKey)"
-                      (blur)="onNavItemUnhover()"
-                    >
-                      @switch (item.icon) {
-                        @case ('layout-grid') {
-                          <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('book-open') {
-                          <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('messages-square') {
-                          <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('users') {
-                          <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('plus') {
-                          <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('swap') {
-                          <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('log-out') {
-                          <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                      }
-                      <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
-                        item.labelKey | transloco
-                      }}</span>
-                    </button>
-                  } @else {
-                    <a
-                      [attr.data-testid]="item.testId"
-                      [attr.data-tour-id]="item.tourId"
-                      [routerLink]="item.routerLink"
-                      routerLinkActive="active-nav-link"
-                      [class]="linkClass"
-                      (mouseenter)="onNavItemHover($event, item.labelKey)"
-                      (mouseleave)="onNavItemUnhover()"
-                      (focus)="onNavItemHover($event, item.labelKey)"
-                      (blur)="onNavItemUnhover()"
-                    >
-                      @switch (item.icon) {
-                        @case ('layout-grid') {
-                          <svg lucideLayoutGrid [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('book-open') {
-                          <svg lucideBookOpen [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('messages-square') {
-                          <svg lucideMessagesSquare [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('users') {
-                          <svg lucideUsers [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('plus') {
-                          <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('swap') {
-                          <svg lucideArrowRightLeft [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                        @case ('log-out') {
-                          <svg lucideLogOut [class]="iconClass" aria-hidden="true"></svg>
-                        }
-                      }
-                      <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
-                        item.labelKey | transloco
-                      }}</span>
-                    </a>
-                  }
-                </li>
-              }
-            </ul>
-          </div>
-        }
+        <button
+          type="button"
+          data-testid="nav-collapse-toggle"
+          [class]="toggleButtonClass + ' mt-auto'"
+          [attr.aria-expanded]="!sidebarState.collapsed()"
+          aria-controls="nav-menu"
+          (click)="sidebarState.toggle()"
+        >
+          @if (sidebarState.collapsed()) {
+            <svg lucidePanelLeftOpen [class]="iconClass" aria-hidden="true"></svg>
+          } @else {
+            <svg lucidePanelLeftClose [class]="iconClass" aria-hidden="true"></svg>
+          }
+          <span [class]="sidebarState.collapsed() ? 'sr-only' : ''">{{
+            (sidebarState.collapsed() ? 'nav.expand' : 'nav.collapse') | transloco
+          }}</span>
+        </button>
 
         <!--
           Rendered as a direct child of nav, NOT nested inside the scrollable overview div
@@ -284,7 +305,13 @@ export class NavMenuComponent implements OnInit {
 
   protected readonly linkClass =
     'relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:-translate-y-0.5 hover:bg-ink-800/60 hover:text-white hover:shadow-[0_0_20px_-8px_var(--color-signal-500)] active:translate-y-0 active:scale-[0.98] dark:text-ink-300/80 [&.active-nav-link]:bg-signal-500/10 [&.active-nav-link]:text-signal-300 [&.active-nav-link]:shadow-[inset_2px_0_0_0_var(--color-signal-500)]';
-  protected readonly iconClass = 'h-4 w-4 shrink-0';
+  // A real getter (not a plain field) so every existing `[class]="iconClass"` binding keeps
+  // working unchanged while still reacting to sidebarState.collapsed() — collapsed icons render
+  // noticeably bigger (h-5) since they're now the only visual content of their row, no label
+  // text alongside to anchor the eye at the smaller h-4 size.
+  protected get iconClass(): string {
+    return this.sidebarState.collapsed() ? 'h-5 w-5 shrink-0' : 'h-4 w-4 shrink-0';
+  }
   protected readonly categoryLabelClass = CATEGORY_LABEL_CLASS;
   protected readonly sidebarState = inject(SidebarStateService);
 
@@ -309,8 +336,12 @@ export class NavMenuComponent implements OnInit {
   protected onNavItemUnhover(): void {
     this.hoveredTooltip.set(null);
   }
+  // mt-auto (appended where used, not baked in here) is what pins this to the very bottom of
+  // the nav — the scrollable list/workspace-group above it takes only the space it needs, and
+  // this button absorbs all the rest, rather than the old flex-1-on-the-list approach, which
+  // pushed the workspace group down with it too (only the toggle itself should behave that way).
   protected readonly toggleButtonClass =
-    'mb-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:bg-ink-800/60 hover:text-white focus-visible:ring-2 focus-visible:ring-signal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950';
+    'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-300/80 transition-all duration-fast ease-fluid hover:bg-ink-800/60 hover:text-white focus-visible:ring-2 focus-visible:ring-signal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950';
 
   protected readonly leaveTenantError = signal<'network' | null>(null);
 
