@@ -101,7 +101,9 @@ const CATEGORY_LABEL_CLASS =
           @for (group of overviewGroups(); track group.categoryKey) {
             <ul class="w-full border-0 bg-transparent p-0">
               <li>
-                <span [class]="categoryLabelClass">{{ group.categoryKey | transloco }}</span>
+                <span [class]="sidebarState.collapsed() ? 'sr-only' : categoryLabelClass">{{
+                  group.categoryKey | transloco
+                }}</span>
               </li>
               @for (item of group.items; track item.testId) {
                 <li>
@@ -160,7 +162,9 @@ const CATEGORY_LABEL_CLASS =
             }
             <ul class="w-full border-0 bg-transparent p-0">
               <li>
-                <span [class]="categoryLabelClass">{{ group.categoryKey | transloco }}</span>
+                <span [class]="sidebarState.collapsed() ? 'sr-only' : categoryLabelClass">{{
+                  group.categoryKey | transloco
+                }}</span>
               </li>
               @for (item of group.items; track item.testId) {
                 <li>
