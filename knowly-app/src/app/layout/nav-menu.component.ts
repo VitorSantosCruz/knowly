@@ -11,6 +11,7 @@ import {
   LucidePanelLeftClose,
   LucidePanelLeftOpen,
   LucidePlus,
+  LucideShieldCheck,
   LucideUserPen,
   LucideUsers,
 } from '@lucide/angular';
@@ -29,6 +30,7 @@ type NavIconName =
   | 'messages-square'
   | 'users'
   | 'user-pen'
+  | 'shield-check'
   | 'plus'
   | 'swap'
   | 'log-out';
@@ -75,6 +77,7 @@ const CATEGORY_LABEL_CLASS =
     LucideMessagesSquare,
     LucideUsers,
     LucideUserPen,
+    LucideShieldCheck,
     LucidePlus,
     LucideArrowRightLeft,
     LucideLogOut,
@@ -133,6 +136,9 @@ const CATEGORY_LABEL_CLASS =
                       }
                       @case ('user-pen') {
                         <svg lucideUserPen [class]="iconClass" aria-hidden="true"></svg>
+                      }
+                      @case ('shield-check') {
+                        <svg lucideShieldCheck [class]="iconClass" aria-hidden="true"></svg>
                       }
                       @case ('plus') {
                         <svg lucidePlus [class]="iconClass" aria-hidden="true"></svg>
@@ -458,6 +464,16 @@ export class NavMenuComponent implements OnInit {
         testId: 'nav-profile-edit-requests',
         icon: 'users',
         routerLink: '/profile-edit-requests',
+      });
+    }
+    // Route/guard/backend already existed (staffGuard-equivalent accessGroupManagementGuard on
+    // STAFF_PERMISSION_MANAGE) — this screen was simply never reachable from anywhere in the nav.
+    if (this.globalPermissionsService.has('STAFF_PERMISSION_MANAGE')) {
+      teamItems.push({
+        labelKey: 'accessGroupManagement.title',
+        testId: 'nav-access-groups',
+        icon: 'shield-check',
+        routerLink: '/staff/access-groups',
       });
     }
     if (teamItems.length > 0) {

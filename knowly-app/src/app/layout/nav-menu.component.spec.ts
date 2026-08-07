@@ -184,6 +184,22 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
   });
 
+  it('shows the access groups link for STAFF_PERMISSION_MANAGE', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['STAFF_PERMISSION_MANAGE'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-access-groups"]')).toBeTruthy();
+  });
+
+  it('hides the access groups link without STAFF_PERMISSION_MANAGE', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['STAFF_USER_VIEW'] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-access-groups"]')).toBeFalsy();
+  });
+
   it('shows the members link for STAFF_USER_VIEW alone (no tenant permission)', () => {
     fixture.detectChanges();
     flush({ memberships: [], globalPermissions: ['STAFF_USER_VIEW'] });
