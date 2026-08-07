@@ -156,3 +156,35 @@ named-volumes-for-data rule). Verified live: each panel's interpolated
 PromQL query returned non-empty `result` via Grafana's datasource-proxy
 API against the running stack; the original 3 dashboards no longer
 appear in `/api/search`.
+
+## Follow-up (2026-08-07): added a dedicated Logs dashboard
+
+Grafana's generic Drilldown → Logs view has a small, non-resizable log
+panel and no way to persist filters. Added a third dashboard,
+`knowly-api/observability/grafana/dashboards/knowly-logs.json` (uid
+`knowly-logs`), same `knowly-dashboards.yaml` provider (no config
+change needed — it already scans the whole
+`knowly-api/observability/grafana/dashboards/` folder). Two panels: a
+log-volume-by-level timeseries and a full-height `logs` panel, both
+against Loki, with `service_name`/`level`/free-text-search template
+variables.
+
+Key discovery: Loki here only indexes `service_name` as a real label —
+log level (`detected_level`) and every other OTel field (`trace_id`,
+`code_namespace`, etc.) arrive as **structured metadata**, not labels,
+because logs are pushed via the OTel Logback appender (see the
+"Log export to Loki" section above), not scraped/labeled per line.
+Structured metadata fields are filterable directly in LogQL without a
+`| logfmt`/`| json` parser stage (e.g. `{service_name=~"$service_name"}
+| detected_level=~"$level"`) — confirmed live via Grafana's Loki
+datasource-proxy (`/loki/api/v1/labels` returned only `service_name`;
+`/loki/api/v1/query_range` showed `detected_level` inside each stream's
+metadata). Verified live: both panels render real data, log-level
+coloring (info/warn) shows correctly, and filters apply as expected.
+
+Also confirmed, while investigating a question about `$instance`/
+environment separation: this whole `grafana-lgtm` stack is single-tenant
+local dev only (see "Local dev only, not production-ready" in
+`PROJECT_STATUS.md`) — there is no dev/homolog/prod distinction anywhere
+in it today; `service_name` identifies the application, not a
+deployment environment.
