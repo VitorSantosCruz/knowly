@@ -84,7 +84,9 @@ public class ChatEligibilityService {
     }
 
     public List<CandidateUserDto> listCandidates(User actor, String scope, Long tenantId) {
-        List<User> users = userRepository.findAll();
+        // logical-delete-everywhere (2026-08-04): a soft-deleted user must never surface as an
+        // eligible chat participant candidate.
+        List<User> users = userRepository.findAllByDeletedAtIsNull();
         Set<Long> actorAnchors = "direct".equals(scope) ? eligibleAnchorsFor(actor) : null;
 
         return users.stream()
@@ -124,11 +126,21 @@ public class ChatEligibilityService {
     }
 
     private boolean isStaffCapable(User user) {
+        // logical-delete-everywhere (2026-08-04): defense in depth -- correct even if a future
+        // caller hands in an already-loaded, unfiltered User.
+        if (user.getDeletedAt() != null) {
+            return false;
+        }
+
         return user.getGlobalRole() == GlobalRole.STAFF
                 || user.getGlobalRole() == GlobalRole.STAFF_ADMIN;
     }
 
     private boolean hasActiveMembership(User user, Long tenantId) {
+        if (user.getDeletedAt() != null) {
+            return false;
+        }
+
         Tenant tenant = new Tenant();
         tenant.setId(tenantId);
 

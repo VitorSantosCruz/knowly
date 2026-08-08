@@ -145,7 +145,7 @@ class ChatEligibilityServiceTest {
         User staff = staffUser();
         User member = plainMember();
         Tenant tenant = tenant(10L);
-        when(userRepository.findAll()).thenReturn(List.of(staff, member));
+        when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff, member));
         when(tenantMembershipRepository.findByUserAndTenant(
                         org.mockito.ArgumentMatchers.eq(member), argThatTenant(10L)))
                 .thenReturn(Optional.of(activeMembership(member, tenant)));
@@ -159,7 +159,7 @@ class ChatEligibilityServiceTest {
     void listCandidatesForGroupStaffOnlyScopeOnlyReturnsStaffCapableUsers() {
         User staff = staffUser();
         User member = plainMember();
-        when(userRepository.findAll()).thenReturn(List.of(staff, member));
+        when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff, member));
 
         var candidates = service.listCandidates(member, "group-staff-only", null);
 
@@ -173,7 +173,8 @@ class ChatEligibilityServiceTest {
         User unrelatedStaff = new User("other-staff@example.com");
         unrelatedStaff.setId(3L);
         unrelatedStaff.setGlobalRole(GlobalRole.STAFF);
-        when(userRepository.findAll()).thenReturn(List.of(staff, member, unrelatedStaff));
+        when(userRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(staff, member, unrelatedStaff));
         when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
         when(tenantMembershipRepository.findByUserAndActiveTrue(member)).thenReturn(List.of());
         when(tenantMembershipRepository.findByUserAndActiveTrue(unrelatedStaff))
@@ -189,10 +190,39 @@ class ChatEligibilityServiceTest {
     @Test
     void listCandidatesForDirectScopeNeverIncludesTheActorThemselves() {
         User staff = staffUser();
-        when(userRepository.findAll()).thenReturn(List.of(staff));
+        when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff));
 
         var candidates = service.listCandidates(staff, "direct", null);
 
         assertThat(candidates).isEmpty();
+    }
+
+    // --- logical-delete-everywhere (2026-08-04): a soft-deleted user must not be reachable ---
+
+    @Test
+    void listCandidatesNeverIncludesASoftDeletedUserBecauseTheRepositoryQueryExcludesThem() {
+        User staff = staffUser();
+        User member = plainMember();
+        when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff));
+
+        var candidates = service.listCandidates(member, "group-staff-only", null);
+
+        assertThat(candidates).extracting("userId").containsExactly(1L);
+    }
+
+    @Test
+    void softDeletedStaffUserIsIneligibleForAStaffOnlyGroupEvenIfAlreadyLoaded() {
+        User staff = staffUser();
+        staff.setDeletedAt(java.time.Instant.now());
+
+        assertThat(service.isEligible(staff, null)).isFalse();
+    }
+
+    @Test
+    void softDeletedMemberIsIneligibleForAMemberOnlyGroupEvenIfAlreadyLoaded() {
+        User member = plainMember();
+        member.setDeletedAt(java.time.Instant.now());
+
+        assertThat(service.isEligible(member, 10L)).isFalse();
     }
 }
