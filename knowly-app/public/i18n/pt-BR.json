@@ -385,6 +385,11 @@
     "noMembers": "Nenhum membro ainda.",
     "assignable": "Usuários atribuíveis"
   },
+  "tenantAccessGroupManagement": {
+    "grantPermission": "Conceder permissão",
+    "deleteGroup": "Excluir grupo",
+    "confirmDeleteGroup": "Excluir o grupo de acesso '{{group}}'? As atribuições de membros e concessões de permissão também serão removidas."
+  },
   "conversations": {
     "new": "Nova conversa",
     "untitled": "Conversa sem título",

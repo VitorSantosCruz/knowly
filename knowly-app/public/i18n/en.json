@@ -385,6 +385,11 @@
     "noMembers": "No members yet.",
     "assignable": "Assignable users"
   },
+  "tenantAccessGroupManagement": {
+    "grantPermission": "Grant permission",
+    "deleteGroup": "Delete group",
+    "confirmDeleteGroup": "Delete the access group '{{group}}'? Its member assignments and permission grants will be removed too."
+  },
   "conversations": {
     "new": "New conversation",
     "untitled": "Untitled conversation",
