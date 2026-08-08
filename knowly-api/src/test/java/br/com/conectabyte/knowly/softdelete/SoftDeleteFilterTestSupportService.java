@@ -16,6 +16,8 @@ import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
 import br.com.conectabyte.knowly.tenancy.UserAccessGroup;
 import br.com.conectabyte.knowly.tenancy.UserAccessGroupRepository;
+import br.com.conectabyte.knowly.tenancy.UserGlobalAccessGroup;
+import br.com.conectabyte.knowly.tenancy.UserGlobalAccessGroupRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -39,6 +41,7 @@ public class SoftDeleteFilterTestSupportService {
     private final TenantRepository tenantRepository;
     private final TenantMembershipRepository tenantMembershipRepository;
     private final UserAccessGroupRepository userAccessGroupRepository;
+    private final UserGlobalAccessGroupRepository userGlobalAccessGroupRepository;
 
     public SoftDeleteFilterTestSupportService(
             UserRepository userRepository,
@@ -48,7 +51,8 @@ public class SoftDeleteFilterTestSupportService {
             AddressRepository addressRepository,
             TenantRepository tenantRepository,
             TenantMembershipRepository tenantMembershipRepository,
-            UserAccessGroupRepository userAccessGroupRepository) {
+            UserAccessGroupRepository userAccessGroupRepository,
+            UserGlobalAccessGroupRepository userGlobalAccessGroupRepository) {
         this.userRepository = userRepository;
         this.conversationRepository = conversationRepository;
         this.userProfileRepository = userProfileRepository;
@@ -57,6 +61,7 @@ public class SoftDeleteFilterTestSupportService {
         this.tenantRepository = tenantRepository;
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userAccessGroupRepository = userAccessGroupRepository;
+        this.userGlobalAccessGroupRepository = userGlobalAccessGroupRepository;
     }
 
     @Transactional(readOnly = true)
@@ -109,5 +114,10 @@ public class SoftDeleteFilterTestSupportService {
     public List<UserAccessGroup> findUserAccessGroupsByTenantMembership(
             TenantMembership tenantMembership) {
         return userAccessGroupRepository.findByTenantMembership(tenantMembership);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserGlobalAccessGroup> findUserGlobalAccessGroupsByUser(User user) {
+        return userGlobalAccessGroupRepository.findByUser(user);
     }
 }
