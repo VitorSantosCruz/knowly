@@ -58,4 +58,16 @@ class TenancyExceptionHandlerTest {
         assertThat(response.getBody())
                 .isEqualTo(new TenancyErrorResponseDto("INVALID_ACCESS_GROUP_BATCH"));
     }
+
+    @Test
+    void
+            accessGroupPermissionNotGrantedExceptionMapsTo400WithAccessGroupPermissionNotGrantedCode() {
+        ResponseEntity<TenancyErrorResponseDto> response =
+                handler.handleAccessGroupPermissionNotGranted(
+                        new AccessGroupPermissionNotGrantedException());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody())
+                .isEqualTo(new TenancyErrorResponseDto("ACCESS_GROUP_PERMISSION_NOT_GRANTED"));
+    }
 }

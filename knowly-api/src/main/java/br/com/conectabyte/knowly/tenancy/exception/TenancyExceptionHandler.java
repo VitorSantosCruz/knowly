@@ -105,4 +105,11 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new TenancyErrorResponseDto("INVALID_ACCESS_GROUP_BATCH"));
     }
+
+    @ExceptionHandler(AccessGroupPermissionNotGrantedException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleAccessGroupPermissionNotGranted(
+            AccessGroupPermissionNotGrantedException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("ACCESS_GROUP_PERMISSION_NOT_GRANTED"));
+    }
 }
