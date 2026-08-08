@@ -15,6 +15,7 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
+import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
@@ -374,5 +375,30 @@ class StaffServiceTest {
         GlobalAccessGroupPermission revoked =
                 globalAccessGroupPermissionRepository.findById(granted.getId()).orElseThrow();
         assertThat(revoked.getDeletedAt()).isNotNull();
+    }
+
+    // role-permission-revoke REQ-11: staff-scope mirror -- listAccessGroups exposes each role's
+    // currently-granted permissions, excluding revoked ones.
+
+    @Test
+    void listAccessGroupsIncludesOnlyCurrentlyGrantedPermissions() {
+        staffAdmin("staff-list-permissions-actor@example.com");
+        authenticateAs("staff-list-permissions-actor@example.com");
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff List Permissions Group"));
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_VIEW);
+        staffService.revokeAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_VIEW);
+
+        List<GlobalAccessGroupDto> groups = staffService.listAccessGroups();
+
+        assertThat(groups)
+                .filteredOn(dto -> dto.id().equals(group.getId()))
+                .singleElement()
+                .satisfies(
+                        dto ->
+                                assertThat(dto.permissions())
+                                        .containsExactly(GlobalPermission.STAFF_USER_CREATE));
     }
 }

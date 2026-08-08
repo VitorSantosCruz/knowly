@@ -1910,4 +1910,31 @@ class TenantServiceTest {
                 accessGroupPermissionRepository.findById(granted.getId()).orElseThrow();
         assertThat(revoked.getDeletedAt()).isNotNull();
     }
+
+    // role-permission-revoke REQ-11: listAccessGroups exposes each role's currently-granted
+    // permissions, excluding revoked ones.
+
+    @Test
+    void listAccessGroupsIncludesOnlyCurrentlyGrantedPermissions() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Permissions Co"));
+        TenantMembership admin = adminMembership("list-permissions-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.ARTICLE_VIEW);
+        tenantService.revokeAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.ARTICLE_VIEW);
+
+        List<AccessGroupDto> groups =
+                tenantService.listAccessGroups(admin.getUser(), tenant.getId());
+
+        assertThat(groups)
+                .filteredOn(dto -> dto.id().equals(group.getId()))
+                .singleElement()
+                .satisfies(
+                        dto ->
+                                assertThat(dto.permissions())
+                                        .containsExactly(Permission.TENANT_MEMBER_MANAGE));
+    }
 }

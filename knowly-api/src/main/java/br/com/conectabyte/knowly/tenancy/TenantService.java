@@ -41,8 +41,10 @@ import br.com.conectabyte.knowly.tenancy.validation.TaxIdNormalizer;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -755,7 +757,11 @@ public class TenantService {
                 .toList();
     }
 
-    /** REQ-13: list a tenant's access groups — admin (own tenant) or staff only. */
+    /**
+     * REQ-13: list a tenant's access groups — admin (own tenant) or staff only. role-permission-
+     * revoke REQ-11: each returned DTO includes the role's currently-granted permissions, fetched
+     * with a single bulk query (grouped by role id in memory) rather than one query per role.
+     */
     @Transactional(readOnly = true)
     public List<AccessGroupDto> listAccessGroups(User actor, Long tenantId) {
         requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_VIEW);
@@ -763,8 +769,25 @@ public class TenantService {
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
 
-        return accessGroupRepository.findByTenantAndDeletedAtIsNull(tenant).stream()
-                .map(AccessGroupDto::from)
+        List<AccessGroup> groups = accessGroupRepository.findByTenantAndDeletedAtIsNull(tenant);
+        Map<Long, List<Permission>> permissionsByGroupId =
+                accessGroupPermissionRepository
+                        .findByAccessGroupInAndDeletedAtIsNull(groups)
+                        .stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        p -> p.getAccessGroup().getId(),
+                                        Collectors.mapping(
+                                                AccessGroupPermission::getPermission,
+                                                Collectors.toList())));
+
+        return groups.stream()
+                .map(
+                        group ->
+                                AccessGroupDto.from(
+                                        group,
+                                        permissionsByGroupId.getOrDefault(
+                                                group.getId(), List.of())))
                 .toList();
     }
 
