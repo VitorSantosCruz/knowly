@@ -76,6 +76,25 @@ describe('PermissionListComponent', () => {
     expect(fixture.componentInstance.rows()).toEqual(rows);
   });
 
+  it('renders disabled switches and does not emit (toggle) when [disabled] is true', () => {
+    const fixture = TestBed.createComponent(PermissionListComponent);
+    fixture.componentRef.setInput('rows', rows);
+    fixture.componentRef.setInput('mode', 'editable');
+    fixture.componentRef.setInput('disabled', true);
+    fixture.detectChanges();
+
+    const emitted: string[] = [];
+    fixture.componentInstance.toggle.subscribe((value: string) => emitted.push(value));
+
+    const switches: HTMLButtonElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('[role="switch"]'),
+    );
+    expect(switches[0].disabled).toBe(true);
+    switches[0].click();
+
+    expect(emitted).toEqual([]);
+  });
+
   it('emits (toggle) on Enter and Space keydown', () => {
     const fixture = create('editable');
     const emitted: string[] = [];
