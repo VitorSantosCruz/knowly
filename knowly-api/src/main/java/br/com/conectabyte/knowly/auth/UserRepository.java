@@ -9,8 +9,24 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
+
+    /**
+     * Overrides {@code JpaRepository}'s inherited {@code findById}, which delegates to {@code
+     * EntityManager#find} -- a well-known Hibernate limitation is that entity-by-primary-key
+     * loading does not honor {@code @Filter}s (see {@code
+     * ChatConversationRepository#findByIdRespectingFilter} for the identical, already-established
+     * workaround for {@code TenantFilter}). Expressing this as an explicit JPQL {@code SELECT}
+     * instead makes {@link br.com.conectabyte.knowly.softdelete.SoftDeleteFilter} actually apply,
+     * closing the exact gap {@code ChatEligibilityService}/{@code ChatConversationService}'s
+     * unfiltered {@code findById} calls exploited
+     * (specify/features/soft-delete-default-filter/SPEC.md).
+     */
+    @Override
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findById(@Param("id") Long id);
 
     Optional<User> findByEmailIgnoreCase(String email);
 
