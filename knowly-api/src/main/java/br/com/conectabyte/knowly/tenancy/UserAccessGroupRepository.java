@@ -6,6 +6,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserAccessGroupRepository extends JpaRepository<UserAccessGroup, Long> {
 
+    /**
+     * Derived (HQL-backed, no explicit {@code deletedAt} predicate) -- proves {@link
+     * br.com.conectabyte.knowly.softdelete.SoftDeleteFilter} excludes soft-deleted rows on its own,
+     * with no per-query opt-in (specify/features/soft-delete-default-filter/SPEC.md requirement 3).
+     */
+    List<UserAccessGroup> findByTenantMembership(TenantMembership tenantMembership);
+
     List<UserAccessGroup> findByTenantMembershipAndDeletedAtIsNull(
             TenantMembership tenantMembership);
 
