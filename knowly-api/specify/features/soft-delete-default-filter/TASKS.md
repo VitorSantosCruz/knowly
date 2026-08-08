@@ -366,7 +366,7 @@ audit; do not perform them as a mechanical find-and-replace.
 
 ## Phase 7 — Envers regression check
 
-- [ ] 26. Write/confirm a smoke-level `AuditReader`-based test asserting
+- [x] 26. Write/confirm a smoke-level `AuditReader`-based test asserting
       a soft-deleted row's `_AUD` revision history still returns all
       revisions (including the soft-delete revision itself) after this
       change, for at least one `@Audited` entity among the 13. This
@@ -378,10 +378,13 @@ audit; do not perform them as a mechanical find-and-replace.
 
 ## Phase 8 — Final verification
 
-- [ ] 27. Run `./mvnw spotless:apply`, then the full `./mvnw verify` once,
+- [x] 27. Run `./mvnw spotless:apply`, then the full `./mvnw verify` once,
       confirming no newly introduced failures (this is the single
       full-verify run for this feature — all prior tasks used scoped
       `-Dtest` runs only). Update `PLAN.md`/`PROJECT_STATUS.md` if any
       decision changed during implementation (e.g. discovery-phase
-      findings that altered scope).
+      findings that altered scope). Done — `BUILD SUCCESS`, all tests
+      green. `PROJECT_STATUS.md` updated with this feature's final scope
+      (11/13 entities, AccessGroup/AccessGroupPermission gap, Phase 5
+      descoped).
       Commit: `chore(soft-delete-default-filter): final verify pass, update PROJECT_STATUS.md`
