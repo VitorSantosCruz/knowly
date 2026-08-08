@@ -257,6 +257,7 @@
       "account": "Account"
     },
     "dashboard": "Dashboard",
+    "chat": "Chat",
     "articles": "Articles",
     "conversations": "Conversations",
     "members": "Members",
@@ -386,6 +387,7 @@
     "assignable": "Assignable users"
   },
   "tenantAccessGroupManagement": {
+    "navLabel": "Team access groups",
     "grantPermission": "Grant permission",
     "deleteGroup": "Delete group",
     "confirmDeleteGroup": "Delete the access group '{{group}}'? Its member assignments and permission grants will be removed too."

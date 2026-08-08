@@ -129,6 +129,31 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-menu"]')).toBeFalsy();
   });
 
+  it('always shows the Chat link, even for a session with zero permissions (internal-team-chat REQ-1: any authenticated user, no gate)', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], tenantPermissions: [] });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-chat"]')).toBeTruthy();
+  });
+
+  it('gives the global and tenant access-group nav items distinct labels when both are visible at once', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
+      globalPermissions: ['STAFF_PERMISSION_MANAGE'],
+    });
+    fixture.detectChanges();
+
+    const globalItem = fixture.nativeElement.querySelector('[data-testid="nav-access-groups"]');
+    const tenantItem = fixture.nativeElement.querySelector(
+      '[data-testid="nav-tenant-access-groups"]',
+    );
+    expect(globalItem).toBeTruthy();
+    expect(tenantItem).toBeTruthy();
+    expect(globalItem.textContent.trim()).not.toBe(tenantItem.textContent.trim());
+  });
+
   it('only shows links matching the active tenant permissions', () => {
     fixture.detectChanges();
     flush({

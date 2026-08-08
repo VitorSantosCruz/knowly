@@ -415,22 +415,31 @@ export class NavMenuComponent implements OnInit {
   protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
     const groups: NavMenuGroup[] = [];
 
+    // internal-team-chat SPEC's REQ-1: "reachable by any authenticated user regardless of
+    // role" — the /chat route itself has no guard at all for exactly this reason (see
+    // app.routes.ts's own comment on that route). Unconditional, unlike every other item
+    // here: this shipped with a working, guard-free route but no nav entry point for
+    // anyone (staff included) to actually find it.
+    const overviewItems: NavMenuItem[] = [
+      {
+        labelKey: 'nav.chat',
+        testId: 'nav-chat',
+        icon: 'messages-square',
+        routerLink: '/chat',
+      },
+    ];
     if (
       this.permissionsService.has('DASHBOARD_VIEW') ||
       this.globalPermissionsService.has('DASHBOARD_VIEW_GLOBAL')
     ) {
-      groups.push({
-        categoryKey: 'nav.category.overview',
-        items: [
-          {
-            labelKey: 'nav.dashboard',
-            testId: 'nav-dashboard',
-            icon: 'layout-grid',
-            routerLink: '/dashboard',
-          },
-        ],
+      overviewItems.unshift({
+        labelKey: 'nav.dashboard',
+        testId: 'nav-dashboard',
+        icon: 'layout-grid',
+        routerLink: '/dashboard',
       });
     }
+    groups.push({ categoryKey: 'nav.category.overview', items: overviewItems });
 
     const knowledgeItems: NavMenuItem[] = [];
     if (this.permissionsService.has('ARTICLE_VIEW')) {
@@ -490,7 +499,11 @@ export class NavMenuComponent implements OnInit {
     // guard's doc comment for why TENANT_ACCESS_GROUP_VIEW only exists as a GlobalPermission.
     if (this.canSeeTenantAccessGroups()) {
       teamItems.push({
-        labelKey: 'accessGroupManagement.title',
+        // Deliberately distinct from the global/staff item's 'accessGroupManagement.title'
+        // above — a staff-admin-with-an-active-tenant session sees both items in the same
+        // "Team" list at once, and they'd render as two identical "Access groups" entries
+        // with no way to tell them apart otherwise (real bug, reported by a user).
+        labelKey: 'tenantAccessGroupManagement.navLabel',
         testId: 'nav-tenant-access-groups',
         icon: 'shield-check',
         routerLink: '/tenants/access-groups',
