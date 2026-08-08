@@ -325,7 +325,8 @@
     "clearFilters": "Clear filters",
     "sortBy": "Sort by",
     "previousPage": "Previous",
-    "nextPage": "Next"
+    "nextPage": "Next",
+    "goToPage": "Go to page {{page}}"
   },
   "staffDirectory": {
     "searchPlaceholder": "Search by email…",

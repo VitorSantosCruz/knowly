@@ -325,7 +325,8 @@
     "clearFilters": "Limpar filtros",
     "sortBy": "Ordenar por",
     "previousPage": "Anterior",
-    "nextPage": "Próxima"
+    "nextPage": "Próxima",
+    "goToPage": "Ir para a página {{page}}"
   },
   "staffDirectory": {
     "searchPlaceholder": "Buscar por e-mail…",

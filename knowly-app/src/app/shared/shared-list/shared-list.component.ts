@@ -334,6 +334,31 @@ import {
               <svg lucideChevronLeft class="h-4 w-4" aria-hidden="true"></svg>
               {{ 'sharedList.previousPage' | transloco }}
             </button>
+
+            <div class="flex items-center gap-1">
+              @for (item of paginationItems(); track $index) {
+                @if (item.type === 'ellipsis') {
+                  <span
+                    data-testid="shared-list-page-ellipsis"
+                    class="px-1 text-sm text-ink-400 select-none dark:text-ink-500"
+                    aria-hidden="true"
+                    >…</span
+                  >
+                } @else {
+                  <button
+                    type="button"
+                    [attr.data-testid]="'shared-list-page-' + (item.page + 1)"
+                    [attr.aria-current]="item.page === pagination.page ? 'page' : null"
+                    [attr.aria-label]="'sharedList.goToPage' | transloco: { page: item.page + 1 }"
+                    [class]="pageButtonClass(item.page === pagination.page)"
+                    (click)="pageChange.emit(item.page - pagination.page)"
+                  >
+                    {{ item.page + 1 }}
+                  </button>
+                }
+              }
+            </div>
+
             <button
               type="button"
               data-testid="shared-list-next-page"
@@ -366,11 +391,77 @@ export class SharedListComponent<T> {
 
   readonly selectionChange = output<(string | number)[]>();
   readonly sortChange = output<SharedListSortState | null>();
-  readonly pageChange = output<-1 | 1>();
+  /**
+   * Emits the *delta* between the target page and the current page — prev/next
+   * emit -1/1, and a numbered page button emits `targetPage - currentPage`, so
+   * every existing consumer (`this.page.set(this.page() + delta)`) keeps working
+   * unchanged. Widened from the old `-1 | 1` literal type now that numbered page
+   * buttons can jump more than one page at a time.
+   */
+  readonly pageChange = output<number>();
   readonly searchChange = output<string>();
   readonly rowClick = output<T>();
 
   protected readonly paginationButtonClass = buttonClass('secondary');
+
+  /**
+   * Compact numbered-page windowing (first page, ellipsis if needed, a sibling
+   * window around the current page, ellipsis if needed, last page) — the same
+   * algorithm MUI's `usePagination` uses, adapted to this component's 0-indexed
+   * `page`. boundaryCount/siblingCount are both 1, matching the reference layout
+   * ("< 1 … 5 6 7 … 17 >" for page 6 of 17).
+   */
+  protected readonly paginationItems = computed<
+    ({ type: 'page'; page: number } | { type: 'ellipsis' })[]
+  >(() => {
+    const pagination = this.serverPagination();
+    if (pagination === null) {
+      return [];
+    }
+
+    const boundaryCount = 1;
+    const siblingCount = 1;
+    const count = pagination.totalPages;
+    const currentPage = pagination.page + 1; // 1-indexed for the windowing math below
+
+    const range = (start: number, end: number): number[] =>
+      end < start ? [] : Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+    const startPages = range(1, Math.min(boundaryCount, count));
+    const endPages = range(Math.max(count - boundaryCount + 1, boundaryCount + 1), count);
+
+    const siblingsStart = Math.max(
+      Math.min(currentPage - siblingCount, count - boundaryCount - siblingCount * 2 - 1),
+      boundaryCount + 2,
+    );
+
+    const siblingsEnd = Math.min(
+      Math.max(currentPage + siblingCount, boundaryCount + siblingCount * 2 + 2),
+      endPages.length > 0 ? endPages[0] - 2 : count - 1,
+    );
+
+    const items: number[] = [...startPages];
+
+    if (siblingsStart > boundaryCount + 2) {
+      items.push(-1); // ellipsis marker
+    } else if (boundaryCount + 1 < count - boundaryCount) {
+      items.push(boundaryCount + 1);
+    }
+
+    items.push(...range(siblingsStart, siblingsEnd));
+
+    if (siblingsEnd < count - boundaryCount - 1) {
+      items.push(-1); // ellipsis marker
+    } else if (count - boundaryCount > boundaryCount) {
+      items.push(count - boundaryCount);
+    }
+
+    items.push(...endPages);
+
+    return items.map((n) =>
+      n === -1 ? { type: 'ellipsis' as const } : { type: 'page' as const, page: n - 1 },
+    );
+  });
 
   protected readonly searchTerm = signal('');
   protected readonly sortState = signal<SharedListSortState | null>(null);
@@ -591,5 +682,20 @@ export class SharedListComponent<T> {
 
   protected rowActionButtonClass(action: SharedListRowAction<T>): string {
     return buttonClass(action.variant, { ghost: true, rounded: true });
+  }
+
+  /**
+   * Numbered pagination button — active page uses the same solid
+   * `bg-signal-600` selected-state language as the permission-toggle switches
+   * in `staff-user-detail-panel.component.ts`, inactive pages use the ghost
+   * secondary treatment so they read as part of the same button family as
+   * prev/next (`paginationButtonClass`) without competing with it visually.
+   */
+  protected pageButtonClass(active: boolean): string {
+    const base =
+      'inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm font-medium transition-colors duration-fast ease-fluid focus-visible:ring-2 focus-visible:ring-signal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-ink-900';
+    return active
+      ? `${base} bg-signal-600 text-white`
+      : `${base} text-ink-600 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-ink-800`;
   }
 }

@@ -357,6 +357,90 @@ describe('SharedListComponent', () => {
       expect(emitted).toEqual([-1]);
     });
 
+    describe('numbered pagination buttons', () => {
+      function pageTestIds(): string[] {
+        return Array.from(
+          fixture.nativeElement.querySelectorAll(
+            '[data-testid^="shared-list-page-"], [data-testid="shared-list-page-ellipsis"]',
+          ),
+        ).map((n) => (n as Element).getAttribute('data-testid')!);
+      }
+
+      it('shows the trailing window (no leading ellipsis) when the current page is near the start', async () => {
+        await setup({
+          serverPagination: { page: 0, pageSize: 1, totalPages: 17, totalElements: 17 },
+        });
+
+        expect(pageTestIds()).toEqual([
+          'shared-list-page-1',
+          'shared-list-page-2',
+          'shared-list-page-3',
+          'shared-list-page-4',
+          'shared-list-page-5',
+          'shared-list-page-ellipsis',
+          'shared-list-page-17',
+        ]);
+      });
+
+      it('shows both ellipses with a sibling window when the current page is in the middle', async () => {
+        await setup({
+          serverPagination: { page: 5, pageSize: 1, totalPages: 17, totalElements: 17 },
+        });
+
+        expect(pageTestIds()).toEqual([
+          'shared-list-page-1',
+          'shared-list-page-ellipsis',
+          'shared-list-page-5',
+          'shared-list-page-6',
+          'shared-list-page-7',
+          'shared-list-page-ellipsis',
+          'shared-list-page-17',
+        ]);
+      });
+
+      it('shows the leading window (no trailing ellipsis) when the current page is near the end', async () => {
+        await setup({
+          serverPagination: { page: 16, pageSize: 1, totalPages: 17, totalElements: 17 },
+        });
+
+        expect(pageTestIds()).toEqual([
+          'shared-list-page-1',
+          'shared-list-page-ellipsis',
+          'shared-list-page-13',
+          'shared-list-page-14',
+          'shared-list-page-15',
+          'shared-list-page-16',
+          'shared-list-page-17',
+        ]);
+      });
+
+      it('marks the current page with aria-current="page" and no other page', async () => {
+        await setup({
+          serverPagination: { page: 5, pageSize: 1, totalPages: 17, totalElements: 17 },
+        });
+
+        const current = el<HTMLButtonElement>('shared-list-page-6')!;
+        expect(current.getAttribute('aria-current')).toBe('page');
+
+        const other = el<HTMLButtonElement>('shared-list-page-1')!;
+        expect(other.getAttribute('aria-current')).toBeNull();
+      });
+
+      it('emits pageChange with the delta to the clicked page, not an absolute page number', async () => {
+        await setup({
+          serverPagination: { page: 5, pageSize: 1, totalPages: 17, totalElements: 17 },
+        });
+        const emitted: number[] = [];
+        fixture.componentInstance.pageChange.subscribe((v) => emitted.push(v));
+
+        el<HTMLButtonElement>('shared-list-page-1')!.click();
+        expect(emitted).toEqual([-5]);
+
+        el<HTMLButtonElement>('shared-list-page-7')!.click();
+        expect(emitted).toEqual([-5, 1]);
+      });
+    });
+
     it('emits searchChange with the typed term in server-pagination mode', async () => {
       await setup({ searchable: true, serverPagination });
       let emitted = '';

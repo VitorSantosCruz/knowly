@@ -160,7 +160,7 @@ export class SelectTenantPageComponent implements OnInit {
     this.searchInput$.next(value);
   }
 
-  protected onPageChange(delta: -1 | 1): void {
+  protected onPageChange(delta: number): void {
     this.page.set(this.page() + delta);
     this.fetchFallbackTenants();
   }
