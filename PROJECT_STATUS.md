@@ -56,7 +56,27 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-05): follow-up Playwright QA pass over the
+**Current state (2026-08-08): `tenant-access-group-management` (frontend)
++ `tenant-access-group-bulk-and-delete` (backend) shipped end-to-end —
+SPEC → PLAN → TASKS → implement → merge, both AppSec-reviewed before
+their TASKS.md, no blocking findings. Gives the tenant scope its own
+dedicated access-group management screen (`/tenants/access-groups`,
+nav entry under Team) — previously the only way to reach a tenant's
+access groups at all was through a specific member's detail panel, even
+though a group is independent of any one member. Adds a real bulk
+multi-group assignment endpoint (`POST .../access-groups:batch`) and
+group deletion with cascading soft-delete (group + its member
+assignments + its permission grants, one transaction), closing two gaps
+that had no backend support before today. Both subprojects verified
+green in isolation after merge (911/911 backend tests via
+`./mvnw verify`, frontend format/test/build/lint clean) — an initial
+combined run showed spurious Spring context failures that turned out to
+be Testcontainers/CPU contention from running both subprojects' full
+suites at once, not a real regression; re-run alone came back clean.
+**Nothing queued next** — see this section's own protocol above (propose
+candidates from `VISION.md`, don't silently start a new feature).
+
+**Previous state (2026-08-05): follow-up Playwright QA pass over the
 soft-delete-everywhere work below found and fixed 3 more real gaps, plus ruled
 out a 4th as a false alarm from a broken dev-server process (not a code bug).
 All fixes are committed and both subprojects are fully green (859/859 backend
