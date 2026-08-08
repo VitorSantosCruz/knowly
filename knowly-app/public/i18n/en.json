@@ -434,6 +434,8 @@
   },
   "tenantAccessGroupManagement": {
     "grantPermission": "Grant permission",
+    "permissions": "Permissions",
+    "permissionActionError": "Something went wrong updating that permission. Please try again.",
     "deleteGroup": "Delete role",
     "confirmDeleteGroup": "Delete the role '{{group}}'? Its member assignments and permission grants will be removed too."
   },

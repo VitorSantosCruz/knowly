@@ -434,6 +434,8 @@
   },
   "tenantAccessGroupManagement": {
     "grantPermission": "Conceder permissão",
+    "permissions": "Permissões",
+    "permissionActionError": "Algo deu errado ao atualizar essa permissão. Tente novamente.",
     "deleteGroup": "Excluir papel",
     "confirmDeleteGroup": "Excluir o papel '{{group}}'? As atribuições de membros e concessões de permissão também serão removidas."
   },

@@ -236,6 +236,153 @@ describe('TenantAccessGroupManagementPageComponent', () => {
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
 
+  it('selecting a role renders app-permission-list seeded from group.permissions (REQ-6)', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: ['ARTICLE_VIEW'] }]);
+    fixture.detectChanges();
+    fixture.componentInstance.selectGroup({
+      id: 1,
+      name: 'Editors',
+      permissions: ['ARTICLE_VIEW'],
+    });
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/1/members').flush([]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-permission-list')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="grant-permission-form"]'),
+    ).toBeFalsy();
+
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="permission-list-toggle-ARTICLE_VIEW"]',
+    );
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('toggling a row on calls grantAccessGroupPermission (REQ-6/9)', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
+    fixture.detectChanges();
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/1/members').flush([]);
+    fixture.detectChanges();
+
+    fixture.nativeElement
+      .querySelector('[data-testid="permission-list-toggle-ARTICLE_VIEW"]')
+      .click();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="permission-list-toggle-ARTICLE_VIEW"]')
+        .getAttribute('aria-checked'),
+    ).toBe('true');
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/1/permissions');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ permission: 'ARTICLE_VIEW' });
+    req.flush(null, { status: 200, statusText: 'OK' });
+  });
+
+  it('toggling a row off calls revokeAccessGroupPermission (REQ-6/9)', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: ['ARTICLE_VIEW'] }]);
+    fixture.detectChanges();
+    fixture.componentInstance.selectGroup({
+      id: 1,
+      name: 'Editors',
+      permissions: ['ARTICLE_VIEW'],
+    });
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/1/members').flush([]);
+    fixture.detectChanges();
+
+    fixture.nativeElement
+      .querySelector('[data-testid="permission-list-toggle-ARTICLE_VIEW"]')
+      .click();
+    fixture.detectChanges();
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/1/permissions/ARTICLE_VIEW');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null, { status: 200, statusText: 'OK' });
+  });
+
+  it('a failed grant/revoke reverts the row and shows an inline error, without blanking the roster (REQ-10)', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
+    fixture.detectChanges();
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/1/members')
+      .flush([{ membershipId: 10, userId: 10, email: 'a@example.com', role: 'MEMBER' }]);
+    httpMock.expectOne('/api/tenants/1/members/10').flush(memberDetail(10, []));
+    fixture.detectChanges();
+
+    fixture.nativeElement
+      .querySelector('[data-testid="permission-list-toggle-ARTICLE_VIEW"]')
+      .click();
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne('/api/tenants/1/access-groups/1/permissions')
+      .flush({ message: 'oops' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="permission-list-toggle-ARTICLE_VIEW"]')
+        .getAttribute('aria-checked'),
+    ).toBe('false');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="permission-action-error"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="tenant-access-groups-list"]'),
+    ).toBeTruthy();
+  });
+
+  it('a second click on the same row while its call is in flight is a no-op (REQ-10 double-click guard)', async () => {
+    await createFixture();
+    fixture.detectChanges();
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
+    fixture.detectChanges();
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
+    fixture.detectChanges();
+    httpMock.expectOne('/api/tenants/1/members').flush([]);
+    fixture.detectChanges();
+
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="permission-list-toggle-ARTICLE_VIEW"]',
+    );
+    toggle.click();
+    fixture.detectChanges();
+    toggle.click();
+    fixture.detectChanges();
+
+    // Only one request fired -- the second click while in flight was ignored.
+    httpMock.expectOne('/api/tenants/1/access-groups/1/permissions').flush(null, {
+      status: 200,
+      statusText: 'OK',
+    });
+  });
+
   it('single-assigns a candidate to one group and re-fetches the roster (REQ-7/REQ-10)', async () => {
     await createFixture();
     fixture.detectChanges();
