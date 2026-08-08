@@ -429,6 +429,9 @@ describe('StaffDirectoryPageComponent', () => {
       });
       fixture.detectChanges();
 
+      fixture.nativeElement.querySelector('[data-testid="staff-tab-permissions"]').click();
+      fixture.detectChanges();
+
       expect(
         fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
       ).toBeTruthy();

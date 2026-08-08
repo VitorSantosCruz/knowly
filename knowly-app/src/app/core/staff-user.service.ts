@@ -16,6 +16,7 @@ export interface StaffUserSummary {
 export interface GlobalAccessGroup {
   id: number;
   name: string;
+  permissions: GlobalPermission[];
 }
 
 export interface StaffUserDetail {
@@ -94,6 +95,17 @@ export class StaffUserService {
     return this.http.post<void>(`/api/staff/access-groups/${accessGroupId}/permissions`, {
       permission,
     });
+  }
+
+  // role-permission-management-ui: mirrors grantAccessGroupPermission()'s shape exactly -- no
+  // deletion-confirmation-token step, per the backend PLAN's explicit decision for this endpoint.
+  revokeAccessGroupPermission(
+    accessGroupId: number,
+    permission: GlobalPermission,
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `/api/staff/access-groups/${accessGroupId}/permissions/${permission}`,
+    );
   }
 
   assignAccessGroup(userId: number, accessGroupId: number): Observable<void> {

@@ -5,9 +5,9 @@ import { MemberAccessGroupAssignmentComponent } from './member-access-group-assi
 import { AccessGroup } from '../../core/member.service';
 
 const GROUPS: AccessGroup[] = [
-  { id: 1, name: 'Editors' },
-  { id: 2, name: 'Reviewers' },
-  { id: 3, name: 'Admins' },
+  { id: 1, name: 'Editors', permissions: [] },
+  { id: 2, name: 'Reviewers', permissions: [] },
+  { id: 3, name: 'Admins', permissions: [] },
 ];
 
 describe('MemberAccessGroupAssignmentComponent', () => {

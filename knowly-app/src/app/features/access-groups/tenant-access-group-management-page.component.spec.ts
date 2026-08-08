@@ -7,12 +7,9 @@ import { TenantAccessGroupManagementPageComponent } from './tenant-access-group-
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
-import { MemberDetail } from '../../core/member.service';
+import { AccessGroup, MemberDetail } from '../../core/member.service';
 
-function memberDetail(
-  membershipId: number,
-  accessGroups: { id: number; name: string }[],
-): MemberDetail {
+function memberDetail(membershipId: number, accessGroups: AccessGroup[]): MemberDetail {
   return {
     membershipId,
     userId: membershipId,
@@ -83,7 +80,9 @@ describe('TenantAccessGroupManagementPageComponent', () => {
     await createFixture();
     fixture.detectChanges();
 
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
 
     const list = fixture.nativeElement.querySelector('[data-testid="tenant-access-groups-list"]');
@@ -131,10 +130,14 @@ describe('TenantAccessGroupManagementPageComponent', () => {
     expect(createReq.request.method).toBe('POST');
     createReq.flush({});
 
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 9, name: 'New Group' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 9, name: 'New Group', permissions: [] }]);
     fixture.detectChanges();
 
-    expect(fixture.componentInstance['groups']()).toEqual([{ id: 9, name: 'New Group' }]);
+    expect(fixture.componentInstance['groups']()).toEqual([
+      { id: 9, name: 'New Group', permissions: [] },
+    ]);
   });
 
   it('does not offer the create-group control without TENANT_ACCESS_GROUP_CREATE (REQ-5)', async () => {
@@ -151,7 +154,9 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('does not render the roster/detail section while no group is selected (REQ-12)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
 
     expect(
@@ -162,10 +167,12 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('selecting a group loads members list once plus getDetail once per member (REQ-3)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
 
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
 
     httpMock.expectOne('/api/tenants/1/members').flush([
@@ -175,7 +182,7 @@ describe('TenantAccessGroupManagementPageComponent', () => {
 
     httpMock
       .expectOne('/api/tenants/1/members/10')
-      .flush(memberDetail(10, [{ id: 1, name: 'Editors' }]));
+      .flush(memberDetail(10, [{ id: 1, name: 'Editors', permissions: [] }]));
     httpMock.expectOne('/api/tenants/1/members/11').flush(memberDetail(11, []));
     fixture.detectChanges();
 
@@ -187,22 +194,22 @@ describe('TenantAccessGroupManagementPageComponent', () => {
     await createFixture();
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/access-groups').flush([
-      { id: 1, name: 'Editors' },
-      { id: 2, name: 'Reviewers' },
+      { id: 1, name: 'Editors', permissions: [] },
+      { id: 2, name: 'Reviewers', permissions: [] },
     ]);
     fixture.detectChanges();
 
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/members')
       .flush([{ membershipId: 10, userId: 10, email: 'a@example.com', role: 'MEMBER' }]);
     httpMock
       .expectOne('/api/tenants/1/members/10')
-      .flush(memberDetail(10, [{ id: 1, name: 'Editors' }]));
+      .flush(memberDetail(10, [{ id: 1, name: 'Editors', permissions: [] }]));
     fixture.detectChanges();
 
-    fixture.componentInstance.selectGroup({ id: 2, name: 'Reviewers' });
+    fixture.componentInstance.selectGroup({ id: 2, name: 'Reviewers', permissions: [] });
     fixture.detectChanges();
 
     httpMock.expectNone('/api/tenants/1/members');
@@ -212,9 +219,11 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('grants a permission to the selected group when holding TENANT_PERMISSION_GRANT_CREATE (REQ-6)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/members').flush([]);
     fixture.detectChanges();
@@ -230,9 +239,11 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('single-assigns a candidate to one group and re-fetches the roster (REQ-7/REQ-10)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/members')
@@ -251,18 +262,18 @@ describe('TenantAccessGroupManagementPageComponent', () => {
       .flush([{ membershipId: 10, userId: 10, email: 'a@example.com', role: 'MEMBER' }]);
     httpMock
       .expectOne('/api/tenants/1/members/10')
-      .flush(memberDetail(10, [{ id: 1, name: 'Editors' }]));
+      .flush(memberDetail(10, [{ id: 1, name: 'Editors', permissions: [] }]));
   });
 
   it('bulk-assigns a candidate to several groups via the batch endpoint (REQ-9/10)', async () => {
     await createFixture();
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/access-groups').flush([
-      { id: 1, name: 'Editors' },
-      { id: 2, name: 'Reviewers' },
+      { id: 1, name: 'Editors', permissions: [] },
+      { id: 2, name: 'Reviewers', permissions: [] },
     ]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/members')
@@ -282,8 +293,8 @@ describe('TenantAccessGroupManagementPageComponent', () => {
       .flush([{ membershipId: 10, userId: 10, email: 'a@example.com', role: 'MEMBER' }]);
     httpMock.expectOne('/api/tenants/1/members/10').flush(
       memberDetail(10, [
-        { id: 1, name: 'Editors' },
-        { id: 2, name: 'Reviewers' },
+        { id: 1, name: 'Editors', permissions: [] },
+        { id: 2, name: 'Reviewers', permissions: [] },
       ]),
     );
   });
@@ -292,11 +303,11 @@ describe('TenantAccessGroupManagementPageComponent', () => {
     await createFixture();
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/access-groups').flush([
-      { id: 1, name: 'Editors' },
-      { id: 2, name: 'Reviewers' },
+      { id: 1, name: 'Editors', permissions: [] },
+      { id: 2, name: 'Reviewers', permissions: [] },
     ]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/members')
@@ -323,11 +334,11 @@ describe('TenantAccessGroupManagementPageComponent', () => {
     await createFixture();
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/access-groups').flush([
-      { id: 1, name: 'Editors' },
-      { id: 2, name: 'Reviewers' },
+      { id: 1, name: 'Editors', permissions: [] },
+      { id: 2, name: 'Reviewers', permissions: [] },
     ]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/members')
@@ -353,16 +364,18 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('unassigns a roster member via the confirm-dialog round trip and re-fetches the roster (REQ-8)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/members')
       .flush([{ membershipId: 10, userId: 10, email: 'a@example.com', role: 'MEMBER' }]);
     httpMock
       .expectOne('/api/tenants/1/members/10')
-      .flush(memberDetail(10, [{ id: 1, name: 'Editors' }]));
+      .flush(memberDetail(10, [{ id: 1, name: 'Editors', permissions: [] }]));
     fixture.detectChanges();
 
     fixture.componentInstance['onUnassign'](10);
@@ -385,14 +398,16 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('deletes a group via the confirm-dialog round trip, removing it from the list and clearing the selection (REQ-13/14)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/members').flush([]);
     fixture.detectChanges();
 
-    fixture.componentInstance['onDeleteGroup']({ id: 1, name: 'Editors' });
+    fixture.componentInstance['onDeleteGroup']({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
 
     httpMock
@@ -414,14 +429,16 @@ describe('TenantAccessGroupManagementPageComponent', () => {
   it('delete request 403 leaves the group in the list (REQ-15)', async () => {
     await createFixture();
     fixture.detectChanges();
-    httpMock.expectOne('/api/tenants/1/access-groups').flush([{ id: 1, name: 'Editors' }]);
+    httpMock
+      .expectOne('/api/tenants/1/access-groups')
+      .flush([{ id: 1, name: 'Editors', permissions: [] }]);
     fixture.detectChanges();
-    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors' });
+    fixture.componentInstance.selectGroup({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock.expectOne('/api/tenants/1/members').flush([]);
     fixture.detectChanges();
 
-    fixture.componentInstance['onDeleteGroup']({ id: 1, name: 'Editors' });
+    fixture.componentInstance['onDeleteGroup']({ id: 1, name: 'Editors', permissions: [] });
     fixture.detectChanges();
     httpMock
       .expectOne('/api/tenants/1/access-groups/1/deletion-confirmation-token')
@@ -434,7 +451,9 @@ describe('TenantAccessGroupManagementPageComponent', () => {
       .flush({ message: 'denied' }, { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
 
-    expect(fixture.componentInstance['groups']()).toEqual([{ id: 1, name: 'Editors' }]);
+    expect(fixture.componentInstance['groups']()).toEqual([
+      { id: 1, name: 'Editors', permissions: [] },
+    ]);
     expect(fixture.componentInstance['error']()).toBe('permission-denied');
   });
 });

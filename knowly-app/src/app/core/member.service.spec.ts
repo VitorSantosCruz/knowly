@@ -251,4 +251,46 @@ describe('MemberService', () => {
     expect(req.request.body).toEqual({ permission: 'ARTICLE_CREATE' });
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
+
+  // role-permission-management-ui: no deletion-confirmation-token step on this endpoint, per the
+  // backend PLAN's explicit decision -- unlike revokePermission() (member-level), which does.
+  it('revokeAccessGroupPermission() deletes the permission, no body/token', () => {
+    let succeeded = false;
+    service.revokeAccessGroupPermission(1, 3, 'ARTICLE_CREATE').subscribe(() => {
+      succeeded = true;
+    });
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/3/permissions/ARTICLE_CREATE');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toBeNull();
+    req.flush(null, { status: 200, statusText: 'OK' });
+
+    expect(succeeded).toBe(true);
+  });
+
+  it('revokeAccessGroupPermission() propagates a non-2xx error', () => {
+    let error: { status: number } | undefined;
+    service.revokeAccessGroupPermission(1, 3, 'ARTICLE_CREATE').subscribe({
+      error: (err) => (error = err),
+    });
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/3/permissions/ARTICLE_CREATE');
+    req.flush(
+      { code: 'ACCESS_GROUP_PERMISSION_NOT_GRANTED' },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    expect(error?.status).toBe(400);
+  });
+
+  // Type-level: AccessGroup must carry the extended `permissions` field from the extended DTO.
+  it('AccessGroup carries a permissions field', () => {
+    const group: import('./member.service').AccessGroup = {
+      id: 1,
+      name: 'Editors',
+      permissions: ['ARTICLE_CREATE'],
+    };
+
+    expect(group.permissions).toEqual(['ARTICLE_CREATE']);
+  });
 });
