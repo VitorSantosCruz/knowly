@@ -11,7 +11,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,10 +23,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
-@Table(
-        name = "global_access_group_permissions",
-        uniqueConstraints =
-                @UniqueConstraint(columnNames = {"global_access_group_id", "permission"}))
+@Table(name = "global_access_group_permissions")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -46,6 +42,14 @@ public class GlobalAccessGroupPermission {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 100)
     private GlobalPermission permission;
+
+    /**
+     * role-permission-revoke REQ-3/REQ-4: set when this permission is revoked from the owning
+     * {@code GlobalAccessGroup}; cleared (reactivated) if the same permission is granted again,
+     * mirroring {@code AccessGroupPermission#deletedAt}.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
