@@ -116,6 +116,39 @@ describe('StaffUserDetailPanelComponent', () => {
     fixture.detectChanges();
   }
 
+  function selectPermissionsTab(): void {
+    fixture.nativeElement.querySelector('[data-testid="staff-tab-permissions"]').click();
+    fixture.detectChanges();
+  }
+
+  // Switching back to "Personal data" remounts `app-profile-section` (a fresh structural `@if`
+  // instance), which re-fetches the target's own profile data on `ngOnChanges`.
+  function selectPersonalTab(): void {
+    fixture.nativeElement.querySelector('[data-testid="staff-tab-personal"]').click();
+    fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
+  }
+
+  it('renders "Personal data"/"Permissions" tabs in order, defaulting to Personal data', async () => {
+    await open(staffDetail, true);
+
+    const tablist = fixture.nativeElement.querySelector('[role="tablist"]');
+    expect(tablist).toBeTruthy();
+    const tabs: HTMLElement[] = Array.from(tablist.querySelectorAll('[role="tab"]'));
+    expect(tabs.map((t) => t.getAttribute('data-testid'))).toEqual([
+      'staff-tab-personal',
+      'staff-tab-permissions',
+    ]);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(tabs[1].getAttribute('aria-selected')).toBe('false');
+
+    expect(fixture.nativeElement.querySelector('[data-testid="staff-access-groups"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+    ).toBeFalsy();
+  });
+
   it('renders "Editar perfil" in the top header, before the permission sections', async () => {
     await open(staffDetail, true);
 
@@ -202,18 +235,27 @@ describe('StaffUserDetailPanelComponent', () => {
     it('defaults to edit mode: edit content is visible, audit trail is not', async () => {
       await open(staffDetail, true, [], true);
 
+      expect(fixture.nativeElement.querySelector('[role="tablist"]')).toBeTruthy();
+      selectPermissionsTab();
       expect(
         fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
       ).toBeTruthy();
       expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
     });
 
-    it('openInHistoryMode() hides all edit content and shows only the audit trail', async () => {
+    // role-permission-management-ui regression guard: the new tabs must nest strictly inside the
+    // 'edit' branch, never rendering alongside History's audit trail.
+    it('openInHistoryMode() renders neither "Personal data" nor "Permissions" tab content, only the audit trail', async () => {
       await open(staffDetail, true, [], true);
 
       fixture.componentInstance.openInHistoryMode();
       fixture.detectChanges();
 
+      expect(fixture.nativeElement.querySelector('[role="tablist"]')).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-tab-personal"]')).toBeFalsy();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-tab-permissions"]'),
+      ).toBeFalsy();
       expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
       expect(
         fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
@@ -226,9 +268,10 @@ describe('StaffUserDetailPanelComponent', () => {
       ).toBeFalsy();
     });
 
-    it('openInEditMode() switches back from history mode, hiding the audit trail again', async () => {
+    it('openInEditMode() switches back from history mode, hiding the audit trail again, and resets the tab to Personal data', async () => {
       await open(staffDetail, true, [], true);
 
+      selectPermissionsTab();
       fixture.componentInstance.openInHistoryMode();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
@@ -242,7 +285,12 @@ describe('StaffUserDetailPanelComponent', () => {
 
       expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
       expect(
-        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+        fixture.nativeElement
+          .querySelector('[data-testid="staff-tab-personal"]')
+          .getAttribute('aria-selected'),
+      ).toBe('true');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-access-groups"]'),
       ).toBeTruthy();
     });
   });
@@ -273,9 +321,12 @@ describe('StaffUserDetailPanelComponent', () => {
   it('shows no permission switches for a STAFF_ADMIN target, only a demote action, gated by viewer role', async () => {
     await open(adminDetail, true);
 
+    selectPermissionsTab();
     expect(
       fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
     ).toBeFalsy();
+
+    selectPersonalTab();
     expect(fixture.nativeElement.querySelector('[data-testid="staff-demote-button"]')).toBeTruthy();
   });
 
@@ -312,6 +363,7 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/users/1/permissions').flush(staffDetail);
     fixture.detectChanges();
 
+    selectPermissionsTab();
     expect(
       fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
     ).toBeTruthy();
@@ -319,6 +371,7 @@ describe('StaffUserDetailPanelComponent', () => {
 
   it('shows a "promote to STAFF_ADMIN" action for a STAFF target, gated by viewer role, never disabled', async () => {
     await open(staffDetail, true);
+    selectPermissionsTab();
 
     const button: HTMLButtonElement = fixture.nativeElement.querySelector(
       '[data-testid="staff-promote-button"]',
@@ -329,12 +382,14 @@ describe('StaffUserDetailPanelComponent', () => {
 
   it('hides the promote action when the viewer is not a STAFF_ADMIN', async () => {
     await open(staffDetail, false);
+    selectPermissionsTab();
 
     expect(fixture.nativeElement.querySelector('[data-testid="staff-promote-button"]')).toBeFalsy();
   });
 
   it('confirming promote calls the promote endpoint and refreshes the detail', async () => {
     await open(staffDetail, true);
+    selectPermissionsTab();
 
     fixture.nativeElement.querySelector('[data-testid="staff-promote-button"]').click();
     fixture.detectChanges();
@@ -348,14 +403,16 @@ describe('StaffUserDetailPanelComponent', () => {
     httpMock.expectOne('/api/staff/users/1/permissions').flush(adminDetail);
     fixture.detectChanges();
 
+    selectPersonalTab();
     expect(fixture.nativeElement.querySelector('[data-testid="staff-demote-button"]')).toBeTruthy();
   });
 
   it('renders switches (not checkboxes) for a STAFF target, seeded from directPermissions, toggling only local state', async () => {
     await open({ ...staffDetail, directPermissions: ['STAFF_USER_CREATE'] }, true);
+    selectPermissionsTab();
 
     const toggle = fixture.nativeElement.querySelector(
-      '[data-testid="staff-permission-toggle-STAFF_USER_CREATE"]',
+      '[data-testid="permission-list-toggle-STAFF_USER_CREATE"]',
     );
     expect(toggle.getAttribute('role')).toBe('switch');
     expect(toggle.getAttribute('aria-checked')).toBe('true');
@@ -370,13 +427,14 @@ describe('StaffUserDetailPanelComponent', () => {
 
   it('hides "Save" with zero pending changes and shows it once a switch is toggled', async () => {
     await open(staffDetail, true);
+    selectPermissionsTab();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="staff-save-permissions-button"]'),
     ).toBeFalsy();
 
     fixture.nativeElement
-      .querySelector('[data-testid="staff-permission-toggle-STAFF_USER_CREATE"]')
+      .querySelector('[data-testid="permission-list-toggle-STAFF_USER_CREATE"]')
       .click();
     fixture.detectChanges();
 
@@ -387,9 +445,10 @@ describe('StaffUserDetailPanelComponent', () => {
 
   it('clicking Save opens one confirm dialog and submits the full pending set on confirm', async () => {
     await open(staffDetail, true);
+    selectPermissionsTab();
 
     fixture.nativeElement
-      .querySelector('[data-testid="staff-permission-toggle-STAFF_USER_CREATE"]')
+      .querySelector('[data-testid="permission-list-toggle-STAFF_USER_CREATE"]')
       .click();
     fixture.detectChanges();
 
