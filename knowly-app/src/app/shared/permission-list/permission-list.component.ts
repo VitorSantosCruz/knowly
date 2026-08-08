@@ -60,7 +60,7 @@ export class PermissionListComponent {
   // it unless they have a viewer-permission gate to apply.
   readonly disabled = input(false);
 
-  readonly toggle = output<string>();
+  readonly permissionToggle = output<string>();
 
   protected label(value: string): string {
     return translatePermissionLabel(value, this.transloco);
@@ -75,7 +75,7 @@ export class PermissionListComponent {
       return;
     }
 
-    this.toggle.emit(value);
+    this.permissionToggle.emit(value);
   }
 
   protected onKeydown(event: KeyboardEvent, value: string): void {
@@ -89,6 +89,6 @@ export class PermissionListComponent {
       return;
     }
 
-    this.toggle.emit(value);
+    this.permissionToggle.emit(value);
   }
 }

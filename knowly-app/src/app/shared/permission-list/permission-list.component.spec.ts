@@ -65,7 +65,7 @@ describe('PermissionListComponent', () => {
   it('emits (toggle) with the row value on click, without mutating rows()', () => {
     const fixture = create('editable');
     const emitted: string[] = [];
-    fixture.componentInstance.toggle.subscribe((value: string) => emitted.push(value));
+    fixture.componentInstance.permissionToggle.subscribe((value: string) => emitted.push(value));
 
     const switches: HTMLElement[] = Array.from(
       fixture.nativeElement.querySelectorAll('[role="switch"]'),
@@ -84,7 +84,7 @@ describe('PermissionListComponent', () => {
     fixture.detectChanges();
 
     const emitted: string[] = [];
-    fixture.componentInstance.toggle.subscribe((value: string) => emitted.push(value));
+    fixture.componentInstance.permissionToggle.subscribe((value: string) => emitted.push(value));
 
     const switches: HTMLButtonElement[] = Array.from(
       fixture.nativeElement.querySelectorAll('[role="switch"]'),
@@ -98,7 +98,7 @@ describe('PermissionListComponent', () => {
   it('emits (toggle) on Enter and Space keydown', () => {
     const fixture = create('editable');
     const emitted: string[] = [];
-    fixture.componentInstance.toggle.subscribe((value: string) => emitted.push(value));
+    fixture.componentInstance.permissionToggle.subscribe((value: string) => emitted.push(value));
 
     const switches: HTMLElement[] = Array.from(
       fixture.nativeElement.querySelectorAll('[role="switch"]'),

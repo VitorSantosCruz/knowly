@@ -111,7 +111,7 @@ type PageError = 'network' | 'permission-denied' | null;
                 [rows]="permissionListRows()"
                 [mode]="permissionListMode()"
                 [disabled]="pendingPermissionToggles().size > 0"
-                (toggle)="onTogglePermission($any($event))"
+                (permissionToggle)="onTogglePermission($any($event))"
               />
             </section>
 

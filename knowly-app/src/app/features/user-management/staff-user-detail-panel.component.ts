@@ -264,7 +264,7 @@ const AUDIT_PAGE_SIZE = 20;
                     mode="editable"
                     [rows]="permissionListRows()"
                     [disabled]="!viewerIsStaffAdmin()"
-                    (toggle)="onTogglePermission($any($event))"
+                    (permissionToggle)="onTogglePermission($any($event))"
                   />
 
                   @if (hasPendingPermissionChanges()) {

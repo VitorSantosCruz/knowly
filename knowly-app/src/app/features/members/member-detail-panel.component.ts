@@ -249,7 +249,7 @@ type MemberDetailTab = 'personal' | 'permissions';
                   mode="editable"
                   [rows]="permissionListRows()"
                   [disabled]="!viewerCanManageDirectPermissions()"
-                  (toggle)="onTogglePermission($any($event))"
+                  (permissionToggle)="onTogglePermission($any($event))"
                 />
 
                 @if (hasPendingPermissionChanges()) {
