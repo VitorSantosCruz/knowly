@@ -16,6 +16,7 @@ import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.identity.UserProfileService;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
+import br.com.conectabyte.knowly.softdelete.AllowDeletedForOversight;
 import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
@@ -239,9 +240,18 @@ public class TenantService {
      * house rule already requires {@code TENANT_VIEW}), not {@code TENANT_ACT_AS_ANY}, since this
      * is closer to an audit/deletion-history concern than the "act as this tenant" picker {@link
      * #listAllTenants} powers. Same pagination/search/sort shape as {@link #listAllTenants}.
+     *
+     * <p>soft-delete-default-filter (specify/features/soft-delete-default-filter/TASKS.md, Phase 6
+     * task 5.1): {@code @AllowDeletedForOversight} is required here -- {@link
+     * TenantRepository#searchDeactivated}'s own {@code deletedAt IS NOT NULL} predicate would
+     * otherwise be ANDed with the now-default {@code softDeleteFilter}'s {@code deletedAt IS NULL},
+     * always returning zero rows. This method's authorization is unaffected:
+     * {@code @RequiresGlobalPermission(TENANT_DELETE)} above already gates the call before this
+     * annotation ever widens what the query itself can see.
      */
     @Transactional(readOnly = true)
     @RequiresGlobalPermission(GlobalPermission.TENANT_DELETE)
+    @AllowDeletedForOversight
     public PageResponseDto<TenantSummaryDto> listDeactivatedTenants(
             User actor, int page, int size, String search) {
         if (page < 0 || size <= 0) {

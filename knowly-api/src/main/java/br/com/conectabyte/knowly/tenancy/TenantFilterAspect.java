@@ -63,8 +63,17 @@ public class TenantFilterAspect {
         if (bypassForOversight || (tenantContext.isStaff() && activeTenantId.isEmpty())) {
             session.disableFilter(TenantFilter.NAME);
         } else {
+            // Resolved *before* enableFilter() is called: resolveEffectiveTenantId() itself queries
+            // Tenant (now soft-delete-filtered,
+            // specify/features/soft-delete-default-filter/PLAN.md),
+            // and Hibernate validates every currently-enabled filter's parameters as soon as any
+            // filter-carrying entity is touched. Evaluating this as a method argument to
+            // enableFilter(...).setParameter(...) left tenantFilter briefly enabled with no
+            // parameter set during that inner query, throwing "Filter parameter 'tenantFilter' has
+            // neither an argument nor a resolver" -- fixed by computing the value first.
+            long effectiveTenantId = resolveEffectiveTenantId(activeTenantId);
             session.enableFilter(TenantFilter.NAME)
-                    .setParameter(TenantFilter.PARAMETER, resolveEffectiveTenantId(activeTenantId));
+                    .setParameter(TenantFilter.PARAMETER, effectiveTenantId);
         }
 
         return joinPoint.proceed();

@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.tenancy;
 import br.com.conectabyte.knowly.metrics.DailyCountProjection;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TenantRepository extends JpaRepository<Tenant, Long> {
+
+    /**
+     * Derived (HQL-backed, no explicit {@code deletedAt} predicate) -- proves {@link
+     * br.com.conectabyte.knowly.softdelete.SoftDeleteFilter} excludes soft-deleted rows on its own,
+     * with no per-query opt-in (specify/features/soft-delete-default-filter/SPEC.md requirement 3).
+     */
+    Optional<Tenant> findByName(String name);
 
     long countByCreatedAtGreaterThanEqual(Instant from);
 

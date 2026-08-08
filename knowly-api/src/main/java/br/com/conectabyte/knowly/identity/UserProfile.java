@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.identity;
 
 import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.softdelete.SoftDeleteFilter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Filter;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -34,6 +36,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Table(name = "user_profiles")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
+@Filter(name = SoftDeleteFilter.NAME)
 @Getter
 @Setter
 @NoArgsConstructor

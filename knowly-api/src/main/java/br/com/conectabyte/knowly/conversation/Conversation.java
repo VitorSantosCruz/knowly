@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.conversation;
 
 import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.softdelete.SoftDeleteFilter;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantFilter;
 import jakarta.persistence.Column;
@@ -29,6 +30,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Filter(name = TenantFilter.NAME, condition = "tenant_id = :" + TenantFilter.PARAMETER)
+@Filter(name = SoftDeleteFilter.NAME)
 @Getter
 @Setter
 @NoArgsConstructor
