@@ -351,7 +351,7 @@ audit; do not perform them as a mechanical find-and-replace.
 
 ## Phase 6 — Fix triaged migration-risk hits (from task 1)
 
-- [ ] 5.1. `TenantService#listDeactivatedTenants`: add
+- [x] 5.1. `TenantService#listDeactivatedTenants`: add
       `@AllowDeletedForOversight` so `TenantRepository#searchDeactivated`'s
       `deletedAt IS NOT NULL` predicate is no longer cancelled out by the
       now-default `softDeleteFilter`. Fixes all 5 hits from the migration
