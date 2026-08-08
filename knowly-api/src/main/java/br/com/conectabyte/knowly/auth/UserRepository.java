@@ -28,6 +28,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("select u from User u where u.id = :id")
     Optional<User> findById(@Param("id") Long id);
 
+    /**
+     * General email lookup -- used across many call sites (auth flows, permission-check aspects,
+     * audit aspects) that are not all guaranteed to run inside a {@code @Transactional} *service*
+     * method (e.g. an {@code @Around} advice wrapping the service call), so this method
+     * deliberately keeps no explicit {@code deletedAt} predicate and is **not** collapsed with
+     * {@link #findByEmailIgnoreCaseAndDeletedAtIsNull} — unlike the other renames in
+     * specify/features/soft-delete-default-filter/PLAN.md, these two have genuinely different
+     * call-site guarantees, so merging them is explicitly out of scope for this feature's Phase 5
+     * (see TASKS.md).
+     */
     Optional<User> findByEmailIgnoreCase(String email);
 
     /**
@@ -36,6 +46,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     Optional<User> findByEmailIgnoreCaseAndDeletedAtIsNull(String email);
 
+    /**
+     * Not renamed to drop the {@code DeletedAtIsNull} suffix despite
+     * specify/features/soft-delete-default-filter/PLAN.md's rename table listing it: {@link
+     * br.com.conectabyte.knowly.identity.ProfileEditRequestService} calls this from a deliberately
+     * non-{@code @Transactional} method (see that class's own Javadoc), so {@link
+     * br.com.conectabyte.knowly.softdelete.SoftDeleteFilterAspect} never enables {@code
+     * softDeleteFilter} for that call -- the explicit predicate is genuinely load-bearing there,
+     * not redundant, even though every other current caller (all {@code @Transactional}) would be
+     * fine either way. Renaming would silently reintroduce the leak class this feature fixes for
+     * that one caller.
+     */
     List<User> findByGlobalRoleInAndDeletedAtIsNull(List<GlobalRole> globalRoles);
 
     List<User> findByGlobalRoleInAndEmailContainingIgnoreCaseAndDeletedAtIsNull(
