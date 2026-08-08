@@ -249,6 +249,7 @@ describe('TenantCreatePageComponent', () => {
   });
 
   it('sends the chosen role on submit (REQ-17-19)', () => {
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     fillValidForm();
 
@@ -264,7 +265,7 @@ describe('TenantCreatePageComponent', () => {
   });
 
   it('creates the tenant with the exact CreateTenantRequest shape and navigates to /select-tenant on success (REQ-4)', () => {
-    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     fillValidForm();
 

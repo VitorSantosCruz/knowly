@@ -92,6 +92,18 @@
   This is a **novel decision with no exact precedent** (existing
   tenant-scoped routes only ever needed the "is there an active tenant"
   check) — see `DECISIONS.md` entry below.
+  **AppSec review, pre-TASKS.md:** unlike the existing
+  `accessGroupManagementGuard` it's modeled on, this guard's permission
+  check pipes through `catchError(() => of(router.parseUrl('/select-tenant')))`
+  before the `map` — on a network error the underlying `map` never runs and
+  Angular Router would otherwise treat the observable erroring as a failed
+  navigation (a broken/erroring nav, not this app's normal error UX),
+  rather than the same clean redirect a missing permission already gets.
+  Matches `PermissionsService.fetch()`'s own established
+  `catchError(() => of({ permissions: [] }))` convention of failing closed
+  without letting the underlying HTTP error surface as an unhandled
+  navigation failure. (The existing `accessGroupManagementGuard` has this
+  same gap — out of scope to fix here, but worth a follow-up.)
 - **`member.service.ts` gains four new methods**, not a new service — it
   is already the tenant `AccessGroup`/member HTTP boundary
   (`listAccessGroups`, `createAccessGroup`, `assignAccessGroup`,
