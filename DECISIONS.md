@@ -2434,6 +2434,41 @@ ownUserId()`, my-profile hidden otherwise) — this is what makes a truly
 per-row action set possible from one shared, flat input, without
 forking the column/action config per row.
 
+### Tenant-scoped routes needing a real permission gate (not just "is there an active tenant") get their own dedicated guard, layered after `tenantSelectionGuard`
+
+Decided while writing `tenant-access-group-management/PLAN.md`
+(2026-08-08). Every existing tenant-scoped route (`/members`, etc.) only
+carries `tenantSelectionGuard` — it establishes "is there an active
+tenant" but performs no permission check of its own; the screen opens
+regardless and the component's own list/detail request 403s reactively
+into `NoAccessStateComponent`. The new `/tenants/access-groups` route's
+SPEC (REQ-2) explicitly requires the screen not open *and not issue any
+list/detail request at all* for a caller lacking
+`TENANT_ACCESS_GROUP_VIEW` — a stricter requirement than the reactive
+pattern satisfies. **Decision:** a new `CanActivateFn`,
+`tenantAccessGroupManagementGuard`, calls `GET /api/tenants/permissions`
+directly and checks for `TENANT_ACCESS_GROUP_VIEW`, redirecting to
+`/select-tenant` if absent — mirroring `accessGroupManagementGuard`'s
+existing shape for the *global* staff screen (same pattern, different
+endpoint/permission/redirect target already established there), layered
+in the route's `canActivate` array after `tenantSelectionGuard` so the
+active-tenant precondition is confirmed first. It does not read
+`PermissionsService.permissions()` synchronously, because a guard runs
+before any component has necessarily called `.fetch()` yet.
+**Why:** the existing reactive-403 pattern is correct for screens whose
+own SPEC never asked for "prevent the request from firing at all" — but
+where a SPEC explicitly asks for that stronger guarantee, a guard is the
+right layer to enforce it, not a component-level early-return (which
+would still let the route open and briefly render before redirecting).
+**Applies to new decisions:** before adding a permission check to a new
+tenant-scoped route, check whether the SPEC actually requires
+preventing the request/render (guard) or only requires the eventual
+403 be handled gracefully (existing reactive pattern is sufficient,
+no new guard needed) — don't default to writing a guard for every
+tenant-scoped screen going forward without that check, and don't
+default to the reactive pattern either if the SPEC is explicit about
+"shall not issue any... requests."
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
