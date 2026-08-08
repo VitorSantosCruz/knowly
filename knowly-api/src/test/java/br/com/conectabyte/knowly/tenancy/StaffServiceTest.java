@@ -401,4 +401,26 @@ class StaffServiceTest {
                                 assertThat(dto.permissions())
                                         .containsExactly(GlobalPermission.STAFF_USER_CREATE));
     }
+
+    // role-permission-revoke REQ-9: staff-scope mirror -- revoke emits an audit event.
+
+    @Test
+    void revokeAccessGroupPermissionEmitsAnAuditEvent() {
+        User actor = staffAdmin("staff-revoke-audit-actor@example.com");
+        authenticateAs("staff-revoke-audit-actor@example.com");
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke Audit Group"));
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+
+        staffService.revokeAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(actor.getId());
+        assertThat(events)
+                .anyMatch(
+                        event ->
+                                event.getAction().equals("staff.access_group.revoke_permission")
+                                        && event.getOutcome() == AuditOutcome.SUCCESS);
+    }
 }

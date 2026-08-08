@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.article.Article;
 import br.com.conectabyte.knowly.article.ArticleRepository;
+import br.com.conectabyte.knowly.audit.AuditEvent;
 import br.com.conectabyte.knowly.audit.AuditEventRepository;
 import br.com.conectabyte.knowly.audit.AuditOutcome;
 import br.com.conectabyte.knowly.auth.User;
@@ -1936,5 +1937,29 @@ class TenantServiceTest {
                         dto ->
                                 assertThat(dto.permissions())
                                         .containsExactly(Permission.TENANT_MEMBER_MANAGE));
+    }
+
+    // role-permission-revoke REQ-9: revoke emits an audit event, actor/action/outcome.
+
+    @Test
+    void revokeAccessGroupPermissionEmitsAnAuditEvent() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Audit Co"));
+        TenantMembership admin = adminMembership("revoke-audit-admin@example.com", tenant);
+        authenticateAs("revoke-audit-admin@example.com");
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+
+        tenantService.revokeAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+
+        List<AuditEvent> events =
+                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
+                        admin.getUser().getId());
+        assertThat(events)
+                .anyMatch(
+                        event ->
+                                event.getAction().equals("tenant.access_group.revoke_permission")
+                                        && event.getOutcome() == AuditOutcome.SUCCESS);
     }
 }
