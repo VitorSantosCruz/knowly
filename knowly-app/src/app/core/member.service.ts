@@ -140,6 +140,42 @@ export class MemberService {
       .pipe(map((res) => res.word));
   }
 
+  batchAssignAccessGroups(
+    tenantId: number,
+    membershipId: number,
+    accessGroupIds: number[],
+  ): Observable<void> {
+    return this.http.post<void>(
+      `/api/tenants/${tenantId}/members/${membershipId}/access-groups:batch`,
+      { accessGroupIds },
+    );
+  }
+
+  generateAccessGroupDeletionToken(tenantId: number, accessGroupId: number): Observable<string> {
+    return this.http
+      .get<{ word: string }>(
+        `/api/tenants/${tenantId}/access-groups/${accessGroupId}/deletion-confirmation-token`,
+      )
+      .pipe(map((res) => res.word));
+  }
+
+  deleteAccessGroup(tenantId: number, accessGroupId: number, word: string): Observable<void> {
+    return this.http.delete<void>(`/api/tenants/${tenantId}/access-groups/${accessGroupId}`, {
+      body: { word },
+    });
+  }
+
+  grantAccessGroupPermission(
+    tenantId: number,
+    accessGroupId: number,
+    permission: Permission,
+  ): Observable<void> {
+    return this.http.post<void>(
+      `/api/tenants/${tenantId}/access-groups/${accessGroupId}/permissions`,
+      { permission },
+    );
+  }
+
   demote(tenantId: number, membershipId: number): Observable<void> {
     return this.http.post<void>(`/api/tenants/${tenantId}/members/${membershipId}/demote`, {});
   }

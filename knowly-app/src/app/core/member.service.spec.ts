@@ -233,4 +233,42 @@ describe('MemberService', () => {
     });
     req.flush({});
   });
+
+  it('batchAssignAccessGroups() posts the full desired group-id set', () => {
+    service.batchAssignAccessGroups(1, 2, [3, 4]).subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/members/2/access-groups:batch');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ accessGroupIds: [3, 4] });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
+  it("generateAccessGroupDeletionToken() GETs a fresh word (unlike this file's other POST-shaped token methods)", () => {
+    let result: string | undefined;
+    service.generateAccessGroupDeletionToken(1, 3).subscribe((word) => (result = word));
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/3/deletion-confirmation-token');
+    expect(req.request.method).toBe('GET');
+    req.flush({ word: 'correct-horse' });
+
+    expect(result).toBe('correct-horse');
+  });
+
+  it('deleteAccessGroup() deletes the group with the confirmation word', () => {
+    service.deleteAccessGroup(1, 3, 'correct-horse').subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/3');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ word: 'correct-horse' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
+  it('grantAccessGroupPermission() posts the permission to grant', () => {
+    service.grantAccessGroupPermission(1, 3, 'ARTICLE_CREATE').subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/access-groups/3/permissions');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ permission: 'ARTICLE_CREATE' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
 });
