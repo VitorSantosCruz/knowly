@@ -4,6 +4,8 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.conversation.Conversation;
 import br.com.conectabyte.knowly.conversation.ConversationRepository;
+import br.com.conectabyte.knowly.identity.Address;
+import br.com.conectabyte.knowly.identity.AddressRepository;
 import br.com.conectabyte.knowly.identity.Contact;
 import br.com.conectabyte.knowly.identity.ContactRepository;
 import br.com.conectabyte.knowly.identity.UserProfile;
@@ -27,16 +29,19 @@ public class SoftDeleteFilterTestSupportService {
     private final ConversationRepository conversationRepository;
     private final UserProfileRepository userProfileRepository;
     private final ContactRepository contactRepository;
+    private final AddressRepository addressRepository;
 
     public SoftDeleteFilterTestSupportService(
             UserRepository userRepository,
             ConversationRepository conversationRepository,
             UserProfileRepository userProfileRepository,
-            ContactRepository contactRepository) {
+            ContactRepository contactRepository,
+            AddressRepository addressRepository) {
         this.userRepository = userRepository;
         this.conversationRepository = conversationRepository;
         this.userProfileRepository = userProfileRepository;
         this.contactRepository = contactRepository;
+        this.addressRepository = addressRepository;
     }
 
     @Transactional(readOnly = true)
@@ -68,5 +73,10 @@ public class SoftDeleteFilterTestSupportService {
     @Transactional(readOnly = true)
     public List<Contact> findContactsByUser(User user) {
         return contactRepository.findByUser(user);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Address> findAddressByUserId(Long userId) {
+        return addressRepository.findByUserId(userId);
     }
 }
