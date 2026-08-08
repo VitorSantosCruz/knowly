@@ -42,21 +42,6 @@ export class MemberService {
     return this.http.post<void>(`/api/tenants/${tenantId}/members`, { email, role, profile });
   }
 
-  remove(tenantId: number, membershipId: number, word: string): Observable<void> {
-    return this.http.delete<void>(`/api/tenants/${tenantId}/members/${membershipId}`, {
-      body: { word },
-    });
-  }
-
-  generateRemovalToken(tenantId: number, membershipId: number): Observable<string> {
-    return this.http
-      .post<{ word: string }>(
-        `/api/tenants/${tenantId}/members/${membershipId}/deletion-confirmation-token`,
-        {},
-      )
-      .pipe(map((res) => res.word));
-  }
-
   getDetail(tenantId: number, membershipId: number): Observable<MemberDetail> {
     return this.http.get<MemberDetail>(`/api/tenants/${tenantId}/members/${membershipId}`);
   }

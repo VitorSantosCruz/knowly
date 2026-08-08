@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { LucideSquarePen, LucideTrash, LucideUser, LucideUserX } from '@lucide/angular';
+import { LucideSquarePen, LucideTrash, LucideUser } from '@lucide/angular';
 import { EMPTY, Observable, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
@@ -127,17 +127,6 @@ const EMPTY_FIELDS: ProfileFields = {
           </div>
         }
 
-        @if (pendingRemoval(); as memberToRemove) {
-          <app-confirm-dialog
-            [open]="true"
-            [message]="'members.confirmRemove' | transloco: { email: memberToRemove.email }"
-            [fetchToken]="removalTokenFetcher(memberToRemove.membershipId)"
-            [retryToken]="removalRetryToken()"
-            (confirm)="confirmRemoval($event)"
-            (dismissed)="cancelRemoval()"
-          />
-        }
-
         @if (pendingHardDelete(); as memberToHardDelete) {
           <app-confirm-dialog
             [open]="true"
@@ -166,8 +155,6 @@ export class MembersPageComponent implements OnInit {
   protected readonly error = signal<MembersError>(null);
   protected readonly newMemberEmail = signal('');
   protected readonly selectedMembershipId = signal<number | null>(null);
-  protected readonly pendingRemoval = signal<Member | null>(null);
-  protected readonly removalRetryToken = signal(0);
   protected readonly pendingHardDelete = signal<Member | null>(null);
   protected readonly hardDeleteRetryToken = signal(0);
 
@@ -234,17 +221,6 @@ export class MembersPageComponent implements OnInit {
         onClick: (row: Member) => this.openInEditMode(row.membershipId),
       },
       {
-        // Deliberately 'secondary', not 'danger' -- this is a reversible action (the
-        // member can be re-invited), unlike the irreversible hard-delete below. A user
-        // reported the two actions read as "two delete buttons" side by side when both
-        // were LucideTrash-red; distinct icon, label, and variant now separate them.
-        icon: LucideTrash,
-        labelKey: 'members.removeFromTenant',
-        variant: 'secondary',
-        hidden: isOwnRow,
-        onClick: (row: Member) => this.onRemoveMember(row.membershipId),
-      },
-      {
         icon: LucideUser,
         labelKey: 'sharedList.actions.myProfile',
         variant: 'secondary',
@@ -252,19 +228,14 @@ export class MembersPageComponent implements OnInit {
         onClick: () => this.router.navigateByUrl('/profile'),
       },
       {
-        // Hard-delete (irreversible account deletion) — distinct from the soft "remove
-        // from tenant" action above, and distinct icon on purpose (LucideUserX, not
-        // LucideTrash) so the two aren't visually confusable on the same row. This was
-        // previously reachable only via a button at the bottom of
-        // member-detail-panel.component.ts (removed in the design-system-consistency-pass
-        // migration to list-level actions) — restored here as a row action using the same
-        // gate the panel used (viewerCanHardDelete). Unlike the old panel, this list has
-        // no per-row `isLastAdminOfType` (that field only exists on the full
-        // `MemberDetail` fetch, not the lightweight `Member` row) so the button is never
-        // pre-emptively disabled for that case — the backend's existing
-        // `LastAdminRemainingException` check still rejects it, surfaced as a generic
-        // error rather than a disabled button; a deliberate, documented tradeoff.
-        icon: LucideUserX,
+        // The only removal action on this screen (a user found the previous pair --
+        // this one plus a second, checkless "remove from tenant" action -- confusing,
+        // since neither ever deletes the real account, both are reversible via re-add,
+        // and the only real difference was this one's extra last-MEMBER_ADMIN-standing
+        // check, which the other lacked as a genuine gap, now fixed at the backend level
+        // too). LucideTrash (not LucideUserX) to stay visually consistent with every
+        // other delete-style action in this app.
+        icon: LucideTrash,
         labelKey: 'members.delete',
         variant: 'danger',
         hidden: (row: Member) => isOwnRow(row) || !this.viewerCanHardDelete(row),
@@ -438,54 +409,6 @@ export class MembersPageComponent implements OnInit {
       });
   }
 
-  protected onRemoveMember(membershipId: number): void {
-    const member = this.members().find((m) => m.membershipId === membershipId);
-
-    if (member === undefined) {
-      return;
-    }
-
-    this.pendingRemoval.set(member);
-  }
-
-  protected removalTokenFetcher(membershipId: number): () => Observable<string> {
-    return () => {
-      const tenantId = this.activeTenantService.activeTenantId();
-      return this.memberService.generateRemovalToken(tenantId ?? -1, membershipId);
-    };
-  }
-
-  protected confirmRemoval(word: string): void {
-    const tenantId = this.activeTenantService.activeTenantId();
-    const member = this.pendingRemoval();
-
-    if (tenantId === null || member === null) {
-      return;
-    }
-
-    this.memberService
-      .remove(tenantId, member.membershipId, word)
-      .pipe(
-        catchError((err) => {
-          if (err.status === 400) {
-            this.removalRetryToken.update((n) => n + 1);
-          } else {
-            this.pendingRemoval.set(null);
-            this.removalRetryToken.set(0);
-            this.error.set(err.status === 403 ? 'permission-denied' : 'network');
-          }
-          return EMPTY;
-        }),
-      )
-      .subscribe(() => {
-        this.pendingRemoval.set(null);
-        this.removalRetryToken.set(0);
-        this.members.update((members) =>
-          members.filter((m) => m.membershipId !== member.membershipId),
-        );
-      });
-  }
-
   protected onHardDeleteMember(member: Member): void {
     this.pendingHardDelete.set(member);
   }
@@ -531,10 +454,5 @@ export class MembersPageComponent implements OnInit {
   protected cancelHardDelete(): void {
     this.pendingHardDelete.set(null);
     this.hardDeleteRetryToken.set(0);
-  }
-
-  protected cancelRemoval(): void {
-    this.pendingRemoval.set(null);
-    this.removalRetryToken.set(0);
   }
 }

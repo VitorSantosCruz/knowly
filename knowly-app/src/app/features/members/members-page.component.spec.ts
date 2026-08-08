@@ -151,44 +151,6 @@ describe('MembersPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('new@example.com');
   });
 
-  it('removing a member removes it from the list', () => {
-    fixture.detectChanges();
-    flushActiveTenant();
-    flushOwnProfile();
-    fixture.detectChanges();
-    httpMock
-      .expectOne('/api/tenants/7/members')
-      .flush([{ membershipId: 1, email: 'a@example.com', role: 'MEMBER' }]);
-    httpMock.expectOne('/api/tenants/7/access-groups').flush([]);
-    fixture.detectChanges();
-
-    const removeButton: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="shared-list-action-members.removeFromTenant-1"]',
-    );
-    removeButton.click();
-    fixture.detectChanges();
-
-    httpMock
-      .expectOne('/api/tenants/7/members/1/deletion-confirmation-token')
-      .flush({ word: 'correct-horse' });
-    fixture.detectChanges();
-
-    const dialogEl = fixture.nativeElement.querySelector('app-confirm-dialog');
-    const input: HTMLInputElement = dialogEl.querySelector('[data-testid="confirm-dialog-input"]');
-    input.value = 'correct-horse';
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    dialogEl.querySelector('[data-testid="confirm-dialog-confirm"]').click();
-    fixture.detectChanges();
-
-    const deleteReq = httpMock.expectOne('/api/tenants/7/members/1');
-    expect(deleteReq.request.body).toEqual({ word: 'correct-horse' });
-    deleteReq.flush({});
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).not.toContain('a@example.com');
-  });
-
   it('selecting a member shows the detail panel, opened in edit mode', () => {
     fixture.detectChanges();
     flushActiveTenant();
@@ -278,9 +240,7 @@ describe('MembersPageComponent', () => {
       ),
     ).toBeFalsy();
     expect(
-      fixture.nativeElement.querySelector(
-        '[data-testid="shared-list-action-members.removeFromTenant-1"]',
-      ),
+      fixture.nativeElement.querySelector('[data-testid="shared-list-action-members.delete-1"]'),
     ).toBeFalsy();
     const myProfileAction: HTMLButtonElement = fixture.nativeElement.querySelector(
       '[data-testid="shared-list-action-sharedList.actions.myProfile-1"]',
@@ -293,9 +253,7 @@ describe('MembersPageComponent', () => {
       ),
     ).toBeTruthy();
     expect(
-      fixture.nativeElement.querySelector(
-        '[data-testid="shared-list-action-members.removeFromTenant-2"]',
-      ),
+      fixture.nativeElement.querySelector('[data-testid="shared-list-action-members.delete-2"]'),
     ).toBeTruthy();
 
     myProfileAction.click();

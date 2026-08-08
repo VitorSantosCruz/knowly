@@ -56,26 +56,6 @@ describe('MemberService', () => {
     req.flush({});
   });
 
-  it('remove() deletes the membership with the confirmation word', () => {
-    service.remove(1, 2, 'correct-horse').subscribe();
-
-    const req = httpMock.expectOne('/api/tenants/1/members/2');
-    expect(req.request.method).toBe('DELETE');
-    expect(req.request.body).toEqual({ word: 'correct-horse' });
-    req.flush({});
-  });
-
-  it('generateRemovalToken() fetches a fresh word', () => {
-    let result: string | undefined;
-    service.generateRemovalToken(1, 2).subscribe((word) => (result = word));
-
-    const req = httpMock.expectOne('/api/tenants/1/members/2/deletion-confirmation-token');
-    expect(req.request.method).toBe('POST');
-    req.flush({ word: 'correct-horse' });
-
-    expect(result).toBe('correct-horse');
-  });
-
   it('getDetail() fetches a member detail', () => {
     service.getDetail(1, 2).subscribe();
 
