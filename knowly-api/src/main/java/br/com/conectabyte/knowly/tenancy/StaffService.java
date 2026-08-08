@@ -26,6 +26,7 @@ import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
@@ -292,6 +293,29 @@ public class StaffService {
                         () ->
                                 globalAccessGroupPermissionRepository.save(
                                         new GlobalAccessGroupPermission(accessGroup, permission)));
+    }
+
+    /**
+     * role-permission-revoke REQ-2/REQ-4/REQ-6/REQ-8: staff-scope mirror of {@link
+     * TenantService#revokeAccessGroupPermission} -- unknown role rejects via {@link
+     * #requireAccessGroup(Long)}'s existing {@code TenantAccessDeniedException}; a permission with
+     * no active grant rejects with {@link AccessGroupPermissionNotGrantedException}.
+     */
+    @Transactional
+    @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    @AuditLog(
+            action = "staff.access_group.revoke_permission",
+            resourceType = "GlobalAccessGroupPermission")
+    public void revokeAccessGroupPermission(Long accessGroupId, GlobalPermission permission) {
+        GlobalAccessGroup accessGroup = requireAccessGroup(accessGroupId);
+
+        GlobalAccessGroupPermission grant =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(accessGroup, permission)
+                        .filter(p -> p.getDeletedAt() == null)
+                        .orElseThrow(AccessGroupPermissionNotGrantedException::new);
+        grant.setDeletedAt(java.time.Instant.now());
+        globalAccessGroupPermissionRepository.save(grant);
     }
 
     @Transactional

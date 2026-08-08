@@ -16,8 +16,10 @@ import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
 import br.com.conectabyte.knowly.identity.exception.UserNotFoundException;
 import br.com.conectabyte.knowly.tenancy.dto.AuditEventDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -304,5 +306,73 @@ class StaffServiceTest {
                         .orElseThrow();
         assertThat(reactivated.getId()).isEqualTo(existing.getId());
         assertThat(reactivated.getDeletedAt()).isNull();
+    }
+
+    // role-permission-revoke REQ-2/REQ-3/REQ-6/REQ-7/REQ-8: revokeAccessGroupPermission (staff
+    // scope), same three cases as TenantServiceTest's tenant-scope coverage.
+
+    @Test
+    void revokeAccessGroupPermissionRejectsAnUnknownAccessGroupId() {
+        staffAdmin("staff-revoke-unknown-actor@example.com");
+        authenticateAs("staff-revoke-unknown-actor@example.com");
+
+        assertThatThrownBy(
+                        () ->
+                                staffService.revokeAccessGroupPermission(
+                                        -1L, GlobalPermission.STAFF_USER_CREATE))
+                .isInstanceOf(TenantAccessDeniedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionRejectsAPermissionNeverGranted() {
+        staffAdmin("staff-revoke-never-granted-actor@example.com");
+        authenticateAs("staff-revoke-never-granted-actor@example.com");
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke Never Granted Group"));
+
+        assertThatThrownBy(
+                        () ->
+                                staffService.revokeAccessGroupPermission(
+                                        group.getId(), GlobalPermission.STAFF_USER_CREATE))
+                .isInstanceOf(AccessGroupPermissionNotGrantedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionRejectsAnAlreadyRevokedPermission() {
+        staffAdmin("staff-revoke-twice-actor@example.com");
+        authenticateAs("staff-revoke-twice-actor@example.com");
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke Twice Group"));
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+        staffService.revokeAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+
+        assertThatThrownBy(
+                        () ->
+                                staffService.revokeAccessGroupPermission(
+                                        group.getId(), GlobalPermission.STAFF_USER_CREATE))
+                .isInstanceOf(AccessGroupPermissionNotGrantedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionSoftDeletesTheRowWithoutRemovingIt() {
+        staffAdmin("staff-revoke-softdelete-actor@example.com");
+        authenticateAs("staff-revoke-softdelete-actor@example.com");
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke Softdelete Group"));
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+        GlobalAccessGroupPermission granted =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(
+                                group, GlobalPermission.STAFF_USER_CREATE)
+                        .orElseThrow();
+
+        staffService.revokeAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+
+        GlobalAccessGroupPermission revoked =
+                globalAccessGroupPermissionRepository.findById(granted.getId()).orElseThrow();
+        assertThat(revoked.getDeletedAt()).isNotNull();
     }
 }

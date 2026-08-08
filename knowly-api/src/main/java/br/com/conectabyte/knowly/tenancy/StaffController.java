@@ -207,6 +207,13 @@ public class StaffController {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping("/access-groups/{accessGroupId}/permissions/{permission}")
+    public ResponseEntity<Void> deleteAccessGroupPermission(
+            @PathVariable Long accessGroupId, @PathVariable GlobalPermission permission) {
+        staffService.revokeAccessGroupPermission(accessGroupId, permission);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/users/{userId}/access-groups/{accessGroupId}")
     public ResponseEntity<Void> assignAccessGroup(
             @PathVariable Long userId, @PathVariable Long accessGroupId) {

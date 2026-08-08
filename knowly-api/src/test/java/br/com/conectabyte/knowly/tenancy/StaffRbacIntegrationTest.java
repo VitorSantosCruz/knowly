@@ -1001,4 +1001,166 @@ class StaffRbacIntegrationTest {
                         .exchange();
         assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
     }
+
+    // role-permission-revoke REQ-2/REQ-6/REQ-7/REQ-8: DELETE
+    // /api/staff/access-groups/{id}/permissions/{permission}.
+
+    @Test
+    void staffRevokeGrantRegrantRoundTripReusesTheSameRow() {
+        staffAdmin("staff-revoke-rt-admin@example.com");
+        Cookie session = logIn("staff-revoke-rt-admin@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke RT Group"));
+        String permissionsUri = "/api/staff/access-groups/" + group.getId() + "/permissions";
+
+        var grantResponse =
+                mockMvc.post()
+                        .uri(permissionsUri)
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"STAFF_USER_CREATE\"}")
+                        .exchange();
+        assertThat(grantResponse).hasStatus(HttpStatus.OK);
+        Long rowId =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(
+                                group, GlobalPermission.STAFF_USER_CREATE)
+                        .orElseThrow()
+                        .getId();
+
+        var revokeResponse =
+                mockMvc.delete()
+                        .uri(permissionsUri + "/STAFF_USER_CREATE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+        assertThat(revokeResponse).hasStatus(HttpStatus.OK);
+        assertThat(
+                        globalAccessGroupPermissionRepository
+                                .findByGlobalAccessGroupInAndDeletedAtIsNull(List.of(group)))
+                .isEmpty();
+
+        var regrantResponse =
+                mockMvc.post()
+                        .uri(permissionsUri)
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"STAFF_USER_CREATE\"}")
+                        .exchange();
+        assertThat(regrantResponse).hasStatus(HttpStatus.OK);
+        GlobalAccessGroupPermission regranted =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(
+                                group, GlobalPermission.STAFF_USER_CREATE)
+                        .orElseThrow();
+        assertThat(regranted.getId()).isEqualTo(rowId);
+        assertThat(regranted.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void staffRevokeReturns403ForACallerWithoutStaffPermissionManage() {
+        limitedStaff("staff-revoke-403-actor@example.com");
+        Cookie session = logIn("staff-revoke-403-actor@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke 403 Group"));
+        globalAccessGroupPermissionRepository.saveAndFlush(
+                new GlobalAccessGroupPermission(group, GlobalPermission.STAFF_USER_CREATE));
+
+        var response =
+                mockMvc.delete()
+                        .uri(
+                                "/api/staff/access-groups/"
+                                        + group.getId()
+                                        + "/permissions/STAFF_USER_CREATE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void staffRevokeReturns403ForAnUnknownAccessGroupId() {
+        staffAdmin("staff-revoke-unknown-actor@example.com");
+        Cookie session = logIn("staff-revoke-unknown-actor@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.delete()
+                        .uri("/api/staff/access-groups/999999999/permissions/STAFF_USER_CREATE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void staffRevokeReturns400WhenThePermissionWasNeverGranted() {
+        staffAdmin("staff-revoke-never-actor@example.com");
+        Cookie session = logIn("staff-revoke-never-actor@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke Never Group"));
+
+        var response =
+                mockMvc.delete()
+                        .uri(
+                                "/api/staff/access-groups/"
+                                        + group.getId()
+                                        + "/permissions/STAFF_USER_CREATE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void staffRevokeReturns400WhenThePermissionIsAlreadyRevoked() {
+        staffAdmin("staff-revoke-already-actor@example.com");
+        Cookie session = logIn("staff-revoke-already-actor@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Revoke Already Group"));
+        String uri = "/api/staff/access-groups/" + group.getId() + "/permissions/STAFF_USER_CREATE";
+        mockMvc.post()
+                .uri("/api/staff/access-groups/" + group.getId() + "/permissions")
+                .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"permission\":\"STAFF_USER_CREATE\"}")
+                .exchange();
+        mockMvc.delete()
+                .uri(uri)
+                .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
+                .exchange();
+
+        var response =
+                mockMvc.delete()
+                        .uri(uri)
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
 }
