@@ -28,10 +28,11 @@ import { PermissionListMode, PermissionListRow } from './permission-list.model';
               [attr.aria-checked]="row.granted"
               [attr.aria-label]="label(row.value)"
               [attr.data-testid]="'permission-list-toggle-' + row.value"
+              [disabled]="disabled()"
               (click)="onToggle(row.value)"
               (keydown)="onKeydown($event, row.value)"
               [class]="
-                'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-fast ease-fluid ' +
+                'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
                 (row.granted ? 'bg-signal-600' : 'bg-ink-300 dark:bg-ink-700')
               "
             >
@@ -53,6 +54,11 @@ export class PermissionListComponent {
 
   readonly rows = input.required<PermissionListRow[]>();
   readonly mode = input<PermissionListMode>('readonly');
+  // Not part of the PLAN's original PermissionListRow model — an editable-mode-wide lock (e.g.
+  // "the viewer can't manage direct permissions right now"), distinct from `mode`, which controls
+  // whether a switch renders at all. Defaults to false so no existing/four consumers need to pass
+  // it unless they have a viewer-permission gate to apply.
+  readonly disabled = input(false);
 
   readonly toggle = output<string>();
 
@@ -65,6 +71,10 @@ export class PermissionListComponent {
   }
 
   protected onToggle(value: string): void {
+    if (this.disabled()) {
+      return;
+    }
+
     this.toggle.emit(value);
   }
 
@@ -74,6 +84,11 @@ export class PermissionListComponent {
     }
 
     event.preventDefault();
+
+    if (this.disabled()) {
+      return;
+    }
+
     this.toggle.emit(value);
   }
 }

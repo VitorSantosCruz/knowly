@@ -342,7 +342,11 @@
     "confirmDelete": "Permanently delete {{email}}'s account? This cannot be undone.",
     "deleteDisabledLastAdmin": "At least one MEMBER_ADMIN must remain for this tenant.",
     "save": "Save",
-    "confirmBatchSave": "Save permission changes for {{email}}?"
+    "confirmBatchSave": "Save permission changes for {{email}}?",
+    "tabs": {
+      "personal": "Personal data",
+      "permissions": "Permissions"
+    }
   },
   "sharedList": {
     "selectAll": "Select all",
@@ -410,7 +414,11 @@
     "confirmDelete": "Delete {{email}}? This cannot be undone.",
     "deleteDisabledLastAdmin": "At least one STAFF_ADMIN must remain.",
     "save": "Save",
-    "confirmBatchSave": "Save permission changes for {{email}}?"
+    "confirmBatchSave": "Save permission changes for {{email}}?",
+    "tabs": {
+      "personal": "Personal data",
+      "permissions": "Permissions"
+    }
   },
   "accessGroupManagement": {
     "title": "Roles",

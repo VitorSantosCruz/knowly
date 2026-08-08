@@ -96,6 +96,22 @@ describe('MemberDetailPanelComponent', () => {
     fixture.detectChanges();
   }
 
+  function selectPermissionsTab(): void {
+    fixture.nativeElement.querySelector('[data-testid="member-tab-permissions"]').click();
+    fixture.detectChanges();
+  }
+
+  // Switching back to "Personal data" remounts `app-profile-section` (a fresh structural `@if`
+  // instance), which re-fetches the target's own profile data on `ngOnChanges` -- flush that here
+  // so callers don't each need to know about it. `ownUserId` is loaded once by the panel itself
+  // (not by `app-profile-section`), so it is not re-fetched on tab switches.
+  function selectPersonalTab(): void {
+    fixture.nativeElement.querySelector('[data-testid="member-tab-personal"]').click();
+    fixture.detectChanges();
+    flushProfile();
+    fixture.detectChanges();
+  }
+
   it('renders "Editar perfil" in the top header, before the audit/permission sections', async () => {
     await open(memberDetail, true);
 
@@ -107,10 +123,44 @@ describe('MemberDetailPanelComponent', () => {
     expect(children.indexOf(header)).toBe(0);
   });
 
+  it('renders "Personal data"/"Permissions" tabs in order, defaulting to Personal data', async () => {
+    await open(memberDetail, true);
+
+    const tablist = fixture.nativeElement.querySelector('[role="tablist"]');
+    expect(tablist).toBeTruthy();
+    const tabs: HTMLElement[] = Array.from(tablist.querySelectorAll('[role="tab"]'));
+    expect(tabs.map((t) => t.getAttribute('data-testid'))).toEqual([
+      'member-tab-personal',
+      'member-tab-permissions',
+    ]);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(tabs[1].getAttribute('aria-selected')).toBe('false');
+
+    expect(fixture.nativeElement.querySelector('[data-testid="access-groups"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="direct-permissions"]')).toBeFalsy();
+  });
+
+  it('clicking the Permissions tab shows permission content and hides personal-data content, and vice versa', async () => {
+    await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, true);
+
+    selectPermissionsTab();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="direct-permissions"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="access-groups"]')).toBeFalsy();
+
+    selectPersonalTab();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="access-groups"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="direct-permissions"]')).toBeFalsy();
+  });
+
   it('shows no permission switches for a MEMBER_ADMIN target, only a demote action, gated by viewer role', async () => {
     await open(adminDetail, true);
 
+    selectPermissionsTab();
     expect(fixture.nativeElement.querySelector('[data-testid="direct-permissions"]')).toBeFalsy();
+
+    selectPersonalTab();
     expect(
       fixture.nativeElement.querySelector('[data-testid="member-demote-button"]'),
     ).toBeTruthy();
@@ -148,11 +198,13 @@ describe('MemberDetailPanelComponent', () => {
     httpMock.expectOne('/api/tenants/1/members/2').flush(memberDetail);
     fixture.detectChanges();
 
+    selectPermissionsTab();
     expect(fixture.nativeElement.querySelector('[data-testid="direct-permissions"]')).toBeTruthy();
   });
 
   it('shows a "promote to MEMBER_ADMIN" action for a MEMBER target, gated by viewer role, never disabled', async () => {
     await open(memberDetail, true);
+    selectPermissionsTab();
 
     const button: HTMLButtonElement = fixture.nativeElement.querySelector(
       '[data-testid="member-promote-button"]',
@@ -163,6 +215,7 @@ describe('MemberDetailPanelComponent', () => {
 
   it('hides the promote action when the viewer is not a MEMBER_ADMIN of this tenant', async () => {
     await open(memberDetail, false);
+    selectPermissionsTab();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="member-promote-button"]'),
@@ -171,6 +224,7 @@ describe('MemberDetailPanelComponent', () => {
 
   it('confirming promote calls the promote endpoint and refreshes the detail', async () => {
     await open(memberDetail, true);
+    selectPermissionsTab();
 
     fixture.nativeElement.querySelector('[data-testid="member-promote-button"]').click();
     fixture.detectChanges();
@@ -182,6 +236,8 @@ describe('MemberDetailPanelComponent', () => {
 
     httpMock.expectOne('/api/tenants/1/members/2').flush(adminDetail);
     fixture.detectChanges();
+
+    selectPersonalTab();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="member-demote-button"]'),
@@ -214,11 +270,22 @@ describe('MemberDetailPanelComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="profile-fields-form"]')).toBeTruthy();
   });
 
+  it('the old inline toggle-grid markup is gone, replaced by app-permission-list', async () => {
+    await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, true);
+    selectPermissionsTab();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="permission-toggle-ARTICLE_CREATE"]'),
+    ).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('app-permission-list')).toBeTruthy();
+  });
+
   it('renders switches for a MEMBER target, seeded from directPermissions, toggling only local state', async () => {
     await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, true);
+    selectPermissionsTab();
 
     const toggle = fixture.nativeElement.querySelector(
-      '[data-testid="permission-toggle-ARTICLE_CREATE"]',
+      '[data-testid="permission-list-toggle-ARTICLE_CREATE"]',
     );
     expect(toggle.getAttribute('role')).toBe('switch');
     expect(toggle.getAttribute('aria-checked')).toBe('true');
@@ -232,15 +299,17 @@ describe('MemberDetailPanelComponent', () => {
 
   it('disables permission switches for a viewer who is neither tenant admin nor globally permitted', async () => {
     await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, false);
+    selectPermissionsTab();
 
     const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="permission-toggle-ARTICLE_CREATE"]',
+      '[data-testid="permission-list-toggle-ARTICLE_CREATE"]',
     );
     expect(toggle.disabled).toBe(true);
   });
 
   it('enables permission switches for a staff viewer holding TENANT_PERMISSION_GRANT_CREATE even with no tenant membership', async () => {
     await open({ ...memberDetail, directPermissions: ['ARTICLE_CREATE'] }, false);
+    selectPermissionsTab();
 
     const globalPermissions = TestBed.inject(GlobalPermissionsService);
     globalPermissions.fetch();
@@ -250,19 +319,22 @@ describe('MemberDetailPanelComponent', () => {
     fixture.detectChanges();
 
     const toggle: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="permission-toggle-ARTICLE_CREATE"]',
+      '[data-testid="permission-list-toggle-ARTICLE_CREATE"]',
     );
     expect(toggle.disabled).toBe(false);
   });
 
   it('hides "Save" with zero pending changes and shows it once a switch is toggled', async () => {
     await open(memberDetail, true);
+    selectPermissionsTab();
 
     expect(
       fixture.nativeElement.querySelector('[data-testid="member-save-permissions-button"]'),
     ).toBeFalsy();
 
-    fixture.nativeElement.querySelector('[data-testid="permission-toggle-ARTICLE_CREATE"]').click();
+    fixture.nativeElement
+      .querySelector('[data-testid="permission-list-toggle-ARTICLE_CREATE"]')
+      .click();
     fixture.detectChanges();
 
     expect(
@@ -272,8 +344,11 @@ describe('MemberDetailPanelComponent', () => {
 
   it('clicking Save opens one confirm dialog and submits the full pending set on confirm', async () => {
     await open(memberDetail, true);
+    selectPermissionsTab();
 
-    fixture.nativeElement.querySelector('[data-testid="permission-toggle-ARTICLE_CREATE"]').click();
+    fixture.nativeElement
+      .querySelector('[data-testid="permission-list-toggle-ARTICLE_CREATE"]')
+      .click();
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="member-save-permissions-button"]').click();
