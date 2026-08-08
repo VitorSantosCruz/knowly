@@ -26,6 +26,7 @@ import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.AccessGroupNotFoundException;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidAccessGroupBatchException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidTaxIdException;
@@ -687,6 +688,34 @@ public class TenantService {
                         () ->
                                 accessGroupPermissionRepository.save(
                                         new AccessGroupPermission(accessGroup, permission)));
+    }
+
+    /**
+     * role-permission-revoke REQ-1/REQ-3/REQ-5/REQ-7/REQ-8: revoke a permission from an access
+     * group, symmetric with {@link #grantAccessGroupPermission}. Reuses that method's exact
+     * role-lookup/authorization so an unknown/deleted role rejects the same way (403, existence-
+     * hiding). A permission with no active grant (never granted, or already revoked) rejects with
+     * {@link AccessGroupPermissionNotGrantedException} (400) rather than silently no-op-ing.
+     */
+    @Transactional
+    @AuditLog(
+            action = "tenant.access_group.revoke_permission",
+            resourceType = "AccessGroupPermission")
+    public void revokeAccessGroupPermission(
+            User actor, Long tenantId, Long accessGroupId, Permission permission) {
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_EDIT);
+
+        AccessGroup accessGroup =
+                accessGroupRepository
+                        .findByIdAndDeletedAtIsNull(accessGroupId)
+                        .orElseThrow(TenantAccessDeniedException::new);
+        AccessGroupPermission grant =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(accessGroup, permission)
+                        .filter(p -> p.getDeletedAt() == null)
+                        .orElseThrow(AccessGroupPermissionNotGrantedException::new);
+        grant.setDeletedAt(java.time.Instant.now());
+        accessGroupPermissionRepository.save(grant);
     }
 
     /** REQ-14: assign a membership to an access group, taking effect immediately. */

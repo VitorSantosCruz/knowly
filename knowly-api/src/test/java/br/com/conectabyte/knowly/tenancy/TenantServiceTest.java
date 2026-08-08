@@ -24,6 +24,7 @@ import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.AccessGroupNotFoundException;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidAccessGroupBatchException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
@@ -1815,5 +1816,98 @@ class TenantServiceTest {
                         .orElseThrow();
         assertThat(reactivated.getId()).isEqualTo(existing.getId());
         assertThat(reactivated.getDeletedAt()).isNull();
+    }
+
+    // role-permission-revoke REQ-1/REQ-3/REQ-7/REQ-8: revokeAccessGroupPermission.
+
+    @Test
+    void revokeAccessGroupPermissionRejectsAnUnknownAccessGroupId() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Unknown Co"));
+        TenantMembership admin = adminMembership("revoke-unknown-admin@example.com", tenant);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokeAccessGroupPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        -1L,
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(TenantAccessDeniedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionRejectsASoftDeletedAccessGroupId() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Deleted Co"));
+        TenantMembership admin = adminMembership("revoke-deleted-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        String word = accessGroupDeletionWord(admin.getUser(), group.getId());
+        tenantService.deleteAccessGroup(admin.getUser(), tenant.getId(), group.getId(), word);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokeAccessGroupPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        group.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(TenantAccessDeniedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionRejectsAPermissionNeverGranted() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Never Granted Co"));
+        TenantMembership admin = adminMembership("revoke-never-granted-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokeAccessGroupPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        group.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(AccessGroupPermissionNotGrantedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionRejectsAnAlreadyRevokedPermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Twice Co"));
+        TenantMembership admin = adminMembership("revoke-twice-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        tenantService.revokeAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.revokeAccessGroupPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        group.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(AccessGroupPermissionNotGrantedException.class);
+    }
+
+    @Test
+    void revokeAccessGroupPermissionSoftDeletesTheRowWithoutRemovingIt() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Softdelete Co"));
+        TenantMembership admin = adminMembership("revoke-softdelete-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        AccessGroupPermission granted =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(group, Permission.TENANT_MEMBER_MANAGE)
+                        .orElseThrow();
+
+        tenantService.revokeAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+
+        AccessGroupPermission revoked =
+                accessGroupPermissionRepository.findById(granted.getId()).orElseThrow();
+        assertThat(revoked.getDeletedAt()).isNotNull();
     }
 }
