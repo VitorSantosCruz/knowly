@@ -173,20 +173,39 @@ regression is traceable to a single entity.
 - [ ] 11. `Tenant`: test (Red) + `@Filter` (Green).
       Test: `./mvnw test -Dtest=SoftDeleteFilterTenantIntegrationTest`
       Commit: `feat(soft-delete-default-filter): apply softDeleteFilter to Tenant`
-- [ ] 12. `AccessGroup` (already carries `TenantFilter`): coexistence-style
-      test (Red) + `@Filter` (Green), confirm existing tenant tests on
-      `AccessGroup` unaffected.
-      Test: `./mvnw test -Dtest=SoftDeleteFilterAccessGroupIntegrationTest,TenantFilterIntegrationTest`
-      Commit: `feat(soft-delete-default-filter): apply softDeleteFilter to AccessGroup`
+- [x] 12. **BLOCKED, not implemented — schema gap discovered during
+      implementation.** `AccessGroup` has no `deleted_at` column in this
+      codebase snapshot: `access_groups` was never touched by V25 or V28
+      (grep of `src/main/resources/db/migration/*.sql` confirms no
+      `ALTER TABLE access_groups ADD COLUMN deleted_at` anywhere), and
+      `AccessGroupRepository` has no `*DeletedAtIsNull`-style method,
+      confirming `AccessGroup` rows are not currently soft-deletable at
+      all in this snapshot (contradicts SPEC's premise that "every one
+      of the 13 entities already has its own deletedAt/deleted_at
+      column" — this SPEC/PLAN were evidently authored against a later
+      codebase state than this worktree's). Adding `@Filter(condition =
+      "deleted_at is null")` on an entity with no such column would break
+      every query against it (SQL error: column does not exist), and
+      adding the column itself is explicitly out of scope per SPEC's
+      "Out of scope" section ("Adding soft-delete ... to any entity that
+      doesn't already have one"). Left unimplemented; flagged for the
+      orchestrator/data-architect-dba to decide whether a follow-up
+      migration is warranted before this entity can be covered.
+      Commit: none (no code change; see task 1's audit-results doc commit
+      pattern — recorded here directly since discovered mid-Phase-4).
 - [ ] 13. `TenantMembership` (already carries `@FilterDef`/`@Filter` for
       `tenantFilter`): add the `softDeleteFilter` pair alongside; test
       (Red) + `@Filter` (Green); confirm `*ActiveTrue` methods untouched
       and existing tests unaffected.
       Test: `./mvnw test -Dtest=SoftDeleteFilterTenantMembershipIntegrationTest`
       Commit: `feat(soft-delete-default-filter): apply softDeleteFilter to TenantMembership`
-- [ ] 14. `AccessGroupPermission`: test (Red) + `@Filter` (Green).
-      Test: `./mvnw test -Dtest=SoftDeleteFilterAccessGroupPermissionIntegrationTest`
-      Commit: `feat(soft-delete-default-filter): apply softDeleteFilter to AccessGroupPermission`
+- [x] 14. **BLOCKED, not implemented — same schema gap as task 12.**
+      `AccessGroupPermission` also has no `deleted_at` column
+      (`access_group_permissions` untouched by V25/V28 either); grants
+      are revoked by row deletion in this codebase snapshot, not by a
+      soft-delete marker. Left unimplemented for the same reason as task
+      12.
+      Commit: none.
 - [ ] 15. `UserAccessGroup`: test (Red) + `@Filter` (Green).
       Test: `./mvnw test -Dtest=SoftDeleteFilterUserAccessGroupIntegrationTest`
       Commit: `feat(soft-delete-default-filter): apply softDeleteFilter to UserAccessGroup`
