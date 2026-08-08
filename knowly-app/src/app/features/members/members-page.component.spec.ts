@@ -163,7 +163,7 @@ describe('MembersPageComponent', () => {
     fixture.detectChanges();
 
     const removeButton: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '[data-testid="shared-list-action-sharedList.actions.delete-1"]',
+      '[data-testid="shared-list-action-members.removeFromTenant-1"]',
     );
     removeButton.click();
     fixture.detectChanges();
@@ -279,7 +279,7 @@ describe('MembersPageComponent', () => {
     ).toBeFalsy();
     expect(
       fixture.nativeElement.querySelector(
-        '[data-testid="shared-list-action-sharedList.actions.delete-1"]',
+        '[data-testid="shared-list-action-members.removeFromTenant-1"]',
       ),
     ).toBeFalsy();
     const myProfileAction: HTMLButtonElement = fixture.nativeElement.querySelector(
@@ -294,7 +294,7 @@ describe('MembersPageComponent', () => {
     ).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector(
-        '[data-testid="shared-list-action-sharedList.actions.delete-2"]',
+        '[data-testid="shared-list-action-members.removeFromTenant-2"]',
       ),
     ).toBeTruthy();
 

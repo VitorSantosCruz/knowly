@@ -234,9 +234,13 @@ export class MembersPageComponent implements OnInit {
         onClick: (row: Member) => this.openInEditMode(row.membershipId),
       },
       {
+        // Deliberately 'secondary', not 'danger' -- this is a reversible action (the
+        // member can be re-invited), unlike the irreversible hard-delete below. A user
+        // reported the two actions read as "two delete buttons" side by side when both
+        // were LucideTrash-red; distinct icon, label, and variant now separate them.
         icon: LucideTrash,
-        labelKey: 'sharedList.actions.delete',
-        variant: 'danger',
+        labelKey: 'members.removeFromTenant',
+        variant: 'secondary',
         hidden: isOwnRow,
         onClick: (row: Member) => this.onRemoveMember(row.membershipId),
       },
