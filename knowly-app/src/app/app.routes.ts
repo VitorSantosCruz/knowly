@@ -11,6 +11,8 @@ import { tenantSelectionGuard } from './core/tenant-selection.guard';
 import { staffGuard } from './core/staff.guard';
 import { accessGroupManagementGuard } from './core/access-group-management.guard';
 import { AccessGroupManagementPageComponent } from './features/access-groups/access-group-management-page.component';
+import { tenantAccessGroupManagementGuard } from './core/tenant-access-group-management.guard';
+import { TenantAccessGroupManagementPageComponent } from './features/access-groups/tenant-access-group-management-page.component';
 import { rootRedirectGuard } from './core/root-redirect.guard';
 import { RootRedirectPlaceholderComponent } from './core/root-redirect-placeholder.component';
 import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
@@ -66,6 +68,14 @@ export const routes: Routes = [
     path: 'staff/access-groups',
     component: AccessGroupManagementPageComponent,
     canActivate: [accessGroupManagementGuard],
+  },
+  // REQ-2 (tenant-access-group-management): tenantSelectionGuard establishes there *is* an
+  // active tenant before tenantAccessGroupManagementGuard's permission check, which needs one,
+  // runs -- guard order matters here.
+  {
+    path: 'tenants/access-groups',
+    component: TenantAccessGroupManagementPageComponent,
+    canActivate: [tenantSelectionGuard, tenantAccessGroupManagementGuard],
   },
   {
     path: 'conversations',

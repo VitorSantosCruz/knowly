@@ -283,6 +283,40 @@ None. No new `package.json` entry — reuses `SharedListComponent`,
 `ConfirmDialogComponent`, `NoAccessStateComponent`, `ErrorStateComponent`,
 existing RxJS operators, existing `member.service.ts`/`permissions.service.ts`.
 
+## Deviations from this PLAN (discovered during implementation)
+
+- **Every per-action gate (the route guard, and every granular control on
+  `TenantAccessGroupManagementPageComponent`/its nav-menu link) checks
+  `viewerIsMemberAdmin() || globalPermissionsService.has(<GlobalPermission>)`, not
+  `permissionsService.has(<tenant Permission>)` as this PLAN's "Components and routes"/
+  "New route guard" sections originally sketched.** `TENANT_ACCESS_GROUP_VIEW`/
+  `_CREATE`/`_DELETE`/`TENANT_PERMISSION_GRANT_CREATE`/`_DELETE` only exist as
+  `GlobalPermission` values (`core/global-permission.ts`) — they are not part of the
+  tenant-scoped `Permission` enum `GET /api/tenants/permissions` returns at all, so
+  `permissionsService.has('TENANT_ACCESS_GROUP_VIEW')` would be a compile error, not
+  merely a wrong runtime answer. More importantly, the backend's
+  `TenantService#requireAdminOfTenantOrStaff` (which every access-group endpoint this
+  screen calls goes through) lets a real tenant `MEMBER_ADMIN` through unconditionally
+  regardless of any `GlobalPermission` — gating purely on the `GlobalPermission`, as
+  originally sketched, would have locked every ordinary `MEMBER_ADMIN` out of a screen
+  the backend already lets them use. This mirrors
+  `member-detail-panel.component.ts`'s already-established
+  `viewerCanManageDirectPermissions` MEMBER_ADMIN-bypass shape (checked before writing
+  any code here, per "check how the closest existing sibling code already handles this
+  exact shape"). Affects: `tenant-access-group-management.guard.ts` (checks `GET
+  /api/tenants/active`'s `role` plus `GET /api/staff/permissions`, not `GET
+  /api/tenants/permissions`), every `can*` computed on
+  `TenantAccessGroupManagementPageComponent`, and `nav-menu.component.ts`'s
+  `canSeeTenantAccessGroups`. Tier 2 (implementation-detail correction, not a product/
+  scope change) — the SPEC's REQ-2/5/11/15/17 gating requirements are all still met,
+  just via the technically-correct mechanism.
+- **`app.routes.ts` registers the new route with a direct `component:` reference, not
+  the `loadComponent: () => import(...)` lazy-loading sketch this PLAN's "Components and
+  routes" section showed.** No route in `app.routes.ts` — including
+  `staff/access-groups`, this route's closest sibling — is lazy-loaded today; matching
+  the file's actual, uniform existing convention instead of introducing the first lazy
+  route as an incidental side effect of this feature.
+
 ## Testing strategy
 
 - `tenant-access-group-management.guard.spec.ts`: permission present →
