@@ -42,7 +42,7 @@ public class PermissionService {
                         .map(UserAccessGroup::getAccessGroup)
                         .collect(Collectors.toList());
 
-        accessGroupPermissionRepository.findByAccessGroupIn(groups).stream()
+        accessGroupPermissionRepository.findByAccessGroupInAndDeletedAtIsNull(groups).stream()
                 .map(AccessGroupPermission::getPermission)
                 .forEach(permissions::add);
 

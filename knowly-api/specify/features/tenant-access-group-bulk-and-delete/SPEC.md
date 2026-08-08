@@ -238,32 +238,32 @@ filters `deleted_at IS NULL`" consequences named there).
 
 ## Acceptance criteria
 
-- [ ] A caller with `TENANT_PERMISSION_GRANT_CREATE` can assign a single
+- [x] A caller with `TENANT_PERMISSION_GRANT_CREATE` can assign a single
       membership to N access groups (N ≥ 1, no duplicates) in one `POST
       .../access-groups:batch` request; the response reflects all N
       assignments having been created or reactivated.
-- [ ] A caller without `TENANT_PERMISSION_GRANT_CREATE` cannot call the
+- [x] A caller without `TENANT_PERMISSION_GRANT_CREATE` cannot call the
       batch endpoint; no assignment occurs.
-- [ ] An invalid id (wrong tenant, unknown, or soft-deleted group) inside
+- [x] An invalid id (wrong tenant, unknown, or soft-deleted group) inside
       an otherwise-valid batch request rejects the whole request; none of
       the other, valid ids in that same request get assigned.
-- [ ] An empty, missing, or duplicate-containing `accessGroupIds` list is
+- [x] An empty, missing, or duplicate-containing `accessGroupIds` list is
       rejected with 400 before any assignment attempt.
-- [ ] A caller with `TENANT_ACCESS_GROUP_DELETE` can request a deletion
+- [x] A caller with `TENANT_ACCESS_GROUP_DELETE` can request a deletion
       confirmation token for a specific access group and, supplying that
       token, delete the group; the group's row, every currently-assigned
       member's `UserAccessGroup` row, and every one of its
       `AccessGroupPermission` rows all end up with a non-null
       `deleted_at`, set within the same transaction.
-- [ ] A caller without `TENANT_ACCESS_GROUP_DELETE` cannot generate a
+- [x] A caller without `TENANT_ACCESS_GROUP_DELETE` cannot generate a
       token for, or delete, an access group.
-- [ ] Deleting an access group without a valid confirmation token is
+- [x] Deleting an access group without a valid confirmation token is
       rejected and changes nothing.
-- [ ] After deletion, the group no longer appears in `listAccessGroups`,
+- [x] After deletion, the group no longer appears in `listAccessGroups`,
       its former members' effective permissions no longer include
       anything it granted, and creating a new group with the same name in
       the same tenant succeeds.
-- [ ] No endpoint exists to restore a soft-deleted access group or its
+- [x] No endpoint exists to restore a soft-deleted access group or its
       cascaded rows.
 
 ## Out of scope

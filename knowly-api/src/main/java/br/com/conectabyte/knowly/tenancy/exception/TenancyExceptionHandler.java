@@ -91,4 +91,18 @@ public class TenancyExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new TenancyErrorResponseDto("INVALID_TAX_ID"));
     }
+
+    @ExceptionHandler(AccessGroupNotFoundException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleAccessGroupNotFound(
+            AccessGroupNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new TenancyErrorResponseDto("ACCESS_GROUP_NOT_FOUND"));
+    }
+
+    @ExceptionHandler(InvalidAccessGroupBatchException.class)
+    public ResponseEntity<TenancyErrorResponseDto> handleInvalidAccessGroupBatch(
+            InvalidAccessGroupBatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new TenancyErrorResponseDto("INVALID_ACCESS_GROUP_BATCH"));
+    }
 }

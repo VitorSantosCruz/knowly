@@ -11,7 +11,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,9 +23,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
-@Table(
-        name = "access_group_permissions",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"access_group_id", "permission"}))
+@Table(name = "access_group_permissions")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -45,6 +42,14 @@ public class AccessGroupPermission {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 100)
     private Permission permission;
+
+    /**
+     * Cascading logical delete (tenant-access-group-bulk-and-delete REQ-9/REQ-13) -- set when the
+     * owning {@code AccessGroup} is deleted; also groundwork for a future single-permission-revoke
+     * feature (out of scope here) that would set it independently.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

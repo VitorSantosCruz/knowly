@@ -10,6 +10,7 @@ import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.ActiveTenantDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddMemberRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.AnyTenantPermissionDto;
+import br.com.conectabyte.knowly.tenancy.dto.BatchAccessGroupAssignmentRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.BatchTenantPermissionUpdateRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateAccessGroupRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
@@ -427,6 +428,17 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{tenantId}/members/{membershipId}/access-groups:batch")
+    public ResponseEntity<Void> batchAssignAccessGroups(
+            @PathVariable Long tenantId,
+            @PathVariable Long membershipId,
+            @Valid @RequestBody BatchAccessGroupAssignmentRequestDto request) {
+        tenantService.batchAssignAccessGroups(
+                currentUser(), tenantId, membershipId, request.accessGroupIds());
+
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{tenantId}/access-groups")
     public ResponseEntity<List<AccessGroupDto>> listAccessGroups(@PathVariable Long tenantId) {
         return ResponseEntity.ok(tenantService.listAccessGroups(currentUser(), tenantId));
@@ -494,6 +506,30 @@ public class TenantController {
                 request == null ? null : request.word());
 
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{tenantId}/access-groups/{accessGroupId}/deletion-confirmation-token")
+    public ResponseEntity<DeletionConfirmationTokenDto>
+            generateAccessGroupDeletionConfirmationToken(
+                    @PathVariable Long tenantId,
+                    @PathVariable Long accessGroupId,
+                    @RequestHeader(value = "Accept-Language", required = false)
+                            String acceptLanguage) {
+        return ResponseEntity.ok(
+                new DeletionConfirmationTokenDto(
+                        tenantService.generateAccessGroupDeletionConfirmationToken(
+                                currentUser(), tenantId, accessGroupId, acceptLanguage)));
+    }
+
+    @DeleteMapping("/{tenantId}/access-groups/{accessGroupId}")
+    public ResponseEntity<Void> deleteAccessGroup(
+            @PathVariable Long tenantId,
+            @PathVariable Long accessGroupId,
+            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
+        tenantService.deleteAccessGroup(
+                currentUser(), tenantId, accessGroupId, request == null ? null : request.word());
+
+        return ResponseEntity.noContent().build();
     }
 
     private User currentUser() {
