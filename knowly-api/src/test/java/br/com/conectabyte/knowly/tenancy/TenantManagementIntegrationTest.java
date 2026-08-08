@@ -202,11 +202,16 @@ class TenantManagementIntegrationTest {
                 tenantMembershipRepository.findByUserAndActiveTrue(newbie).get(0).getId();
         String word =
                 deletionConfirmationTokenService.generate(
-                        "tenant-member", membershipId.toString(), admin, null);
+                        "tenant-member-hard-delete", membershipId.toString(), admin, null);
 
         var removeResponse =
                 mockMvc.delete()
-                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membershipId)
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membershipId
+                                        + "/hard-delete")
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())

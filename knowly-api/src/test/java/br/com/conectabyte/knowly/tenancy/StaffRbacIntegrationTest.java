@@ -415,7 +415,7 @@ class StaffRbacIntegrationTest {
     }
 
     @Test
-    void removeMemberIsGatedByTenantMemberManageAny() {
+    void hardDeleteMemberIsGatedByTenantMemberManageAny() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Member Co"));
         User member = userRepository.saveAndFlush(new User("removable@example.com"));
         TenantMembership membership =
@@ -428,7 +428,12 @@ class StaffRbacIntegrationTest {
 
         var deniedResponse =
                 mockMvc.delete()
-                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/hard-delete")
                         .cookie(noGrantSession)
                         .cookie(noGrantCsrf)
                         .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
@@ -444,11 +449,19 @@ class StaffRbacIntegrationTest {
         Cookie grantedCsrf = obtainCsrfCookie();
         String word =
                 deletionConfirmationTokenService.generate(
-                        "tenant-member", membership.getId().toString(), grantedStaff, null);
+                        "tenant-member-hard-delete",
+                        membership.getId().toString(),
+                        grantedStaff,
+                        null);
 
         var allowedResponse =
                 mockMvc.delete()
-                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/hard-delete")
                         .cookie(grantedSession)
                         .cookie(grantedCsrf)
                         .header("X-XSRF-TOKEN", grantedCsrf.getValue())
@@ -459,7 +472,7 @@ class StaffRbacIntegrationTest {
     }
 
     @Test
-    void memberRemovalDeletionConfirmationTokenGenerationIsGatedByTenantMemberManageAny()
+    void hardDeleteMemberDeletionConfirmationTokenGenerationIsGatedByTenantMemberManageAny()
             throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Token Gen Co"));
         User member = userRepository.saveAndFlush(new User("tokengen-removable@example.com"));
@@ -478,7 +491,7 @@ class StaffRbacIntegrationTest {
                                         + tenant.getId()
                                         + "/members/"
                                         + membership.getId()
-                                        + "/deletion-confirmation-token")
+                                        + "/hard-delete/deletion-confirmation-token")
                         .cookie(noGrantSession)
                         .cookie(noGrantCsrf)
                         .header("X-XSRF-TOKEN", noGrantCsrf.getValue())
@@ -498,7 +511,7 @@ class StaffRbacIntegrationTest {
                                         + tenant.getId()
                                         + "/members/"
                                         + membership.getId()
-                                        + "/deletion-confirmation-token")
+                                        + "/hard-delete/deletion-confirmation-token")
                         .cookie(grantedSession)
                         .cookie(grantedCsrf)
                         .header("X-XSRF-TOKEN", grantedCsrf.getValue())
@@ -854,7 +867,7 @@ class StaffRbacIntegrationTest {
     // companion, enforced by TenantService#requireAdminOfTenantOrStaff for the staff branch.
 
     @Test
-    void removeMemberWithDeleteButWithoutViewIsDenied() {
+    void hardDeleteMemberWithDeleteButWithoutViewIsDenied() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("No View Remove Co"));
         User member = userRepository.saveAndFlush(new User("noview-removable@example.com"));
         TenantMembership membership =
@@ -868,7 +881,12 @@ class StaffRbacIntegrationTest {
 
         var response =
                 mockMvc.delete()
-                        .uri("/api/tenants/" + tenant.getId() + "/members/" + membership.getId())
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/members/"
+                                        + membership.getId()
+                                        + "/hard-delete")
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())

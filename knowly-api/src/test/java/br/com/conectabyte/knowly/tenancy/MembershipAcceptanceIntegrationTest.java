@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * specify/features/tenant-membership-acceptance/PLAN.md's testing strategy — every scenario here is
  * expected to pass with zero production code changes beyond {@code addMember}'s {@code
  * userAlreadyExisted} branch, confirming {@code PermissionAspect}/{@code isActive()}/{@code
- * removeMember} need no modification for this feature.
+ * hardDeleteMember} need no modification for this feature.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -194,7 +194,10 @@ class MembershipAcceptanceIntegrationTest {
         Cookie csrf = obtainCsrfCookie();
         String word =
                 deletionConfirmationTokenService.generate(
-                        "tenant-member", staleMembership.getId().toString(), admin, null);
+                        "tenant-member-hard-delete",
+                        staleMembership.getId().toString(),
+                        admin,
+                        null);
 
         var response =
                 mockMvc.delete()
@@ -202,7 +205,8 @@ class MembershipAcceptanceIntegrationTest {
                                 "/api/tenants/"
                                         + tenant.getId()
                                         + "/members/"
-                                        + staleMembership.getId())
+                                        + staleMembership.getId()
+                                        + "/hard-delete")
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
@@ -211,12 +215,10 @@ class MembershipAcceptanceIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(
-                        tenantMembershipRepository
-                                .findById(staleMembership.getId())
-                                .orElseThrow()
-                                .isActive())
-                .isFalse();
+        TenantMembership reloaded =
+                tenantMembershipRepository.findById(staleMembership.getId()).orElseThrow();
+        assertThat(reloaded.isActive()).isFalse();
+        assertThat(reloaded.getDeletedAt()).isNotNull();
     }
 
     @Test

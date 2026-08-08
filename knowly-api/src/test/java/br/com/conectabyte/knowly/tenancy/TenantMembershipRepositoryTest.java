@@ -14,8 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * tenant-crud REQ-9: {@code deactivateAllByTenant} bulk-flips every currently-active membership of
- * a tenant to {@code active = false}, the same soft-removal shape {@code removeMember} already
- * applies per-row.
+ * a tenant to {@code active = false}, the same {@code active} flip {@code hardDeleteMember} already
+ * applies per-row (alongside {@code deletedAt}).
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest

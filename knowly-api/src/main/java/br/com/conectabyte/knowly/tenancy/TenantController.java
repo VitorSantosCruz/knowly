@@ -301,30 +301,6 @@ public class TenantController {
                 tenantService.getMemberDetail(currentUser(), tenantId, membershipId));
     }
 
-    @PostMapping("/{tenantId}/members/{membershipId}/deletion-confirmation-token")
-    public ResponseEntity<DeletionConfirmationTokenDto>
-            generateMemberRemovalDeletionConfirmationToken(
-                    @PathVariable Long tenantId,
-                    @PathVariable Long membershipId,
-                    @RequestHeader(value = "Accept-Language", required = false)
-                            String acceptLanguage) {
-        return ResponseEntity.ok(
-                new DeletionConfirmationTokenDto(
-                        tenantService.generateMemberRemovalDeletionConfirmationToken(
-                                currentUser(), tenantId, membershipId, acceptLanguage)));
-    }
-
-    @DeleteMapping("/{tenantId}/members/{membershipId}")
-    public ResponseEntity<Void> removeMember(
-            @PathVariable Long tenantId,
-            @PathVariable Long membershipId,
-            @RequestBody(required = false) DeleteConfirmationRequestDto request) {
-        tenantService.removeMember(
-                currentUser(), tenantId, membershipId, request == null ? null : request.word());
-
-        return ResponseEntity.ok().build();
-    }
-
     @PostMapping("/{tenantId}/members/{membershipId}/demote")
     public ResponseEntity<Void> demoteMember(
             @PathVariable Long tenantId, @PathVariable Long membershipId) {

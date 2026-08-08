@@ -75,11 +75,6 @@ class TenantServiceTest {
     @Autowired private ArticleRepository articleRepository;
     @Autowired private ConversationRepository conversationRepository;
 
-    private String memberRemovalWord(User actor, Long membershipId) {
-        return deletionConfirmationTokenService.generate(
-                "tenant-member", membershipId.toString(), actor, null);
-    }
-
     private String permissionRevocationWord(User actor, Long membershipId, Permission permission) {
         return deletionConfirmationTokenService.generate(
                 "tenant-permission", membershipId + ":" + permission, actor, null);
@@ -186,8 +181,8 @@ class TenantServiceTest {
     }
 
     // REQ-13 covers both "previously declined" (above) and "previously removed" rows — a
-    // previously-*active*, then soft-removed (via removeMember, which only flips `active`, not
-    // `status`) row must also reset to pending on re-invite, not silently stay ACTIVE/inactive.
+    // previously-*active*, then soft-removed (`active` flipped false, `status` untouched) row
+    // must also reset to pending on re-invite, not silently stay ACTIVE/inactive.
     @Test
     void addMemberResetsAPreviouslyRemovedMembershipToPendingWithAFreshNotification() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Reinvite After Removal Co"));
@@ -196,8 +191,8 @@ class TenantServiceTest {
         TenantMembership previouslyRemoved =
                 tenantMembershipRepository.saveAndFlush(
                         new TenantMembership(removedUser, tenant, MembershipRole.MEMBER));
-        // Simulate a prior acceptance followed by removeMember: status stays ACTIVE, only
-        // `active` is flipped false — removeMember never touches `status`.
+        // Simulate a prior acceptance followed by a soft removal: status stays ACTIVE, only
+        // `active` is flipped false.
         previouslyRemoved.setStatus(MembershipStatus.ACTIVE);
         previouslyRemoved.setActive(false);
         tenantMembershipRepository.saveAndFlush(previouslyRemoved);
@@ -374,60 +369,6 @@ class TenantServiceTest {
                                         Permission.TENANT_MEMBER_MANAGE,
                                         word))
                 .isInstanceOf(PermissionDeniedException.class);
-    }
-
-    @Test
-    void removeMemberRejectsAMemberAdminRemovingThemselves() {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Self Remove Co"));
-        TenantMembership admin = adminMembership("self-remove@example.com", tenant);
-        String word = memberRemovalWord(admin.getUser(), admin.getId());
-
-        assertThatThrownBy(
-                        () ->
-                                tenantService.removeMember(
-                                        admin.getUser(), tenant.getId(), admin.getId(), word))
-                .isInstanceOf(PermissionDeniedException.class);
-    }
-
-    @Test
-    void removeMemberSelfEscalationIsRecordedAsADeniedAuditEvent() {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Member Audit Co"));
-        TenantMembership admin = adminMembership("admin-remove-audit@example.com", tenant);
-        authenticateAs("admin-remove-audit@example.com");
-        String word = memberRemovalWord(admin.getUser(), admin.getId());
-
-        assertThatThrownBy(
-                        () ->
-                                tenantService.removeMember(
-                                        admin.getUser(), tenant.getId(), admin.getId(), word))
-                .isInstanceOf(PermissionDeniedException.class);
-
-        var events =
-                auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(
-                        admin.getUser().getId());
-        assertThat(events)
-                .anySatisfy(
-                        event -> {
-                            assertThat(event.getAction()).isEqualTo("tenant.member.remove");
-                            assertThat(event.getOutcome()).isEqualTo(AuditOutcome.DENIED);
-                            assertThat(event.getActorUserId()).isEqualTo(admin.getUser().getId());
-                        });
-    }
-
-    @Test
-    void removeMemberSucceedsWhenTargetingADifferentUser() {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Remove Others Co"));
-        TenantMembership admin = adminMembership("remove-others-admin@example.com", tenant);
-        User otherUser = userRepository.saveAndFlush(new User("remove-other@example.com"));
-        TenantMembership otherMembership =
-                tenantMembershipRepository.saveAndFlush(
-                        new TenantMembership(otherUser, tenant, MembershipRole.MEMBER));
-
-        String word = memberRemovalWord(admin.getUser(), otherMembership.getId());
-        tenantService.removeMember(admin.getUser(), tenant.getId(), otherMembership.getId(), word);
-
-        assertThat(tenantMembershipRepository.findById(otherMembership.getId()))
-                .hasValueSatisfying(m -> assertThat(m.isActive()).isFalse());
     }
 
     @Test

@@ -69,7 +69,6 @@ public class TenantService {
     private final DeletionConfirmationTokenService deletionConfirmationTokenService;
     private final AuditEventWriter auditEventWriter;
 
-    private static final String MEMBER_RESOURCE_TYPE = "tenant-member";
     private static final String PERMISSION_RESOURCE_TYPE = "tenant-permission";
     private static final String ACCESS_GROUP_RESOURCE_TYPE = "tenant-access-group";
     private static final String ACCESS_GROUP_DELETE_RESOURCE_TYPE = "tenant-access-group-delete";
@@ -573,36 +572,6 @@ public class TenantService {
         return saved;
     }
 
-    /** REQ-17: generation endpoint reuses the exact same guard as {@link #removeMember}. */
-    @Transactional(readOnly = true)
-    public String generateMemberRemovalDeletionConfirmationToken(
-            User actor, Long tenantId, Long membershipId, String acceptLanguageHeaderValue) {
-        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_DELETE);
-
-        return deletionConfirmationTokenService.generate(
-                MEMBER_RESOURCE_TYPE, membershipId.toString(), actor, acceptLanguageHeaderValue);
-    }
-
-    /** REQ-9/16/19: always a soft removal, never a hard delete; requires a valid REQ-16 token. */
-    @Transactional
-    @AuditLog(action = "tenant.member.remove", resourceType = "TenantMembership")
-    public void removeMember(User actor, Long tenantId, Long membershipId, String word) {
-        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_MEMBER_DELETE);
-
-        if (!deletionConfirmationTokenService.validateAndConsume(
-                MEMBER_RESOURCE_TYPE, membershipId.toString(), actor, word)) {
-            throw new DeletionConfirmationInvalidException();
-        }
-
-        TenantMembership membership =
-                tenantMembershipRepository
-                        .findById(membershipId)
-                        .orElseThrow(TenantAccessDeniedException::new);
-        requireNotSelfTarget(actor, membership.getUser().getId());
-        membership.setActive(false);
-        tenantMembershipRepository.save(membership);
-    }
-
     /** REQ-14/16: direct permission grant, admin (own tenant) or staff only. */
     @Transactional
     @AuditLog(action = "tenant.permission.grant", resourceType = "DirectPermissionGrant")
@@ -1022,14 +991,16 @@ public class TenantService {
 
     /**
      * REQ-7/8/10/11: logical delete (2026-08-04 standing decision: no destructive operation in the
-     * system may physically remove a row) via {@code deletedAt}, distinct from the plain-removal
-     * {@code active} flag {@link #removeMember} already uses -- requires a valid deletion-
-     * confirmation token, rejects self-target and the last {@code MEMBER_ADMIN} in the tenant
-     * (locked count); never blocked for a plain {@code MEMBER} target (including a tenant's lone
-     * {@code MEMBER}). Dependent {@code DirectPermissionGrant}/{@code UserAccessGroup} rows are
-     * left as-is -- every permission-resolution read already filters {@code deletedAt IS NULL} on
-     * the grant/assignment itself, and a {@code deletedAt}-marked membership is excluded from every
-     * membership listing/lookup, so they're unreachable either way.
+     * system may physically remove a row) via {@code deletedAt} in addition to {@code active} --
+     * requires a valid deletion-confirmation token, rejects self-target and the last {@code
+     * MEMBER_ADMIN} in the tenant (locked count); never blocked for a plain {@code MEMBER} target
+     * (including a tenant's lone {@code MEMBER}). Dependent {@code DirectPermissionGrant}/{@code
+     * UserAccessGroup} rows are left as-is -- every permission-resolution read already filters
+     * {@code deletedAt IS NULL} on the grant/assignment itself, and a {@code deletedAt}-marked
+     * membership is excluded from every membership listing/lookup, so they're unreachable either
+     * way. This is the only member-removal action in the system (2026-08-08: the previous, weaker
+     * "remove from tenant" action without the last-admin check was removed as a genuine
+     * authorization gap, not merged into this one).
      */
     @Transactional
     @AuditLog(
@@ -1057,8 +1028,7 @@ public class TenantService {
 
     /**
      * REQ-16: an admin-tier target (own tenant) requires {@link #requireCallerIsAdminOfTenant}; a
-     * plain-{@code MEMBER} target follows the same gate as {@link #removeMember} (matching it per
-     * PLAN.md's AppSec addition) — {@code TENANT_MEMBER_DELETE}, reconnected here from the
+     * plain-{@code MEMBER} target uses {@code TENANT_MEMBER_DELETE}, reconnected here from the
      * pre-{@code permission-granularity-model} {@code TENANT_MEMBER_MANAGE_ANY} fallback documented
      * in {@code staff-rbac-management-operations}'s "Implementation notes" now that the granular
      * permission exists.
@@ -1202,7 +1172,7 @@ public class TenantService {
      * or their own permission/access-group grants — nor remove their own membership — even through
      * the {@code MEMBER_ADMIN} bypass in {@link #requireAdminOfTenantOrStaff}. Called after the
      * target user/membership is resolved and before any mutation in {@code addMember}/{@code
-     * removeMember}/{@code grantPermission}/{@code revokePermission}/{@code assignAccessGroup}/
+     * hardDeleteMember}/{@code grantPermission}/{@code revokePermission}/{@code assignAccessGroup}/
      * {@code unassignAccessGroup}.
      */
     private void requireNotSelfTarget(User actor, Long targetUserId) {
