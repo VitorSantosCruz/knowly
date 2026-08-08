@@ -68,7 +68,15 @@ public class TestcontainersConfiguration {
                 public void stop() {
                     // no-op: shared singleton container, see class Javadoc.
                 }
-            }.withReuse(REUSE_ENABLED);
+            }.withReuse(REUSE_ENABLED)
+                    // Every distinct Spring test-context configuration keeps its own Hikari pool
+                    // open against this ONE shared Postgres instance until Spring's test-context
+                    // cache evicts it -- unlike the old one-container-per-context setup, all of
+                    // them now compete for the same connection ceiling. Postgres's own default
+                    // (100) is sized for a single application's pool, not 30+ concurrently-cached
+                    // test contexts, and was observed to exhaust with "sorry, too many clients
+                    // already" under a full suite run.
+                    .withCommand("postgres", "-c", "max_connections=300");
 
     private static final RabbitMQContainer RABBIT_CONTAINER =
             new RabbitMQContainer(DockerImageName.parse("rabbitmq:4.3")) {

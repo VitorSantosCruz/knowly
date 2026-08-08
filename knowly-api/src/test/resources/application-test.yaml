@@ -2,6 +2,24 @@ spring:
   data:
     redis:
       password: ''
+  datasource:
+    hikari:
+      # Every distinct Spring test-context configuration keeps its own pool open against
+      # the single shared Testcontainers Postgres instance (see TestcontainersConfiguration's
+      # Javadoc) until Spring's test-context cache evicts it. Tests run single-threaded per
+      # context, so Hikari's 10-connection default is far more than any one context needs and,
+      # multiplied across dozens of concurrently-cached contexts, was exhausting Postgres's
+      # connection ceiling ("sorry, too many clients already").
+      #
+      # This number, multiplied by spring.test.context.cache.maxSize (src/test/resources/
+      # spring.properties -- can't live here, see that file's comment for why), must stay
+      # comfortably under the container's max_connections=300 (see TestcontainersConfiguration)
+      # as this suite grows: 20 * 3 = 60, a ~5x margin. The context-cache size (an LRU cache,
+      # not the total number of test classes) is what bounds how many contexts can be open
+      # concurrently -- adding more test classes does NOT by itself increase that number, only
+      # raising either value does. If either number ever needs to go up, re-check this math
+      # against max_connections rather than assuming the old margin still holds.
+      maximum-pool-size: 3
   flyway:
     placeholders:
       bootstrap-staff-email: bootstrap-test@conectabyte.com
