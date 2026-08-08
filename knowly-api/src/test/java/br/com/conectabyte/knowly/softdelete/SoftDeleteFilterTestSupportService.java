@@ -11,6 +11,8 @@ import br.com.conectabyte.knowly.identity.ContactRepository;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.Tenant;
+import br.com.conectabyte.knowly.tenancy.TenantMembership;
+import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +35,7 @@ public class SoftDeleteFilterTestSupportService {
     private final ContactRepository contactRepository;
     private final AddressRepository addressRepository;
     private final TenantRepository tenantRepository;
+    private final TenantMembershipRepository tenantMembershipRepository;
 
     public SoftDeleteFilterTestSupportService(
             UserRepository userRepository,
@@ -40,13 +43,15 @@ public class SoftDeleteFilterTestSupportService {
             UserProfileRepository userProfileRepository,
             ContactRepository contactRepository,
             AddressRepository addressRepository,
-            TenantRepository tenantRepository) {
+            TenantRepository tenantRepository,
+            TenantMembershipRepository tenantMembershipRepository) {
         this.userRepository = userRepository;
         this.conversationRepository = conversationRepository;
         this.userProfileRepository = userProfileRepository;
         this.contactRepository = contactRepository;
         this.addressRepository = addressRepository;
         this.tenantRepository = tenantRepository;
+        this.tenantMembershipRepository = tenantMembershipRepository;
     }
 
     @Transactional(readOnly = true)
@@ -88,5 +93,10 @@ public class SoftDeleteFilterTestSupportService {
     @Transactional(readOnly = true)
     public Optional<Tenant> findTenantByName(String name) {
         return tenantRepository.findByName(name);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<TenantMembership> findMembershipByUserAndTenant(User user, Tenant tenant) {
+        return tenantMembershipRepository.findByUserAndTenant(user, tenant);
     }
 }
