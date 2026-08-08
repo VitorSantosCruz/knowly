@@ -10,6 +10,8 @@ import br.com.conectabyte.knowly.identity.Contact;
 import br.com.conectabyte.knowly.identity.ContactRepository;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
+import br.com.conectabyte.knowly.tenancy.DirectPermissionGrant;
+import br.com.conectabyte.knowly.tenancy.DirectPermissionGrantRepository;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantMembership;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
@@ -42,6 +44,7 @@ public class SoftDeleteFilterTestSupportService {
     private final TenantMembershipRepository tenantMembershipRepository;
     private final UserAccessGroupRepository userAccessGroupRepository;
     private final UserGlobalAccessGroupRepository userGlobalAccessGroupRepository;
+    private final DirectPermissionGrantRepository directPermissionGrantRepository;
 
     public SoftDeleteFilterTestSupportService(
             UserRepository userRepository,
@@ -52,7 +55,8 @@ public class SoftDeleteFilterTestSupportService {
             TenantRepository tenantRepository,
             TenantMembershipRepository tenantMembershipRepository,
             UserAccessGroupRepository userAccessGroupRepository,
-            UserGlobalAccessGroupRepository userGlobalAccessGroupRepository) {
+            UserGlobalAccessGroupRepository userGlobalAccessGroupRepository,
+            DirectPermissionGrantRepository directPermissionGrantRepository) {
         this.userRepository = userRepository;
         this.conversationRepository = conversationRepository;
         this.userProfileRepository = userProfileRepository;
@@ -62,6 +66,7 @@ public class SoftDeleteFilterTestSupportService {
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userAccessGroupRepository = userAccessGroupRepository;
         this.userGlobalAccessGroupRepository = userGlobalAccessGroupRepository;
+        this.directPermissionGrantRepository = directPermissionGrantRepository;
     }
 
     @Transactional(readOnly = true)
@@ -119,5 +124,11 @@ public class SoftDeleteFilterTestSupportService {
     @Transactional(readOnly = true)
     public List<UserGlobalAccessGroup> findUserGlobalAccessGroupsByUser(User user) {
         return userGlobalAccessGroupRepository.findByUser(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DirectPermissionGrant> findDirectPermissionGrantsByTenantMembership(
+            TenantMembership tenantMembership) {
+        return directPermissionGrantRepository.findByTenantMembership(tenantMembership);
     }
 }

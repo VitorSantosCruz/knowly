@@ -7,6 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface DirectPermissionGrantRepository
         extends JpaRepository<DirectPermissionGrant, Long> {
 
+    /**
+     * Derived (HQL-backed, no explicit {@code deletedAt} predicate) -- proves {@link
+     * br.com.conectabyte.knowly.softdelete.SoftDeleteFilter} excludes soft-deleted rows on its own,
+     * with no per-query opt-in (specify/features/soft-delete-default-filter/SPEC.md requirement 3).
+     */
+    List<DirectPermissionGrant> findByTenantMembership(TenantMembership tenantMembership);
+
     List<DirectPermissionGrant> findByTenantMembershipAndDeletedAtIsNull(
             TenantMembership tenantMembership);
 
