@@ -283,6 +283,11 @@ public class StaffService {
 
         globalAccessGroupPermissionRepository
                 .findByGlobalAccessGroupAndPermission(accessGroup, permission)
+                .map(
+                        existing -> {
+                            existing.setDeletedAt(null);
+                            return globalAccessGroupPermissionRepository.save(existing);
+                        })
                 .orElseGet(
                         () ->
                                 globalAccessGroupPermissionRepository.save(

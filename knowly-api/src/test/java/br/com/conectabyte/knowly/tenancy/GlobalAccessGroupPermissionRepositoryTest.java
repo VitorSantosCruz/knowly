@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,5 +39,25 @@ class GlobalAccessGroupPermissionRepositoryTest {
                         globalAccessGroupPermissionRepository.findByGlobalAccessGroupAndPermission(
                                 group, GlobalPermission.STAFF_PERMISSION_MANAGE))
                 .hasValueSatisfying(p -> assertThat(p.getId()).isEqualTo(saved.getId()));
+    }
+
+    @Test
+    void findByGlobalAccessGroupInAndDeletedAtIsNullExcludesSoftDeletedRows() {
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(new GlobalAccessGroup("Effective Group"));
+        globalAccessGroupPermissionRepository.saveAndFlush(
+                new GlobalAccessGroupPermission(group, GlobalPermission.STAFF_PERMISSION_MANAGE));
+        GlobalAccessGroupPermission deleted =
+                new GlobalAccessGroupPermission(group, GlobalPermission.STAFF_USER_CREATE);
+        deleted.setDeletedAt(Instant.now());
+        globalAccessGroupPermissionRepository.saveAndFlush(deleted);
+
+        List<GlobalAccessGroupPermission> live =
+                globalAccessGroupPermissionRepository.findByGlobalAccessGroupInAndDeletedAtIsNull(
+                        List.of(group));
+
+        assertThat(live)
+                .extracting(GlobalAccessGroupPermission::getPermission)
+                .containsExactly(GlobalPermission.STAFF_PERMISSION_MANAGE);
     }
 }

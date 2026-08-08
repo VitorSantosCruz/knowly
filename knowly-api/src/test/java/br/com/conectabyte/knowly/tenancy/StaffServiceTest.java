@@ -54,6 +54,8 @@ class StaffServiceTest {
     @Autowired private TenantContext tenantContext;
     @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
     @Autowired private AuditEventRepository auditEventRepository;
+    @Autowired private GlobalAccessGroupRepository globalAccessGroupRepository;
+    @Autowired private GlobalAccessGroupPermissionRepository globalAccessGroupPermissionRepository;
 
     @AfterEach
     void cleanUp() {
@@ -272,5 +274,35 @@ class StaffServiceTest {
 
         assertThatThrownBy(() -> staffService.getAuditTrail(target.getId(), 0, 20))
                 .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // role-permission-revoke REQ-4: staff-scope mirror of TenantServiceTest's regrant-reactivates
+    // assertion.
+
+    @Test
+    void grantAccessGroupPermissionReactivatesASoftDeletedRowInsteadOfInsertingADuplicate() {
+        staffAdmin("staff-regrant-reactivate-actor@example.com");
+        authenticateAs("staff-regrant-reactivate-actor@example.com");
+        GlobalAccessGroup group =
+                globalAccessGroupRepository.saveAndFlush(
+                        new GlobalAccessGroup("Staff Regrant Reactivate Group"));
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+        GlobalAccessGroupPermission existing =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(
+                                group, GlobalPermission.STAFF_USER_CREATE)
+                        .orElseThrow();
+        existing.setDeletedAt(java.time.Instant.now());
+        globalAccessGroupPermissionRepository.saveAndFlush(existing);
+
+        staffService.grantAccessGroupPermission(group.getId(), GlobalPermission.STAFF_USER_CREATE);
+
+        GlobalAccessGroupPermission reactivated =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(
+                                group, GlobalPermission.STAFF_USER_CREATE)
+                        .orElseThrow();
+        assertThat(reactivated.getId()).isEqualTo(existing.getId());
+        assertThat(reactivated.getDeletedAt()).isNull();
     }
 }
