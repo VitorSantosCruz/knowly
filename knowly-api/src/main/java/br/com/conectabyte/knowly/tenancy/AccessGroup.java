@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,9 +22,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
-@Table(
-        name = "access_groups",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "name"}))
+@Table(name = "access_groups")
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Filter(name = TenantFilter.NAME, condition = "tenant_id = :" + TenantFilter.PARAMETER)
@@ -44,6 +41,14 @@ public class AccessGroup {
 
     @Column(nullable = false)
     private String name;
+
+    /**
+     * Cascading logical delete (tenant-access-group-bulk-and-delete REQ-8/REQ-13) -- set alongside
+     * every currently-live {@code UserAccessGroup}/{@code AccessGroupPermission} row referencing
+     * this group, in the same transaction. One-way: no restore path (REQ-19).
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

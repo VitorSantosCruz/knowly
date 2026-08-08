@@ -1,8 +1,12 @@
 package br.com.conectabyte.knowly.tenancy;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserAccessGroupRepository extends JpaRepository<UserAccessGroup, Long> {
 
@@ -20,4 +24,16 @@ public interface UserAccessGroupRepository extends JpaRepository<UserAccessGroup
      */
     Optional<UserAccessGroup> findByTenantMembershipAndAccessGroup(
             TenantMembership tenantMembership, AccessGroup accessGroup);
+
+    /**
+     * tenant-access-group-bulk-and-delete REQ-13's cascade: a single bulk {@code UPDATE}, not a
+     * per-row load-and-save, per PLAN.md's Performance/SLA note. Only currently-live rows are
+     * touched.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+            "UPDATE UserAccessGroup u SET u.deletedAt = :deletedAt "
+                    + "WHERE u.accessGroup.id = :accessGroupId AND u.deletedAt IS NULL")
+    void softDeleteByAccessGroupId(
+            @Param("accessGroupId") Long accessGroupId, @Param("deletedAt") Instant deletedAt);
 }

@@ -38,4 +38,24 @@ class TenancyExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isEqualTo(new TenancyErrorResponseDto("INVALID_TAX_ID"));
     }
+
+    @Test
+    void accessGroupNotFoundExceptionMapsTo404WithAccessGroupNotFoundCode() {
+        ResponseEntity<TenancyErrorResponseDto> response =
+                handler.handleAccessGroupNotFound(new AccessGroupNotFoundException());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody())
+                .isEqualTo(new TenancyErrorResponseDto("ACCESS_GROUP_NOT_FOUND"));
+    }
+
+    @Test
+    void invalidAccessGroupBatchExceptionMapsTo400WithInvalidAccessGroupBatchCode() {
+        ResponseEntity<TenancyErrorResponseDto> response =
+                handler.handleInvalidAccessGroupBatch(new InvalidAccessGroupBatchException());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody())
+                .isEqualTo(new TenancyErrorResponseDto("INVALID_ACCESS_GROUP_BATCH"));
+    }
 }

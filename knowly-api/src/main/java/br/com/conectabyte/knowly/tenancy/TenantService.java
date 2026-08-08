@@ -24,6 +24,8 @@ import br.com.conectabyte.knowly.tenancy.dto.MemberDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupNotFoundException;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidAccessGroupBatchException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidTaxIdException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidTenantEditException;
@@ -69,6 +71,7 @@ public class TenantService {
     private static final String MEMBER_RESOURCE_TYPE = "tenant-member";
     private static final String PERMISSION_RESOURCE_TYPE = "tenant-permission";
     private static final String ACCESS_GROUP_RESOURCE_TYPE = "tenant-access-group";
+    private static final String ACCESS_GROUP_DELETE_RESOURCE_TYPE = "tenant-access-group-delete";
     private static final String HARD_DELETE_RESOURCE_TYPE = "tenant-member-hard-delete";
     private static final String BATCH_RESOURCE_TYPE = "tenant-permission-batch";
     private static final String TENANT_RESOURCE_TYPE = "tenant";
@@ -692,7 +695,7 @@ public class TenantService {
 
         AccessGroup accessGroup =
                 accessGroupRepository
-                        .findById(accessGroupId)
+                        .findByIdAndDeletedAtIsNull(accessGroupId)
                         .orElseThrow(TenantAccessDeniedException::new);
         accessGroupPermissionRepository
                 .findByAccessGroupAndPermission(accessGroup, permission)
@@ -718,7 +721,7 @@ public class TenantService {
         rejectAdminTarget(membership);
         AccessGroup accessGroup =
                 accessGroupRepository
-                        .findById(accessGroupId)
+                        .findByIdAndDeletedAtIsNull(accessGroupId)
                         .orElseThrow(TenantAccessDeniedException::new);
 
         UserAccessGroup assignment =
@@ -747,9 +750,58 @@ public class TenantService {
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
 
-        return accessGroupRepository.findByTenant(tenant).stream()
+        return accessGroupRepository.findByTenantAndDeletedAtIsNull(tenant).stream()
                 .map(AccessGroupDto::from)
                 .toList();
+    }
+
+    /**
+     * tenant-access-group-bulk-and-delete REQ-2/REQ-3/REQ-4/REQ-5/REQ-6/REQ-7: assigns every listed
+     * access-group id to {@code membershipId} in one transaction, mirroring {@link
+     * #assignAccessGroup}'s per-id reactivate-or-create logic applied once per id. REQ-3/REQ-4's
+     * validation runs entirely before any write: a duplicate id, or any id that doesn't resolve to
+     * a live {@code AccessGroup} for {@code tenantId}, rejects the whole request.
+     */
+    @Transactional
+    @AuditLog(
+            action = "tenant.access_group.batch_assign",
+            resourceType = "UserAccessGroup",
+            resourceIdExpression = "#membershipId + ':' + #accessGroupIds")
+    public void batchAssignAccessGroups(
+            User actor, Long tenantId, Long membershipId, List<Long> accessGroupIds) {
+        requireAdminOfTenantOrStaff(
+                actor, tenantId, GlobalPermission.TENANT_PERMISSION_GRANT_CREATE);
+
+        if (accessGroupIds == null
+                || accessGroupIds.isEmpty()
+                || new HashSet<>(accessGroupIds).size() != accessGroupIds.size()) {
+            throw new InvalidAccessGroupBatchException();
+        }
+
+        TenantMembership membership =
+                tenantMembershipRepository
+                        .findById(membershipId)
+                        .orElseThrow(TenantAccessDeniedException::new);
+        requireNotSelfTarget(actor, membership.getUser().getId());
+        rejectAdminTarget(membership);
+
+        Tenant tenant =
+                tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
+        List<AccessGroup> resolvedGroups =
+                accessGroupRepository.findByTenantAndIdInAndDeletedAtIsNull(tenant, accessGroupIds);
+
+        if (resolvedGroups.size() != accessGroupIds.size()) {
+            throw new InvalidAccessGroupBatchException();
+        }
+
+        for (AccessGroup accessGroup : resolvedGroups) {
+            UserAccessGroup assignment =
+                    userAccessGroupRepository
+                            .findByTenantMembershipAndAccessGroup(membership, accessGroup)
+                            .orElseGet(() -> new UserAccessGroup(membership, accessGroup));
+            assignment.setDeletedAt(null);
+            userAccessGroupRepository.save(assignment);
+        }
     }
 
     /**
@@ -849,6 +901,55 @@ public class TenantService {
                             assignment.setDeletedAt(java.time.Instant.now());
                             userAccessGroupRepository.save(assignment);
                         });
+    }
+
+    /**
+     * REQ-10/REQ-11: generation endpoint reuses the exact same guard as {@link #deleteAccessGroup}.
+     */
+    @Transactional(readOnly = true)
+    public String generateAccessGroupDeletionConfirmationToken(
+            User actor, Long tenantId, Long accessGroupId, String acceptLanguageHeaderValue) {
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_DELETE);
+
+        accessGroupRepository
+                .findByIdAndDeletedAtIsNull(accessGroupId)
+                .orElseThrow(AccessGroupNotFoundException::new);
+
+        return deletionConfirmationTokenService.generate(
+                ACCESS_GROUP_DELETE_RESOURCE_TYPE,
+                accessGroupId.toString(),
+                actor,
+                acceptLanguageHeaderValue);
+    }
+
+    /**
+     * REQ-13/14/15/16/18/19: soft-deletes the access group and, in the same transaction, cascades
+     * to every currently-live {@code UserAccessGroup}/{@code AccessGroupPermission} row referencing
+     * it via bulk {@code UPDATE}s -- one-way, no restore path (REQ-19).
+     */
+    @Transactional
+    @AuditLog(action = "tenant.access_group.delete", resourceType = "AccessGroup")
+    public void deleteAccessGroup(User actor, Long tenantId, Long accessGroupId, String word) {
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_DELETE);
+
+        AccessGroup accessGroup =
+                accessGroupRepository
+                        .findByIdAndDeletedAtIsNull(accessGroupId)
+                        .orElseThrow(AccessGroupNotFoundException::new);
+
+        if (!deletionConfirmationTokenService.validateAndConsume(
+                ACCESS_GROUP_DELETE_RESOURCE_TYPE, accessGroupId.toString(), actor, word)) {
+            throw new DeletionConfirmationInvalidException();
+        }
+
+        Instant now = Instant.now();
+        accessGroup.setDeletedAt(now);
+        // saveAndFlush, not save: the bulk updates below clear the persistence context
+        // (@Modifying(clearAutomatically = true)) -- this write must be flushed to the DB first or
+        // it would be silently discarded by that clear rather than committed.
+        accessGroupRepository.saveAndFlush(accessGroup);
+        userAccessGroupRepository.softDeleteByAccessGroupId(accessGroupId, now);
+        accessGroupPermissionRepository.softDeleteByAccessGroupId(accessGroupId, now);
     }
 
     /**

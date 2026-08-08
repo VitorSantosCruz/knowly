@@ -13,16 +13,21 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.conversation.Conversation;
 import br.com.conectabyte.knowly.conversation.ConversationRepository;
 import br.com.conectabyte.knowly.deletion.DeletionConfirmationTokenService;
+import br.com.conectabyte.knowly.deletion.exception.DeletionConfirmationInvalidException;
 import br.com.conectabyte.knowly.identity.ContactType;
 import br.com.conectabyte.knowly.identity.dto.ContactDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryAddressDto;
 import br.com.conectabyte.knowly.identity.dto.MandatoryProfileFieldsDto;
+import br.com.conectabyte.knowly.tenancy.dto.AccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.AddressDto;
 import br.com.conectabyte.knowly.tenancy.dto.CreateTenantRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupNotFoundException;
+import br.com.conectabyte.knowly.tenancy.exception.InvalidAccessGroupBatchException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
+import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAlreadyExistsException;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +67,7 @@ class TenantServiceTest {
     @Autowired private TenantContext tenantContext;
     @Autowired private AccessGroupRepository accessGroupRepository;
     @Autowired private UserAccessGroupRepository userAccessGroupRepository;
+    @Autowired private AccessGroupPermissionRepository accessGroupPermissionRepository;
     @Autowired private AuditEventRepository auditEventRepository;
     @Autowired private DeletionConfirmationTokenService deletionConfirmationTokenService;
     @Autowired private DirectPermissionGrantRepository directPermissionGrantRepository;
@@ -1515,5 +1521,330 @@ class TenantServiceTest {
         assertThatThrownBy(() -> tenantService.createTenant(user, request))
                 .isInstanceOf(PermissionDeniedException.class);
         assertThat(userRepository.findByEmailIgnoreCase("admin-forbidden@example.com")).isEmpty();
+    }
+
+    // tenant-access-group-bulk-and-delete: TenantService#batchAssignAccessGroups/
+    // #deleteAccessGroup unit coverage (PLAN.md's "Testing strategy").
+
+    private String accessGroupDeletionWord(User actor, Long accessGroupId) {
+        return deletionConfirmationTokenService.generate(
+                "tenant-access-group-delete", accessGroupId.toString(), actor, null);
+    }
+
+    @Test
+    void batchAssignAccessGroupsRejectsAnEmptyList() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Batch Empty Co"));
+        TenantMembership admin = adminMembership("batch-empty-admin@example.com", tenant);
+        User target = userRepository.saveAndFlush(new User("batch-empty-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.batchAssignAccessGroups(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        List.of()))
+                .isInstanceOf(InvalidAccessGroupBatchException.class);
+        assertThat(
+                        userAccessGroupRepository.findByTenantMembershipAndDeletedAtIsNull(
+                                targetMembership))
+                .isEmpty();
+    }
+
+    @Test
+    void batchAssignAccessGroupsRejectsADuplicateId() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Batch Dup Co"));
+        TenantMembership admin = adminMembership("batch-dup-admin@example.com", tenant);
+        User target = userRepository.saveAndFlush(new User("batch-dup-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.batchAssignAccessGroups(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        List.of(group.getId(), group.getId())))
+                .isInstanceOf(InvalidAccessGroupBatchException.class);
+    }
+
+    @Test
+    void batchAssignAccessGroupsRejectsTheWholeRequestWhenAnyIdIsInvalid() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Batch Invalid Co"));
+        Tenant otherTenant = tenantRepository.saveAndFlush(new Tenant("Batch Other Co"));
+        TenantMembership admin = adminMembership("batch-invalid-admin@example.com", tenant);
+        User target = userRepository.saveAndFlush(new User("batch-invalid-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup validGroup =
+                accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        AccessGroup foreignGroup =
+                accessGroupRepository.saveAndFlush(new AccessGroup(otherTenant, "Foreign"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.batchAssignAccessGroups(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        List.of(validGroup.getId(), foreignGroup.getId())))
+                .isInstanceOf(InvalidAccessGroupBatchException.class);
+        assertThat(
+                        userAccessGroupRepository.findByTenantMembershipAndDeletedAtIsNull(
+                                targetMembership))
+                .isEmpty();
+    }
+
+    @Test
+    void batchAssignAccessGroupsCreatesOrReactivatesEveryValidIdInOneCall() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Batch Happy Co"));
+        TenantMembership admin = adminMembership("batch-happy-admin@example.com", tenant);
+        User target = userRepository.saveAndFlush(new User("batch-happy-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup groupA = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "A"));
+        AccessGroup groupB = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "B"));
+        AccessGroup untouched = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "C"));
+        tenantService.assignAccessGroup(
+                admin.getUser(), tenant.getId(), targetMembership.getId(), untouched.getId());
+        // Previously unassigned -- must be reactivated, not duplicated.
+        UserAccessGroup previouslyUnassigned = new UserAccessGroup(targetMembership, groupA);
+        previouslyUnassigned.setDeletedAt(java.time.Instant.now());
+        userAccessGroupRepository.saveAndFlush(previouslyUnassigned);
+
+        tenantService.batchAssignAccessGroups(
+                admin.getUser(),
+                tenant.getId(),
+                targetMembership.getId(),
+                List.of(groupA.getId(), groupB.getId()));
+
+        List<AccessGroup> assigned =
+                userAccessGroupRepository
+                        .findByTenantMembershipAndDeletedAtIsNull(targetMembership)
+                        .stream()
+                        .map(UserAccessGroup::getAccessGroup)
+                        .toList();
+        assertThat(assigned)
+                .extracting(AccessGroup::getId)
+                .containsExactlyInAnyOrder(groupA.getId(), groupB.getId(), untouched.getId());
+    }
+
+    @Test
+    void batchAssignAccessGroupsRejectsACallerWithoutTheGrantPermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Batch Denied Co"));
+        User plainMember = userRepository.saveAndFlush(new User("batch-denied@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+        User target = userRepository.saveAndFlush(new User("batch-denied-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.batchAssignAccessGroups(
+                                        plainMember,
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        List.of(group.getId())))
+                .isInstanceOf(PermissionDeniedException.class);
+        assertThat(
+                        userAccessGroupRepository.findByTenantMembershipAndDeletedAtIsNull(
+                                targetMembership))
+                .isEmpty();
+    }
+
+    @Test
+    void generateAccessGroupDeletionConfirmationTokenRejectsACallerWithoutTheDeletePermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Token Denied Co"));
+        User plainMember = userRepository.saveAndFlush(new User("token-denied@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.generateAccessGroupDeletionConfirmationToken(
+                                        plainMember, tenant.getId(), group.getId(), null))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void deleteAccessGroupCascadesToLiveUserAccessGroupAndAccessGroupPermissionRows() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Cascade Co"));
+        TenantMembership admin = adminMembership("delete-cascade-admin@example.com", tenant);
+        User target = userRepository.saveAndFlush(new User("delete-cascade-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        tenantService.assignAccessGroup(
+                admin.getUser(), tenant.getId(), targetMembership.getId(), group.getId());
+        String word = accessGroupDeletionWord(admin.getUser(), group.getId());
+
+        tenantService.deleteAccessGroup(admin.getUser(), tenant.getId(), group.getId(), word);
+
+        assertThat(accessGroupRepository.findByIdAndDeletedAtIsNull(group.getId())).isEmpty();
+        assertThat(
+                        userAccessGroupRepository.findByTenantMembershipAndDeletedAtIsNull(
+                                targetMembership))
+                .isEmpty();
+        assertThat(
+                        accessGroupPermissionRepository.findByAccessGroupInAndDeletedAtIsNull(
+                                List.of(group)))
+                .isEmpty();
+    }
+
+    @Test
+    void deleteAccessGroupRejectsAMissingOrWrongToken() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Wrong Token Co"));
+        TenantMembership admin = adminMembership("delete-wrong-token-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.deleteAccessGroup(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        group.getId(),
+                                        "wrong-word"))
+                .isInstanceOf(DeletionConfirmationInvalidException.class);
+        assertThat(accessGroupRepository.findByIdAndDeletedAtIsNull(group.getId())).isPresent();
+    }
+
+    @Test
+    void deleteAccessGroupRejectsAnUnknownOrWrongTenantId() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Unknown Co"));
+        TenantMembership admin = adminMembership("delete-unknown-admin@example.com", tenant);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.deleteAccessGroup(
+                                        admin.getUser(), tenant.getId(), -1L, "irrelevant"))
+                .isInstanceOf(AccessGroupNotFoundException.class);
+    }
+
+    @Test
+    void deleteAccessGroupRejectsAnAlreadyDeletedGroup() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Twice Co"));
+        TenantMembership admin = adminMembership("delete-twice-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        String firstWord = accessGroupDeletionWord(admin.getUser(), group.getId());
+        tenantService.deleteAccessGroup(admin.getUser(), tenant.getId(), group.getId(), firstWord);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.deleteAccessGroup(
+                                        admin.getUser(), tenant.getId(), group.getId(), "anything"))
+                .isInstanceOf(AccessGroupNotFoundException.class);
+    }
+
+    @Test
+    void deleteAccessGroupRejectsACallerWithoutTheDeletePermissionIndependentOfTokenValidity() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Delete Denied Co"));
+        User plainMember = userRepository.saveAndFlush(new User("delete-denied@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.deleteAccessGroup(
+                                        plainMember, tenant.getId(), group.getId(), "anything"))
+                .isInstanceOf(PermissionDeniedException.class);
+        assertThat(accessGroupRepository.findByIdAndDeletedAtIsNull(group.getId())).isPresent();
+    }
+
+    @Test
+    void listAccessGroupsExcludesASoftDeletedGroup() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("List Excludes Co"));
+        TenantMembership admin = adminMembership("list-excludes-admin@example.com", tenant);
+        AccessGroup live = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Live"));
+        AccessGroup deletedGroup =
+                accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Gone"));
+        String word = accessGroupDeletionWord(admin.getUser(), deletedGroup.getId());
+        tenantService.deleteAccessGroup(
+                admin.getUser(), tenant.getId(), deletedGroup.getId(), word);
+
+        List<AccessGroupDto> groups =
+                tenantService.listAccessGroups(admin.getUser(), tenant.getId());
+
+        assertThat(groups).extracting(AccessGroupDto::id).containsExactly(live.getId());
+    }
+
+    @Test
+    void grantAccessGroupPermissionRejectsASoftDeletedAccessGroupId() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Grant Deleted Co"));
+        TenantMembership admin = adminMembership("grant-deleted-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        String word = accessGroupDeletionWord(admin.getUser(), group.getId());
+        tenantService.deleteAccessGroup(admin.getUser(), tenant.getId(), group.getId(), word);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.grantAccessGroupPermission(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        group.getId(),
+                                        Permission.TENANT_MEMBER_MANAGE))
+                .isInstanceOf(TenantAccessDeniedException.class);
+    }
+
+    @Test
+    void assignAccessGroupRejectsASoftDeletedAccessGroupId() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Assign Deleted Co"));
+        TenantMembership admin = adminMembership("assign-deleted-admin@example.com", tenant);
+        User target = userRepository.saveAndFlush(new User("assign-deleted-target@example.com"));
+        TenantMembership targetMembership =
+                tenantMembershipRepository.saveAndFlush(
+                        new TenantMembership(target, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        String word = accessGroupDeletionWord(admin.getUser(), group.getId());
+        tenantService.deleteAccessGroup(admin.getUser(), tenant.getId(), group.getId(), word);
+
+        assertThatThrownBy(
+                        () ->
+                                tenantService.assignAccessGroup(
+                                        admin.getUser(),
+                                        tenant.getId(),
+                                        targetMembership.getId(),
+                                        group.getId()))
+                .isInstanceOf(TenantAccessDeniedException.class);
+    }
+
+    @Test
+    void nameAndPermissionAreFreeToReuseAfterAGroupIsDeleted() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Reuse Co"));
+        TenantMembership admin = adminMembership("reuse-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        String word = accessGroupDeletionWord(admin.getUser(), group.getId());
+        tenantService.deleteAccessGroup(admin.getUser(), tenant.getId(), group.getId(), word);
+
+        AccessGroup recreated =
+                tenantService.createAccessGroup(admin.getUser(), tenant.getId(), "Editors");
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(),
+                tenant.getId(),
+                recreated.getId(),
+                Permission.TENANT_MEMBER_MANAGE);
+
+        assertThat(recreated.getId()).isNotEqualTo(group.getId());
+        assertThat(
+                        accessGroupPermissionRepository.findByAccessGroupInAndDeletedAtIsNull(
+                                List.of(recreated)))
+                .hasSize(1);
     }
 }
