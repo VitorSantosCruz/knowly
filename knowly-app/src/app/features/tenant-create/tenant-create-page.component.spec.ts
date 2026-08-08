@@ -172,6 +172,7 @@ describe('TenantCreatePageComponent', () => {
   });
 
   it('does not block submit for a non-Brazil country with a non-empty taxId of any shape (REQ-10)', () => {
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     fillValidForm();
     setValue('tenant-create-country', 'United States');
@@ -197,6 +198,7 @@ describe('TenantCreatePageComponent', () => {
   });
 
   it('allows a punctuated 14-digit CNPJ for Brazil (REQ-10)', () => {
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     fillValidForm();
     setValue('tenant-create-taxId', '12.345.678/0001-95');
@@ -221,6 +223,7 @@ describe('TenantCreatePageComponent', () => {
   });
 
   it('allows submit for Brazil with a checksum-valid, unpunctuated CNPJ (REQ-22-24)', () => {
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     fillValidForm();
     setValue('tenant-create-taxId', '11222333000181');
@@ -231,6 +234,7 @@ describe('TenantCreatePageComponent', () => {
   });
 
   it('does not run the checksum check for a non-Brazil country (REQ-24)', () => {
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     fillValidForm();
     setValue('tenant-create-country', 'United States');
