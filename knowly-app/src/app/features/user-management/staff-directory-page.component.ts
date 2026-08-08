@@ -173,6 +173,7 @@ export class StaffDirectoryPageComponent implements OnInit {
   private readonly staffUserDetailPanel =
     viewChild<StaffUserDetailPanelComponent>('staffUserDetailPanel');
   private pendingEditMode = false;
+  private pendingHistoryMode = false;
 
   // mandatory-complete-profile (backend): creating a staff user requires a full
   // MandatoryProfileFieldsDto — this two-step flow collects it via the same
@@ -264,6 +265,11 @@ export class StaffDirectoryPageComponent implements OnInit {
         this.pendingEditMode = false;
         panel.openInEditMode();
       }
+
+      if (panel !== undefined && this.pendingHistoryMode) {
+        this.pendingHistoryMode = false;
+        panel.openInHistoryMode();
+      }
     });
   }
 
@@ -282,10 +288,18 @@ export class StaffDirectoryPageComponent implements OnInit {
     }
   }
 
-  /** Called by the "History" row action — same panel as Edit, just without triggering its
-   * profile-edit toggle; the audit trail is an always-visible section further down the panel. */
+  /** Called by the "History" row action — same panel as Edit, but switches it into
+   * `viewMode: 'history'` (Edit and History must never render together — see
+   * `StaffUserDetailPanelComponent#openInHistoryMode()`). */
   protected openPanel(userId: number): void {
+    const panel = this.staffUserDetailPanel();
     this.selectedUserId.set(userId);
+
+    if (panel !== undefined) {
+      panel.openInHistoryMode();
+    } else {
+      this.pendingHistoryMode = true;
+    }
   }
 
   protected onDeleteStaffUser(staffUser: StaffUserSummary): void {

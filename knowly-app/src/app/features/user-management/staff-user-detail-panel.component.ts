@@ -22,6 +22,7 @@ import { SharedListColumn, SharedListError } from '../../shared/shared-list/shar
 import { ProfileSectionComponent } from './profile-section.component';
 
 type DetailError = 'network' | 'permission-denied' | null;
+type StaffDetailViewMode = 'edit' | 'history';
 
 const AUDIT_PAGE_SIZE = 20;
 
@@ -60,86 +61,28 @@ const AUDIT_PAGE_SIZE = 20;
           }
         </header>
 
-        @if (detail.globalRole === 'STAFF_ADMIN') {
-          <section data-testid="staff-admin-tier-actions" class="mb-5">
-            @if (viewerIsStaffAdmin()) {
-              @if (pendingDemote()) {
-                <div class="flex items-center gap-2">
-                  <span class="text-sm text-ink-600 dark:text-ink-400">{{
-                    'staffDirectory.demoteConfirm' | transloco: { email: detail.email }
-                  }}</span>
-                  <button
-                    type="button"
-                    data-testid="staff-demote-confirm"
-                    [class]="dangerButtonClass"
-                    (click)="confirmDemote()"
-                  >
-                    {{ 'common.confirm' | transloco }}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="staff-demote-cancel"
-                    [class]="secondaryButtonClass"
-                    (click)="pendingDemote.set(false)"
-                  >
-                    {{ 'common.cancel' | transloco }}
-                  </button>
-                </div>
-              } @else {
-                <button
-                  type="button"
-                  data-testid="staff-demote-button"
-                  [class]="secondaryButtonClass"
-                  [disabled]="detail.isLastAdminOfType"
-                  [attr.title]="
-                    detail.isLastAdminOfType
-                      ? ('staffDirectory.demoteDisabledLastAdmin' | transloco)
-                      : null
-                  "
-                  [attr.aria-describedby]="
-                    detail.isLastAdminOfType ? 'staff-demote-disabled-reason' : null
-                  "
-                  (click)="pendingDemote.set(true)"
-                >
-                  {{ 'staffDirectory.demote' | transloco }}
-                </button>
-                @if (detail.isLastAdminOfType) {
-                  <p
-                    id="staff-demote-disabled-reason"
-                    data-testid="staff-demote-disabled-reason"
-                    class="mt-1 text-xs text-ink-500 dark:text-ink-400"
-                  >
-                    {{ 'staffDirectory.demoteDisabledLastAdmin' | transloco }}
-                  </p>
-                }
-              }
-            }
-          </section>
-        } @else {
-          <section data-testid="staff-direct-permissions" class="mb-5">
-            <div class="mb-2 flex items-center justify-between">
-              <h3 class="text-sm font-medium text-ink-700 dark:text-ink-300">
-                {{ 'staffDirectory.directPermissions' | transloco }}
-              </h3>
+        @if (viewMode() === 'edit') {
+          @if (detail.globalRole === 'STAFF_ADMIN') {
+            <section data-testid="staff-admin-tier-actions" class="mb-5">
               @if (viewerIsStaffAdmin()) {
-                @if (pendingPromote()) {
+                @if (pendingDemote()) {
                   <div class="flex items-center gap-2">
                     <span class="text-sm text-ink-600 dark:text-ink-400">{{
-                      'staffDirectory.promoteConfirm' | transloco: { email: detail.email }
+                      'staffDirectory.demoteConfirm' | transloco: { email: detail.email }
                     }}</span>
                     <button
                       type="button"
-                      data-testid="staff-promote-confirm"
-                      [class]="secondaryButtonClass"
-                      (click)="confirmPromote()"
+                      data-testid="staff-demote-confirm"
+                      [class]="dangerButtonClass"
+                      (click)="confirmDemote()"
                     >
                       {{ 'common.confirm' | transloco }}
                     </button>
                     <button
                       type="button"
-                      data-testid="staff-promote-cancel"
+                      data-testid="staff-demote-cancel"
                       [class]="secondaryButtonClass"
-                      (click)="pendingPromote.set(false)"
+                      (click)="pendingDemote.set(false)"
                     >
                       {{ 'common.cancel' | transloco }}
                     </button>
@@ -147,119 +90,181 @@ const AUDIT_PAGE_SIZE = 20;
                 } @else {
                   <button
                     type="button"
-                    data-testid="staff-promote-button"
+                    data-testid="staff-demote-button"
                     [class]="secondaryButtonClass"
-                    (click)="pendingPromote.set(true)"
+                    [disabled]="detail.isLastAdminOfType"
+                    [attr.title]="
+                      detail.isLastAdminOfType
+                        ? ('staffDirectory.demoteDisabledLastAdmin' | transloco)
+                        : null
+                    "
+                    [attr.aria-describedby]="
+                      detail.isLastAdminOfType ? 'staff-demote-disabled-reason' : null
+                    "
+                    (click)="pendingDemote.set(true)"
                   >
-                    {{ 'staffDirectory.promote' | transloco }}
+                    {{ 'staffDirectory.demote' | transloco }}
                   </button>
+                  @if (detail.isLastAdminOfType) {
+                    <p
+                      id="staff-demote-disabled-reason"
+                      data-testid="staff-demote-disabled-reason"
+                      class="mt-1 text-xs text-ink-500 dark:text-ink-400"
+                    >
+                      {{ 'staffDirectory.demoteDisabledLastAdmin' | transloco }}
+                    </p>
+                  }
                 }
               }
-            </div>
-
-            @for (permission of allPermissions; track permission) {
-              <span
-                class="mr-3 mb-1 inline-flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300"
-              >
-                <button
-                  type="button"
-                  role="switch"
-                  [attr.aria-checked]="pendingPermissions().has(permission)"
-                  [attr.aria-label]="permissionLabel(permission)"
-                  [attr.data-testid]="'staff-permission-toggle-' + permission"
-                  [disabled]="!viewerIsStaffAdmin()"
-                  (click)="onTogglePermission(permission)"
-                  [class]="
-                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
-                    (pendingPermissions().has(permission)
-                      ? 'bg-signal-600'
-                      : 'bg-ink-300 dark:bg-ink-700')
-                  "
-                >
-                  <span
-                    [class]="
-                      'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-fast ease-fluid ' +
-                      (pendingPermissions().has(permission) ? 'translate-x-4' : 'translate-x-1')
-                    "
-                  ></span>
-                </button>
-                {{ permissionLabel(permission) }}
-              </span>
-            }
-
-            @if (hasPendingPermissionChanges()) {
-              <div class="mt-3">
-                <button
-                  type="button"
-                  data-testid="staff-save-permissions-button"
-                  [class]="buttonClassPrimary"
-                  [disabled]="!viewerIsStaffAdmin()"
-                  (click)="onSaveBatchPermissions()"
-                >
-                  {{ 'staffDirectory.save' | transloco }}
-                </button>
+            </section>
+          } @else {
+            <section data-testid="staff-direct-permissions" class="mb-5">
+              <div class="mb-2 flex items-center justify-between">
+                <h3 class="text-sm font-medium text-ink-700 dark:text-ink-300">
+                  {{ 'staffDirectory.directPermissions' | transloco }}
+                </h3>
+                @if (viewerIsStaffAdmin()) {
+                  @if (pendingPromote()) {
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                        'staffDirectory.promoteConfirm' | transloco: { email: detail.email }
+                      }}</span>
+                      <button
+                        type="button"
+                        data-testid="staff-promote-confirm"
+                        [class]="secondaryButtonClass"
+                        (click)="confirmPromote()"
+                      >
+                        {{ 'common.confirm' | transloco }}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="staff-promote-cancel"
+                        [class]="secondaryButtonClass"
+                        (click)="pendingPromote.set(false)"
+                      >
+                        {{ 'common.cancel' | transloco }}
+                      </button>
+                    </div>
+                  } @else {
+                    <button
+                      type="button"
+                      data-testid="staff-promote-button"
+                      [class]="secondaryButtonClass"
+                      (click)="pendingPromote.set(true)"
+                    >
+                      {{ 'staffDirectory.promote' | transloco }}
+                    </button>
+                  }
+                }
               </div>
-            }
+
+              @for (permission of allPermissions; track permission) {
+                <span
+                  class="mr-3 mb-1 inline-flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300"
+                >
+                  <button
+                    type="button"
+                    role="switch"
+                    [attr.aria-checked]="pendingPermissions().has(permission)"
+                    [attr.aria-label]="permissionLabel(permission)"
+                    [attr.data-testid]="'staff-permission-toggle-' + permission"
+                    [disabled]="!viewerIsStaffAdmin()"
+                    (click)="onTogglePermission(permission)"
+                    [class]="
+                      'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
+                      (pendingPermissions().has(permission)
+                        ? 'bg-signal-600'
+                        : 'bg-ink-300 dark:bg-ink-700')
+                    "
+                  >
+                    <span
+                      [class]="
+                        'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-fast ease-fluid ' +
+                        (pendingPermissions().has(permission) ? 'translate-x-4' : 'translate-x-1')
+                      "
+                    ></span>
+                  </button>
+                  {{ permissionLabel(permission) }}
+                </span>
+              }
+
+              @if (hasPendingPermissionChanges()) {
+                <div class="mt-3">
+                  <button
+                    type="button"
+                    data-testid="staff-save-permissions-button"
+                    [class]="buttonClassPrimary"
+                    [disabled]="!viewerIsStaffAdmin()"
+                    (click)="onSaveBatchPermissions()"
+                  >
+                    {{ 'staffDirectory.save' | transloco }}
+                  </button>
+                </div>
+              }
+            </section>
+          }
+
+          <section data-testid="staff-access-groups" class="mb-5">
+            <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
+              {{ 'staffDirectory.accessGroups' | transloco }}
+            </h3>
+            <ul class="mb-2 flex flex-col gap-1">
+              @for (group of detail.accessGroups; track group.id) {
+                <li
+                  class="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-1.5 text-sm text-ink-800 dark:bg-ink-800/50 dark:text-ink-100"
+                >
+                  {{ group.name }}
+                  <button
+                    [attr.data-testid]="'staff-unassign-access-group-' + group.id"
+                    [disabled]="!viewerIsStaffAdmin()"
+                    (click)="onUnassignAccessGroup(group.id)"
+                    class="text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 disabled:pointer-events-none disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    {{ 'staffDirectory.unassign' | transloco }}
+                  </button>
+                </li>
+              }
+            </ul>
+
+            <ul class="flex flex-col gap-1">
+              @for (group of assignableAccessGroups(detail); track group.id) {
+                <li
+                  class="flex items-center justify-between text-sm text-ink-600 dark:text-ink-400"
+                >
+                  {{ group.name }}
+                  <button
+                    [attr.data-testid]="'staff-assign-access-group-' + group.id"
+                    [disabled]="!viewerIsStaffAdmin()"
+                    (click)="onAssignAccessGroup(group.id)"
+                    class="text-signal-600 transition-colors duration-fast ease-fluid hover:text-signal-700 disabled:pointer-events-none disabled:opacity-50 dark:text-signal-400 dark:hover:text-signal-300"
+                  >
+                    {{ 'staffDirectory.assign' | transloco }}
+                  </button>
+                </li>
+              }
+            </ul>
           </section>
+
+          <section data-testid="staff-effective-permissions" class="mb-5">
+            <h3 class="mb-1 text-sm font-medium text-ink-700 dark:text-ink-300">
+              {{ 'staffDirectory.effectivePermissions' | transloco }}
+            </h3>
+            <p class="text-sm text-ink-600 dark:text-ink-400">
+              {{ effectivePermissionLabels(detail) }}
+            </p>
+          </section>
+
+          <app-profile-section
+            [userId]="userId()"
+            [canEdit]="viewerCanEditProfile()"
+            [ownUserId]="ownUserId()"
+            [hideEditToggle]="true"
+            [editTrigger]="editProfileTrigger()"
+          />
         }
 
-        <section data-testid="staff-access-groups" class="mb-5">
-          <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'staffDirectory.accessGroups' | transloco }}
-          </h3>
-          <ul class="mb-2 flex flex-col gap-1">
-            @for (group of detail.accessGroups; track group.id) {
-              <li
-                class="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-1.5 text-sm text-ink-800 dark:bg-ink-800/50 dark:text-ink-100"
-              >
-                {{ group.name }}
-                <button
-                  [attr.data-testid]="'staff-unassign-access-group-' + group.id"
-                  [disabled]="!viewerIsStaffAdmin()"
-                  (click)="onUnassignAccessGroup(group.id)"
-                  class="text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 disabled:pointer-events-none disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  {{ 'staffDirectory.unassign' | transloco }}
-                </button>
-              </li>
-            }
-          </ul>
-
-          <ul class="flex flex-col gap-1">
-            @for (group of assignableAccessGroups(detail); track group.id) {
-              <li class="flex items-center justify-between text-sm text-ink-600 dark:text-ink-400">
-                {{ group.name }}
-                <button
-                  [attr.data-testid]="'staff-assign-access-group-' + group.id"
-                  [disabled]="!viewerIsStaffAdmin()"
-                  (click)="onAssignAccessGroup(group.id)"
-                  class="text-signal-600 transition-colors duration-fast ease-fluid hover:text-signal-700 disabled:pointer-events-none disabled:opacity-50 dark:text-signal-400 dark:hover:text-signal-300"
-                >
-                  {{ 'staffDirectory.assign' | transloco }}
-                </button>
-              </li>
-            }
-          </ul>
-        </section>
-
-        <section data-testid="staff-effective-permissions" class="mb-5">
-          <h3 class="mb-1 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'staffDirectory.effectivePermissions' | transloco }}
-          </h3>
-          <p class="text-sm text-ink-600 dark:text-ink-400">
-            {{ effectivePermissionLabels(detail) }}
-          </p>
-        </section>
-
-        <app-profile-section
-          [userId]="userId()"
-          [canEdit]="viewerCanEditProfile()"
-          [ownUserId]="ownUserId()"
-          [hideEditToggle]="true"
-          [editTrigger]="editProfileTrigger()"
-        />
-
-        @if (globalPermissionsService.has('AUDIT_TRAIL_VIEW')) {
+        @if (viewMode() === 'history' && globalPermissionsService.has('AUDIT_TRAIL_VIEW')) {
           <section data-testid="staff-audit-trail" class="mt-5">
             <app-shared-list
               [title]="'staffDirectory.auditTrail.title' | transloco"
@@ -340,6 +345,12 @@ export class StaffUserDetailPanelComponent implements OnChanges {
   protected readonly ownUserId = signal<number | null>(null);
   protected readonly editProfileTrigger = signal(0);
 
+  // Edit and History open this same panel instance but must never render together
+  // (confirmed real bug — "histórico não é edição, edição não é histórico, não devem
+  // aparecer juntos"). Defaults to 'edit' so every pre-existing "just open the panel"
+  // caller/test keeps seeing the edit content, matching prior behavior exactly.
+  protected readonly viewMode = signal<StaffDetailViewMode>('edit');
+
   protected readonly pendingPermissionRevoke = signal<GlobalPermission | null>(null);
   protected readonly permissionRevokeRetryToken = signal(0);
   protected readonly pendingGroupUnassign = signal<GlobalAccessGroup | null>(null);
@@ -417,7 +428,17 @@ export class StaffUserDetailPanelComponent implements OnChanges {
    * `MemberDetailPanelComponent#openInEditMode()`.
    */
   openInEditMode(): void {
+    this.viewMode.set('edit');
     this.editProfileTrigger.update((n) => n + 1);
+  }
+
+  /**
+   * Called by `staff-directory-page.component.ts`'s "History" row action — same panel
+   * instance as Edit, switched to show only the audit trail. Mirrors `openInEditMode()`'s
+   * shape/JSDoc for symmetry.
+   */
+  openInHistoryMode(): void {
+    this.viewMode.set('history');
   }
 
   ngOnChanges(): void {
@@ -428,7 +449,7 @@ export class StaffUserDetailPanelComponent implements OnChanges {
     this.loadAuditPage();
   }
 
-  protected onAuditPageChange(delta: -1 | 1): void {
+  protected onAuditPageChange(delta: number): void {
     this.auditPage.set(this.auditPage() + delta);
     this.loadAuditPage();
   }

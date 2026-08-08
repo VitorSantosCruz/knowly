@@ -336,6 +336,68 @@ describe('StaffDirectoryPageComponent', () => {
         totalElements: 0,
         totalPages: 0,
       });
+      httpMock.expectOne('/api/users/me/profile').flush({
+        userId: 999,
+        email: 'me@example.com',
+        fields: {
+          fullName: 'Me',
+          cpf: null,
+          rg: null,
+          rgOrgaoEmissor: null,
+          birthDate: null,
+          address: null,
+          contacts: [],
+        },
+        avatarUrl: null,
+      });
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]'),
+      ).toBeTruthy();
+      // Edit and History must never render together — opening via the "History" row
+      // action shows only the audit trail, not the edit content (no profile-section
+      // fetch fires, since ProfileSectionComponent isn't mounted in history mode).
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+      ).toBeFalsy();
+      httpMock.expectNone('/api/users/1/profile');
+    });
+
+    it('switching from Edit to History on the same row flips which section is visible', () => {
+      const permissionsService = TestBed.inject(GlobalPermissionsService);
+      permissionsService.fetch();
+      flushGlobalPermissions(['AUDIT_TRAIL_VIEW']);
+
+      fixture.detectChanges();
+      httpMock
+        .expectOne('/api/staff/users')
+        .flush([{ id: 1, email: 'staffer@example.com', globalRole: 'STAFF' }]);
+      fixture.detectChanges();
+
+      fixture.nativeElement
+        .querySelector('[data-testid="shared-list-action-sharedList.actions.edit-1"]')
+        .click();
+      fixture.detectChanges();
+
+      httpMock.expectOne('/api/staff/users/1/permissions').flush({
+        userId: 1,
+        email: 'staffer@example.com',
+        globalRole: 'STAFF',
+        directPermissions: [],
+        accessGroups: [],
+        effectivePermissions: [],
+        isLastAdminOfType: false,
+      });
+      httpMock.expectOne('/api/staff/access-groups').flush([]);
+      httpMock.expectOne('/api/staff/users/1/audit-trail?page=0&size=20').flush({
+        content: [],
+        page: 0,
+        size: 20,
+        totalElements: 0,
+        totalPages: 0,
+      });
       fixture.detectChanges();
       httpMock.expectOne('/api/users/1/profile').flush({
         userId: 1,
@@ -368,8 +430,19 @@ describe('StaffDirectoryPageComponent', () => {
       fixture.detectChanges();
 
       expect(
-        fixture.nativeElement.querySelector('[data-testid="staff-user-detail-panel"]'),
+        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
       ).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
+
+      fixture.nativeElement
+        .querySelector('[data-testid="shared-list-action-sharedList.actions.history-1"]')
+        .click();
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+      ).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
     });
   });
 });

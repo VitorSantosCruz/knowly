@@ -167,6 +167,11 @@ describe('StaffUserDetailPanelComponent', () => {
       flushProfile();
       flushOwnProfile();
       fixture.detectChanges();
+
+      // Edit and History share this one panel instance but must never render together —
+      // simulate the "History" row action switching it into history mode.
+      fixture.componentInstance.openInHistoryMode();
+      fixture.detectChanges();
     }
 
     it('renders the audit trail as a paginated section when the viewer holds AUDIT_TRAIL_VIEW', async () => {
@@ -190,6 +195,55 @@ describe('StaffUserDetailPanelComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.textContent).toContain('21-21');
+    });
+  });
+
+  describe('viewMode (Edit and History must never render together)', () => {
+    it('defaults to edit mode: edit content is visible, audit trail is not', async () => {
+      await open(staffDetail, true, [], true);
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+      ).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
+    });
+
+    it('openInHistoryMode() hides all edit content and shows only the audit trail', async () => {
+      await open(staffDetail, true, [], true);
+
+      fixture.componentInstance.openInHistoryMode();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+      ).toBeFalsy();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-access-groups"]'),
+      ).toBeFalsy();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-effective-permissions"]'),
+      ).toBeFalsy();
+    });
+
+    it('openInEditMode() switches back from history mode, hiding the audit trail again', async () => {
+      await open(staffDetail, true, [], true);
+
+      fixture.componentInstance.openInHistoryMode();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeTruthy();
+
+      fixture.componentInstance.openInEditMode();
+      fixture.detectChanges();
+      // Toggling the edit-content block off/on via `@if` destroys/recreates the embedded
+      // `ProfileSectionComponent`, so it re-fetches its profile on remount.
+      flushProfile();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="staff-audit-trail"]')).toBeFalsy();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="staff-direct-permissions"]'),
+      ).toBeTruthy();
     });
   });
 
