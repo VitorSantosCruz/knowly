@@ -12,3 +12,13 @@ export function translatePermissionLabel(value: string, transloco: TranslocoServ
 
   return translated === key ? value : translated;
 }
+
+// role-permission-management-ui REQ-1: same lookup shape as translatePermissionLabel, against
+// the sibling `permissions.descriptions.<value>` namespace — describes what granting the
+// permission actually lets someone do, rather than just naming it.
+export function translatePermissionDescription(value: string, transloco: TranslocoService): string {
+  const key = `permissions.descriptions.${value}`;
+  const translated = transloco.translate(key);
+
+  return translated === key ? value : translated;
+}
