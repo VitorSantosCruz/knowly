@@ -200,6 +200,46 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-access-groups"]')).toBeFalsy();
   });
 
+  it('shows the tenant access-groups link for a real MEMBER_ADMIN of the active tenant', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
+      tenantPermissions: ALL_PERMISSIONS,
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-tenant-access-groups"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows the tenant access-groups link for a staff caller holding TENANT_ACCESS_GROUP_VIEW globally, even as a plain MEMBER', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      globalPermissions: ['TENANT_ACCESS_GROUP_VIEW'],
+      tenantPermissions: ['ARTICLE_VIEW'],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-tenant-access-groups"]'),
+    ).toBeTruthy();
+  });
+
+  it('hides the tenant access-groups link for a plain MEMBER without TENANT_ACCESS_GROUP_VIEW', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: ['ARTICLE_VIEW'],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-tenant-access-groups"]'),
+    ).toBeFalsy();
+  });
+
   it('shows the members link for STAFF_USER_VIEW alone (no tenant permission)', () => {
     fixture.detectChanges();
     flush({ memberships: [], globalPermissions: ['STAFF_USER_VIEW'] });

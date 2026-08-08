@@ -403,6 +403,15 @@ export class NavMenuComponent implements OnInit {
       this.viewerIsStaffAdmin(),
   );
 
+  // See tenant-access-group-management.guard.ts's doc comment for why this checks
+  // activeTenantRole() rather than a tenant Permission -- TENANT_ACCESS_GROUP_VIEW only
+  // exists as a GlobalPermission, and a real MEMBER_ADMIN never holds any GlobalPermission.
+  protected readonly canSeeTenantAccessGroups = computed(
+    () =>
+      this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN' ||
+      this.globalPermissionsService.has('TENANT_ACCESS_GROUP_VIEW'),
+  );
+
   protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
     const groups: NavMenuGroup[] = [];
 
@@ -474,6 +483,17 @@ export class NavMenuComponent implements OnInit {
         testId: 'nav-access-groups',
         icon: 'shield-check',
         routerLink: '/staff/access-groups',
+      });
+    }
+    // tenant-access-group-management: mirrors tenantAccessGroupManagementGuard's own
+    // MEMBER_ADMIN-bypass-or-GlobalPermission gate, not a tenant Permission check -- see that
+    // guard's doc comment for why TENANT_ACCESS_GROUP_VIEW only exists as a GlobalPermission.
+    if (this.canSeeTenantAccessGroups()) {
+      teamItems.push({
+        labelKey: 'accessGroupManagement.title',
+        testId: 'nav-tenant-access-groups',
+        icon: 'shield-check',
+        routerLink: '/tenants/access-groups',
       });
     }
     if (teamItems.length > 0) {
