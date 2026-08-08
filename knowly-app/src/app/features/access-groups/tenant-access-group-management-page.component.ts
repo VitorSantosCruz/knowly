@@ -416,7 +416,7 @@ export class TenantAccessGroupManagementPageComponent implements OnInit {
 
   selectGroup(group: AccessGroup): void {
     this.selectedGroup.set(group);
-    this.groupPermissions.set(new Set(group.permissions));
+    this.groupPermissions.set(new Set(group.permissions ?? []));
     this.permissionActionError.set(null);
     this.assigningMember.set(null);
 
