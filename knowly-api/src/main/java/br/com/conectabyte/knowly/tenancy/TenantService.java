@@ -678,6 +678,11 @@ public class TenantService {
                         .orElseThrow(TenantAccessDeniedException::new);
         accessGroupPermissionRepository
                 .findByAccessGroupAndPermission(accessGroup, permission)
+                .map(
+                        existing -> {
+                            existing.setDeletedAt(null);
+                            return accessGroupPermissionRepository.save(existing);
+                        })
                 .orElseGet(
                         () ->
                                 accessGroupPermissionRepository.save(

@@ -1788,4 +1788,32 @@ class TenantServiceTest {
                                 List.of(recreated)))
                 .hasSize(1);
     }
+
+    // role-permission-revoke REQ-4: granting a previously-revoked permission back onto the same
+    // role reactivates the existing row rather than inserting a second one.
+
+    @Test
+    void grantAccessGroupPermissionReactivatesASoftDeletedRowInsteadOfInsertingADuplicate() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Regrant Reactivate Co"));
+        TenantMembership admin = adminMembership("regrant-reactivate-admin@example.com", tenant);
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+        AccessGroupPermission existing =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(group, Permission.TENANT_MEMBER_MANAGE)
+                        .orElseThrow();
+        existing.setDeletedAt(java.time.Instant.now());
+        accessGroupPermissionRepository.saveAndFlush(existing);
+
+        tenantService.grantAccessGroupPermission(
+                admin.getUser(), tenant.getId(), group.getId(), Permission.TENANT_MEMBER_MANAGE);
+
+        AccessGroupPermission reactivated =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(group, Permission.TENANT_MEMBER_MANAGE)
+                        .orElseThrow();
+        assertThat(reactivated.getId()).isEqualTo(existing.getId());
+        assertThat(reactivated.getDeletedAt()).isNull();
+    }
 }
