@@ -32,4 +32,10 @@ public class SoftDeleteFilterTestSupportService {
     public List<User> findAllUsers() {
         return userRepository.findAll();
     }
+
+    @Transactional(readOnly = true)
+    @AllowDeletedForOversight
+    public Optional<User> findUserByIdIgnoringSoftDelete(Long id) {
+        return userRepository.findById(id);
+    }
 }

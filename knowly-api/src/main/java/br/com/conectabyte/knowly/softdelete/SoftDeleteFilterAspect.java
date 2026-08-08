@@ -5,6 +5,7 @@ import jakarta.persistence.PersistenceContext;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.hibernate.Session;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -37,7 +38,17 @@ public class SoftDeleteFilterAspect {
                     + " !within(org.springframework.data.repository.Repository+)")
     public Object enableSoftDeleteFilter(ProceedingJoinPoint joinPoint) throws Throwable {
         Session session = entityManager.unwrap(Session.class);
-        session.enableFilter(SoftDeleteFilter.NAME);
+        boolean allowDeletedForOversight =
+                ((MethodSignature) joinPoint.getSignature())
+                                .getMethod()
+                                .getAnnotation(AllowDeletedForOversight.class)
+                        != null;
+
+        if (allowDeletedForOversight) {
+            session.disableFilter(SoftDeleteFilter.NAME);
+        } else {
+            session.enableFilter(SoftDeleteFilter.NAME);
+        }
 
         return joinPoint.proceed();
     }

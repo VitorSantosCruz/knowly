@@ -55,4 +55,21 @@ class SoftDeleteFilterIntegrationTest {
         assertThat(found).extracting(User::getId).contains(live.getId());
         assertThat(found).extracting(User::getId).doesNotContain(deleted.getId());
     }
+
+    /**
+     * soft-delete-default-filter SPEC requirement 7: a call site can deliberately, narrowly disable
+     * the exclusion for its own query only, without weakening the default for anything else.
+     */
+    @Test
+    void allowDeletedForOversightSeesTheSoftDeletedRowWhilePlainCallsStayFiltered() {
+        User deleted =
+                userRepository.saveAndFlush(new User("soft-delete-filter-oversight@example.com"));
+        deleted.setDeletedAt(Instant.now());
+        userRepository.saveAndFlush(deleted);
+
+        assertThat(testSupportService.findUserByIdIgnoringSoftDelete(deleted.getId())).isPresent();
+
+        // The bypass must not leak into a subsequent, non-annotated call in the same test.
+        assertThat(testSupportService.findUserById(deleted.getId())).isEmpty();
+    }
 }
