@@ -10,6 +10,8 @@ import br.com.conectabyte.knowly.identity.Contact;
 import br.com.conectabyte.knowly.identity.ContactRepository;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
+import br.com.conectabyte.knowly.tenancy.Tenant;
+import br.com.conectabyte.knowly.tenancy.TenantRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -30,18 +32,21 @@ public class SoftDeleteFilterTestSupportService {
     private final UserProfileRepository userProfileRepository;
     private final ContactRepository contactRepository;
     private final AddressRepository addressRepository;
+    private final TenantRepository tenantRepository;
 
     public SoftDeleteFilterTestSupportService(
             UserRepository userRepository,
             ConversationRepository conversationRepository,
             UserProfileRepository userProfileRepository,
             ContactRepository contactRepository,
-            AddressRepository addressRepository) {
+            AddressRepository addressRepository,
+            TenantRepository tenantRepository) {
         this.userRepository = userRepository;
         this.conversationRepository = conversationRepository;
         this.userProfileRepository = userProfileRepository;
         this.contactRepository = contactRepository;
         this.addressRepository = addressRepository;
+        this.tenantRepository = tenantRepository;
     }
 
     @Transactional(readOnly = true)
@@ -78,5 +83,10 @@ public class SoftDeleteFilterTestSupportService {
     @Transactional(readOnly = true)
     public Optional<Address> findAddressByUserId(Long userId) {
         return addressRepository.findByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Tenant> findTenantByName(String name) {
+        return tenantRepository.findByName(name);
     }
 }
