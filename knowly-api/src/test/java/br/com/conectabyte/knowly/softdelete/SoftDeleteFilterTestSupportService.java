@@ -2,6 +2,8 @@ package br.com.conectabyte.knowly.softdelete;
 
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.conversation.Conversation;
+import br.com.conectabyte.knowly.conversation.ConversationRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -18,9 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class SoftDeleteFilterTestSupportService {
 
     private final UserRepository userRepository;
+    private final ConversationRepository conversationRepository;
 
-    public SoftDeleteFilterTestSupportService(UserRepository userRepository) {
+    public SoftDeleteFilterTestSupportService(
+            UserRepository userRepository, ConversationRepository conversationRepository) {
         this.userRepository = userRepository;
+        this.conversationRepository = conversationRepository;
     }
 
     @Transactional(readOnly = true)
@@ -37,5 +42,10 @@ public class SoftDeleteFilterTestSupportService {
     @AllowDeletedForOversight
     public Optional<User> findUserByIdIgnoringSoftDelete(Long id) {
         return userRepository.findById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Conversation> findConversationByIdAndOwnerId(Long id, Long ownerId) {
+        return conversationRepository.findByIdAndOwnerId(id, ownerId);
     }
 }
