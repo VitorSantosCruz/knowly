@@ -106,8 +106,11 @@ public class ChatConversationService {
                             .findFirst()
                             .get();
             User target =
+                    // logical-delete-everywhere (2026-08-04): a soft-deleted user's id must not be
+                    // addable to a brand-new conversation, even if the client already has it (a
+                    // stale bookmark, old conversation, browser autofill).
                     userRepository
-                            .findById(targetId)
+                            .findByIdAndDeletedAtIsNull(targetId)
                             .orElseThrow(ChatConversationNotFoundException::new);
             tenantAnchor = chatEligibilityService.resolveDirectAnchor(actor, target);
         } else {
@@ -116,7 +119,7 @@ public class ChatConversationService {
             for (Long participantId : participantIds) {
                 User participant =
                         userRepository
-                                .findById(participantId)
+                                .findByIdAndDeletedAtIsNull(participantId)
                                 .orElseThrow(ChatConversationNotFoundException::new);
                 if (!chatEligibilityService.isEligible(participant, tenantAnchor)) {
                     throw new ChatIneligibleParticipantException();

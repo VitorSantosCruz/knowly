@@ -154,6 +154,41 @@ class UserRepositoryTest {
         assertThat(count).isEqualTo(baseline + 2);
     }
 
+    // --- chat soft-delete fix: a deleted user must not be reachable via chat lookups ---
+
+    @Test
+    void findByIdAndDeletedAtIsNullReturnsUserWhenNotDeleted() {
+        User saved = userRepository.saveAndFlush(new User("active-lookup@example.com"));
+
+        Optional<User> found = userRepository.findByIdAndDeletedAtIsNull(saved.getId());
+
+        assertThat(found).isPresent();
+    }
+
+    @Test
+    void findByIdAndDeletedAtIsNullReturnsEmptyWhenSoftDeleted() {
+        User saved = userRepository.saveAndFlush(new User("deleted-lookup@example.com"));
+        saved.setDeletedAt(Instant.now());
+        userRepository.saveAndFlush(saved);
+
+        Optional<User> found = userRepository.findByIdAndDeletedAtIsNull(saved.getId());
+
+        assertThat(found).isEmpty();
+    }
+
+    @Test
+    void findAllByDeletedAtIsNullExcludesSoftDeletedUsers() {
+        User active = userRepository.saveAndFlush(new User("all-active@example.com"));
+        User deleted = userRepository.saveAndFlush(new User("all-deleted@example.com"));
+        deleted.setDeletedAt(Instant.now());
+        userRepository.saveAndFlush(deleted);
+
+        List<User> found = userRepository.findAllByDeletedAtIsNull();
+
+        assertThat(found).extracting(User::getId).contains(active.getId());
+        assertThat(found).extracting(User::getId).doesNotContain(deleted.getId());
+    }
+
     @Test
     void countByGlobalRoleInReturnsZeroForAnEmptyRoleList() {
         long count = userRepository.countByGlobalRoleInAndDeletedAtIsNull(List.of());

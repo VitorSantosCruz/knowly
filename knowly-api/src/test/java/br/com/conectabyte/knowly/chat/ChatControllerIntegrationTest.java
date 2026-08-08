@@ -623,4 +623,164 @@ class ChatControllerIntegrationTest {
         assertThat(staffAdminResponse.getResponse().getStatus())
                 .isIn(HttpStatus.FORBIDDEN.value(), HttpStatus.NOT_FOUND.value());
     }
+
+    // --- logical-delete-everywhere (2026-08-04): a soft-deleted user must not be reachable via
+    // chat -- neither as an eligible-participant candidate nor addable to a brand-new conversation
+    // ---
+
+    @Test
+    void softDeletedStaffUserDoesNotAppearAsAnEligibleParticipantCandidate() throws Exception {
+        User staffA = staff("softdel-eligible-staffa@example.com");
+        User staffB = staff("softdel-eligible-staffb@example.com");
+        staffB.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(staffB);
+        Cookie session = logIn("softdel-eligible-staffa@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/eligible-participants?scope=group-staff-only")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        java.util.List<Integer> candidateIds =
+                com.jayway.jsonpath.JsonPath.read(
+                        response.getResponse().getContentAsString(), "$[*].userId");
+        assertThat(candidateIds).doesNotContain(staffB.getId().intValue());
+        assertThat(staffA).isNotNull();
+    }
+
+    @Test
+    void softDeletedTenantMemberDoesNotAppearAsAnEligibleParticipantCandidate() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Delete Candidate Co"));
+        User owner = member("softdel-eligible-owner@example.com", tenant);
+        User deletedMember = member("softdel-eligible-member@example.com", tenant);
+        deletedMember.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(deletedMember);
+        Cookie session = logIn("softdel-eligible-owner@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri(
+                                "/api/chat/eligible-participants?scope=group&tenantId="
+                                        + tenant.getId())
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        java.util.List<Integer> candidateIds =
+                com.jayway.jsonpath.JsonPath.read(
+                        response.getResponse().getContentAsString(), "$[*].userId");
+        assertThat(candidateIds).doesNotContain(deletedMember.getId().intValue());
+        assertThat(owner).isNotNull();
+    }
+
+    @Test
+    void creatingADirectConversationWithASoftDeletedStaffUserIdFails() {
+        staff("softdel-direct-actor@example.com");
+        User deletedStaff = staff("softdel-direct-target@example.com");
+        deletedStaff.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(deletedStaff);
+        Cookie session = logIn("softdel-direct-actor@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + deletedStaff.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void creatingADirectConversationWithASoftDeletedTenantMemberIdFails() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Delete Direct Co"));
+        member("softdel-direct-member-actor@example.com", tenant);
+        User deletedMember = member("softdel-direct-member-target@example.com", tenant);
+        deletedMember.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(deletedMember);
+        Cookie session = logIn("softdel-direct-member-actor@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + deletedMember.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void creatingAGroupConversationWithASoftDeletedStaffParticipantIdFails() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Delete Group Co"));
+        member("softdel-group-owner@example.com", tenant);
+        User deletedStaff = staff("softdel-group-staff@example.com");
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(deletedStaff, tenant, MembershipRole.MEMBER));
+        deletedStaff.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(deletedStaff);
+        Cookie session = logIn("softdel-group-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Group\",\"participantUserIds\":["
+                                        + deletedStaff.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void creatingAGroupConversationWithASoftDeletedTenantMemberParticipantIdFails() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Soft Delete Group Member Co"));
+        member("softdel-group-member-owner@example.com", tenant);
+        User deletedMember = member("softdel-group-member-target@example.com", tenant);
+        deletedMember.setDeletedAt(java.time.Instant.now());
+        userRepository.saveAndFlush(deletedMember);
+        Cookie session = logIn("softdel-group-member-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Group\",\"participantUserIds\":["
+                                        + deletedMember.getId()
+                                        + "]}")
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
 }

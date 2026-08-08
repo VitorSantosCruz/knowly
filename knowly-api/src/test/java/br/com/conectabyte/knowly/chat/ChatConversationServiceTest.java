@@ -8,7 +8,10 @@ import static org.mockito.Mockito.when;
 import br.com.conectabyte.knowly.audit.AuditEventWriter;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.chat.dto.CreateChatConversationRequestDto;
+import br.com.conectabyte.knowly.chat.dto.CreateChatConversationRequestDto.ChatConversationRequestKind;
 import br.com.conectabyte.knowly.chat.exception.ChatAccessDeniedException;
+import br.com.conectabyte.knowly.chat.exception.ChatConversationNotFoundException;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.GlobalPermissionService;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
@@ -143,5 +146,33 @@ class ChatConversationServiceTest {
         ChatConversation result = service.requireReadableConversation(memberAdmin, 100L);
 
         assertThat(result.getId()).isEqualTo(100L);
+    }
+
+    // --- logical-delete-everywhere (2026-08-04): a soft-deleted user's id must not be addable ---
+
+    @Test
+    void createDirectConversationFailsWhenTargetIsSoftDeleted() {
+        User actor = user(1L);
+        when(userRepository.findByIdAndDeletedAtIsNull(2L)).thenReturn(Optional.empty());
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.DIRECT, null, null, java.util.List.of(2L));
+
+        assertThatThrownBy(() -> service.createConversation(actor, request))
+                .isInstanceOf(ChatConversationNotFoundException.class);
+    }
+
+    @Test
+    void createGroupConversationFailsWhenAParticipantIsSoftDeleted() {
+        User actor = user(1L);
+        when(userRepository.findByIdAndDeletedAtIsNull(2L)).thenReturn(Optional.empty());
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP, 10L, "g", java.util.List.of(2L));
+
+        assertThatThrownBy(() -> service.createConversation(actor, request))
+                .isInstanceOf(ChatConversationNotFoundException.class);
     }
 }

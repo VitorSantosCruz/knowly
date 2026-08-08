@@ -22,6 +22,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByGlobalRoleInAndDeletedAtIsNull(List<GlobalRole> globalRoles);
 
+    /**
+     * Used by chat participant resolution (createConversation) so a soft-deleted user's id can no
+     * longer be added to a brand-new conversation -- logical-delete-everywhere (2026-08-04).
+     */
+    Optional<User> findByIdAndDeletedAtIsNull(Long id);
+
+    /**
+     * Used by {@link br.com.conectabyte.knowly.chat.ChatEligibilityService#listCandidates} so a
+     * soft-deleted user never appears as an eligible chat participant candidate --
+     * logical-delete-everywhere (2026-08-04).
+     */
+    List<User> findAllByDeletedAtIsNull();
+
     List<User> findByGlobalRoleInAndEmailContainingIgnoreCaseAndDeletedAtIsNull(
             List<GlobalRole> globalRoles, String email);
 
