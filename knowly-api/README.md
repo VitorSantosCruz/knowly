@@ -62,6 +62,27 @@ any feature, read
 Integration tests use [Testcontainers](https://testcontainers.com/) and
 require Docker to be available.
 
+All 100+ integration test classes import a single shared
+`TestcontainersConfiguration`, which starts one Postgres/RabbitMQ/Redis/LGTM
+stack per JVM (via `static` fields), so container startup only happens once
+even though Spring may create several distinct test `ApplicationContext`s
+across the suite (different `@MockBean`/`@ActiveProfiles`/`@TestPropertySource`
+combinations produce different context-cache keys, but they all reuse the
+same underlying containers).
+
+For local development, you can additionally opt into **cross-run** container
+reuse (containers surviving between separate `./mvnw test` invocations, not
+just within one run) via Testcontainers' own reuse mechanism:
+
+1. Add `testcontainers.reuse.enable=true` to `~/.testcontainers.properties`
+   (this file lives outside the repo and is not committed).
+2. Export `TESTCONTAINERS_REUSE_ENABLE=true` (or pass
+   `-Dtestcontainers.reuse.enable=true` to Maven) when running tests.
+
+This is a local-only speed optimization — CI runners are ephemeral, so
+leave it disabled there (it is off by default unless both of the above are
+set).
+
 ## Code formatting
 
 The project uses [Spotless](https://github.com/diffplug/spotless) with
