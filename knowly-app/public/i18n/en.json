@@ -375,7 +375,7 @@
     "confirmBatchSave": "Save permission changes for {{email}}?"
   },
   "accessGroupManagement": {
-    "title": "Access groups",
+    "title": "Roles",
     "namePlaceholder": "New group name…",
     "empty": "No access groups yet.",
     "columns": {
@@ -387,7 +387,6 @@
     "assignable": "Assignable users"
   },
   "tenantAccessGroupManagement": {
-    "navLabel": "Team access groups",
     "grantPermission": "Grant permission",
     "deleteGroup": "Delete group",
     "confirmDeleteGroup": "Delete the access group '{{group}}'? Its member assignments and permission grants will be removed too."

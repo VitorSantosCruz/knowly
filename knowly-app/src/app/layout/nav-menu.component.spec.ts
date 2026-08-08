@@ -137,7 +137,12 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-chat"]')).toBeTruthy();
   });
 
-  it('gives the global and tenant access-group nav items distinct labels when both are visible at once', () => {
+  it('hides the staff roles nav item while a tenant is active, even with STAFF_PERMISSION_MANAGE (staff acting as a tenant member)', () => {
+    // Confirmed with the user (2026-08-08): staff roles and tenant roles must never render
+    // together -- staff roles only make sense outside any tenant context, tenant roles only
+    // inside one. A STAFF_ADMIN with an active tenant (TENANT_ACT_AS_ANY) previously saw both
+    // as two "Access groups" items with no way to tell them apart (real bug); now they share
+    // one label ("Roles") because activeTenantId() makes the two mutually exclusive.
     fixture.detectChanges();
     flush({
       memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
@@ -145,13 +150,10 @@ describe('NavMenuComponent', () => {
     });
     fixture.detectChanges();
 
-    const globalItem = fixture.nativeElement.querySelector('[data-testid="nav-access-groups"]');
-    const tenantItem = fixture.nativeElement.querySelector(
-      '[data-testid="nav-tenant-access-groups"]',
-    );
-    expect(globalItem).toBeTruthy();
-    expect(tenantItem).toBeTruthy();
-    expect(globalItem.textContent.trim()).not.toBe(tenantItem.textContent.trim());
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-access-groups"]')).toBeFalsy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-tenant-access-groups"]'),
+    ).toBeTruthy();
   });
 
   it('only shows links matching the active tenant permissions', () => {
@@ -250,6 +252,16 @@ describe('NavMenuComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="nav-tenant-access-groups"]'),
     ).toBeTruthy();
+  });
+
+  it('hides the tenant access-groups link for a staff caller holding TENANT_ACCESS_GROUP_VIEW globally when no tenant is active', () => {
+    fixture.detectChanges();
+    flush({ memberships: [], globalPermissions: ['TENANT_ACCESS_GROUP_VIEW'] });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-tenant-access-groups"]'),
+    ).toBeFalsy();
   });
 
   it('hides the tenant access-groups link for a plain MEMBER without TENANT_ACCESS_GROUP_VIEW', () => {

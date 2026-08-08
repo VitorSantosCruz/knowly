@@ -375,7 +375,7 @@
     "confirmBatchSave": "Salvar alterações de permissões para {{email}}?"
   },
   "accessGroupManagement": {
-    "title": "Grupos de acesso",
+    "title": "Papéis",
     "namePlaceholder": "Nome do novo grupo…",
     "empty": "Nenhum grupo de acesso ainda.",
     "columns": {
@@ -387,7 +387,6 @@
     "assignable": "Usuários atribuíveis"
   },
   "tenantAccessGroupManagement": {
-    "navLabel": "Grupos de acesso do time",
     "grantPermission": "Conceder permissão",
     "deleteGroup": "Excluir grupo",
     "confirmDeleteGroup": "Excluir o grupo de acesso '{{group}}'? As atribuições de membros e concessões de permissão também serão removidas."

@@ -403,13 +403,26 @@ export class NavMenuComponent implements OnInit {
       this.viewerIsStaffAdmin(),
   );
 
+  // "Roles" is one nav concept with two mutually-exclusive scopes, never shown together:
+  // staff roles (platform-wide, GlobalAccessGroup) only make sense OUTSIDE any tenant context;
+  // tenant roles (per-tenant, AccessGroup) only make sense INSIDE one. A STAFF_ADMIN who is also
+  // acting as/a member of a tenant (TENANT_ACT_AS_ANY) can be both at once, so both computed
+  // signals below gate on activeTenantId() in opposite directions -- confirmed with the user
+  // (2026-08-08) this pairing, not just a rename, is what "never appear together" requires.
+  protected readonly canSeeStaffAccessGroups = computed(
+    () =>
+      this.activeTenantService.activeTenantId() === null &&
+      this.globalPermissionsService.has('STAFF_PERMISSION_MANAGE'),
+  );
+
   // See tenant-access-group-management.guard.ts's doc comment for why this checks
   // activeTenantRole() rather than a tenant Permission -- TENANT_ACCESS_GROUP_VIEW only
   // exists as a GlobalPermission, and a real MEMBER_ADMIN never holds any GlobalPermission.
   protected readonly canSeeTenantAccessGroups = computed(
     () =>
-      this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN' ||
-      this.globalPermissionsService.has('TENANT_ACCESS_GROUP_VIEW'),
+      this.activeTenantService.activeTenantId() !== null &&
+      (this.activeTenantService.activeTenantRole() === 'MEMBER_ADMIN' ||
+        this.globalPermissionsService.has('TENANT_ACCESS_GROUP_VIEW')),
   );
 
   protected readonly overviewGroups = computed<NavMenuGroup[]>(() => {
@@ -486,7 +499,7 @@ export class NavMenuComponent implements OnInit {
     }
     // Route/guard/backend already existed (staffGuard-equivalent accessGroupManagementGuard on
     // STAFF_PERMISSION_MANAGE) — this screen was simply never reachable from anywhere in the nav.
-    if (this.globalPermissionsService.has('STAFF_PERMISSION_MANAGE')) {
+    if (this.canSeeStaffAccessGroups()) {
       teamItems.push({
         labelKey: 'accessGroupManagement.title',
         testId: 'nav-access-groups',
@@ -499,11 +512,12 @@ export class NavMenuComponent implements OnInit {
     // guard's doc comment for why TENANT_ACCESS_GROUP_VIEW only exists as a GlobalPermission.
     if (this.canSeeTenantAccessGroups()) {
       teamItems.push({
-        // Deliberately distinct from the global/staff item's 'accessGroupManagement.title'
-        // above — a staff-admin-with-an-active-tenant session sees both items in the same
-        // "Team" list at once, and they'd render as two identical "Access groups" entries
-        // with no way to tell them apart otherwise (real bug, reported by a user).
-        labelKey: 'tenantAccessGroupManagement.navLabel',
+        // Same key/text as the staff item above ('accessGroupManagement.title', "Roles") --
+        // safe because canSeeStaffAccessGroups/canSeeTenantAccessGroups are mutually exclusive
+        // on activeTenantId(), so they never render in the same list at once (see both signals'
+        // shared comment above). The page itself already reused this same key for its own H1
+        // (tenant-access-group-management-page.component.ts) before this nav change.
+        labelKey: 'accessGroupManagement.title',
         testId: 'nav-tenant-access-groups',
         icon: 'shield-check',
         routerLink: '/tenants/access-groups',
