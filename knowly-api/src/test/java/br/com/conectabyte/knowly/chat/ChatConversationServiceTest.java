@@ -297,7 +297,7 @@ class ChatConversationServiceTest {
         Tenant activeTenant = tenant(20L);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
         when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
-        when(chatEligibilityService.isEligible(actor, 20L)).thenReturn(true);
+        when(chatEligibilityService.isEligibleAsActor(actor, 20L)).thenReturn(true);
         when(tenantRepository.findById(20L)).thenReturn(Optional.of(activeTenant));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(chatConversationRepository.save(org.mockito.ArgumentMatchers.any()))
@@ -312,6 +312,56 @@ class ChatConversationServiceTest {
         var result = service.createConversation(actor, request);
 
         assertThat(result.tenantId()).isEqualTo(20L);
+    }
+
+    // --- Bug fix (2026-08-09): a STAFF_ADMIN actor with an active tenant creating a group by ---
+    // --- themselves (no extra participants) must not be rejected for lacking a real ---
+    // --- TenantMembership row of their own -- the actor is checked via isEligibleAsActor, ---
+    // --- never plain isEligible, since it's the actor's own group being created. ---
+
+    @Test
+    void staffAdminWithActiveTenantCanCreateAGroupBySelfWithNoRealTenantMembership() {
+        User actor = user(1L);
+        actor.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF_ADMIN);
+        Tenant activeTenant = tenant(20L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+        when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        // No real TenantMembership: plain isEligible would reject the actor, but
+        // isEligibleAsActor -- called for the actor specifically -- must accept them.
+        when(chatEligibilityService.isEligibleAsActor(actor, 20L)).thenReturn(true);
+        when(tenantRepository.findById(20L)).thenReturn(Optional.of(activeTenant));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(chatConversationRepository.save(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of());
+
+        var result = service.createConversation(actor, request);
+
+        assertThat(result.tenantId()).isEqualTo(20L);
+    }
+
+    @Test
+    void addingAParticipantWithNoRealTenantMembershipIsStillRejectedEvenWhenActorIsEligible() {
+        User actor = user(1L);
+        User otherParticipant = user(2L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+        when(userRepository.findByIdAndDeletedAtIsNull(2L))
+                .thenReturn(Optional.of(otherParticipant));
+        // The other participant has no real membership -- must still be rejected, unweakened
+        // (this fails before the actor's own isEligibleAsActor check is even reached).
+        when(chatEligibilityService.isEligible(otherParticipant, 20L)).thenReturn(false);
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(2L));
+
+        assertThatThrownBy(() -> service.createConversation(actor, request))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.chat.exception.ChatIneligibleParticipantException
+                                .class);
     }
 
     @Test

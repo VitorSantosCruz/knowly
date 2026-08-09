@@ -119,6 +119,45 @@ class ChatEligibilityServiceTest {
         return org.mockito.ArgumentMatchers.argThat(t -> t != null && id.equals(t.getId()));
     }
 
+    // --- Bug fix (2026-08-09): isEligibleAsActor -- a staff actor's own active-session tenant ---
+    // --- must be usable for group creation even without a real TenantMembership row there ---
+
+    @Test
+    void staffActorWithNoMembershipIsEligibleAsActorForTheirOwnActiveSessionTenant() {
+        User staff = staffUser();
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        assertThat(service.isEligibleAsActor(staff, 10L)).isTrue();
+    }
+
+    @Test
+    void staffActorIsNotEligibleAsActorForATenantOtherThanTheirOwnActiveSessionTenant() {
+        User staff = staffUser();
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        assertThat(service.isEligibleAsActor(staff, 20L)).isFalse();
+    }
+
+    @Test
+    void plainMemberActorWithNoMembershipIsNotEligibleAsActorForATenant() {
+        User member = plainMember();
+        when(tenantMembershipRepository.findByUserAndActiveTrue(member)).thenReturn(List.of());
+
+        assertThat(service.isEligibleAsActor(member, 10L)).isFalse();
+    }
+
+    @Test
+    void plainMemberActorWithARealMembershipIsEligibleAsActorForThatTenant() {
+        User member = plainMember();
+        Tenant tenant = tenant(10L);
+        when(tenantMembershipRepository.findByUserAndActiveTrue(member))
+                .thenReturn(List.of(activeMembership(member, tenant)));
+
+        assertThat(service.isEligibleAsActor(member, 10L)).isTrue();
+    }
+
     @Test
     void resolveDirectAnchorRejectsAStaffUserWithNoMembershipTargetingAMember() {
         User staff = staffUser();

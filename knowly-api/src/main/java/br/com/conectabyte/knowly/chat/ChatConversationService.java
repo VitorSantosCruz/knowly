@@ -152,7 +152,17 @@ public class ChatConversationService {
                         userRepository
                                 .findByIdAndDeletedAtIsNull(participantId)
                                 .orElseThrow(ChatConversationNotFoundException::new);
-                if (!chatEligibilityService.isEligible(participant, tenantAnchor)) {
+                // Bug fix (2026-08-09): the actor/creator (always present in participantIds, see
+                // above) is checked via isEligibleAsActor -- a staff actor acting under their own
+                // active-session tenant is eligible for it even without a real TenantMembership row
+                // (see ChatEligibilityService#isEligibleAsActor). Every other participant being
+                // added still requires a real membership via the unweakened isEligible check.
+                boolean eligible =
+                        participant.equals(actor)
+                                ? chatEligibilityService.isEligibleAsActor(
+                                        participant, tenantAnchor)
+                                : chatEligibilityService.isEligible(participant, tenantAnchor);
+                if (!eligible) {
                     throw new ChatIneligibleParticipantException();
                 }
             }

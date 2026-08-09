@@ -53,6 +53,28 @@ public class ChatEligibilityService {
         return hasActiveMembership(candidate, tenantIdAnchor);
     }
 
+    /**
+     * Like {@link #isEligible(User, Long)}, but for the authenticated actor of the *current
+     * request* rather than an arbitrary candidate/target: also accepts the tenant the actor is
+     * currently working under per their own HTTP session ({@link
+     * TenantContext#getActiveTenantId()}) when they're staff-capable, even without a real {@link
+     * TenantMembership} row there (see {@link #eligibleAnchorsForActor(User)}).
+     *
+     * <p>Bug fix (2026-08-09): {@code createConversation}'s group-participant-eligibility loop
+     * checks every participant -- including the actor/creator themselves, always added to the set
+     * -- via plain {@link #isEligible(User, Long)}. A STAFF/STAFF_ADMIN actor creating a group
+     * anchored to their own active-session tenant has no real {@code TenantMembership} row there
+     * (documented pattern, same class as {@code resolveDirectAnchor}/{@code
+     * eligibleAnchorsForActor}), so that plain check rejected the actor's own group -- the actor
+     * failed the eligibility their own group just inherited from them. Only ever call this for the
+     * actor of the current request, never for another participant being added to the group: those
+     * still require a real {@code TenantMembership} via {@link #isEligible(User, Long)},
+     * unweakened.
+     */
+    public boolean isEligibleAsActor(User actor, Long tenantIdAnchor) {
+        return eligibleAnchorsForActor(actor).contains(tenantIdAnchor);
+    }
+
     /** Every anchor (null = staff-only, or a tenant id) this user is currently eligible for. */
     public Set<Long> eligibleAnchorsFor(User user) {
         Set<Long> anchors = new HashSet<>();
