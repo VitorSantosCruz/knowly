@@ -42,6 +42,7 @@ const POLL_INTERVAL_MS = 5000;
       <app-chat-header
         [detail]="detail"
         [viewerRelation]="viewerRelation()!"
+        [currentUserId]="currentUserId()"
         (openInfo)="infoModalOpen.set(true)"
       />
 
