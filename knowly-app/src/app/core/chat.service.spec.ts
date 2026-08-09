@@ -49,6 +49,28 @@ describe('ChatService', () => {
     expect(service.conversations().some((c) => c.id === 5)).toBe(true);
   });
 
+  it('createConversation forwards an optional icon field verbatim when provided', () => {
+    service
+      .createConversation({
+        kind: 'GROUP',
+        participantUserIds: [],
+        title: 'Grupo',
+        visibility: 'PRIVATE',
+        icon: 'ROCKET',
+      })
+      .subscribe();
+
+    const req = httpMock.expectOne('/api/chat/conversations');
+    expect(req.request.body.icon).toBe('ROCKET');
+    req.flush({
+      id: 6,
+      kind: 'PEER_GROUP',
+      tenantId: null,
+      title: 'Grupo',
+      participantUserIds: [1],
+    });
+  });
+
   it('openConversation fetches detail and first message page, seeding the cache', () => {
     service.openConversation(1);
 

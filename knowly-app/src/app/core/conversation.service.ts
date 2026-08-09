@@ -1,12 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { IconKey } from './chat.model';
 
 export type MessageRole = 'USER' | 'ASSISTANT';
 
 export interface ConversationSummary {
   id: number;
   title: string | null;
+  /** Amendment (4), REQ-38/REQ-39: additive, nullable — `null` for every pre-Amendment-(4) RAG
+   * conversation (V32 backfill leaves `icon` untouched for existing rows). */
+  icon: IconKey | null;
 }
 
 export interface Message {
@@ -33,8 +37,29 @@ export class ConversationService {
     return this.http.get<ConversationSummary[]>(`/api/tenants/${tenantId}/conversations`);
   }
 
-  create(tenantId: number): Observable<ConversationSummary> {
-    return this.http.post<ConversationSummary>(`/api/tenants/${tenantId}/conversations`, {});
+  /** Amendment (4), REQ-38: `title` is now required (non-blank, backend-enforced) and `icon` is
+   * optional — every call site must route through the new naming dialog rather than calling this
+   * with no name (see `create-conversation-dialog.component.ts`). */
+  create(tenantId: number, title: string, icon?: IconKey): Observable<ConversationSummary> {
+    return this.http.post<ConversationSummary>(`/api/tenants/${tenantId}/conversations`, {
+      title,
+      icon,
+    });
+  }
+
+  /** Amendment (4), REQ-39: RAG rename. The backend returns `404` (not `403`) when the caller
+   * isn't this conversation's owning participant — deliberate, existence-hiding (see PLAN.md's
+   * "Amendment (4) reconciliation" — AppSec's status-code-agnostic error requirement). */
+  rename(
+    tenantId: number,
+    conversationId: number,
+    title: string,
+    icon?: IconKey,
+  ): Observable<ConversationSummary> {
+    return this.http.put<ConversationSummary>(
+      `/api/tenants/${tenantId}/conversations/${conversationId}`,
+      { title, icon },
+    );
   }
 
   getDetail(tenantId: number, conversationId: number): Observable<ConversationDetail> {

@@ -29,12 +29,47 @@ describe('ConversationService', () => {
     req.flush([]);
   });
 
-  it('create() posts a new conversation', () => {
-    service.create(1).subscribe();
+  it('create() posts a new conversation with title and icon', () => {
+    service.create(1, 'Base de artigos de RH', 'BOOK_OPEN').subscribe();
 
     const req = httpMock.expectOne('/api/tenants/1/conversations');
     expect(req.request.method).toBe('POST');
-    req.flush({ id: 5, title: null });
+    expect(req.request.body).toEqual({ title: 'Base de artigos de RH', icon: 'BOOK_OPEN' });
+    req.flush({ id: 5, title: 'Base de artigos de RH', icon: 'BOOK_OPEN' });
+  });
+
+  it('create() omits icon when not passed', () => {
+    service.create(1, 'Base de artigos de RH').subscribe();
+
+    const req = httpMock.expectOne('/api/tenants/1/conversations');
+    expect(req.request.body).toEqual({ title: 'Base de artigos de RH', icon: undefined });
+    req.flush({ id: 5, title: 'Base de artigos de RH', icon: null });
+  });
+
+  it('rename() PUTs the new title/icon and returns the updated summary', async () => {
+    const result = service.rename(1, 5, 'Novo nome', 'ROCKET');
+    const promise = firstValueFrom(result);
+
+    const req = httpMock.expectOne('/api/tenants/1/conversations/5');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ title: 'Novo nome', icon: 'ROCKET' });
+    req.flush({ id: 5, title: 'Novo nome', icon: 'ROCKET' });
+
+    expect(await promise).toEqual({ id: 5, title: 'Novo nome', icon: 'ROCKET' });
+  });
+
+  it("rename() surfaces a 400 (blank title/invalid icon) distinctly from a 404 (not the caller's own)", async () => {
+    const badRequest = firstValueFrom(service.rename(1, 5, '', undefined));
+    httpMock
+      .expectOne('/api/tenants/1/conversations/5')
+      .flush({ message: 'blank title' }, { status: 400, statusText: 'Bad Request' });
+    await expect(badRequest).rejects.toMatchObject({ status: 400 });
+
+    const notOwned = firstValueFrom(service.rename(1, 6, 'Nome', undefined));
+    httpMock
+      .expectOne('/api/tenants/1/conversations/6')
+      .flush({ message: 'not found' }, { status: 404, statusText: 'Not Found' });
+    await expect(notOwned).rejects.toMatchObject({ status: 404 });
   });
 
   it('getDetail() fetches a conversation with its messages', () => {

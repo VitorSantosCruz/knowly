@@ -7,6 +7,7 @@ import {
   ChatGroupVisibility,
   ChatJoinRequestDto,
   ConversationDetail,
+  IconKey,
 } from './chat.model';
 
 /**
@@ -118,6 +119,15 @@ export class ChatGroupService {
     return this.http
       .delete<void>(`/api/chat/conversations/${id}`)
       .pipe(tap(() => this.chatService.dropConversation(id)));
+  }
+
+  /** Amendment (4), REQ-40 (final): group rename. `403` (not a current group admin) and `404`
+   * (unknown/wrong-kind/deleted) both leave `_details` untouched — no signal mutation happens on
+   * error, the calling component renders its own inline error (REQ-41). */
+  rename(id: number, title: string, icon?: IconKey): Observable<ConversationDetail> {
+    return this.http
+      .put<ConversationDetail>(`/api/chat/conversations/${id}`, { title, icon })
+      .pipe(tap((detail) => this.patchDetail(id, detail)));
   }
 
   addParticipants(id: number, userIds: number[]): Observable<ChatAddParticipantsResultDto> {
