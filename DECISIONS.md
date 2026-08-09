@@ -2593,6 +2593,45 @@ A merged route inherits the *union* of gating obligations of the routes
 it replaces, distributed to the components that actually need each one
 — never the loosest one by default.
 
+## `conversations`/`chat-group-naming-and-icon`: shared `IconKey` enum in a new small cross-cutting package, not duplicated per entity (Tier 2, 2026-08-09)
+
+Both the RAG `Conversation` entity (`br.com.conectabyte.knowly.conversation`)
+and the group `ChatConversation` entity (`br.com.conectabyte.knowly.chat`)
+need an `icon` field validated against the exact same fixed,
+server-validated set of Lucide icon keys — the frontend SPEC
+(`knowly-app/specify/features/chat-unified-ui/SPEC.md` REQ-38/REQ-40)
+explicitly requires "the same fixed Lucide icon picker" for both. The two
+entities live in separate bounded contexts (`conversation` vs `chat`)
+with no existing shared base class or module between them. **Decision:**
+a single `IconKey` enum lives in a new small cross-cutting package,
+`br.com.conectabyte.knowly.icon` (mirroring the existing precedent of
+`audit`/`softdelete` as standalone cross-cutting packages, rather than
+`tenancy`, which already gets imported everywhere but is semantically
+unrelated to icons), and both `Conversation.icon`/`ChatConversation.icon`
+are `@Enumerated(EnumType.STRING)` columns typed against it — not two
+independently-maintained lists, and not folded into either entity's own
+package (which would make the other package depend on a bounded context
+it has nothing else to do with). **Why:** a duplicated enum is a
+guaranteed drift bug the first time someone adds/renames a Lucide icon on
+the frontend and only updates one backend copy — the two icon pickers
+silently diverging (one entity accepting a key the other rejects) is
+exactly the kind of two-systems-that-must-agree bug this project's
+tenant-filter/RBAC precedents already treat as unacceptable (see the
+"isolation must never be bypassed" principle applied here to "the two
+icon catalogs must never disagree"). A brand-new tiny package was chosen
+over reusing `tenancy` (already a de facto shared-kernel package,
+imported by `article`, `chat`, `conversation`, `identity`, `metrics`)
+specifically because `tenancy` importers reuse it *for tenancy concepts*
+(`Permission`, `Tenant`); an icon catalog has no conceptual relationship
+to tenancy and shoehorning it in there would make `tenancy` a junk-drawer
+import. **Applies to new decisions:** when two entities in different
+bounded contexts need to agree on the exact same fixed, closed set of
+values (not open text), put that set in its own small single-purpose
+package and have both entities depend on it as a value type — don't
+duplicate the list, and don't bolt it onto whichever existing package
+happens to be imported everywhere already unless the new concept is
+actually related to that package's own domain.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

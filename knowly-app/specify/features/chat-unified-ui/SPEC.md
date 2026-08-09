@@ -10,7 +10,24 @@
 > REQ-1 (Amended (3), final), REQ-2 (Amended (3), final) including
 > REQ-2d, REQ-33 through REQ-37 (all final), and REQ-9 (Amended (3),
 > final) — is approved for PLAN.** This document, in full, is ready for
-> `software-architect`/PLAN work.
+> `software-architect`/PLAN work. Amended (4) (below) was later appended
+> and is now also fully resolved (2026-08-09, final round) — the whole
+> document, across all amendments, has zero open Tier 3 blockers as of
+> that round.
+>
+> **Amended (4), 2026-08-09 — naming/renaming/icon, product-owner
+> reversal, same conversation as "Amended (3)."** See "Tier 3 —
+> resolved (2026-08-09, Amended (4))" below for the full context. This
+> adds REQ-38 through REQ-41 (new) and touches REQ-7/REQ-12/REQ-13
+> (noted inline, not otherwise changed). **The one item that was
+> genuinely open — whether group creation/rename should also get an
+> icon picker — is now resolved: the product owner confirmed groups get
+> the same fixed Lucide icon picker as RAG conversations, at both
+> creation and rename, same mechanism, same fixed icon set.** See "Tier
+> 3 — resolved (2026-08-09, Amended (4), final round)" below. Every part
+> of Amended (4) is now final and approved for PLAN (subject to the same
+> backend-dependency gating already noted for REQ-38/REQ-39 and now also
+> REQ-40).
 >
 > **This document amends two already-shipped, approved SPECs:**
 > - `knowly-app/specify/features/internal-team-chat/SPEC.md` (119/119
@@ -21,7 +38,10 @@
 > - `knowly-app/specify/features/conversations/SPEC.md` — specifically its
 >   REQ-1 ("at the `/conversations` route", a dedicated top-level screen,
 >   now folded under the shared navigation shell — content/behavior
->   unchanged).
+>   unchanged), and (Amended (4)) its "Out of scope" line on renaming,
+>   now reversed by the product owner — see
+>   `knowly-api/specify/features/conversations/SPEC.md`'s own amendment
+>   note for the backend side of that reversal.
 >
 > Once PLAN.md work starts, both `internal-team-chat/SPEC.md` and
 > `conversations/SPEC.md` should have their affected lines edited in
@@ -41,9 +61,12 @@
 > that authorization model — it only consumes those endpoints and
 > reflects whatever admin/non-admin capability the backend reports for
 > the current viewer. **It does not yet cover a 1:1 conversation
-> hard-delete endpoint (REQ-33), nor the equivalent for a "Base de
-> artigos" conversation (REQ-36) — both are new, not-yet-specified
-> backend dependencies, see "Out of scope" below.**
+> hard-delete endpoint (REQ-33), the equivalent for a "Base de
+> artigos" conversation (REQ-36), a "Base de artigos" create-with-
+> name/icon or rename endpoint (REQ-38/REQ-39, Amended (4)), or a group
+> icon-at-creation/rename endpoint (REQ-13/REQ-40, Amended (4)) — all
+> four are new, not-yet-specified backend dependencies, see "Out of
+> scope" below.**
 
 ## Context and motivation
 
@@ -97,6 +120,20 @@ navigation surface, not a new feature, and is folded into this same
 document rather than a new SPEC. It originally raised 4 open questions;
 all 4 are now fully resolved (2026-08-09, same day) — see the Tier 3
 sections immediately below.
+
+**Further amendment (2026-08-09), see "Amended (4)" below:** the product
+owner, asked to clarify whether renaming a "Base de artigos" conversation
+was really out of scope (a line in `conversations/SPEC.md` said it was),
+stated directly that they never made that call — it was a prior agent's
+addition, not a real decision — and that both groups and RAG
+conversations should support naming **and renaming**, with RAG
+conversations additionally requiring a name at creation and getting a
+fixed-icon picker (Lucide). This is a genuine, explicit reversal of
+scope, not a reinterpretation — see the Tier 3 section below for the
+full quote and the resulting REQ-38 through REQ-41. **A follow-up round
+the same day closes the one item that quote didn't cover: groups also
+get the same fixed Lucide icon picker, at creation and rename — see
+"Tier 3 — resolved (2026-08-09, Amended (4), final round)" below.**
 
 ## Tier 3 — resolved (product owner, 2026-08-08)
 
@@ -218,7 +255,8 @@ The last two sub-questions from item 1 above — Support's and "Base de
 artigos"'s own "clear" semantics, which the product owner's first round
 of answers explicitly did not cover — are now answered directly by the
 product owner, same day. **This closes every remaining Tier 3 item in
-this document; there are no more open blockers.**
+this document (as of Amended (3)); there are no more open blockers from
+that round.**
 
 1. **Support: cannot be cleared at all.** There is no clear/delete
    action for the Support conversation, full stop — it is a single,
@@ -239,6 +277,73 @@ this document; there are no more open blockers.**
    conversation the action was invoked on, not all of them. This also
    needs a new backend endpoint that does not exist yet, same as
    REQ-33 — see REQ-36 (final) below and "Out of scope."
+
+## Tier 3 — resolved (2026-08-09, Amended (4))
+
+**New round, same day, triggered by a direct product-owner correction of
+an assumption baked into `conversations/SPEC.md`'s "Out of scope"
+section.** The owner was asked 5 clarifying questions about RAG
+conversation naming/icon; the answers are recorded verbatim/paraphrased
+below, per-question, because one of them (#1) reverses existing
+documented scope rather than merely adding to it.
+
+1. **Naming AND renaming are both explicitly in scope, for both groups
+   and RAG conversations — this is a scope reversal, not a
+   clarification.** The owner's exact words: *"pode dar nome antes e
+   depois eu não falei que está fora de escopo, deve ter sido um agente
+   aí, tanto grupo quanto conversa com a base podem ser nomeados e
+   renomeados."* Naming at creation and renaming afterward are both in
+   scope; the owner never decided renaming was excluded — that line in
+   `conversations/SPEC.md`'s "Out of scope" section was written by a
+   prior agent, not the owner, and is now reversed (see that document's
+   own amendment note, dated the same day). **Investigation finding
+   (2026-08-09):** group renaming does **not** already exist —
+   `ChatController` has no rename/`PUT`/`PATCH` endpoint touching
+   `title`, and neither `internal-team-chat`'s nor
+   `chat-group-membership-management`'s SPEC defines one. Group naming
+   *at creation* already exists and is already required (frontend
+   `create-group-dialog.component.ts`'s `submitDisabled()` blocks
+   creation until a name is entered; REQ-13 below is unchanged on this
+   point) — only **renaming** is new for groups. See REQ-40.
+2. **Editable after creation — confirmed, full rename capability, not a
+   creation-time-only field.** Applies to both groups and RAG
+   conversations.
+3. **Naming is required at creation for RAG conversations** — the
+   create action/button is disabled until a name is entered, mirroring
+   "Criar grupo"'s existing pattern exactly. Groups already require a
+   name at creation (confirmed by investigation above; REQ-13 already
+   captures this, unchanged).
+4. **Icon = a fixed icon set, using this codebase's existing Lucide
+   icon library (`@lucide/angular`)** — not emoji, not image upload.
+   Confirmed **for RAG conversations**. At the time of this round, the
+   owner's answer did not explicitly extend this to groups — see item 5
+   below (Tier 3 — resolved (2026-08-09, Amended (4), final round)) for
+   the direct follow-up answer that closes this.
+
+## Tier 3 — resolved (2026-08-09, Amended (4), final round)
+
+**Closes the one item left open by the round above.** Asked directly
+whether group creation/rename should also get a Lucide icon picker,
+matching RAG conversations, the product owner confirmed: **yes — groups
+get the same fixed Lucide icon picker as RAG conversations, at both
+creation ("Criar grupo") and rename, same mechanism, same fixed icon
+set.** This is not a new capability invented by an agent — it is the
+owner's own direct answer to an explicitly-flagged open question, per
+`DECISIONS.md`'s Tier 3 process. **This closes every remaining open item
+in Amended (4); there is no more open blocking question in this
+document.**
+
+- REQ-13 (group creation) is amended to add the same icon field RAG
+  conversations get at creation (REQ-38) — optional at creation, same
+  fixed Lucide set, same fallback-to-default behavior.
+- REQ-40 (group rename) is rewritten to mirror REQ-38/REQ-39's icon
+  treatment exactly, dropping the earlier "title-only, icon deferred"
+  framing.
+- The backend dependency this creates (a group-icon field alongside the
+  already-needed group-rename endpoint) is the same not-yet-specified
+  backend gap already tracked for REQ-40's title-only version — see "Out
+  of scope" below and the forward-pointer note added to
+  `knowly-api/specify/features/conversations/SPEC.md`.
 
 ## User stories
 
@@ -281,6 +386,19 @@ this document; there are no more open blockers.**
   a specific "Base de artigos" conversation and its history the same
   way I can clear a 1:1, with a clean slate if I start a new one
   afterward.
+- **(Amended (4)):** As a user, I want to name a "Base de artigos"
+  conversation when I create it (required, not optional) and pick an
+  icon for it from a fixed set, so my RAG conversations are
+  distinguishable in column 1 instead of all looking identical.
+- **(Amended (4)):** As a user, I want to rename an existing "Base de
+  artigos" conversation (and change its icon) after the fact, the same
+  way I might want to rename a group.
+- **(Amended (4)):** As a group admin, I want to rename an existing
+  group after creation, not just at the moment I create it.
+- **(Amended (4), final round):** As a user creating or renaming a
+  group, I want to pick an icon from the same fixed set RAG
+  conversations use, so groups are just as distinguishable in column 1
+  as "Base de artigos" conversations are.
 
 ## Requirements (EARS/GEARS)
 
@@ -341,30 +459,40 @@ this document; there are no more open blockers.**
 > conversation cannot itself reorder the list.
 >
 > **Amended (3) 2026-08-09, same day, final — zero open questions
-> remain.** After reviewing two screenshots of the shipped 2-column cut,
-> the product owner asked for two further changes to column 1 and a
-> brand-new column 3: (a) collapse column 1's "Already talked to"/"Haven't
-> talked yet"/"Groups" into **one single unlabeled list** ("CONVERSAS"),
-> one search field, mixing people and groups together — no section
-> headers; (b) add a **third column, same width as column 1**, listing
-> every user/group the viewer has *not* already got a column-1 entry for
-> (a full directory), with its own independent search field, sorted by
-> cross-surface last-interaction recency (see REQ-2d); (c) Support, being
-> a single, singular conversation, is **pinned/locked at the top** of
-> column 1's unified list rather than living in its own section; (d) RAG
-> ("Base de artigos") conversations also live as ordinary rows in column
-> 1's unified list, not a separate section; (e) a "clear conversation"
-> action permanently deletes a 1:1 conversation and its history (REQ-33),
-> making that person reappear in column 3; the same action does not
-> exist for groups (REQ-34, same as leaving); Support has no clear
-> action at all (REQ-35, final); "Base de artigos" clears the same way
-> as a 1:1, per-conversation (REQ-36, final). This is **not** the same
-> idea as the 3-column cut superseded by "Amended (2)": that earlier 3rd
-> column was a partition of the *same* interacted/not-interacted data
-> already shown in column 1 (hence "redundant"); this new column 3 is a
-> *disjoint* set — a full directory of people/groups the viewer has
-> **no** column-1 entry for at all, ranked by a materially richer,
-> cross-surface recency signal — a different, non-redundant purpose.
+> remain (at the time).** After reviewing two screenshots of the shipped
+> 2-column cut, the product owner asked for two further changes to
+> column 1 and a brand-new column 3: (a) collapse column 1's "Already
+> talked to"/"Haven't talked yet"/"Groups" into **one single unlabeled
+> list** ("CONVERSAS"), one search field, mixing people and groups
+> together — no section headers; (b) add a **third column, same width as
+> column 1**, listing every user/group the viewer has *not* already got a
+> column-1 entry for (a full directory), with its own independent search
+> field, sorted by cross-surface last-interaction recency (see REQ-2d);
+> (c) Support, being a single, singular conversation, is
+> **pinned/locked at the top** of column 1's unified list rather than
+> living in its own section; (d) RAG ("Base de artigos") conversations
+> also live as ordinary rows in column 1's unified list, not a separate
+> section; (e) a "clear conversation" action permanently deletes a 1:1
+> conversation and its history (REQ-33), making that person reappear in
+> column 3; the same action does not exist for groups (REQ-34, same as
+> leaving); Support has no clear action at all (REQ-35, final); "Base de
+> artigos" clears the same way as a 1:1, per-conversation (REQ-36,
+> final). This is **not** the same idea as the 3-column cut superseded by
+> "Amended (2)": that earlier 3rd column was a partition of the *same*
+> interacted/not-interacted data already shown in column 1 (hence
+> "redundant"); this new column 3 is a *disjoint* set — a full directory
+> of people/groups the viewer has **no** column-1 entry for at all,
+> ranked by a materially richer, cross-surface recency signal — a
+> different, non-redundant purpose.
+>
+> **Amended (4) 2026-08-09, same day — naming/renaming/icon, does not
+> touch column layout.** This amendment adds naming-at-creation,
+> renaming, and a fixed-icon picker for RAG conversations and (final
+> round, same day) for groups too — it changes what the "Falar com a
+> base de artigos" action, "Criar grupo," and existing rows do/offer
+> (REQ-7, REQ-12/REQ-13, REQ-38 through REQ-41 below), not the 3-column
+> structure itself. REQ-1/REQ-2/REQ-2a/REQ-2c/REQ-2d are unaffected by
+> this amendment.
 
 - **REQ-1 [Ubiquitous]** The system shall provide a single top-level
   navigation entry ("Conversas") that replaces the previously separate
@@ -460,6 +588,12 @@ this document; there are no more open blockers.**
       unaffected, see above). **Approved for PLAN.** A RAG conversation
       can be cleared the same way a 1:1 can, per-conversation — see
       REQ-36 (final).
+    - **REQ-2 "Base de artigos" rows (Amended (4)):** each row shall
+      render that conversation's own `title` (no longer a generic
+      "Base de artigos" label for every row) and its `icon` if one is
+      set (falling back to a default icon otherwise) — see REQ-38
+      through REQ-41 below. This changes only what the row displays,
+      not its position/behavior within column 1.
   - **Tenant-scoping of the 2 conversation-starting actions (bug fix,
     2026-08-09)**: "Abrir chamado de suporte" and "Falar com a base de
     artigos" both only mean something with an active tenant selected
@@ -481,7 +615,7 @@ this document; there are no more open blockers.**
   `conversation-detail`, `SupportPageComponent`,
   `ConversationsPageComponent` respectively) — this SPEC changes only
   which column renders them, not their own behavior. Unaffected by
-  Amended (3).
+  Amended (3) or Amended (4) beyond REQ-38 through REQ-41's own scope.
 - **REQ-2c [State-Driven]** While the viewport is narrower than the
   layout's column breakpoint, the system shall collapse to showing one
   column at a time (directory or conversation, whichever the viewer
@@ -578,6 +712,64 @@ this document; there are no more open blockers.**
   show the existing RAG conversation view (`conversations`' existing
   REQ-1 through REQ-8) in the conversation column, unchanged in its own
   behavior.
+  - **REQ-7 (Amended (4)):** superseded for the "activates 'Falar com a
+    base de artigos'" case specifically — that action no longer starts
+    a new RAG conversation silently on click. It instead opens the
+    naming dialog described in REQ-38, and only creates/opens the new
+    conversation once the dialog is submitted with a name (mirroring
+    "Criar grupo"'s existing dialog pattern, REQ-12/REQ-13). Clicking an
+    *existing* "Base de artigos" row is unaffected — it still opens
+    that conversation directly, unchanged.
+
+### Naming, renaming, and icon for "Base de artigos" and groups (Amended (4))
+
+> **New section, 2026-08-09. Fully resolved, 2026-08-09 (same day,
+> final round) — no open questions remain.** Depends on new backend
+> endpoints that do not exist yet for RAG conversations
+> (create-with-name/icon, rename — see
+> `knowly-api/specify/features/conversations/SPEC.md`'s REQ-13 through
+> REQ-16) and for groups (creation-icon and rename-with-icon — no
+> existing backend SPEC covers either yet, see "Out of scope" below and
+> the forward-pointer note added to `conversations/SPEC.md`). REQ-38
+> through REQ-40 are all final and approved for PLAN once their
+> respective backend dependencies land — REQ-40 now mirrors REQ-38/
+> REQ-39's icon treatment exactly, no longer title-only.
+
+- **REQ-38 [Event-Driven]** When the user activates "Falar com a base de
+  artigos" (REQ-7, Amended (4)), the system shall show a dialog
+  requiring a non-blank name before the create action is enabled
+  (mirroring "Criar grupo"'s existing disabled-until-named pattern,
+  REQ-13/REQ-18) plus an icon picker over a fixed set of Lucide icons
+  (`@lucide/angular`); submitting the dialog creates the new RAG
+  conversation with that name and icon (calling the backend's
+  create endpoint with `title`/`icon`, per `conversations`' REQ-13/
+  REQ-15) and opens it as the active conversation in the conversation
+  column, identically to today's create-and-open behavior otherwise.
+- **REQ-39 [Event-Driven]** When the user activates a rename action on
+  an existing "Base de artigos" row in column 1, the system shall let
+  them submit a new non-blank name and/or a new icon (same fixed Lucide
+  set as REQ-38), call the backend's rename endpoint (per
+  `conversations`' REQ-14), and on success update that row's displayed
+  name/icon in column 1 without a full page reload. Only the
+  conversation's own owning participant may rename it, mirroring
+  REQ-36's ownership rule for clearing.
+- **REQ-40 [Event-Driven] (final)** When a group admin (per the
+  backend-reported admin capability, same authorization model as
+  REQ-28/REQ-31) activates a rename action from inside a group's own
+  view, the system shall let them submit a new non-blank group name
+  and/or a new icon (same fixed Lucide set as REQ-38/REQ-39), call a new
+  backend rename endpoint (not yet specified — see "Out of scope"), and
+  on success update the group's displayed name/icon everywhere it
+  appears (its own header, column 1's row, search results) without a
+  full page reload. Mirrors REQ-39's shape exactly, scoped to groups.
+- **REQ-41 [Unwanted Behavior]** If a create-with-name (REQ-38), RAG
+  rename (REQ-39), or group rename (REQ-40) call fails (backend
+  rejection — e.g. a blank name, an invalid icon key, the caller isn't
+  the owning participant/group admin — or a network/server error), then
+  the system shall show an inline error and leave the dialog open (for
+  REQ-38/REQ-39/REQ-40's own dialog) or the row's displayed
+  name/icon unchanged (for REQ-39/REQ-40's success-path update), never
+  optimistically applying the change before the backend confirms it.
 
 ### Clearing a conversation (Amended (3))
 
@@ -681,6 +873,18 @@ content search)
   `chat-group-membership-management` model), and immediately open it as
   the active conversation — other participants are added afterward, not
   chosen as part of this creation step.
+  - **REQ-13 (Amended (4), confirmed unchanged on naming):** name-
+    required-at-creation for groups was already the case before this
+    amendment (`create-group-dialog.component.ts`'s `submitDisabled()`)
+    — no change here.
+  - **REQ-13 (Amended (4), final round, icon added):** "Criar grupo"'s
+    dialog shall additionally offer an icon picker over the same fixed
+    Lucide set used by RAG conversations (REQ-38), optional at creation
+    (a group created without one keeps the existing default/fallback
+    presentation); submitting the dialog creates the group with that
+    icon if one was chosen, calling the same new backend group
+    creation/rename contract REQ-40 depends on. See REQ-40 for the new
+    renaming capability (title and icon), added by this amendment.
 
 ### Group visibility and discovery
 
@@ -814,7 +1018,11 @@ authorization specified separately)
   REQ-19) must be removed from the accessibility tree, not merely
   visually hidden. **(Amended (3), final):** column 1's and column 3's
   search fields each need their own accessible label, distinct from
-  each other.
+  each other. **(Amended (4)):** the naming dialog (REQ-38), rename
+  actions (REQ-39/REQ-40), and the Lucide icon picker (used for both RAG
+  conversations and, as of the final round, groups) must also be
+  keyboard-navigable and screen-reader-labeled — each icon option needs
+  an accessible name, not just a bare SVG.
 - Performance: REQ-8's search filters an already-fetched, already
   reasonably-bounded candidate list (the same eligible-participants/
   discoverable-groups data the backend already scopes down), and only
@@ -949,6 +1157,35 @@ authorization specified separately)
       prerequisite as the "Base de artigos" clear item above (TASKS.md
       task 165); not started.**
 
+**Amended (4), fully specified and approved for PLAN, not yet started
+(2026-08-09) — all items below are BLOCKED only on backend work, not on
+any remaining SPEC ambiguity:**
+
+- [ ] "Falar com a base de artigos" opens a naming dialog (name required,
+      icon optional from a fixed Lucide set) instead of silently
+      creating a conversation; submitting it creates the conversation
+      with that name/icon and opens it. **BLOCKED — needs
+      `conversations`' new create-with-title/icon backend contract
+      (REQ-13/REQ-15) — not yet implemented.**
+- [ ] An existing "Base de artigos" row can be renamed (name and/or
+      icon) via a rename action; the row's displayed name/icon updates
+      on success only. **BLOCKED — needs `conversations`' new rename
+      endpoint (REQ-14) — not yet implemented.**
+- [ ] "Criar grupo"'s dialog additionally offers an icon picker (same
+      fixed Lucide set), optional at creation; a group created without
+      one keeps the default/fallback presentation. **BLOCKED — needs a
+      new backend group-icon-at-creation contract that does not exist
+      yet — not yet specified, let alone implemented.**
+- [ ] An existing group can be renamed (title and/or icon) via a rename
+      action from inside the group's own view, by a group admin; the
+      group's displayed name/icon updates everywhere it appears on
+      success only. **BLOCKED — needs a new backend group-rename
+      endpoint (covering both title and icon) that does not exist yet —
+      not yet specified, let alone implemented.**
+- [ ] A failed create-with-name, RAG rename, group-creation-with-icon, or
+      group rename shows an inline error and leaves the dialog open /
+      row unchanged. **BLOCKED — same prerequisites as the items above.**
+
 ## Out of scope / Future work
 
 - **Full-text search over message content** (searching by a snippet of
@@ -967,12 +1204,15 @@ authorization specified separately)
 - Everything already out of scope in `internal-team-chat`'s SPEC
   (message editing/deletion, read receipts, typing indicators, file/
   image attachments, push/email/browser notifications, real-time
-  transport choice) and in `conversations`' SPEC (conversation editing/
-  deletion/renaming, citations UI, markdown rendering) — unchanged by
-  this amendment.
+  transport choice) and in `conversations`' SPEC (conversation
+  archiving, citations UI, markdown rendering — **note: "renaming" is
+  no longer out of scope for `conversations`, per that SPEC's own
+  2026-08-09 amendment; do not treat this bullet as still excluding
+  it**) — otherwise unchanged by this amendment.
 - Any change to Support's, Groups', People's, or RAG chat's own internal
   behavior or permission model — this SPEC only changes the shared
-  navigation surface they're reached from (see Tier 3 resolution #1).
+  navigation surface they're reached from (see Tier 3 resolution #1),
+  plus the naming/renaming/icon capability added by Amended (4).
 - Changing a group's visibility type after creation beyond the
   admin-only REQ-28/REQ-29 action already specified above — no further
   visibility-transition rules (e.g. cooldowns, notifying participants)
@@ -981,10 +1221,13 @@ authorization specified separately)
   request beyond "it's no longer pending" — no request history view is
   specified here.
 - Defining *who* is authorized to remove a participant, approve a join
-  request, change visibility, promote an admin, or delete a group — that
-  rule belongs entirely to `chat-group-membership-management` (backend);
-  this SPEC only reflects whatever admin/capability flag that backend
-  contract returns for the current viewer.
+  request, change visibility, promote an admin, or delete a group is
+  that rule belongs entirely to `chat-group-membership-management`
+  (backend); this SPEC only reflects whatever admin/capability flag
+  that backend contract returns for the current viewer. **(Amended
+  (4)):** who is authorized to rename a group (REQ-40) uses that same
+  backend-reported admin flag — this SPEC does not invent a separate
+  authorization rule for renaming.
 - A group's tenant anchor (member-only vs. staff-only) changing after
   creation — still fixed at creation time, per `internal-team-chat`'s
   existing constraint; independent of and orthogonal to the new
@@ -1019,4 +1262,22 @@ authorization specified separately)
   data needed to compute it exists today, and if not, whether that
   backend work belongs to this feature's PLAN or needs its own backend
   SPEC amendment.
+- **(Amended (4)) "Base de artigos" create-with-name/icon and rename
+  backend endpoints** — REQ-38/REQ-39's semantics are resolved
+  (`conversations`' REQ-13/REQ-14/REQ-15), but as of this amendment
+  those backend endpoints are specified, not yet implemented — PLAN for
+  REQ-38/REQ-39 depends on that backend work landing first.
+- **(Amended (4)) Group rename/icon backend endpoints** — REQ-13
+  (final round, group-icon-at-creation) and REQ-40's semantics (title
+  and icon rename by a group admin) are resolved for the frontend, but
+  **no backend endpoint or SPEC for either exists yet anywhere** — not
+  in `internal-team-chat`, not in `chat-group-membership-management`.
+  Implementing REQ-13's icon-at-creation and REQ-40's rename requires a
+  new backend SPEC amendment (an icon field on `ChatConversation`
+  creation, plus a rename endpoint covering `title` and `icon`, scoped
+  to a viewer the backend reports as that group's admin) before PLAN can
+  build against it — see the forward-pointer note added to
+  `knowly-api/specify/features/conversations/SPEC.md`'s "Out of scope"
+  section, which now flags this explicitly for whoever picks up
+  `chat-group-membership-management`'s next amendment.
 </content>

@@ -105,6 +105,102 @@
   even though it's more complex to test, because the UX goal is visible
   token-by-token progress on what can be a multi-second model call.
 
+### Naming, renaming, and icon (Amended 2026-08-09 — REQ-13 through REQ-16)
+
+- **Shared `IconKey` enum, new package.** `Conversation.icon` and (per
+  the companion `chat-group-naming-and-icon` PLAN)
+  `ChatConversation.icon` must accept the exact same fixed Lucide key
+  set (frontend SPEC's "same fixed Lucide icon picker" requirement) but
+  the two entities live in unrelated bounded contexts with no shared
+  base class. A single `IconKey` enum is added in a new small
+  cross-cutting package `br.com.conectabyte.knowly.icon`, mirroring the
+  existing `audit`/`softdelete` precedent for standalone cross-cutting
+  packages rather than duplicating the list per entity (duplication
+  risks the two icon pickers silently drifting apart) or bolting it
+  onto `tenancy` (already a de facto shared-kernel package, but for
+  tenancy concepts specifically, not icons). Full reasoning recorded in
+  `DECISIONS.md` ("shared `IconKey` enum in a new small cross-cutting
+  package," 2026-08-09) since this is a genuinely novel cross-package
+  decision with no exact prior precedent.
+  - `IconKey` starts with a fixed set of values mirroring the icon
+    names already available in `knowly-app`'s `@lucide/angular`
+    dependency (e.g. `MESSAGE_CIRCLE`, `BOOK_OPEN`, `SPARKLES`,
+    `USERS`, `HASH`, `FOLDER`, `STAR`, `BOT` — final catalog to be
+    confirmed against the frontend's actual icon-picker list at
+    implementation time, since the frontend is the source of truth for
+    "this codebase's existing Lucide icon library"; the backend enum
+    must be a superset-or-exact-match of whatever finite list the
+    frontend's icon picker component renders, never a backend-invented
+    list the frontend has to reverse-engineer). Documented as a
+    `TASKS.md` coordination task rather than guessed here.
+- **`Conversation.title` becomes required (REQ-13).** The column
+  already exists (nullable in the original migration); no schema change
+  needed for `title` itself, only a new `NOT NULL` constraint via
+  migration plus request-level `@NotBlank` validation. `Conversation.icon`
+  is a new nullable column (`@Enumerated(EnumType.STRING)`, typed
+  `IconKey`) — nullable because REQ-15 requires unset icon to keep a
+  default/fallback presentation, which is a **frontend display**
+  decision, not a backend-computed default value; the backend never
+  writes a synthetic default into the column.
+- **`POST .../conversations` gains a request body.** New
+  `CreateConversationRequestDto(@NotBlank String title, IconKey icon)`
+  (icon optional/nullable, validated by Bean Validation's own enum
+  deserialization — an unrecognized string fails JSON binding before
+  reaching the controller, surfaced through the existing
+  `MethodArgumentNotValidException`/`HttpMessageNotReadableException`
+  paths already wired app-wide, no new custom `@Constraint` needed for
+  the "valid enum key" part specifically). `ConversationService#create`
+  now takes `title`/`icon` and sets them on the new `Conversation`.
+- **New rename endpoint (REQ-14).** `PUT
+  /api/tenants/{tenantId}/conversations/{conversationId}` — chosen over
+  `PATCH` to match this codebase's established convention for a
+  full-replace-of-named-fields action (see `chat-group-membership-management`
+  PLAN's `PUT .../visibility` precedent, "matching this codebase's
+  existing `PUT`-for-full-replace-of-a-single-field convention
+  elsewhere"); this endpoint replaces `title` and (optionally) `icon`
+  together as one request body (`RenameConversationRequestDto(@NotBlank
+  String title, IconKey icon)`), not a partial-field `PATCH`. Requires
+  `CONVERSATION_USE` (same permission as create/send) plus ownership:
+  reuses `ConversationService#requireOwnConversation` (already used by
+  `get`) — a non-owner or another tenant's conversation id gets the
+  same 404 `ConversationNotFoundException` as `get` today (no existence
+  leak, consistent with REQ-6's established owner-scoping precedent),
+  **not** a 403 — REQ-16's "422/403 as appropriate" language is
+  satisfied by re-using the existing not-found-not-forbidden pattern
+  for the ownership case specifically (a 403 here would leak that a
+  conversation id exists and belongs to someone else, which this
+  codebase has already decided against once for `get`).
+- **[AppSec-added, 2026-08-09] `title` needs an explicit upper bound.**
+  `CreateConversationRequestDto`/`RenameConversationRequestDto` as
+  drafted only carry `@NotBlank String title` — no `@Size`. The
+  `title` column is `VARCHAR(255)`; without a matching `@Size(max =
+  255)` on both DTOs, a caller can submit an arbitrarily long string
+  that fails at the DB layer with an unhandled data-truncation error
+  (a generic 500, not this endpoint's documented 400 contract) instead
+  of being rejected cleanly by Bean Validation before ever reaching
+  the repository. Add `@Size(max = 255)` to `title` on both DTOs (goes
+  through the same existing `MethodArgumentNotValidException`/400 path
+  already relied on for `@NotBlank`, no new validation mechanism).
+  Non-blocking for the rest of this PLAN — this codebase has the same
+  gap on other free-text title fields (e.g. `UpdateArticleRequestDto`)
+  predating this feature, so it's flagged here as a fix scoped to the
+  two DTOs this PLAN is actively introducing, not a mandate to sweep
+  every existing endpoint in the same PR.
+- **Validation-failure status code: 400, not 422 (Tier 2 deviation from
+  the SPEC's literal wording).** REQ-16 says "422/403 as appropriate,"
+  but this codebase has exactly one `MethodArgumentNotValidException`
+  handler app-wide (`CreationValidationAuditAdvice`) and it always
+  returns `400 BAD_REQUEST` — introducing a one-off 422 here would mean
+  either a second, inconsistent validation-error status code in the
+  same API, or duplicating/forking the existing global handler for one
+  endpoint. Blank `title` and an invalid `icon` key both go through
+  standard Bean Validation and get the existing uniform 400 treatment;
+  only the ownership case (REQ-16's "does not own the target
+  conversation") is a distinct, non-Bean-Validation rejection, and that
+  one is 404 per the point above, not 403. This keeps the whole app's
+  validation-error contract uniform rather than introducing REQ-16's
+  422 as a special case nothing else in the codebase uses.
+
 ## Data schema
 
 `V9__add_embedding_status_to_articles.sql`:
@@ -147,6 +243,34 @@ same pattern as every other `_aud` table. `messages` is intentionally
 path, so a history-of-history table would only duplicate `messages`
 itself with zero additional information.
 
+`V32__add_title_required_and_icon_to_conversations.sql` (Amended
+2026-08-09 — REQ-13 through REQ-16; exact version number to be confirmed
+against whatever the latest migration is at implementation time, since
+`chat-group-naming-and-icon`'s own migration may land first or after
+this one):
+
+```sql
+-- Backfill existing NULL titles before the NOT NULL constraint can be
+-- added (pre-amendment rows never had a title set).
+UPDATE conversations SET title = 'Conversa sem título' WHERE title IS NULL;
+ALTER TABLE conversations
+  ALTER COLUMN title SET NOT NULL,
+  ADD COLUMN icon VARCHAR(50);
+
+ALTER TABLE conversations_aud ADD COLUMN icon VARCHAR(50);
+```
+
+- `icon` stays nullable at the schema level even though `IconKey` is a
+  fixed enum — see the "keeps its existing default/fallback
+  presentation" reasoning above; enforcing NOT NULL here would force a
+  backend-chosen default icon rather than leaving that to the frontend.
+- The backfill string is a placeholder for pre-existing rows only (this
+  feature's own creation flow always supplies a real title going
+  forward); exact backfill copy to confirm with `po-product-owner`/
+  `frontend-engineer` at implementation time if any pre-amendment
+  conversations exist in a real environment (in a fresh/test database
+  this is a no-op).
+
 The `vector_store` table itself is created by
 `spring-ai-starter-vector-store-pgvector`'s own schema initializer
 (`spring.ai.vectorstore.pgvector.initialize-schema=true`), not a
@@ -158,16 +282,16 @@ Spring AI's managed table, not project schema.
 All under `/api/tenants/{tenantId}/conversations`, behind
 `@RequiresPermission(CONVERSATION_USE)` + `@AuditLog`:
 
-- `POST /api/tenants/{tenantId}/conversations` → `201 { id, title: null
-  }`.
-- `GET /api/tenants/{tenantId}/conversations` → the caller's own
-  conversations, most recent first.
-- `GET /api/tenants/{tenantId}/conversations/{id}` → detail + ordered
-  messages; `404` if not the caller's own (no existence leak).
-- `POST /api/tenants/{tenantId}/conversations/{id}/messages` (`{ content
-  }`) → `text/event-stream`, one `message` event per content delta, a
-  final `done` event, or an `error` event on failure (REQ-11); `404` if
-  not the caller's own conversation.
+| Method | Path | Request | Response | Status |
+|---|---|---|---|---|
+| `POST` | `/api/tenants/{tenantId}/conversations` | `{ title: string (required, non-blank), icon?: IconKey }` | `ConversationSummaryDto { id, title, icon }` | `201`; `400` blank title/invalid icon; `403` missing `CONVERSATION_USE` |
+| `GET` | `/api/tenants/{tenantId}/conversations` | — | `ConversationSummaryDto[]`, most recent first | `200` |
+| `GET` | `/api/tenants/{tenantId}/conversations/{id}` | — | `ConversationDetailDto` (detail + ordered messages) | `200`; `404` if not the caller's own (no existence leak) |
+| `PUT` | `/api/tenants/{tenantId}/conversations/{id}` | `{ title: string (required, non-blank), icon?: IconKey }` | `ConversationSummaryDto { id, title, icon }` | `200`; `400` blank title/invalid icon; `404` if not the caller's own (REQ-16's ownership case — see PLAN note above on why 404 not 403) |
+| `POST` | `/api/tenants/{tenantId}/conversations/{id}/messages` | `{ content: string }` | `text/event-stream`, one `message` event per delta + final `done`, or `error` (REQ-11) | `200` (stream); `404` if not the caller's own conversation |
+
+(Amended 2026-08-09) `ConversationSummaryDto` gains `icon` alongside its
+existing `id`/`title` fields.
 
 ## Dependencies
 
@@ -189,6 +313,13 @@ All under `/api/tenants/{tenantId}/conversations`, behind
   add the `VectorStore#delete` call to `ArticleService#delete`.
 - `br.com.conectabyte.knowly.tenancy.Permission`: add
   `CONVERSATION_USE`.
+- `br.com.conectabyte.knowly.icon` (Amended 2026-08-09, new package,
+  shared with `chat-group-naming-and-icon`): `IconKey` enum.
+- `br.com.conectabyte.knowly.conversation` (Amended 2026-08-09): add
+  `CreateConversationRequestDto`, `RenameConversationRequestDto`; extend
+  `Conversation` with `icon`; extend `ConversationSummaryDto` with
+  `icon`; extend `ConversationController`/`ConversationService` with the
+  rename endpoint.
 
 ## Testing strategy
 
@@ -214,6 +345,17 @@ All under `/api/tenants/{tenantId}/conversations`, behind
 - No test exercises a real OpenAI call in CI — every `ChatModel`/
   `EmbeddingModel` interaction in tests is mocked, consistent with the
   constitution's dummy-API-key note for `application-test.yaml`.
+
+- (Amended 2026-08-09) `ConversationControllerIntegrationTest` additions:
+  `POST` without `title`/with a blank `title` returns `400`; `POST` with
+  an invalid `icon` string returns `400`; `POST` with valid `title`/
+  `icon` persists both and echoes them in the `201` body; `PUT`
+  (rename) by the owning user updates `title`/`icon` and leaves messages
+  untouched; `PUT` by a non-owner or on another tenant's conversation id
+  returns `404` (not `403`); `PUT` with a blank `title` or invalid
+  `icon` returns `400` with no partial update applied (assert the
+  conversation's prior `title`/`icon` unchanged after the failed
+  request).
 
 ## Emergent decisions
 
