@@ -354,6 +354,53 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     ).toBeNull();
   });
 
+  it("renders an article row's own icon (Amendment (4)) instead of the generic fallback when set", () => {
+    fixture.detectChanges();
+    flushInit({
+      activeTenantId: 1,
+      articles: [{ id: 7, title: 'Minha conversa', icon: 'BOOK_OPEN' }],
+    });
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]');
+    expect(row.querySelector('[data-testid="avatar-icon"]')).toBeTruthy();
+    expect(row.querySelector('[data-testid="chat-icon-BOOK_OPEN"]')).toBeTruthy();
+    expect(row.querySelector('[data-testid="avatar-fallback"]')).toBeNull();
+  });
+
+  it("renders a group row's own icon (Amendment (4)) instead of the generic fallback when set", () => {
+    fixture.detectChanges();
+    flushInit({
+      conversations: [
+        {
+          id: 6,
+          kind: 'PEER_GROUP',
+          tenantId: null,
+          title: 'Grupo',
+          participantUserIds: [1, 2],
+          icon: 'ROCKET',
+        },
+      ],
+    });
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('[data-testid="chat-directory-row-group:6"]');
+    expect(row.querySelector('[data-testid="chat-icon-ROCKET"]')).toBeTruthy();
+  });
+
+  it('a row with no icon set renders the existing default/fallback icon, not a broken/blank one', () => {
+    fixture.detectChanges();
+    flushInit({
+      activeTenantId: 1,
+      articles: [{ id: 7, title: 'Minha conversa', icon: null }],
+    });
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]');
+    expect(row.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
+    expect(row.querySelector('[data-testid="avatar-icon"]')).toBeNull();
+  });
+
   it('renders a fallback label instead of a blank row for "Base de artigos" conversations with no title yet', () => {
     fixture.detectChanges();
     flushInit({

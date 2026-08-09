@@ -106,7 +106,7 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
                   [class.dark:bg-signal-900]="groupRow(row).id === activePeerId()"
                 >
                   <span class="flex items-center gap-2">
-                    <app-avatar kind="group" />
+                    <app-avatar kind="group" [icon]="groupRow(row).icon ?? null" />
                     {{ groupRow(row).displayName }}
                   </span>
                   @if (groupRow(row).visibility) {
@@ -134,10 +134,11 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
                   "
                   (click)="rowsService.onArticleClick(articleRow(row))"
                   [attr.aria-current]="articleRow(row).id === activeArticleId() ? 'page' : null"
-                  class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
+                  class="flex w-full items-center gap-2 rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
                   [class.bg-signal-50]="articleRow(row).id === activeArticleId()"
                   [class.dark:bg-signal-900]="articleRow(row).id === activeArticleId()"
                 >
+                  <app-avatar kind="group" [icon]="articleRow(row).icon" />
                   {{
                     articleRow(row).displayName ||
                       ('chat.directory.untitledArticleConversation' | transloco)

@@ -3,9 +3,9 @@ import { Router } from '@angular/router';
 import { ActiveTenantService } from './active-tenant.service';
 import { ChatDirectoryService } from './chat-directory.service';
 import { ChatGroupService } from './chat-group.service';
-import { ChatGroupVisibility } from './chat.model';
+import { ChatGroupVisibility, IconKey } from './chat.model';
 import { ChatService } from './chat.service';
-import { ConversationService } from './conversation.service';
+import { ConversationService, ConversationSummary } from './conversation.service';
 import { ProfileService } from './profile.service';
 
 export interface PersonRow {
@@ -35,6 +35,9 @@ export interface GroupRow {
   displayName: string;
   visibility: ChatGroupVisibility | undefined;
   isMember: boolean;
+  /** Amendment (4), REQ-40/REQ-13 (final round): `null`/`undefined` (no detail fetched yet) both
+   * render the existing default/fallback icon — see `ChatIconComponent`'s own doc comment. */
+  icon: IconKey | null | undefined;
 }
 
 /** REQ-2's Support row(s) — a single, always-present entry; opening it defers entirely to
@@ -51,6 +54,8 @@ export interface ArticleRow {
   key: string;
   id: number;
   displayName: string;
+  /** Amendment (4), REQ-38/REQ-39: `null` for every pre-Amendment-(4) row (V32 backfill). */
+  icon: IconKey | null;
 }
 
 export type DirectoryRow = PersonRow | GroupRow | SupportRow | ArticleRow;
@@ -87,7 +92,7 @@ export class ChatDirectoryRowsService {
 
   readonly rowErrors = signal<Set<string>>(new Set());
   readonly pendingGroupIds = signal<Set<number>>(new Set());
-  private readonly articleConversations = signal<{ id: number; title: string | null }[]>([]);
+  private readonly articleConversations = signal<ConversationSummary[]>([]);
   private readonly currentUserId = signal<number | null>(null);
   private loaded = false;
   private articlesFetchedForTenant: number | null = null;
@@ -152,6 +157,7 @@ export class ChatDirectoryRowsService {
       displayName: c.title ?? '',
       visibility: this.chatService.details().get(c.id)?.visibility,
       isMember: true,
+      icon: this.chatService.details().get(c.id)?.icon ?? c.icon,
     }));
 
     // REQ-19/28: the backend never returns a PRIVATE or already-joined group here — no
@@ -165,6 +171,7 @@ export class ChatDirectoryRowsService {
         displayName: g.title,
         visibility: g.visibility,
         isMember: false,
+        icon: undefined,
       }));
 
     return [...people, ...ownGroups, ...discoverableGroups];
@@ -232,6 +239,7 @@ export class ChatDirectoryRowsService {
         key: `article:${c.id}`,
         id: c.id,
         displayName: c.title ?? '',
+        icon: c.icon,
       }))
       .sort((a, b) => b.id - a.id),
   );
