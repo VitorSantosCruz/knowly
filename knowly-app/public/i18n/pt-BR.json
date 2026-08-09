@@ -669,7 +669,8 @@
       "actionError": "Esta ação falhou. Tente novamente.",
       "supportRowAriaLabel": "Abrir Suporte",
       "supportRowLabel": "Suporte",
-      "articleRowAriaLabel": "Abrir conversa da base de artigos {{title}}"
+      "articleRowAriaLabel": "Abrir conversa da base de artigos {{title}}",
+      "untitledArticleConversation": "Nova conversa"
     },
     "createGroup": {
       "title": "Criar grupo",

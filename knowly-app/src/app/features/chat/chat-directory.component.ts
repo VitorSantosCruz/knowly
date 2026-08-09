@@ -243,7 +243,13 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
               type="button"
               [attr.data-testid]="'chat-directory-row-' + row.key"
               [attr.aria-label]="
-                'chat.directory.articleRowAriaLabel' | transloco: { title: row.displayName }
+                'chat.directory.articleRowAriaLabel'
+                  | transloco
+                    : {
+                        title:
+                          row.displayName ||
+                          ('chat.directory.untitledArticleConversation' | transloco),
+                      }
               "
               (click)="rowsService.onArticleClick(row)"
               [attr.aria-current]="row.id === activeArticleId() ? 'page' : null"
@@ -251,7 +257,7 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
               [class.bg-signal-50]="row.id === activeArticleId()"
               [class.dark:bg-signal-900]="row.id === activeArticleId()"
             >
-              {{ row.displayName }}
+              {{ row.displayName || ('chat.directory.untitledArticleConversation' | transloco) }}
             </button>
           </li>
         }

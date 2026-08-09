@@ -436,6 +436,29 @@ describe('ChatDirectoryComponent', () => {
     ).toBeTruthy();
   });
 
+  it('renders a fallback label instead of a blank row for "Base de artigos" conversations with no title yet (bug fix: ghost empty rows under Support)', () => {
+    fixture.detectChanges();
+    flushInit({
+      activeTenantId: 1,
+      articles: [
+        { id: 7, title: null },
+        { id: 8, title: '' },
+      ],
+    });
+    fixture.detectChanges();
+
+    const row7 = fixture.nativeElement.querySelector(
+      '[data-testid="chat-directory-row-article:7"]',
+    );
+    const row8 = fixture.nativeElement.querySelector(
+      '[data-testid="chat-directory-row-article:8"]',
+    );
+    expect(row7).toBeTruthy();
+    expect(row8).toBeTruthy();
+    expect(row7.textContent.trim()).not.toBe('');
+    expect(row8.textContent.trim()).not.toBe('');
+  });
+
   it('shows the tenant\'s own "haven\'t talked yet" candidates once the active tenant resolves, not the staff-only ones from before resolution (bug fix: staff-inside-a-tenant seeing staff-scope data)', () => {
     fixture.detectChanges();
     flushInit({

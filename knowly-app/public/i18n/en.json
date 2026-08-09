@@ -669,7 +669,8 @@
       "actionError": "This action failed. Please try again.",
       "supportRowAriaLabel": "Open Support",
       "supportRowLabel": "Support",
-      "articleRowAriaLabel": "Open knowledge base conversation {{title}}"
+      "articleRowAriaLabel": "Open knowledge base conversation {{title}}",
+      "untitledArticleConversation": "New conversation"
     },
     "createGroup": {
       "title": "Create group",
