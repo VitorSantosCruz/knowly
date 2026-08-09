@@ -91,7 +91,7 @@ class ChatGroupMembershipControllerIntegrationTest {
     @Test
     void fullGroupLifecycleAcrossTheNewEndpoints() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Group Lifecycle Co"));
-        User creator = member("group-creator@example.com", tenant);
+        member("group-creator@example.com", tenant);
         User invitee = member("group-invitee@example.com", tenant);
 
         Cookie session = logIn("group-creator@example.com");
@@ -169,5 +169,34 @@ class ChatGroupMembershipControllerIntegrationTest {
                         .header("X-XSRF-TOKEN", inviteeCsrf.getValue())
                         .exchange();
         assertThat(deleteResponse).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    /**
+     * chat-unified-ui REQ-12/13: a GROUP is created with just the creator, who joins as admin, and
+     * participants are added later via the dedicated endpoint -- an empty {@code
+     * participantUserIds} must not be rejected the way it correctly is for {@code kind=DIRECT}.
+     */
+    @Test
+    void createsGroupConversationWithOnlyTheCreatorWhenNoParticipantsAreGiven() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Solo Group Co"));
+        member("solo-creator@example.com", tenant);
+
+        Cookie session = logIn("solo-creator@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"solo\",\"participantUserIds\":[]}")
+                        .exchange();
+
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
     }
 }
