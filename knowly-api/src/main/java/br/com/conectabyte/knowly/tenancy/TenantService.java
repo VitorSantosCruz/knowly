@@ -26,6 +26,7 @@ import br.com.conectabyte.knowly.tenancy.dto.MemberDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.TenantSummaryDto;
 import br.com.conectabyte.knowly.tenancy.exception.AccessGroupNotFoundException;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidAccessGroupBatchException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidTaxIdException;
@@ -40,8 +41,10 @@ import br.com.conectabyte.knowly.tenancy.validation.TaxIdNormalizer;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -678,10 +681,43 @@ public class TenantService {
                         .orElseThrow(TenantAccessDeniedException::new);
         accessGroupPermissionRepository
                 .findByAccessGroupAndPermission(accessGroup, permission)
+                .map(
+                        existing -> {
+                            existing.setDeletedAt(null);
+                            return accessGroupPermissionRepository.save(existing);
+                        })
                 .orElseGet(
                         () ->
                                 accessGroupPermissionRepository.save(
                                         new AccessGroupPermission(accessGroup, permission)));
+    }
+
+    /**
+     * role-permission-revoke REQ-1/REQ-3/REQ-5/REQ-7/REQ-8: revoke a permission from an access
+     * group, symmetric with {@link #grantAccessGroupPermission}. Reuses that method's exact
+     * role-lookup/authorization so an unknown/deleted role rejects the same way (403, existence-
+     * hiding). A permission with no active grant (never granted, or already revoked) rejects with
+     * {@link AccessGroupPermissionNotGrantedException} (400) rather than silently no-op-ing.
+     */
+    @Transactional
+    @AuditLog(
+            action = "tenant.access_group.revoke_permission",
+            resourceType = "AccessGroupPermission")
+    public void revokeAccessGroupPermission(
+            User actor, Long tenantId, Long accessGroupId, Permission permission) {
+        requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_EDIT);
+
+        AccessGroup accessGroup =
+                accessGroupRepository
+                        .findByIdAndDeletedAtIsNull(accessGroupId)
+                        .orElseThrow(TenantAccessDeniedException::new);
+        AccessGroupPermission grant =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(accessGroup, permission)
+                        .filter(p -> p.getDeletedAt() == null)
+                        .orElseThrow(AccessGroupPermissionNotGrantedException::new);
+        grant.setDeletedAt(java.time.Instant.now());
+        accessGroupPermissionRepository.save(grant);
     }
 
     /** REQ-14: assign a membership to an access group, taking effect immediately. */
@@ -721,7 +757,11 @@ public class TenantService {
                 .toList();
     }
 
-    /** REQ-13: list a tenant's access groups — admin (own tenant) or staff only. */
+    /**
+     * REQ-13: list a tenant's access groups — admin (own tenant) or staff only. role-permission-
+     * revoke REQ-11: each returned DTO includes the role's currently-granted permissions, fetched
+     * with a single bulk query (grouped by role id in memory) rather than one query per role.
+     */
     @Transactional(readOnly = true)
     public List<AccessGroupDto> listAccessGroups(User actor, Long tenantId) {
         requireAdminOfTenantOrStaff(actor, tenantId, GlobalPermission.TENANT_ACCESS_GROUP_VIEW);
@@ -729,8 +769,25 @@ public class TenantService {
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(TenantAccessDeniedException::new);
 
-        return accessGroupRepository.findByTenantAndDeletedAtIsNull(tenant).stream()
-                .map(AccessGroupDto::from)
+        List<AccessGroup> groups = accessGroupRepository.findByTenantAndDeletedAtIsNull(tenant);
+        Map<Long, List<Permission>> permissionsByGroupId =
+                accessGroupPermissionRepository
+                        .findByAccessGroupInAndDeletedAtIsNull(groups)
+                        .stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        p -> p.getAccessGroup().getId(),
+                                        Collectors.mapping(
+                                                AccessGroupPermission::getPermission,
+                                                Collectors.toList())));
+
+        return groups.stream()
+                .map(
+                        group ->
+                                AccessGroupDto.from(
+                                        group,
+                                        permissionsByGroupId.getOrDefault(
+                                                group.getId(), List.of())))
                 .toList();
     }
 

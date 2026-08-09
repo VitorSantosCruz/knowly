@@ -35,7 +35,9 @@ public class GlobalPermissionService {
                         .map(UserGlobalAccessGroup::getGlobalAccessGroup)
                         .collect(Collectors.toList());
 
-        globalAccessGroupPermissionRepository.findByGlobalAccessGroupIn(groups).stream()
+        globalAccessGroupPermissionRepository
+                .findByGlobalAccessGroupInAndDeletedAtIsNull(groups)
+                .stream()
                 .map(GlobalAccessGroupPermission::getPermission)
                 .forEach(permissions::add);
 

@@ -26,6 +26,7 @@ import br.com.conectabyte.knowly.tenancy.dto.GlobalAccessGroupDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserDetailDto;
 import br.com.conectabyte.knowly.tenancy.dto.StaffUserSummaryDto;
+import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrantedException;
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.LastAdminRemainingException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
@@ -33,7 +34,9 @@ import br.com.conectabyte.knowly.tenancy.exception.StaffUserAlreadyExistsExcepti
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -258,11 +261,33 @@ public class StaffService {
         return users.stream().map(StaffUserSummaryDto::from).toList();
     }
 
+    /**
+     * role-permission-revoke REQ-11: each returned DTO includes the role's currently-granted
+     * permissions, fetched with a single bulk query (grouped by role id in memory) rather than one
+     * query per role -- staff-scope mirror of {@link TenantService#listAccessGroups}.
+     */
     @Transactional(readOnly = true)
     @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
     public List<GlobalAccessGroupDto> listAccessGroups() {
-        return globalAccessGroupRepository.findAll().stream()
-                .map(GlobalAccessGroupDto::from)
+        List<GlobalAccessGroup> groups = globalAccessGroupRepository.findAll();
+        Map<Long, List<GlobalPermission>> permissionsByGroupId =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupInAndDeletedAtIsNull(groups)
+                        .stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        p -> p.getGlobalAccessGroup().getId(),
+                                        Collectors.mapping(
+                                                GlobalAccessGroupPermission::getPermission,
+                                                Collectors.toList())));
+
+        return groups.stream()
+                .map(
+                        group ->
+                                GlobalAccessGroupDto.from(
+                                        group,
+                                        permissionsByGroupId.getOrDefault(
+                                                group.getId(), List.of())))
                 .toList();
     }
 
@@ -283,10 +308,38 @@ public class StaffService {
 
         globalAccessGroupPermissionRepository
                 .findByGlobalAccessGroupAndPermission(accessGroup, permission)
+                .map(
+                        existing -> {
+                            existing.setDeletedAt(null);
+                            return globalAccessGroupPermissionRepository.save(existing);
+                        })
                 .orElseGet(
                         () ->
                                 globalAccessGroupPermissionRepository.save(
                                         new GlobalAccessGroupPermission(accessGroup, permission)));
+    }
+
+    /**
+     * role-permission-revoke REQ-2/REQ-4/REQ-6/REQ-8: staff-scope mirror of {@link
+     * TenantService#revokeAccessGroupPermission} -- unknown role rejects via {@link
+     * #requireAccessGroup(Long)}'s existing {@code TenantAccessDeniedException}; a permission with
+     * no active grant rejects with {@link AccessGroupPermissionNotGrantedException}.
+     */
+    @Transactional
+    @RequiresGlobalPermission(GlobalPermission.STAFF_PERMISSION_MANAGE)
+    @AuditLog(
+            action = "staff.access_group.revoke_permission",
+            resourceType = "GlobalAccessGroupPermission")
+    public void revokeAccessGroupPermission(Long accessGroupId, GlobalPermission permission) {
+        GlobalAccessGroup accessGroup = requireAccessGroup(accessGroupId);
+
+        GlobalAccessGroupPermission grant =
+                globalAccessGroupPermissionRepository
+                        .findByGlobalAccessGroupAndPermission(accessGroup, permission)
+                        .filter(p -> p.getDeletedAt() == null)
+                        .orElseThrow(AccessGroupPermissionNotGrantedException::new);
+        grant.setDeletedAt(java.time.Instant.now());
+        globalAccessGroupPermissionRepository.save(grant);
     }
 
     @Transactional

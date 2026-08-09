@@ -10,6 +10,20 @@ public interface GlobalAccessGroupPermissionRepository
     List<GlobalAccessGroupPermission> findByGlobalAccessGroupIn(
             List<GlobalAccessGroup> globalAccessGroups);
 
+    /**
+     * REQ-3/REQ-11: effective-permission resolution and list-endpoint fetch -- excludes revoked
+     * rows. Mirrors {@code AccessGroupPermissionRepository#findByAccessGroupInAndDeletedAtIsNull}.
+     */
+    List<GlobalAccessGroupPermission> findByGlobalAccessGroupInAndDeletedAtIsNull(
+            List<GlobalAccessGroup> globalAccessGroups);
+
+    /**
+     * Intentionally unfiltered -- this is the grant path's reactivate-or-create lookup, which must
+     * see a soft-deleted row so it can reactivate it rather than colliding with the partial unique
+     * index (mirrors {@code AccessGroupPermissionRepository#findByAccessGroupAndPermission}'s same
+     * write-path-sees-deleted-rows split, DECISIONS.md 2026-08-04). Must stay unfiltered -- do not
+     * "fix" this to exclude deleted rows, or reactivate-on-regrant breaks.
+     */
     Optional<GlobalAccessGroupPermission> findByGlobalAccessGroupAndPermission(
             GlobalAccessGroup globalAccessGroup, GlobalPermission permission);
 }

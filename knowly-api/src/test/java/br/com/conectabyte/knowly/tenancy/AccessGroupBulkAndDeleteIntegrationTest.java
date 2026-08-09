@@ -41,6 +41,7 @@ class AccessGroupBulkAndDeleteIntegrationTest {
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
     @Autowired private AccessGroupRepository accessGroupRepository;
     @Autowired private UserAccessGroupRepository userAccessGroupRepository;
+    @Autowired private AccessGroupPermissionRepository accessGroupPermissionRepository;
     @Autowired private LoginCodeService loginCodeService;
     @MockitoBean private JavaMailSender mailSender;
 
@@ -308,5 +309,179 @@ class AccessGroupBulkAndDeleteIntegrationTest {
                         .exchange();
 
         assertThat(deleteResponse).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    // role-permission-revoke REQ-1/REQ-5/REQ-7/REQ-8: DELETE
+    // .../access-groups/{id}/permissions/{permission}.
+
+    @Test
+    void revokeGrantRegrantRoundTripReusesTheSameRow() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Round Trip Co"));
+        User admin = userRepository.saveAndFlush(new User("revoke-rt-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        Cookie session = logIn("revoke-rt-admin@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        String permissionsUri =
+                "/api/tenants/"
+                        + tenant.getId()
+                        + "/access-groups/"
+                        + group.getId()
+                        + "/permissions";
+
+        var grantResponse =
+                mockMvc.post()
+                        .uri(permissionsUri)
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(grantResponse).hasStatus(HttpStatus.OK);
+        Long rowId =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(group, Permission.TENANT_MEMBER_MANAGE)
+                        .orElseThrow()
+                        .getId();
+
+        var revokeResponse =
+                mockMvc.delete()
+                        .uri(permissionsUri + "/TENANT_MEMBER_MANAGE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+        assertThat(revokeResponse).hasStatus(HttpStatus.OK);
+        assertThat(
+                        accessGroupPermissionRepository.findByAccessGroupInAndDeletedAtIsNull(
+                                java.util.List.of(group)))
+                .isEmpty();
+
+        var regrantResponse =
+                mockMvc.post()
+                        .uri(permissionsUri)
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                        .exchange();
+        assertThat(regrantResponse).hasStatus(HttpStatus.OK);
+        AccessGroupPermission regranted =
+                accessGroupPermissionRepository
+                        .findByAccessGroupAndPermission(group, Permission.TENANT_MEMBER_MANAGE)
+                        .orElseThrow();
+        assertThat(regranted.getId()).isEqualTo(rowId);
+        assertThat(regranted.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void revokeReturns403ForACallerWithoutTheEditPermission() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke 403 Co"));
+        User admin = userRepository.saveAndFlush(new User("revoke-403-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        User plainMember = userRepository.saveAndFlush(new User("revoke-403-member@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(plainMember, tenant, MembershipRole.MEMBER));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+        accessGroupPermissionRepository.saveAndFlush(
+                new AccessGroupPermission(group, Permission.TENANT_MEMBER_MANAGE));
+
+        Cookie session = logIn("revoke-403-member@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/access-groups/"
+                                        + group.getId()
+                                        + "/permissions/TENANT_MEMBER_MANAGE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void revokeReturns400WhenThePermissionWasNeverGranted() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Never Granted Co"));
+        User admin = userRepository.saveAndFlush(new User("revoke-never-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        Cookie session = logIn("revoke-never-admin@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.delete()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/access-groups/"
+                                        + group.getId()
+                                        + "/permissions/TENANT_MEMBER_MANAGE")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void revokeReturns400WhenThePermissionIsAlreadyRevoked() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Revoke Already Co"));
+        User admin = userRepository.saveAndFlush(new User("revoke-already-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(admin, tenant, MembershipRole.MEMBER_ADMIN));
+        AccessGroup group = accessGroupRepository.saveAndFlush(new AccessGroup(tenant, "Editors"));
+
+        Cookie session = logIn("revoke-already-admin@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        String uri =
+                "/api/tenants/"
+                        + tenant.getId()
+                        + "/access-groups/"
+                        + group.getId()
+                        + "/permissions/TENANT_MEMBER_MANAGE";
+
+        mockMvc.post()
+                .uri(
+                        "/api/tenants/"
+                                + tenant.getId()
+                                + "/access-groups/"
+                                + group.getId()
+                                + "/permissions")
+                .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"permission\":\"TENANT_MEMBER_MANAGE\"}")
+                .exchange();
+        mockMvc.delete()
+                .uri(uri)
+                .cookie(session)
+                .cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue())
+                .exchange();
+
+        var response =
+                mockMvc.delete()
+                        .uri(uri)
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
     }
 }

@@ -439,6 +439,17 @@ public class TenantController {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping("/{tenantId}/access-groups/{accessGroupId}/permissions/{permission}")
+    public ResponseEntity<Void> deleteAccessGroupPermission(
+            @PathVariable Long tenantId,
+            @PathVariable Long accessGroupId,
+            @PathVariable Permission permission) {
+        tenantService.revokeAccessGroupPermission(
+                currentUser(), tenantId, accessGroupId, permission);
+
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/{tenantId}/members/{membershipId}/access-groups/{accessGroupId}")
     public ResponseEntity<Void> assignAccessGroup(
             @PathVariable Long tenantId,
