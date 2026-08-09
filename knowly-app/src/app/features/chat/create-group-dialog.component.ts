@@ -13,8 +13,9 @@ import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ChatService } from '../../core/chat.service';
-import { ChatGroupVisibility } from '../../core/chat.model';
+import { ChatGroupVisibility, IconKey } from '../../core/chat.model';
 import { GroupVisibilityBadgeComponent } from './group-visibility-badge.component';
+import { IconPickerComponent } from '../../shared/chat/icon-picker.component';
 
 const VISIBILITY_OPTIONS: {
   value: ChatGroupVisibility;
@@ -46,7 +47,7 @@ const VISIBILITY_OPTIONS: {
  */
 @Component({
   selector: 'app-create-group-dialog',
-  imports: [TranslocoPipe, GroupVisibilityBadgeComponent],
+  imports: [TranslocoPipe, GroupVisibilityBadgeComponent, IconPickerComponent],
   template: `
     <dialog
       #dialog
@@ -98,6 +99,15 @@ const VISIBILITY_OPTIONS: {
         }
       </fieldset>
 
+      <div class="mb-4 flex flex-col gap-1 text-sm">
+        <span>{{ 'chat.createGroup.iconLabel' | transloco }}</span>
+        <app-icon-picker
+          [selected]="icon()"
+          [groupLabel]="'chat.createGroup.iconLabel' | transloco"
+          (iconSelected)="icon.set($event)"
+        />
+      </div>
+
       @if (error()) {
         <p
           data-testid="create-group-error"
@@ -142,6 +152,7 @@ export class CreateGroupDialogComponent {
   protected readonly visibilityOptions = VISIBILITY_OPTIONS;
   protected readonly name = signal('');
   protected readonly visibility = signal<ChatGroupVisibility | null>(null);
+  protected readonly icon = signal<IconKey | null>(null);
   protected readonly error = signal(false);
 
   protected readonly submitDisabled = computed(
@@ -173,6 +184,7 @@ export class CreateGroupDialogComponent {
       if (isOpen && !this.wasOpen) {
         this.name.set('');
         this.visibility.set(null);
+        this.icon.set(null);
         this.error.set(false);
       }
       this.wasOpen = isOpen;
@@ -195,6 +207,7 @@ export class CreateGroupDialogComponent {
     }
 
     this.error.set(false);
+    const icon = this.icon();
     this.chatService
       .createConversation({
         kind: 'GROUP',
@@ -202,6 +215,7 @@ export class CreateGroupDialogComponent {
         title: this.name().trim(),
         visibility,
         participantUserIds: [],
+        ...(icon !== null ? { icon } : {}),
       })
       .subscribe({
         next: (conversation) => this.router.navigate(['/chat', conversation.id]),

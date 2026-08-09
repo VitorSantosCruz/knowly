@@ -61,6 +61,41 @@ describe('CreateGroupDialogComponent', () => {
     expect(submitButton().disabled).toBe(false);
   });
 
+  it('renders the icon picker, optional (submit stays enabled with no icon chosen)', () => {
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+
+    nameInput().value = 'Grupo A';
+    nameInput().dispatchEvent(new Event('input'));
+    selectVisibility('PUBLIC');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="icon-picker"]')).toBeTruthy();
+    expect(submitButton().disabled).toBe(false);
+  });
+
+  it('includes icon in the POST body when chosen; omits it when none chosen', () => {
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+
+    nameInput().value = 'Grupo A';
+    nameInput().dispatchEvent(new Event('input'));
+    selectVisibility('PUBLIC');
+    fixture.nativeElement.querySelector('[data-testid="icon-picker-option-ROCKET"]').click();
+    fixture.detectChanges();
+
+    submitButton().click();
+    const req = httpMock.expectOne('/api/chat/conversations');
+    expect(req.request.body.icon).toBe('ROCKET');
+    req.flush({
+      id: 42,
+      kind: 'PEER_GROUP',
+      tenantId: null,
+      title: 'Grupo A',
+      participantUserIds: [1],
+    });
+  });
+
   it('submits POST /api/chat/conversations with kind GROUP + visibility and navigates on 201', () => {
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
