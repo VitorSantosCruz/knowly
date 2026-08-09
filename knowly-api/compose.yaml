@@ -122,7 +122,7 @@ services:
 
   redis:
     <<: *security-defaults
-    image: 'redis:8.8'
+    image: 'redis:8.10'
     user: '999:999'
     command:
       - 'redis-server'
