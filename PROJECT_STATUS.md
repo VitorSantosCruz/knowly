@@ -1127,6 +1127,80 @@ SPEC before implementation, roughly in this order:**
     UI reachable after a normal login) before any PLAN/implementation —
     do not start from this bullet alone.
 
+18. ~~Chat unified UI + group membership management~~ — **done, both sides
+    (2026-08-09)**. Amends item 14 (`internal-team-chat`) per user request
+    to restructure chat UX: search, a clickable people list instead of a
+    "Nova conversa" button, group creation with visibility, and merging
+    chat + conversations (RAG) into one navigation surface. See
+    `knowly-api/specify/features/chat-group-membership-management/` and
+    `knowly-app/specify/features/chat-unified-ui/` (SPEC/PLAN/TASKS).
+    AppSec-reviewed twice (initial PLAN review + a follow-up spot-check
+    after the frontend contract-reconciliation pass); one blocking finding
+    (join-request approval wasn't re-deriving `ChatEligibilityService` at
+    approval time, only at submission — REQ-30a) was fixed before TASKS.md.
+    Backend: 138/138 tasks, `./mvnw verify` BUILD SUCCESS. New on
+    `ChatConversation`: `visibility` (`PRIVATE`/`REQUEST_TO_JOIN`/`PUBLIC`,
+    admin-changeable post-creation), `archived_at` (distinct from
+    `deleted_at` — archival is staff-visible per REQ-44/45, deletion is
+    not); `is_admin` added to `chat_participants` (not a separate table —
+    keeps "admin implies participant" structural); new `chat_join_requests`
+    table; `Permission.CHAT_GROUP_DELETE`; `deleted_at`/`SoftDeleteFilter`
+    (from the earlier `soft-delete-default-filter` feature) extended to
+    `ChatConversation`/`ChatParticipant`/`ChatMessage` for REQ-49's
+    permanent-deletion semantics. Group admin: creator auto-admin, can
+    promote others, auto-succession (earliest `joined_at`, user-id
+    tie-break) if a group loses its only admin. Group deletion has 4
+    independent authorization paths: `STAFF_ADMIN` always, `MEMBER_ADMIN`
+    always for tenant groups only (never staff groups — scoped by
+    `conversation.getTenant() != null`), `CHAT_GROUP_DELETE` permission
+    holders (tenant groups only), or the group's own admin. "Tenant group"
+    vs. "staff group" was assumed to be a new concept mid-spec but turned
+    out to already exist via `ChatConversation.tenant` nullability from
+    `internal-team-chat` — no new schema concept needed, just new rules
+    layered on it. **Known deviation from PLAN's most literal reading**:
+    archived-vs-deleted returns a distinct 409 only inside `deleteConversation`
+    itself (where REQ-53 makes it a hard tested criterion); every other
+    group-mutating endpoint just gets a plain 404 on an already-deleted
+    group via `SoftDeleteFilter`'s default exclusion, which satisfies
+    REQ-49's "no longer reachable via any normal path" but isn't identical
+    to the PLAN's per-endpoint 409 language — worth a look if that
+    distinction ever matters in practice. Frontend: 133/133 tasks, 834/834
+    tests green (up from 405), build+lint clean. New: `ChatShellComponent`/
+    `ChatSidebarComponent` (single `/chat` route + `section` query param,
+    replacing separate `/chat`/`/support`/`/conversations` routes — old
+    paths now `redirectTo`, not removed, so bookmarks/links keep working),
+    `ChatDirectoryComponent` (combined People+Groups list with client-side
+    name search — RAG section never filtered, PRIVATE groups never
+    client-filtered either since the backend already excludes them from
+    every discovery response), `CreateGroupDialogComponent`,
+    `GroupVisibilityBadgeComponent`, `GroupAdminPanelComponent`,
+    `ChatDirectoryService`/`ChatGroupService` (new, signals-based, all
+    governance actions non-optimistic). `isAdmin`/`isParticipant` are
+    `computed()` from `adminUserIds`/`participantUserIds` already present
+    in `ChatConversationDetailDto` — client-side only for UX (show/hide),
+    every mutating action still gets independently re-validated
+    server-side (AppSec-confirmed, no client-trust path). Retired:
+    `ChatPageComponent`, `new-conversation-dialog.component.ts`,
+    `conversation-list.component.ts`, `conversation-list-item.component.ts`
+    (unused once `ChatDirectoryComponent`'s combined row model replaced it).
+    **Emergent deviations from PLAN** (documented in the PLAN's own
+    "Emergent decisions" section): `create-group-dialog.component.ts` uses
+    a signal + `(input)` binding instead of `[(ngModel)]`/`FormsModule` —
+    plain `ngModel` binding didn't propagate into a `computed()` dependency
+    under this app's zoneless setup, worth remembering as a general trap in
+    this codebase; `GroupAdminPanelComponent`'s remove/delete confirmations
+    use a lightweight inline two-click confirm instead of the existing
+    `ConfirmDialogComponent`, since that component requires a
+    backend-issued typed confirmation word with no equivalent endpoint in
+    this feature's contract; `chat-sidebar.component.ts` has no search
+    field by design — search state stays in `ChatDirectoryComponent` per
+    the PLAN, avoiding prop-drilling. **Deferred, not built**: full-text
+    search over message *content* (see item 16) and remove-participant vs.
+    self-leave both exist, but there is no message-search bar anywhere in
+    this UI. **End-to-end Playwright verification of the running app is
+    still pending as of this entry** — only unit/component tests and
+    backend integration tests have run so far.
+
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
 
