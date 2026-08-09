@@ -11,6 +11,7 @@ import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
 import br.com.conectabyte.knowly.tenancy.Tenant;
+import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantMembership;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import java.util.List;
@@ -27,6 +28,7 @@ class ChatEligibilityServiceTest {
     @Mock private TenantMembershipRepository tenantMembershipRepository;
     @Mock private UserRepository userRepository;
     @Mock private UserProfileRepository userProfileRepository;
+    @Mock private TenantContext tenantContext;
 
     private ChatEligibilityService service;
 
@@ -34,7 +36,10 @@ class ChatEligibilityServiceTest {
     void setUp() {
         service =
                 new ChatEligibilityService(
-                        tenantMembershipRepository, userRepository, userProfileRepository);
+                        tenantMembershipRepository,
+                        userRepository,
+                        userProfileRepository,
+                        tenantContext);
     }
 
     private User staffUser() {
@@ -255,5 +260,55 @@ class ChatEligibilityServiceTest {
         member.setDeletedAt(java.time.Instant.now());
 
         assertThat(service.isEligible(member, 10L)).isFalse();
+    }
+
+    // --- tenant-isolation bug fix: a staff session's *active tenant* (server-derived from
+    // TenantContext, never a client-supplied tenantId) must anchor direct-scope eligibility ---
+
+    @Test
+    void listCandidatesForDirectScopeIncludesTenantMembersOfStaffsActiveSessionTenant() {
+        User staff = staffUser();
+        User tenantMember = plainMember();
+        User unrelatedMember = new User("unrelated-member@example.com");
+        unrelatedMember.setId(3L);
+        Tenant tenant = tenant(10L);
+        Tenant otherTenant = tenant(20L);
+
+        when(userRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(staff, tenantMember, unrelatedMember));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(tenantMember))
+                .thenReturn(List.of(activeMembership(tenantMember, tenant)));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(unrelatedMember))
+                .thenReturn(List.of(activeMembership(unrelatedMember, otherTenant)));
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        // Note: no client-supplied tenantId is passed for the "direct" scope -- the active tenant
+        // must come from the session, not a request parameter. The plain member of the staff's
+        // active tenant (10L) must be included; a member of an unrelated tenant (20L) must not.
+        var candidates = service.listCandidates(staff, "direct", null);
+
+        assertThat(candidates).extracting("userId").containsExactly(2L);
+    }
+
+    @Test
+    void aClientSuppliedTenantIdNeverExpandsDirectScopeEligibilityBeyondTheSessionsActiveTenant() {
+        User staff = staffUser();
+        User memberOfAnotherTenant = plainMember();
+        Tenant otherTenant = tenant(99L);
+
+        when(userRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(staff, memberOfAnotherTenant));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(memberOfAnotherTenant))
+                .thenReturn(List.of(activeMembership(memberOfAnotherTenant, otherTenant)));
+        // The staff's real session has no active tenant at all.
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
+
+        // A caller passing an arbitrary tenantId (99L, matching the other tenant's membership)
+        // must not be trusted as an authorization input for the "direct" scope.
+        var candidates = service.listCandidates(staff, "direct", 99L);
+
+        assertThat(candidates).isEmpty();
     }
 }

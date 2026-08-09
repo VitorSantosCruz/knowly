@@ -8,6 +8,7 @@ import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.Tenant;
+import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantMembership;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
 import java.util.HashSet;
@@ -26,14 +27,17 @@ public class ChatEligibilityService {
     private final TenantMembershipRepository tenantMembershipRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final TenantContext tenantContext;
 
     public ChatEligibilityService(
             TenantMembershipRepository tenantMembershipRepository,
             UserRepository userRepository,
-            UserProfileRepository userProfileRepository) {
+            UserProfileRepository userProfileRepository,
+            TenantContext tenantContext) {
         this.tenantMembershipRepository = tenantMembershipRepository;
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
+        this.tenantContext = tenantContext;
     }
 
     /**
@@ -65,13 +69,34 @@ public class ChatEligibilityService {
     }
 
     /**
+     * Every anchor {@code actor} is eligible for as the actor of the *current request*: real tenant
+     * memberships plus, when {@code actor} is staff-capable, the tenant the staff member is
+     * currently working under per their own HTTP session ({@link TenantContext#getActiveTenantId()}
+     * -- populated server-side by {@code TenantContextFilter} from the session, never from a
+     * client-supplied request parameter). A STAFF/STAFF_ADMIN user routinely works inside a tenant
+     * without holding a real {@link TenantMembership} row there, so without this the staff-only
+     * anchor would always shadow the tenant they're actually acting in. Only ever call this for the
+     * authenticated actor of the current request -- never for an arbitrary target/candidate user,
+     * since {@link TenantContext} reflects the current session, not theirs.
+     */
+    private Set<Long> eligibleAnchorsForActor(User actor) {
+        Set<Long> anchors = new HashSet<>(eligibleAnchorsFor(actor));
+
+        if (isStaffCapable(actor)) {
+            tenantContext.getActiveTenantId().ifPresent(anchors::add);
+        }
+
+        return anchors;
+    }
+
+    /**
      * Resolves the shared anchor for a 1:1 peer chat between {@code actor} and {@code target},
      * evaluating capacity-per-conversation exactly like group eligibility (REQ-5). Prefers a
      * concrete tenant anchor over the {@code null} (staff-only) anchor when both are shared, since
      * a 1:1 between two tenant peers should be treated as a member-only conversation.
      */
     public Long resolveDirectAnchor(User actor, User target) {
-        Set<Long> actorAnchors = eligibleAnchorsFor(actor);
+        Set<Long> actorAnchors = eligibleAnchorsForActor(actor);
         Set<Long> targetAnchors = eligibleAnchorsFor(target);
         Set<Long> shared = new HashSet<>(actorAnchors);
         shared.retainAll(targetAnchors);
@@ -87,7 +112,7 @@ public class ChatEligibilityService {
         // logical-delete-everywhere (2026-08-04): a soft-deleted user must never surface as an
         // eligible chat participant candidate.
         List<User> users = userRepository.findAllByDeletedAtIsNull();
-        Set<Long> actorAnchors = "direct".equals(scope) ? eligibleAnchorsFor(actor) : null;
+        Set<Long> actorAnchors = "direct".equals(scope) ? eligibleAnchorsForActor(actor) : null;
 
         return users.stream()
                 .filter(user -> !user.getId().equals(actor.getId()))
