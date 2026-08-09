@@ -440,6 +440,7 @@
     "confirmDeleteGroup": "Excluir o papel '{{group}}'? As atribuições de membros e concessões de permissão também serão removidas."
   },
   "conversations": {
+    "title": "Base de conhecimento",
     "new": "Nova conversa",
     "untitled": "Conversa sem título",
     "send": "Enviar"

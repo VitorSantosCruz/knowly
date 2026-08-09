@@ -43,6 +43,13 @@ describe('ChatHeaderComponent', () => {
     ).toBeNull();
   });
 
+  it('renders the avatar/icon alongside the title', () => {
+    fixture.componentRef.setInput('viewerRelation', 'PARTICIPANT');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
+  });
+
   it('renders a distinct oversight banner, non-"joined" copy, for LOOKING_IN', () => {
     fixture.componentRef.setInput('viewerRelation', 'LOOKING_IN');
     fixture.detectChanges();

@@ -1,5 +1,6 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { LucideLibrary } from '@lucide/angular';
 import { EMPTY, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
@@ -19,6 +20,7 @@ let nextLocalMessageId = -1;
     ErrorStateComponent,
     NoAccessStateComponent,
     NoActiveTenantStateComponent,
+    LucideLibrary,
   ],
   template: `
     <div data-testid="conversations-page" class="page-shell flex gap-6">
@@ -62,6 +64,20 @@ let nextLocalMessageId = -1;
         </aside>
 
         <section class="flex flex-1 flex-col">
+          <header data-testid="conversations-header" class="mb-3 flex items-center gap-2">
+            <!-- REQ: knowledge-base (RAG) conversations are represented by a knowledge-base
+                 icon, not a person's photo. -->
+            <svg
+              lucideLibrary
+              data-testid="conversations-header-icon"
+              aria-hidden="true"
+              class="h-12 w-12 shrink-0 rounded-full bg-ink-100 p-2 text-ink-500 dark:bg-ink-800 dark:text-ink-400"
+            ></svg>
+            <h1 class="font-semibold text-ink-900 dark:text-white">
+              {{ 'conversations.title' | transloco }}
+            </h1>
+          </header>
+
           <ul
             data-testid="transcript"
             class="mb-4 flex flex-1 flex-col gap-2 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"

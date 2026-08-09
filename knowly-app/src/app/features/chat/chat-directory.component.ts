@@ -195,7 +195,10 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
                   [class.bg-signal-50]="row.isMember && row.id === activePeerId()"
                   [class.dark:bg-signal-900]="row.isMember && row.id === activePeerId()"
                 >
-                  <span>{{ row.displayName }}</span>
+                  <span class="flex items-center gap-2">
+                    <app-avatar kind="group" />
+                    {{ row.displayName }}
+                  </span>
                   @if (row.visibility) {
                     <app-group-visibility-badge [visibility]="row.visibility" />
                   }

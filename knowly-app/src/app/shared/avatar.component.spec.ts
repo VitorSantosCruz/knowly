@@ -19,12 +19,14 @@ describe('AvatarComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]')).toBeNull();
   });
 
-  it('falls back to the generic icon when avatarUrl is null', () => {
+  it('falls back to the generic LucideUser icon when avatarUrl is null', () => {
     fixture.componentRef.setInput('avatarUrl', null);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="avatar-image"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
+    const fallback = fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]');
+    expect(fallback).toBeTruthy();
+    expect(fallback.hasAttribute('lucideUser')).toBe(true);
   });
 
   it('falls back to the generic icon if the image fails to load', () => {
@@ -38,5 +40,15 @@ describe('AvatarComponent', () => {
 
     expect(fixture.nativeElement.querySelector('[data-testid="avatar-image"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
+  });
+
+  it('falls back to the generic LucideUsersRound icon when kind is "group" and there is no avatarUrl', () => {
+    fixture.componentRef.setInput('avatarUrl', null);
+    fixture.componentRef.setInput('kind', 'group');
+    fixture.detectChanges();
+
+    const fallback = fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]');
+    expect(fallback).toBeTruthy();
+    expect(fallback.hasAttribute('lucideUsersRound')).toBe(true);
   });
 });

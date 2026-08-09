@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, input, signal } from '@angular/cor
 import { TranslocoPipe } from '@jsverse/transloco';
 import { SupportService } from '../../core/support.service';
 import { MessageThreadComponent } from '../../shared/chat/message-thread.component';
+import { AvatarComponent } from '../../shared/avatar.component';
 
 /**
  * REQ-10/11: the member's own Support Channel. `SupportService.myChannelNotFound()` on a 404
@@ -11,12 +12,18 @@ import { MessageThreadComponent } from '../../shared/chat/message-thread.compone
  */
 @Component({
   selector: 'app-member-support-channel',
-  imports: [TranslocoPipe, MessageThreadComponent],
+  imports: [TranslocoPipe, MessageThreadComponent, AvatarComponent],
   template: `
     <div data-testid="member-support-channel" class="flex flex-col gap-3">
-      <h1 class="font-semibold text-ink-900 dark:text-white">
-        {{ 'support.member.title' | transloco }}
-      </h1>
+      <header class="flex items-center gap-2">
+        <!-- No real staff avatar to show here (support is handled by whichever staff
+             member claims the ticket, not a fixed person), so this is always the generic
+             fallback, same pattern as chat-header.component.ts. -->
+        <app-avatar [avatarUrl]="null" />
+        <h1 class="font-semibold text-ink-900 dark:text-white">
+          {{ 'support.member.title' | transloco }}
+        </h1>
+      </header>
 
       @if (supportService.myChannelNotFound()) {
         <button

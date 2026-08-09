@@ -440,6 +440,7 @@
     "confirmDeleteGroup": "Delete the role '{{group}}'? Its member assignments and permission grants will be removed too."
   },
   "conversations": {
+    "title": "Knowledge base",
     "new": "New conversation",
     "untitled": "Untitled conversation",
     "send": "Send"
