@@ -16,6 +16,7 @@ function detailFixture(overrides: Partial<ConversationDetail> = {}): Conversatio
     visibility: 'PUBLIC',
     archivedAt: null,
     adminUserIds: [1],
+    icon: null,
     ...overrides,
   };
 }
@@ -343,6 +344,45 @@ describe('ChatGroupService', () => {
         .expectOne('/api/chat/conversations/1/visibility')
         .flush(null, { status: 400, statusText: 'Bad Request' });
       expect(errored).toBe(true);
+      expect(chatService.details().has(1)).toBe(false);
+    });
+  });
+
+  describe('rename', () => {
+    it('PUTs { title, icon } and patches ChatService details on 200', () => {
+      service.rename(1, 'Novo nome', 'ROCKET').subscribe();
+      const req = httpMock.expectOne('/api/chat/conversations/1');
+      expect(req.request.method).toBe('PUT');
+      expect(req.request.body).toEqual({ title: 'Novo nome', icon: 'ROCKET' });
+      const detail = detailFixture({ title: 'Novo nome', icon: 'ROCKET' });
+      req.flush(detail);
+      expect(chatService.details().get(1)?.title).toBe('Novo nome');
+      expect(chatService.details().get(1)?.icon).toBe('ROCKET');
+    });
+
+    it('leaves _details untouched with an inline error on 400/403/404', () => {
+      let errored400 = false;
+      service.rename(1, '', undefined).subscribe({ error: () => (errored400 = true) });
+      httpMock
+        .expectOne('/api/chat/conversations/1')
+        .flush(null, { status: 400, statusText: 'Bad Request' });
+      expect(errored400).toBe(true);
+      expect(chatService.details().has(1)).toBe(false);
+
+      let errored403 = false;
+      service.rename(1, 'Nome', undefined).subscribe({ error: () => (errored403 = true) });
+      httpMock
+        .expectOne('/api/chat/conversations/1')
+        .flush(null, { status: 403, statusText: 'Forbidden' });
+      expect(errored403).toBe(true);
+      expect(chatService.details().has(1)).toBe(false);
+
+      let errored404 = false;
+      service.rename(1, 'Nome', undefined).subscribe({ error: () => (errored404 = true) });
+      httpMock
+        .expectOne('/api/chat/conversations/1')
+        .flush(null, { status: 404, statusText: 'Not Found' });
+      expect(errored404).toBe(true);
       expect(chatService.details().has(1)).toBe(false);
     });
   });

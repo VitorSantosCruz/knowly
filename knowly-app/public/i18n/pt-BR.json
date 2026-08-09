@@ -683,7 +683,8 @@
       "visibilityPublicDescription": "Descobrível — qualquer elegível pode entrar imediatamente.",
       "cancel": "Cancelar",
       "create": "Criar",
-      "error": "Não foi possível criar este grupo. Tente novamente."
+      "error": "Não foi possível criar este grupo. Tente novamente.",
+      "iconLabel": "Ícone (opcional)"
     },
     "adminPanel": {
       "title": "Administração do grupo",
@@ -723,6 +724,52 @@
       "searchPlaceholder": "Buscar por nome…",
       "noResults": "Nenhum resultado para '{{query}}'",
       "emptyState": "Ninguém novo para conversar no momento."
+    },
+    "iconPicker": {
+      "label": "Ícone (opcional)",
+      "icons": {
+        "MESSAGE_CIRCLE": "Balão de fala",
+        "MESSAGES_SQUARE": "Balões de conversa",
+        "BOOK_OPEN": "Livro aberto",
+        "NOTEBOOK": "Caderno",
+        "SPARKLES": "Brilhos",
+        "BOT": "Robô",
+        "USERS": "Pessoas",
+        "HASH": "Hashtag",
+        "FOLDER": "Pasta",
+        "STAR": "Estrela",
+        "HEART": "Coração",
+        "FLAG": "Bandeira",
+        "TARGET": "Alvo",
+        "ROCKET": "Foguete",
+        "LIGHTBULB": "Lâmpada",
+        "GLOBE": "Globo",
+        "COMPASS": "Bússola",
+        "GRADUATION_CAP": "Capelo de formatura",
+        "BRIEFCASE": "Pasta executiva",
+        "ARCHIVE": "Arquivo",
+        "TAG": "Etiqueta",
+        "BOOKMARK": "Marcador",
+        "LAYERS": "Camadas",
+        "CODE": "Código"
+      }
+    },
+    "createConversation": {
+      "title": "Falar com a base de artigos",
+      "nameLabel": "Nome da conversa",
+      "namePlaceholder": "Nome da conversa",
+      "submitDisabledHint": "Digite um nome para criar a conversa.",
+      "cancel": "Cancelar",
+      "create": "Criar",
+      "error": "Não foi possível criar esta conversa. Tente novamente."
+    },
+    "rename": {
+      "pencilAriaLabel": "Renomear {{title}}",
+      "nameLabel": "Nome",
+      "namePlaceholder": "Nome",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "error": "Não foi possível renomear esta conversa. Tente novamente."
     }
   },
   "support": {

@@ -683,7 +683,8 @@
       "visibilityPublicDescription": "Discoverable — anyone eligible can join instantly.",
       "cancel": "Cancel",
       "create": "Create",
-      "error": "Could not create this group. Please try again."
+      "error": "Could not create this group. Please try again.",
+      "iconLabel": "Icon (optional)"
     },
     "adminPanel": {
       "title": "Group administration",
@@ -723,6 +724,52 @@
       "searchPlaceholder": "Search by name…",
       "noResults": "No results for '{{query}}'",
       "emptyState": "Nobody new to talk to right now."
+    },
+    "iconPicker": {
+      "label": "Icon (optional)",
+      "icons": {
+        "MESSAGE_CIRCLE": "Speech bubble",
+        "MESSAGES_SQUARE": "Chat bubbles",
+        "BOOK_OPEN": "Open book",
+        "NOTEBOOK": "Notebook",
+        "SPARKLES": "Sparkles",
+        "BOT": "Robot",
+        "USERS": "People",
+        "HASH": "Hashtag",
+        "FOLDER": "Folder",
+        "STAR": "Star",
+        "HEART": "Heart",
+        "FLAG": "Flag",
+        "TARGET": "Target",
+        "ROCKET": "Rocket",
+        "LIGHTBULB": "Lightbulb",
+        "GLOBE": "Globe",
+        "COMPASS": "Compass",
+        "GRADUATION_CAP": "Graduation cap",
+        "BRIEFCASE": "Briefcase",
+        "ARCHIVE": "Archive box",
+        "TAG": "Tag",
+        "BOOKMARK": "Bookmark",
+        "LAYERS": "Layers",
+        "CODE": "Code"
+      }
+    },
+    "createConversation": {
+      "title": "Talk to the knowledge base",
+      "nameLabel": "Conversation name",
+      "namePlaceholder": "Conversation name",
+      "submitDisabledHint": "Enter a name to create the conversation.",
+      "cancel": "Cancel",
+      "create": "Create",
+      "error": "Could not create this conversation. Please try again."
+    },
+    "rename": {
+      "pencilAriaLabel": "Rename {{title}}",
+      "nameLabel": "Name",
+      "namePlaceholder": "Name",
+      "save": "Save",
+      "cancel": "Cancel",
+      "error": "Could not rename this conversation. Please try again."
     }
   },
   "support": {

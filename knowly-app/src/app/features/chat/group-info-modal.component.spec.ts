@@ -18,6 +18,7 @@ function detailFixture(overrides: Partial<ConversationDetail> = {}): Conversatio
     visibility: 'PUBLIC',
     archivedAt: null,
     adminUserIds: [],
+    icon: null,
     ...overrides,
   };
 }

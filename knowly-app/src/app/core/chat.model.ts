@@ -21,6 +21,11 @@ export interface ConversationSummary {
   tenantId: number | null;
   title: string | null;
   participantUserIds: number[];
+  /** Amendment (4), REQ-40/REQ-13 (final round): additive, nullable — carried on the summary DTO
+   * itself (`ChatConversationSummaryDto`, per `chat-group-naming-and-icon`'s backend PLAN), so
+   * column 1's group rows can render it without a per-row detail fetch. `undefined` when a fixture
+   * predates this amendment (defensive — the real backend always includes it). */
+  icon?: IconKey | null;
 }
 
 /**
@@ -47,6 +52,65 @@ export function deriveViewerRelation(
 /** REQ-13/18/26: a group conversation's visibility type, chosen at creation. */
 export type ChatGroupVisibility = 'PRIVATE' | 'REQUEST_TO_JOIN' | 'PUBLIC';
 
+/**
+ * Amendment (4), REQ-38–REQ-41/REQ-13 (final round): the shared 24-value icon catalog, matching
+ * `br.com.conectabyte.knowly.icon.IconKey` (backend) verbatim — one frontend source of truth
+ * (`ICON_KEYS` below) reused by RAG-conversation and group creation/rename, rather than two
+ * independent frontend enums drifting out of sync (see PLAN.md's "Amendment (4) reconciliation").
+ */
+export type IconKey =
+  | 'MESSAGE_CIRCLE'
+  | 'MESSAGES_SQUARE'
+  | 'BOOK_OPEN'
+  | 'NOTEBOOK'
+  | 'SPARKLES'
+  | 'BOT'
+  | 'USERS'
+  | 'HASH'
+  | 'FOLDER'
+  | 'STAR'
+  | 'HEART'
+  | 'FLAG'
+  | 'TARGET'
+  | 'ROCKET'
+  | 'LIGHTBULB'
+  | 'GLOBE'
+  | 'COMPASS'
+  | 'GRADUATION_CAP'
+  | 'BRIEFCASE'
+  | 'ARCHIVE'
+  | 'TAG'
+  | 'BOOKMARK'
+  | 'LAYERS'
+  | 'CODE';
+
+export const ICON_KEYS: IconKey[] = [
+  'MESSAGE_CIRCLE',
+  'MESSAGES_SQUARE',
+  'BOOK_OPEN',
+  'NOTEBOOK',
+  'SPARKLES',
+  'BOT',
+  'USERS',
+  'HASH',
+  'FOLDER',
+  'STAR',
+  'HEART',
+  'FLAG',
+  'TARGET',
+  'ROCKET',
+  'LIGHTBULB',
+  'GLOBE',
+  'COMPASS',
+  'GRADUATION_CAP',
+  'BRIEFCASE',
+  'ARCHIVE',
+  'TAG',
+  'BOOKMARK',
+  'LAYERS',
+  'CODE',
+];
+
 export interface ConversationDetail {
   id: number;
   kind: ChatConversationKind;
@@ -59,6 +123,9 @@ export interface ConversationDetail {
   visibility: ChatGroupVisibility;
   archivedAt: string | null;
   adminUserIds: number[];
+  /** Amendment (4): additive, nullable — `null` for every pre-Amendment-(4) group (V32
+   * backfill leaves `icon` untouched for existing rows). */
+  icon: IconKey | null;
 }
 
 /** REQ-8's Groups candidate set — `GET /api/chat/discoverable-groups`. */
@@ -121,6 +188,10 @@ export interface CreateConversationRequest {
   /** Required when `kind === 'GROUP'` (REQ-13/18); absent/ignored for `'DIRECT'`. */
   visibility?: ChatGroupVisibility;
   participantUserIds: number[];
+  /** Amendment (4), REQ-13 (final round): optional icon, forwarded verbatim to
+   * `POST /api/chat/conversations` when chosen; omitted when not (group keeps its existing
+   * default/fallback presentation). */
+  icon?: IconKey;
 }
 
 export type EligibilityScope = 'direct' | 'group' | 'group-staff-only';
