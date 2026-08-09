@@ -31,6 +31,7 @@ import br.com.conectabyte.knowly.softdelete.AllowDeletedForOversight;
 import br.com.conectabyte.knowly.tenancy.BypassTenantFilterForOversight;
 import br.com.conectabyte.knowly.tenancy.GlobalPermission;
 import br.com.conectabyte.knowly.tenancy.GlobalPermissionService;
+import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
 import br.com.conectabyte.knowly.tenancy.Permission;
 import br.com.conectabyte.knowly.tenancy.PermissionService;
@@ -135,7 +136,17 @@ public class ChatConversationService {
             tenantAnchor = chatEligibilityService.resolveDirectAnchor(actor, target);
         } else {
             kind = ChatConversationKind.PEER_GROUP;
-            tenantAnchor = request.tenantId();
+            // Same bug class as ChatEligibilityService#resolveDirectAnchor (see 7565ee0): a
+            // group's tenant anchor must be server-derived from the actor's active session
+            // (TenantContext#getActiveTenantId(), populated by TenantContextFilter from the
+            // session), never taken as-is from the client-supplied request.tenantId(). The
+            // client value is, at best, a cross-check -- a mismatch is rejected outright rather
+            // than silently overridden, so a stale/forged client value can never widen scope.
+            Long activeTenantId = tenantContext.getActiveTenantId().orElse(null);
+            if (request.tenantId() != null && !request.tenantId().equals(activeTenantId)) {
+                throw new ChatAccessDeniedException();
+            }
+            tenantAnchor = activeTenantId;
             for (Long participantId : participantIds) {
                 User participant =
                         userRepository
@@ -171,6 +182,7 @@ public class ChatConversationService {
         List<ChatConversation> conversations =
                 chatParticipantRepository.findByUserId(actor.getId()).stream()
                         .map(ChatParticipant::getConversation)
+                        .filter(conversation -> isVisibleUnderActiveTenant(actor, conversation))
                         .toList();
 
         Map<Long, Instant> lastMessageAtByConversationId =
@@ -197,6 +209,31 @@ public class ChatConversationService {
                                         participantIdsOf(conversation.getId()),
                                         lastMessageAtByConversationId.get(conversation.getId())))
                 .toList();
+    }
+
+    /**
+     * chat-unified-ui follow-up: staff can be a participant of both staff-only (null-tenant) 1:1
+     * conversations and tenant-anchored ones, so unlike a regular tenant member -- who only ever
+     * has conversations in their single home tenant -- {@code listConversations} must derive which
+     * of those a staff actor should see from their currently active tenant ({@link
+     * TenantContext#getActiveTenantId()}, session-derived, never client-supplied), mirroring the
+     * anchor logic {@link ChatEligibilityService#eligibleAnchorsForActor} already applies to the
+     * "Haven't talked yet" list. A non-staff actor's conversations are never filtered here -- they
+     * can never hold a staff-only anchor in the first place.
+     */
+    private boolean isVisibleUnderActiveTenant(User actor, ChatConversation conversation) {
+        if (actor.getGlobalRole() != GlobalRole.STAFF
+                && actor.getGlobalRole() != GlobalRole.STAFF_ADMIN) {
+            return true;
+        }
+
+        java.util.Optional<Long> activeTenantId = tenantContext.getActiveTenantId();
+        if (activeTenantId.isPresent()) {
+            return conversation.getTenant() != null
+                    && activeTenantId.get().equals(conversation.getTenant().getId());
+        }
+
+        return conversation.getTenant() == null;
     }
 
     @Transactional(readOnly = true)

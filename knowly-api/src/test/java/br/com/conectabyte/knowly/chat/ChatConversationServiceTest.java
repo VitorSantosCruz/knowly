@@ -141,6 +141,64 @@ class ChatConversationServiceTest {
     }
 
     @Test
+    void listConversationsForStaffWithActiveTenantHidesStaffOnlyDirectConversations() {
+        User actor = user(1L);
+        actor.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF);
+        Tenant activeTenant = tenant(20L);
+
+        ChatConversation staffOnlyConversation =
+                new ChatConversation(ChatConversationKind.PEER_DIRECT, null, null, null);
+        staffOnlyConversation.setId(100L);
+        ChatParticipant staffOnlyParticipant = new ChatParticipant(staffOnlyConversation, actor);
+
+        ChatConversation tenantConversation =
+                new ChatConversation(ChatConversationKind.PEER_DIRECT, activeTenant, null, null);
+        tenantConversation.setId(200L);
+        ChatParticipant tenantParticipant = new ChatParticipant(tenantConversation, actor);
+
+        when(chatParticipantRepository.findByUserId(1L))
+                .thenReturn(java.util.List.of(staffOnlyParticipant, tenantParticipant));
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+        when(chatMessageRepository.findLastMessageAtByConversationIdIn(java.util.List.of(200L)))
+                .thenReturn(java.util.List.of());
+        when(chatParticipantRepository.findByConversationId(200L))
+                .thenReturn(java.util.List.of(tenantParticipant));
+
+        var summaries = service.listConversations(actor);
+
+        assertThat(summaries).extracting("id").containsExactly(200L);
+    }
+
+    @Test
+    void listConversationsForStaffWithoutActiveTenantShowsOnlyStaffOnlyDirectConversations() {
+        User actor = user(1L);
+        actor.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF);
+        Tenant someTenant = tenant(20L);
+
+        ChatConversation staffOnlyConversation =
+                new ChatConversation(ChatConversationKind.PEER_DIRECT, null, null, null);
+        staffOnlyConversation.setId(100L);
+        ChatParticipant staffOnlyParticipant = new ChatParticipant(staffOnlyConversation, actor);
+
+        ChatConversation tenantConversation =
+                new ChatConversation(ChatConversationKind.PEER_DIRECT, someTenant, null, null);
+        tenantConversation.setId(200L);
+        ChatParticipant tenantParticipant = new ChatParticipant(tenantConversation, actor);
+
+        when(chatParticipantRepository.findByUserId(1L))
+                .thenReturn(java.util.List.of(staffOnlyParticipant, tenantParticipant));
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
+        when(chatMessageRepository.findLastMessageAtByConversationIdIn(java.util.List.of(100L)))
+                .thenReturn(java.util.List.of());
+        when(chatParticipantRepository.findByConversationId(100L))
+                .thenReturn(java.util.List.of(staffOnlyParticipant));
+
+        var summaries = service.listConversations(actor);
+
+        assertThat(summaries).extracting("id").containsExactly(100L);
+    }
+
+    @Test
     void memberAdminIsRejectedFromAGroupOfATenantTheyDoNotAdminister() {
         User memberAdmin = user(1L);
         Tenant otherTenant = tenant(20L);
@@ -219,6 +277,7 @@ class ChatConversationServiceTest {
     @Test
     void createGroupConversationFailsWhenAParticipantIsSoftDeleted() {
         User actor = user(1L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
         when(userRepository.findByIdAndDeletedAtIsNull(2L)).thenReturn(Optional.empty());
 
         var request =
@@ -227,5 +286,44 @@ class ChatConversationServiceTest {
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(ChatConversationNotFoundException.class);
+    }
+
+    // --- fix: a group's tenant anchor must be server-derived from the active session, never ---
+    // --- taken as-is from the client-supplied request.tenantId() ---
+
+    @Test
+    void createGroupConversationAnchorsToTheActorsActiveSessionTenantRegardlessOfRequestBody() {
+        User actor = user(1L);
+        Tenant activeTenant = tenant(20L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+        when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        when(chatEligibilityService.isEligible(actor, 20L)).thenReturn(true);
+        when(tenantRepository.findById(20L)).thenReturn(Optional.of(activeTenant));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(chatConversationRepository.save(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Request body omits tenantId entirely -- the anchor must still come from the actor's
+        // active session tenant, never default to the staff-only null anchor.
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of());
+
+        var result = service.createConversation(actor, request);
+
+        assertThat(result.tenantId()).isEqualTo(20L);
+    }
+
+    @Test
+    void createGroupConversationRejectsARequestTenantIdThatDoesNotMatchTheActiveSessionTenant() {
+        User actor = user(1L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP, 999L, "g", java.util.List.of());
+
+        assertThatThrownBy(() -> service.createConversation(actor, request))
+                .isInstanceOf(ChatAccessDeniedException.class);
     }
 }
