@@ -1197,9 +1197,101 @@ SPEC before implementation, roughly in this order:**
     the PLAN, avoiding prop-drilling. **Deferred, not built**: full-text
     search over message *content* (see item 16) and remove-participant vs.
     self-leave both exist, but there is no message-search bar anywhere in
-    this UI. **End-to-end Playwright verification of the running app is
-    still pending as of this entry** — only unit/component tests and
-    backend integration tests have run so far.
+    this UI.
+
+    **Post-ship Playwright pass (2026-08-09), layout redesign + real bugs
+    found and fixed.** Playwright end-to-end testing (the pass flagged as
+    pending above) surfaced that the shipped tab-strip layout was
+    genuinely unintuitive in practice, plus several real defects the
+    unit-test suite had missed:
+    - **Layout redesign, 2 columns not 4-tab-strip.** Tab strip replaced
+      with a persistent messaging-app-style layout modeled on WhatsApp
+      Web/Telegram/Slack (product owner's explicit direction: "veja o
+      layout de apps de mensagem... imite para um modelo que funcione
+      para o knowly"): column 1 has 3 quick-action buttons (open a
+      support ticket, talk to the knowledge base, create group) above a
+      single always-visible list combining people (partitioned into
+      "Already talked to"/"Haven't talked yet", each independently
+      searchable), groups, the Support row, and every RAG conversation;
+      column 2 is the open conversation. A 3-column intermediate design
+      (separate contacts column) was tried and rejected by the product
+      owner for duplicating the people list, folded back into column 1's
+      partition instead. `ChatSidebarComponent` demoted from a
+      4-tab-switcher to just the quick-actions header;
+      `ChatContactsPanelComponent` was built then removed, its logic
+      moved into `chat-directory-rows.service.ts`. The chat header is now
+      clickable (`chat-header.component.ts`) and opens a modal
+      (`person-info-modal.component.ts`/`group-info-modal.component.ts`)
+      instead of showing admin controls permanently inline —
+      `GroupAdminPanelComponent` (visibility/promote/remove/delete),
+      member list, invite, and leave-group all moved inside that modal.
+      Avatars added (`shared/avatar.component.ts`, Lucide
+      `LucideUser`/`LucideUsersRound`/`LucideLibrary` icons — a detour
+      through user-supplied custom SVG files was tried, looked wrong even
+      after resizing, and was reverted back to Lucide per explicit
+      product-owner instruction; don't reach for custom SVG icons in this
+      app, Lucide is the established convention for a reason).
+    - **Real security bug found and fixed: cross-tenant PII enumeration.**
+      `GET /api/chat/eligible-participants?scope=group&tenantId=<any>`
+      never checked that the *actor* had any relationship to the
+      requested `tenantId` — any authenticated user could enumerate
+      another tenant's members (name/avatar/id) by supplying its id, a
+      genuine multi-tenant isolation break. Fixed in `fa68743`
+      (`ChatEligibilityService`, same anchor-validation pattern as the
+      other fixes below), confirmed by a second appsec pass with a
+      "vulnerability sweep" of the whole `chat` package for the same
+      class of bug (none else found).
+    - **Real bug: staff/tenant identity mixing, several rounds.** The
+      original PLAN's assumption "a staff actor's session-active tenant
+      should just add to their staff-only anchor" doesn't match what the
+      product actually wants: a staff member working inside a tenant
+      should see and be limited to that tenant's people/groups, not a mix
+      of tenant members and other staff. Fixed across five commits
+      (`7565ee0`, `80f3353`, `fa68743`, `17ac10f`, `7383212`,
+      `bccb5c1`/`781188b`) covering: direct-scope candidate listing,
+      group creation's tenant anchor (was reading the client-supplied
+      `tenantId` instead of the session's), `listConversations`'s
+      already-talked-to list, blocking staff-to-staff DIRECT creation
+      while a tenant is active (not just hiding it from the list —
+      explicit product decision: "sim, bloquear também"), and letting a
+      staff creator's own group-membership eligibility check pass without
+      a real `TenantMembership` row. Each landed commit got its own
+      dedicated AppSec review before being considered closed — this
+      area needed six review rounds, not one, because each fix surfaced
+      the next adjacent gap.
+    - **The `bccb5c1` fix initially didn't work despite passing all
+      tests — worth remembering.** `User` has no `@EqualsAndHashCode`,
+      so `participant.equals(actor)` (comparing two separately-loaded JPA
+      instances of the same row) is always `false` — silent reference
+      equality, not id equality. The unit test for that fix passed anyway
+      because it stubbed the repository to return the exact same object
+      reference as `actor`, masking the bug. Only Playwright testing
+      against the live app caught it (`400 CHAT_INELIGIBLE_PARTICIPANT`
+      on group creation persisted after the "fix" shipped). Corrected in
+      `781188b` by comparing `.getId()` instead; see
+      `feedback_entity_equals_by_reference_trap` in the AI assistant's
+      memory for the general lesson — **trust a live/E2E check over a
+      green unit-test suite specifically for entity-identity bugs.**
+    - **Functional bug: group visibility silently ignored on creation.**
+      `CreateChatConversationRequestDto` never had a `visibility` field —
+      the frontend sent it, Jackson silently dropped the unknown field,
+      every group was created `PRIVATE` regardless of what the creation
+      dialog said. Fixed in `fe5444e`. A related frontend-only bug (the
+      "change visibility" `<select>` inside the group-info modal always
+      showed `PRIVATE` selected regardless of the group's real
+      visibility, due to Angular's `<select>` `[value]` binding racing
+      the `@for`-rendered `<option>` elements it depends on) was fixed in
+      `b563317` by moving to per-`<option>` `[selected]` instead.
+    - **Net effect**: none of this was caught by the pre-ship
+      unit/integration test suites (both sides were reported green
+      before this pass) — it took literally driving the app as the
+      target user (staff working inside a tenant, per this feature's own
+      motivating request) to find. Worth internalizing for future
+      features with a similar "same code path, different actor context"
+      shape: STAFF/STAFF_ADMIN acting inside a tenant session is a
+      recurring source of gaps because it's a state combination that's
+      easy to under-specify and easy for a mocked unit test to paper
+      over.
 
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
