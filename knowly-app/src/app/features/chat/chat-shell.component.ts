@@ -65,7 +65,7 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
           class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
         >
           <app-chat-sidebar
-            [hasActiveTenant]="activeTenantService.activeTenantId() !== null"
+            [hasActiveTenant]="hasActiveTenantForSidebar()"
             (openSupport)="onOpenSupport()"
             (openArticles)="onOpenArticles()"
             (createGroup)="createGroupOpen.set(true)"
@@ -96,7 +96,11 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
               <app-support-page />
             }
             @case ('articles') {
-              @if (activeTenantService.activeTenantId() !== null) {
+              @if (!activeTenantService.activeTenantResolved()) {
+                <p data-testid="chat-shell-articles-loading-state" class="text-sm text-ink-400">
+                  …
+                </p>
+              } @else if (activeTenantService.activeTenantId() !== null) {
                 <app-conversations-page />
               } @else {
                 <app-no-active-tenant-state />
@@ -141,6 +145,28 @@ export class ChatShellComponent implements OnInit {
     }
     return kind === 'peer' ? 'groups' : kind;
   });
+
+  /**
+   * Bug fix (2026-08-09, reported by the product owner): on a hard reload of `/chat` while
+   * inside an active tenant, `ActiveTenantService.activeTenantId()` reads `null` for the brief
+   * window between this component's own `fetch()` call (below) resolving — indistinguishable
+   * from the genuine "staff, no active tenant" case unless gated on `activeTenantResolved()`
+   * first, exactly as `DashboardWrapperPageComponent`/`UserManagementPageComponent`/
+   * `ArticlesPageComponent` already do for their own tenant-scoped views. This shell's sidebar
+   * quick actions used to skip that check entirely, so the reload's loading window rendered as
+   * "no active tenant" (hiding the Support/Base-de-artigos actions) before self-correcting once
+   * `fetch()` resolved — easy to misread as a persistent context loss rather than a flash.
+   * Assumes "has an active tenant" while unresolved (the common case) rather than "doesn't",
+   * so the actions don't visibly flash hidden then reappear; once resolved, this exactly matches
+   * `activeTenantId() !== null`. The `articles` case (below) uses the same
+   * resolved/unresolved/none 3-way split as those other pages instead, since it renders a whole
+   * different child component per branch rather than toggling a boolean input.
+   */
+  protected readonly hasActiveTenantForSidebar = computed(
+    () =>
+      !this.activeTenantService.activeTenantResolved() ||
+      this.activeTenantService.activeTenantId() !== null,
+  );
 
   /** REQ-2c: which single column is shown below the 2-column breakpoint — derived entirely
    * from the current route, not a separately-tracked toggle, so it always matches what's

@@ -239,6 +239,63 @@ describe('ChatShellComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/chat/articles', 42]);
   });
 
+  it('does not flash the no-active-tenant state while /api/tenants/active is still resolving on a reload (bug fix: staff-inside-a-tenant losing context on F5)', () => {
+    setup();
+    fixture.detectChanges();
+
+    // GET /api/tenants/active is still pending (activeTenantResolved() reads false) — the
+    // sidebar's tenant-scoped quick actions must not have already collapsed to the
+    // no-active-tenant look, or a reload would visibly (if briefly) present as "lost the
+    // tenant" before the real response lands.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]'),
+    ).toBeTruthy();
+
+    flushActiveTenant(1);
+    flushDirectory();
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
+
+    // Still correct once resolved with a real active tenant.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows a loading state, not the no-active-tenant state, for section=articles while /api/tenants/active is still resolving on a reload', () => {
+    setup();
+    queryParamMap$.next(convertToParamMap({ section: 'articles' }));
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-articles-loading-state"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="no-active-tenant-state"]'),
+    ).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-conversations-page')).toBeNull();
+
+    flushActiveTenant(1);
+    flushDirectory();
+    fixture.detectChanges();
+    flushActiveTenant(1);
+    for (const req of httpMock.match((r) => r.url === '/api/tenants/1/conversations')) {
+      req.flush([]);
+    }
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-articles-loading-state"]'),
+    ).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-conversations-page')).toBeTruthy();
+  });
+
   it('clicking "Criar grupo" opens the create-group dialog', () => {
     setup();
     fixture.detectChanges();
