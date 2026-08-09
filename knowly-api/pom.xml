@@ -151,7 +151,7 @@
 		<dependency>
 			<groupId>io.opentelemetry.instrumentation</groupId>
 			<artifactId>opentelemetry-logback-appender-1.0</artifactId>
-			<version>2.29.0-alpha</version>
+			<version>2.30.0-alpha</version>
 		</dependency>
 		<!-- Pinned to match the opentelemetry-sdk-logs:1.62.0 version Spring Boot's dependency
 		     management already fixes (see spring-boot-starter-opentelemetry above) -the
