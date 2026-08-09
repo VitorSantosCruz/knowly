@@ -42,6 +42,10 @@ class ChatControllerIntegrationTest {
     @Autowired private UserRepository userRepository;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private TenantMembershipRepository tenantMembershipRepository;
+
+    @Autowired
+    private br.com.conectabyte.knowly.identity.UserProfileRepository userProfileRepository;
+
     @Autowired private LoginCodeService loginCodeService;
     @Autowired private StringRedisTemplate redisTemplate;
     @MockitoBean private JavaMailSender mailSender;
@@ -111,6 +115,49 @@ class ChatControllerIntegrationTest {
                         .exchange();
 
         assertThat(response).hasStatus(HttpStatus.CREATED);
+    }
+
+    @Test
+    void gettingADirectConversationExposesTheRemoteParticipantsAvatarUrl() throws Exception {
+        staff("avatar-staffa@example.com");
+        User staffB = staff("avatar-staffb@example.com");
+        var profileB = new br.com.conectabyte.knowly.identity.UserProfile(staffB);
+        profileB.setAvatarUrl("https://minio.local/avatars/" + staffB.getId());
+        userProfileRepository.saveAndFlush(profileB);
+        Cookie session = logIn("avatar-staffa@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"DIRECT\",\"participantUserIds\":["
+                                        + staffB.getId()
+                                        + "]}")
+                        .exchange();
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        var getResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(getResponse).hasStatus(HttpStatus.OK);
+        String avatarUrl =
+                com.jayway.jsonpath.JsonPath.read(
+                        getResponse.getResponse().getContentAsString(),
+                        "$.participantAvatarUrls['" + staffB.getId() + "']");
+        assertThat(avatarUrl).isEqualTo("https://minio.local/avatars/" + staffB.getId());
     }
 
     @Test

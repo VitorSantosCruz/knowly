@@ -16,13 +16,14 @@ public record ChatConversationDetailDto(
         Map<Long, String> participantNicknames,
         ChatGroupVisibility visibility,
         Instant archivedAt,
-        List<Long> adminUserIds) {
+        List<Long> adminUserIds,
+        Map<Long, String> participantAvatarUrls) {
 
     public static ChatConversationDetailDto from(
             ChatConversation conversation,
             List<Long> participantUserIds,
             Map<Long, String> participantNicknames) {
-        return from(conversation, participantUserIds, participantNicknames, List.of());
+        return from(conversation, participantUserIds, participantNicknames, List.of(), Map.of());
     }
 
     public static ChatConversationDetailDto from(
@@ -30,6 +31,21 @@ public record ChatConversationDetailDto(
             List<Long> participantUserIds,
             Map<Long, String> participantNicknames,
             List<Long> adminUserIds) {
+        return from(conversation, participantUserIds, participantNicknames, adminUserIds, Map.of());
+    }
+
+    /**
+     * @param participantAvatarUrls per-participant avatarUrl (nullable per entry), same
+     *     MinIO-backed source already used by {@code CandidateUserDto} -- primarily consumed by the
+     *     frontend for a DIRECT conversation's header, per chat-unified-ui's follow-up request; a
+     *     PEER_GROUP conversation deliberately has no group-level avatar of its own (out of scope).
+     */
+    public static ChatConversationDetailDto from(
+            ChatConversation conversation,
+            List<Long> participantUserIds,
+            Map<Long, String> participantNicknames,
+            List<Long> adminUserIds,
+            Map<Long, String> participantAvatarUrls) {
         return new ChatConversationDetailDto(
                 conversation.getId(),
                 conversation.getKind(),
@@ -39,6 +55,7 @@ public record ChatConversationDetailDto(
                 participantNicknames,
                 conversation.getVisibility(),
                 conversation.getArchivedAt(),
-                adminUserIds);
+                adminUserIds,
+                participantAvatarUrls);
     }
 }

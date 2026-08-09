@@ -207,9 +207,10 @@ public class ChatConversationService {
                 participantIds.stream()
                         .collect(Collectors.toMap(id -> id, this::nicknameOfUserId, (a, b) -> a));
         List<Long> adminUserIds = adminUserIdsOf(conversation.getId());
+        Map<Long, String> avatarUrls = avatarUrlsOf(participantIds);
 
         return ChatConversationDetailDto.from(
-                conversation, participantIds, nicknames, adminUserIds);
+                conversation, participantIds, nicknames, adminUserIds, avatarUrls);
     }
 
     @Transactional(readOnly = true)
@@ -480,9 +481,10 @@ public class ChatConversationService {
                 participantIds.stream()
                         .collect(Collectors.toMap(id -> id, this::nicknameOfUserId, (a, b) -> a));
         List<Long> adminUserIds = adminUserIdsOf(conversation.getId());
+        Map<Long, String> avatarUrls = avatarUrlsOf(participantIds);
 
         return ChatConversationDetailDto.from(
-                conversation, participantIds, nicknames, adminUserIds);
+                conversation, participantIds, nicknames, adminUserIds, avatarUrls);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -971,6 +973,22 @@ public class ChatConversationService {
                 .map(UserProfile::getFullName)
                 .filter(name -> name != null && !name.isBlank())
                 .orElseGet(() -> userRepository.findById(userId).map(User::getEmail).orElse(null));
+    }
+
+    // chat-unified-ui follow-up: same avatarUrl source/logic already used by
+    // ChatEligibilityService#listCandidates for CandidateUserDto -- reused here, per participant,
+    // so a DIRECT conversation's header can show the remote peer's photo. No new storage/URL
+    // mechanism.
+    private Map<Long, String> avatarUrlsOf(List<Long> participantIds) {
+        // Deliberately not Collectors.toMap: its merge-based implementation throws NPE on a null
+        // value, and a participant legitimately having no avatar (null) must not blow up here.
+        Map<Long, String> avatarUrls = new java.util.HashMap<>();
+        for (Long id : participantIds) {
+            avatarUrls.put(
+                    id,
+                    userProfileRepository.findById(id).map(UserProfile::getAvatarUrl).orElse(null));
+        }
+        return avatarUrls;
     }
 
     private static List<ChatMessage> reversed(List<ChatMessage> descending) {

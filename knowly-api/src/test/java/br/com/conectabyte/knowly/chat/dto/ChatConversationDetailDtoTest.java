@@ -30,4 +30,34 @@ class ChatConversationDetailDtoTest {
         assertThat(dto.adminUserIds()).containsExactly(1L);
         assertThat(dto.participantUserIds()).containsExactly(1L, 2L);
     }
+
+    @Test
+    void fromWithoutAvatarUrlsDefaultsToAnEmptyMap() {
+        ChatConversation conversation =
+                new ChatConversation(ChatConversationKind.PEER_GROUP, null, "g", null);
+        conversation.setId(1L);
+
+        ChatConversationDetailDto dto =
+                ChatConversationDetailDto.from(
+                        conversation, List.of(1L, 2L), Map.of(1L, "a", 2L, "b"), List.of(1L));
+
+        assertThat(dto.participantAvatarUrls()).isEmpty();
+    }
+
+    @Test
+    void fromIncludesPerParticipantAvatarUrlsWhenProvided() {
+        ChatConversation conversation =
+                new ChatConversation(ChatConversationKind.PEER_DIRECT, null, null, null);
+        conversation.setId(1L);
+
+        ChatConversationDetailDto dto =
+                ChatConversationDetailDto.from(
+                        conversation,
+                        List.of(1L, 2L),
+                        Map.of(1L, "a", 2L, "b"),
+                        List.of(),
+                        Map.of(2L, "https://minio.local/avatars/2"));
+
+        assertThat(dto.participantAvatarUrls()).containsEntry(2L, "https://minio.local/avatars/2");
+    }
 }
