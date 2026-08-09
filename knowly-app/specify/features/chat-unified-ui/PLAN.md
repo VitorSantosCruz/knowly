@@ -598,6 +598,325 @@ for TASKS.md generation in full, including the group-governance
 portion, once the mandatory AppSec review of both PLANs (this one and
 the backend's) referenced in this feature's coordination flow has run.
 
+## Amendment (3) reconciliation (2026-08-09)
+
+> Covers SPEC.md's third amendment (2026-08-09, "Approved for PLAN — zero
+> open blockers"): REQ-1/REQ-2/REQ-2c/REQ-2d (unified single-list column 1
+> + a third full-directory column, replacing the shipped 2-column
+> "Already talked to"/"Haven't talked yet"/Groups partition), and
+> REQ-33–REQ-37 (clear-conversation semantics). Written against the
+> already-shipped 2-column code (`chat-directory.component.ts`,
+> `chat-sidebar.component.ts`, `chat-directory-rows.service.ts`, all read
+> in full as part of this reconciliation) rather than against this PLAN's
+> stale "2-column" architectural-decisions/components sections above,
+> which this section supersedes for column layout and list structure —
+> those sections' non-layout content (API contracts, group-governance
+> service split, non-optimistic error handling, dialog/badge components)
+> is unaffected and still authoritative.
+
+### New third-column component
+
+- **New `chat-full-directory.component.ts`** (`features/chat/`), same
+  width as column 1, rendered by `ChatShellComponent` as the third
+  persistent pane. Why a new component rather than extending
+  `ChatDirectoryComponent`: column 1 and column 3 render **disjoint** row
+  sets with different empty-state copy, different a11y labels, and (per
+  REQ-2d) a materially different sort — forcing one component to render
+  both would mean a `column: 1 | 3` discriminator prop threaded through
+  every template branch, for no code reuse beyond the row-button markup
+  already isolated in `AvatarComponent`/`GroupVisibilityBadgeComponent`.
+  Both components consume the same `ChatDirectoryRowsService` (below),
+  so there is no duplicated data-fetching or click-handling logic, only
+  duplicated presentation, which is the correct axis to share on here
+  (mirrors this PLAN's own existing "one service, multiple thin
+  presentational consumers" pattern already used for
+  `ChatGroupService`/`group-admin-panel.component.ts` +
+  `conversation-detail.component.ts`).
+- `ChatFullDirectoryComponent` has its own `searchQuery` signal and its
+  own `data-testid`/`aria-label` set (REQ-2d's "own independent search
+  field... never column 1's"), filtering `ChatDirectoryRowsService
+  .discoveryRows()` (see below) by `displayName`, same
+  `filterByQuery` predicate `ChatDirectoryComponent` already uses
+  (extracted to a shared `chat-directory-search.util.ts` so both
+  components import one implementation instead of two copies — a small,
+  in-scope refactor of the free function `chat-directory.component.ts`
+  already defines at file scope today).
+
+### Unified single list (column 1)
+
+- **`ChatDirectoryRowsService` gains one new computed, `conversationRows:
+  DirectoryRow[]`**, replacing `talkedPeople`/`groupRows`/`supportRow`/
+  `articleRows` as four separately-rendered sections with one ordering:
+  `[supportRow, ...everythingElseSortedByRecencyProxy]`. `talkedPeople`,
+  `groupRows`, `articleRows` are **kept** as computeds (not deleted) since
+  they're still the natural place to compute each kind's own recency
+  proxy before merging — `conversationRows` becomes a thin `computed()`
+  that concatenates and sorts them, Support unconditionally first. Why
+  keep the per-kind computeds instead of building one flat pipeline: it
+  keeps each kind's own known gap/proxy documented at the computed that
+  owns it (id-descending for people/groups, per the existing doc
+  comments; article rows get the same id-descending proxy, not currently
+  sorted at all today — a small extension, not a new concept) rather than
+  smearing three different fallback rules into one function body.
+- **`notTalkedPeople` is renamed to `discoveryRows`** (still a computed
+  on `ChatDirectoryRowsService`) and **extended to include discoverable
+  groups** (previously part of `personGroupRows`/`groupRows`'s combined
+  list) — column 3's full disjoint-complement set per REQ-2d: eligible
+  people with no 1:1 conversation, plus every discoverable group the
+  viewer isn't a participant of. This is the same underlying data
+  `ChatDirectoryService.discoverableGroups()`/
+  `ChatService.eligibleParticipants()` already expose — no new fetch,
+  only a new grouping of already-fetched signals.
+- **`ChatDirectoryComponent` (column 1) is rewritten** to render one
+  `<ul>` over `rowsService.conversationRows()`, one search field
+  (`unifiedQuery` signal) filtering everything **except** the pinned
+  Support row (REQ-2's "exempt from the unified search filter,
+  regardless of whether the typed text matches"), matching REQ-9's
+  continued Support exemption. The existing 3-section markup (talked/
+  not-talked/groups) is deleted, not kept behind a flag — SPEC.md's
+  amendment fully supersedes that partition, per its own "Which REQ
+  numbers this amendment supersedes" list; there is no dual-mode
+  requirement to preserve.
+- **`ChatSidebarComponent` is unaffected by this amendment** — its 3
+  action buttons + tenant-gating logic (documented in its own file
+  comment) are orthogonal to the list-partitioning change; no rework
+  needed there.
+
+### Cross-surface recency sort for column 3 — feasibility decision
+
+**Decision: this needs new backend support and is a hard prerequisite
+for the *real* REQ-2d sort; it does not belong in this feature's own
+PLAN, and TASKS.md schedules an interim fallback so column 3 itself
+isn't blocked on it.**
+
+Verified in `knowly-api` (read `ChatConversationService`,
+`ChatController`, `ChatMessageRepository`, `ConversationRepository`,
+`chat-directory-rows.service.ts`'s own already-documented gap): no
+endpoint, DTO field, or repository query anywhere in the backend
+computes "most recent interaction between viewer and entity X, across
+every group either has posted in and every 1:1 ever exchanged, surviving
+a hard delete of the 1:1 record." The closest existing data —
+`ChatConversationSummaryDto`/`ConversationDetail` — carries no
+`lastMessageAt` at all (a gap this PLAN's own 2026-08-09 emergent
+decisions already flagged and worked around with an id-descending proxy
+for column 1's own, much narrower, "my own conversations" sort).
+REQ-2d's signal is categorically different and harder: it is
+**per-participant, cross-conversation, and required to survive hard
+deletion of the very row that would normally carry the timestamp**
+(REQ-33's premise is that the conversation record is gone).
+
+A client-side workaround was considered and rejected, per REQ-2d's own
+implementation-risk note: computing it client-side would require
+fetching full message history for every shared group per participant
+(does not scale — this NFR section's own "already-fetched, reasonably-
+bounded candidate list" posture assumes list-level data, not per-
+message history fan-out) and **cannot work at all** for the
+since-hard-deleted-1:1 case, since by definition no client-reachable
+record of that conversation survives its deletion — only a backend
+system that either (a) never physically purges the row (soft-delete
+with a `deletedAt` the frontend never sees, which the group-deletion
+precedent above already uses) or (b) records a separate durable
+"last-interaction" fact at deletion time, can answer this query at all.
+
+**Decision, concretely:**
+1. This frontend PLAN does **not** invent that backend contract. Per
+   `constitution.md`'s Tier 3 rule and this SPEC's own header ("This
+   frontend SPEC does not yet cover a 1:1 conversation hard-delete
+   endpoint... nor the equivalent for a RAG conversation... both are new,
+   not-yet-specified backend dependencies"), the natural extension is a
+   **new backend SPEC/PLAN amendment** (most likely to
+   `chat-group-membership-management` or a new small
+   `chat-conversation-lifecycle` backend feature, sibling to the
+   hard-delete endpoints REQ-33/REQ-36 also need — see below, since both
+   gaps point at the same missing capability: durable last-interaction
+   data that survives a 1:1's hard delete) exposing something like `GET
+   /api/chat/interaction-recency?entityIds=...` returning `{ entityId,
+   lastInteractionAt }[]`, computed server-side from message history
+   (including soft-deleted/purged 1:1s, however that backend amendment
+   chooses to retain the fact of the interaction).
+1a. **[AppSec-added authorization requirement, 2026-08-09]** Whoever
+   specifies that future `GET /api/chat/interaction-recency` endpoint
+   must scope it so it can never be used as a cross-entity discovery
+   oracle: it must compute/return `lastInteractionAt` **only** for
+   `entityIds` that share a genuine interaction with the calling
+   viewer (a 1:1, current or since-deleted, or a group conversation
+   either has posted in) — never a blind "give me the last-interaction
+   timestamp for any arbitrary user/group id" lookup. An `entityId` the
+   viewer has no interaction history with must come back exactly the
+   same as an `entityId` that simply doesn't exist (both silently
+   absent from the response, not a distinguishable "found but zero
+   interactions" vs. "not found" signal) — this endpoint must not
+   become a side channel for probing which users/groups exist in the
+   system, or whether two other parties have ever interacted, that the
+   viewer isn't already entitled to see via `eligibleParticipants()`/
+   `discoverableGroups()`. It must also apply the same tenant-filter
+   discipline as every other tenant-owned query (no manual/parallel
+   scoping mechanism) so it can never surface an interaction that
+   happened in a tenant the current session has no access to.
+2. **Until that backend work exists, column 3 ships with an interim,
+   documented fallback sort**: alphabetical by display name (the same
+   tiebreak REQ-2d already specifies for "no computed timestamp" rows) —
+   i.e. every column-3 row is treated as "no known interaction" for now.
+   This is not a silent shortcut: `ChatDirectoryRowsService
+   .discoveryRows()`'s doc comment must say explicitly that this is
+   REQ-2d's fallback branch, pending the backend amendment above, so a
+   future reader doesn't mistake alphabetical-only for the finished
+   ranking. This satisfies the acceptance criterion's *structural* half
+   (column 3 renders the right disjoint row set, sorted, searchable) and
+   ships a usable feature now, without a false claim of building the
+   real cross-surface signal client-side (which was rejected above as
+   infeasible). The real recency sort becomes a fast-follow task, gated
+   on the backend amendment, tracked as its own blocked task in TASKS.md
+   rather than silently left undone.
+
+### 1:1/RAG hard-delete — feasibility decision (REQ-33/34/36/37)
+
+**Decision: confirmed hard prerequisite, backend PLAN/SPEC amendment
+required before any REQ-33/REQ-36 frontend task starts. TASKS.md marks
+that dependency explicitly and schedules no "clear conversation" UI work
+for 1:1/RAG ahead of it.**
+
+Verified in `knowly-api`:
+- `ChatController`/`ChatConversationService.deleteConversation` **does**
+  expose `DELETE /api/chat/conversations/{id}` — but it is hard-scoped
+  to `ChatConversationKind.PEER_GROUP` only
+  (`if (conversation.getKind() != ChatConversationKind.PEER_GROUP) throw
+  ChatGroupStateConflictException(Detail.NOT_PEER_GROUP)`) and is a
+  **soft** delete (`setDeletedAt`, cascading soft-delete to participants/
+  messages) gated on the group-admin/tenant-oversight authorization
+  model — this is REQ-31/32's existing "excluir grupo" endpoint, already
+  fully covered by section 7/8's already-planned tasks. It is not usable
+  for a `PEER_DIRECT` conversation and would need to reject on kind even
+  if called.
+- No endpoint anywhere deletes a `PEER_DIRECT` chat conversation.
+- `ConversationController`
+  (`/api/tenants/{tenantId}/conversations`, the RAG feature) exposes only
+  `POST` (create), `GET` (list/get), and `POST .../messages` (SSE
+  send) — no `DELETE` of any kind.
+
+This confirms SPEC.md's own "Out of scope" call-out verbatim: **REQ-33
+and REQ-36 both require a new backend endpoint that does not exist
+today**, and REQ-34 needs no new work at all (it's the existing leave-
+group flow, already covered by section 8's tasks — `sair do grupo` is
+categorically not a delete). Concretely:
+- REQ-33 needs something like `DELETE /api/chat/conversations/{id}`
+  **extended** to also accept `PEER_DIRECT` (or a new, narrower endpoint
+  if reusing the group one is judged unsafe given its very different
+  authorization model — "only a genuine participant," not "group admin
+  or tenant oversight") — this is the backend PLAN's decision to make,
+  not this frontend PLAN's.
+- REQ-36 needs an analogous `DELETE` on `ConversationController`
+  (`DELETE /api/tenants/{tenantId}/conversations/{conversationId}`),
+  scoped to the conversation's own owning participant.
+- Both should ideally be specified together with REQ-2d's
+  interaction-recency need above, since a genuine hard delete plus "the
+  interaction still counts for column 3 ranking" implies the backend
+  needs to retain *some* durable trace of a deleted 1:1/RAG conversation
+  even after the frontend-visible record is gone — the same backend
+  amendment can plausibly cover both gaps in one PLAN.
+- REQ-35 (Support: no clear action, ever) needs **no backend work** —
+  it's an explicit non-feature. The frontend task here is only "assert
+  no clear/limpar control renders for the Support row," never a call to
+  an endpoint.
+- **[AppSec-added authorization requirements, 2026-08-09]** Whoever
+  writes the backend PLAN/SPEC amendment for the REQ-33/REQ-36
+  hard-delete endpoints must satisfy all of the following before either
+  ships, given this is new, irreversible, destructive functionality:
+  1. **Participant check must be a fresh, server-side DB lookup keyed
+     off the authenticated actor and the path's `conversationId`** —
+     `actor.id ∈ conversation.participantUserIds` (or the RAG
+     equivalent: `actor.id == conversation.ownerId`), re-derived from
+     the database on every call, never trusted from a client-supplied
+     flag or a stale/cached participant list. This is the same
+     discipline `ChatEligibilityService`'s own doc comment already
+     states ("never trusts a client-supplied 'I'm eligible' flag") —
+     the new endpoint must follow it, not reinvent a weaker check.
+  2. **A `conversationId` belonging to someone else's 1:1/RAG
+     conversation, or to a group/Support conversation, must be
+     rejected identically** (same status code/body) **regardless of
+     whether the id exists at all** — a non-participant must not be
+     able to distinguish "that conversation doesn't exist" from "that
+     conversation exists but isn't yours" from "that conversation
+     exists but is a group/Support, not a 1:1/RAG" purely from the
+     response, both to prevent conversation-id enumeration and to keep
+     the reasonable-time-only rejection here (this isn't a timing-
+     sensitive secret comparison, but the response *shape* must not
+     leak existence).
+  3. **This is a genuine IDOR surface by construction** (a
+     `conversationId` is presumably a sequential/guessable numeric id,
+     same shape as every other `/api/chat/conversations/{id}` route) —
+     the authorization check above is not optional hardening, it is
+     the entire security boundary for an endpoint whose entire purpose
+     is permanent, irreversible data destruction. No caller-supplied
+     "I am a participant" assertion of any kind may substitute for the
+     DB-derived check.
+  4. **Kind must be validated server-side**, mirroring the existing
+     `deleteConversation`'s own `kind != PEER_GROUP` guard: the new
+     1:1 endpoint must reject a `PEER_GROUP`/`SUPPORT` conversation id
+     even if the caller happens to be a genuine participant of one
+     (e.g. a group member), since REQ-34/REQ-35 deliberately withhold
+     this action from those kinds — "participant of *a* conversation"
+     is not sufficient, it must be "participant of *this specific*
+     1:1/RAG conversation."
+  5. **Hard delete means hard delete** — per REQ-33/REQ-36's own
+     wording ("permanently deletes... full message history"), this is
+     a deliberate exception to this repo's usual soft-delete-by-default
+     posture (`deleteConversation`'s existing group-delete endpoint
+     soft-deletes via `setDeletedAt`). If the backend PLAN wants to
+     retain a durable trace for REQ-2d's interaction-recency signal
+     (see above), that must be a separate, narrower retained fact (e.g.
+     a last-interaction timestamp/audit row), never the full message
+     content/history — reviving message content post-"permanent
+     deletion" would contradict the product owner's own stated
+     semantics and expectations set by REQ-33/REQ-36's UI copy.
+
+This PLAN does not schedule REQ-33/REQ-36's frontend tasks (API service
+methods, UI clear actions, row-removal-on-success wiring) — TASKS.md
+marks them explicitly **BLOCKED — backend prerequisite**, per this
+repo's existing convention for cross-repo dependencies (see
+`chat-group-membership-management`'s own frontend-PLAN coordination
+precedent, now on the other side of that same relationship).
+
+### Reconciling in-progress uncommitted files against this amendment
+
+- **`knowly-app/src/app/core/chat-directory-rows.service.ts`
+  (uncommitted, new)**: mostly still correct and reusable — its
+  `personGroupRows`/`ensureLoaded`/tenant-resolution-race fix/click
+  handlers are unaffected by this amendment and stay as-is. **Needs
+  rework**: (a) its own doc comment is stale (describes the now-
+  superseded "2-column, partition replaces 3rd column" outcome — update
+  to describe the unified-list + real-3rd-column outcome instead); (b)
+  add `conversationRows` (Support-pinned, unified, sorted) and rename/
+  extend `notTalkedPeople` → `discoveryRows` (adding discoverable groups)
+  as described above; (c) `talkedPeople`/`groupRows` stay as internal
+  building blocks for `conversationRows`, no longer rendered directly by
+  a component.
+- **`knowly-app/src/app/features/chat/chat-directory.component.ts`
+  (uncommitted, modified)**: its 3-section (talked/not-talked/groups)
+  template is **superseded outright** — needs a rewrite to the one-list-
+  plus-pinned-Support shape described above. Its avatar/badge/active-row/
+  error-row rendering per list item, and its `filterByQuery` helper, are
+  reusable as-is inside the new single `<ul>`.
+- **`knowly-app/src/app/features/chat/chat-sidebar.component.ts`
+  (uncommitted, modified)**: **no changes needed** — its 3 action
+  buttons + tenant-gating are untouched by this amendment (confirmed
+  above).
+- **`knowly-app/src/app/features/chat/chat-contacts-panel.component.ts`
+  and its spec (uncommitted, new, per this task's own prompt) were
+  searched for and do not exist in the working tree** — `git status`/
+  `find` both come back empty for that path at the time of this
+  reconciliation, despite being named in the task brief as already
+  written. Nothing to reconcile for these two files; if they surface
+  later (e.g. an uncommitted stash, or a sibling worktree), they should
+  be re-evaluated against this section before being wired into
+  `ChatShellComponent`, since their described purpose (a 3rd "já
+  falou"/"ainda não falou" column) is the exact idea SPEC.md's Amended
+  (2) already retired same-day, not this amendment's actual column 3.
+- **`chat-directory.component.spec.ts`/`chat-sidebar.component.spec.ts`
+  (uncommitted, modified)**: the directory spec's talked/not-talked/
+  groups-section assertions need rewriting alongside the component;
+  the sidebar spec needs no changes (component is unchanged).
+
 ## Emergent decisions (implementation, 2026-08-09)
 
 Deviations discovered while executing TASKS.md, following
@@ -750,3 +1069,54 @@ fixes on the shipped cut:
   filled (`bg-signal-600`) style — the color alone wasn't enough for a
   tester to read it as a button rather than a permanently-"selected"
   list row (list rows have no selection styling of their own today).
+
+## Emergent decisions (implementation, 2026-08-09, TASKS.md section 12
+completion pass)
+
+> Covers finishing the remaining, previously-untouched unblocked tasks
+> in section 12 (12d's collapse work, 12f/12g's regression anchors,
+> 12i's a11y/i18n/verification) — 12a/12b/12c had already landed in
+> earlier commits (`a72dc8f`, `ba48810`) by the time this pass started;
+> that work is unchanged here, only checkbox-reconciled.
+
+- **12d's 3-way collapse and its `chat-shell.component.spec.ts`/
+  `chat-shell.component.ts` changes were already present, uncommitted,
+  in the working tree** at the start of this pass — a
+  `mobileFullDirectoryOpen` signal, reset on every route/query-param
+  change, drives the third (`'fullDirectory'`) branch of `mobileView()`
+  since column 3 has no route of its own to derive state from (unlike
+  the conversation/directory halves, which stay purely route-derived).
+  This pass added one more regression test on top
+  (`chat-shell.component.spec.ts`, "column 1's and column 3's search
+  fields each have their own, never-equal aria-label") to close out
+  task 167's "one combined test asserting the two labels are never
+  equal" wording literally, rather than relying on the two components'
+  already-existing, separate "has *an* aria-label" assertions to imply
+  it.
+- **12f's regression anchor** was the one task in section 12 with no
+  existing test at all: added
+  `conversation-detail.component.spec.ts`'s "renders no 'limpar'/'clear'
+  control anywhere in a group's view" case, alongside the existing
+  "leave group" tests it's meant to sit next to, per REQ-34.
+- **12g was already fully implemented** (`chat-directory.component
+  .spec.ts`'s "does not render any clear/limpar control for the Support
+  row" test) by the time this pass started — no new work needed, only
+  checkbox reconciliation.
+- **i18n retirement (task 166)** required no removal work: a grep for
+  `talkedTitle`/`notTalkedTitle`/`talkedSearchLabel`/
+  `notTalkedSearchLabel` across `public/i18n/*.json` and `src/` came
+  back empty — the earlier 12c commit had already fully replaced them
+  with `chat.directory.unifiedSearchLabel`/`chat.fullDirectory.*` keys,
+  never leaving the superseded keys behind as dead entries.
+- **12e and 12h remain BLOCKED**, unchanged from this PLAN's existing
+  hard-delete feasibility decision — no code for either was started in
+  this pass, per TASKS.md's explicit instruction not to reorder blocked
+  tasks earlier.
+- Full verification (`npm run format:check && npm test && npm run
+  build && npm run lint`) passed clean after this pass's changes: 887
+  tests across 104 spec files, zero lint errors, a clean production
+  build. One pre-existing formatting drift in
+  `chat-shell.component.ts` (from the already-uncommitted 12d changes)
+  was fixed via `prettier --write` as part of this pass rather than
+  left for a later cleanup commit, per this repo's "resolve warnings
+  before commit" convention.

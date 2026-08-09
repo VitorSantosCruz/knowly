@@ -2,11 +2,15 @@
 
 > The what and the why. No technical implementation details.
 >
-> **Status: APPROVED FOR PLAN.** All Tier 3 items are resolved — see
-> "Tier 3 — resolved" below, including the group-admin authorization
-> model closed by the companion backend SPEC
-> (`chat-group-membership-management`). Ready to hand to
-> `software-architect` for PLAN.md.
+> **Status: APPROVED FOR PLAN — zero open Tier 3 blockers.** All Tier 3
+> items from the original amendment, its "3-column then 2-column"
+> follow-up, and "Amended (3)" are resolved (product owner, 2026-08-09
+> — see "Tier 3 — resolved" sections below, including the final entry
+> resolving REQ-35/REQ-36). **Every requirement in this document —
+> REQ-1 (Amended (3), final), REQ-2 (Amended (3), final) including
+> REQ-2d, REQ-33 through REQ-37 (all final), and REQ-9 (Amended (3),
+> final) — is approved for PLAN.** This document, in full, is ready for
+> `software-architect`/PLAN work.
 >
 > **This document amends two already-shipped, approved SPECs:**
 > - `knowly-app/specify/features/internal-team-chat/SPEC.md` (119/119
@@ -36,7 +40,10 @@
 > group is left with no admin). This frontend SPEC does not redefine
 > that authorization model — it only consumes those endpoints and
 > reflects whatever admin/non-admin capability the backend reports for
-> the current viewer.
+> the current viewer. **It does not yet cover a 1:1 conversation
+> hard-delete endpoint (REQ-33), nor the equivalent for a "Base de
+> artigos" conversation (REQ-36) — both are new, not-yet-specified
+> backend dependencies, see "Out of scope" below.**
 
 ## Context and motivation
 
@@ -80,12 +87,23 @@ this SPEC. This feature's search (REQ-8) is limited to matching a
 person's or group's **display name**, not message contents. See
 "Out of scope / Future work" for the reasoning.
 
+**Further amendment (2026-08-09), see "Amended (3)" below:** the
+product owner, after reviewing two screenshots of the 2-column cut,
+asked for a further restructuring of column 1 (merging its "já
+falou"/"ainda não falou"/"grupos" partitions into one unified,
+unlabeled list) plus a brand-new column 3 (a full directory of every
+user/group not already in column 1). This is a refinement of the same
+navigation surface, not a new feature, and is folded into this same
+document rather than a new SPEC. It originally raised 4 open questions;
+all 4 are now fully resolved (2026-08-09, same day) — see the Tier 3
+sections immediately below.
+
 ## Tier 3 — resolved (product owner, 2026-08-08)
 
 These were stop-and-ask items per `DECISIONS.md`'s decision-making
 authority section, all now answered directly by the product owner (or,
 for #4, closed by the companion backend SPEC's own approved decision).
-No Tier 3 item remains open in this document.
+No Tier 3 item remains open from this round.
 
 1. **Reversing `internal-team-chat`'s "unrelated, unchanged" boundary
    against the knowledge-base chat screen — confirmed, with an explicit
@@ -120,6 +138,108 @@ No Tier 3 item remains open in this document.
    on a backend-reported admin/capability flag for the current viewer,
    never on a frontend-side role check.
 
+## Tier 3 — resolved (2026-08-09, Amended (3))
+
+Answered directly by the product owner (2026-08-09, same day as the
+open questions were raised). All four items are now fully closed,
+including item 1's two narrow sub-cases (Support and "Base de
+artigos"), answered in a follow-up round the same day — see "Tier 3 —
+resolved (2026-08-09, Amended (3), final round)" immediately below for
+those two.
+
+1. **"Clear a conversation" (limpar) — resolved for 1:1 and group in
+   this round; Support and RAG resolved in the follow-up round below.**
+   - **1:1 (person):** confirmed as a **hard delete** — "apaga a
+     conversa e o histórico." Clearing a 1:1 conversation permanently
+     deletes both the conversation record and its full message
+     history; it is not a per-viewer hide/archive. Reopening that
+     person afterward (e.g. from column 3) starts a brand-new, empty
+     conversation with no memory of the deleted one. **This needs a
+     new backend endpoint that does not exist yet** in this SPEC or in
+     `chat-group-membership-management` — see REQ-33 and "Out of
+     scope" below.
+   - **Group:** confirmed — clearing a group is **the same action as
+     leaving it** (REQ-16/REQ-17, already specified and already
+     implemented). There is no separate "clear group" concept, no new
+     action, and no new backend call. A group leaves column 1 exactly
+     the way it already does today: via "sair do grupo." See REQ-34.
+   - **Support and "Base de artigos":** resolved in the follow-up round
+     — see "Tier 3 — resolved (2026-08-09, Amended (3), final round)"
+     below; REQ-35/REQ-36 are now written and final.
+2. **Column 3's sort order — resolved, and it turns out richer than
+   either of the two readings originally offered.** The product
+   owner's answer describes a third reading, illustrated with a
+   concrete example: column 3 sorts by **recency of the most recent
+   interaction with that person/entity across every surface** the
+   viewer shares with them — any 1:1 conversation (even one since
+   hard-deleted per item 1 above, since the underlying interaction
+   still happened) and any group conversation either party is/was a
+   participant of — not just "has an active 1:1 conversation," and not
+   limited to interactions that still have a visible column-1 entry.
+   This is inherently **per-viewing-user and directional/asymmetric**
+   (the owner's own example: the owner's last direct message to
+   "cicrano" was earlier than a group message cicrano sent that the
+   owner also saw, so cicrano ranks by the group's timestamp on the
+   owner's own screen; from cicrano's own screen, the ranking is
+   computed from cicrano's own vantage point and may differ; a third
+   person, "beltrano," whose direct message to the owner came later
+   than either, ranks above both on the owner's screen). See REQ-2d
+   (Amended (3), final) below for the precise EARS phrasing, and the
+   attached implementation-risk note — this may need new backend
+   support that does not obviously exist today.
+3. **Groups vs. people symmetry in column 1's "clear" rule — resolved
+   by item 1's answer.** Groups do not get a "clear" action distinct
+   from people at all; leaving (REQ-16/REQ-17) is the only removal
+   action a group ever gets, unchanged from today. There is no group
+   "clear" behavior left to define, because there is no such action
+   for groups.
+4. **Which REQ numbers this amendment supersedes — unchanged from the
+   list already on record**, restated below now that the blocking
+   status has changed:
+   - REQ-2's "Already talked to"/"Haven't talked yet" partitioning
+     language is superseded by REQ-2 (Amended (3), final) below.
+   - REQ-2's groups-as-a-separate-list language is also superseded —
+     groups fold into the unified list (REQ-2, Amended (3), final).
+   - REQ-1's "two persistent columns"/REQ-2c's 2-column collapse are
+     superseded by REQ-1 (Amended (3), final)/REQ-2d (Amended (3),
+     final) below — three columns, not two.
+   - REQ-9's Support exemption is **confirmed to continue** — see REQ-9
+     (Amended (3), final) below; no longer a pending assumption.
+   - REQ-3 through REQ-7 (click-to-open behavior), REQ-10/REQ-11
+     (no-results/clear-search behavior), REQ-12 through REQ-32 (group
+     creation/visibility/discovery/governance) are **not** touched by
+     this amendment, as already stated — they continue to apply
+     exactly as already specified, just operating over the new unified
+     list's rows instead of the old partitioned ones.
+
+## Tier 3 — resolved (2026-08-09, Amended (3), final round)
+
+The last two sub-questions from item 1 above — Support's and "Base de
+artigos"'s own "clear" semantics, which the product owner's first round
+of answers explicitly did not cover — are now answered directly by the
+product owner, same day. **This closes every remaining Tier 3 item in
+this document; there are no more open blockers.**
+
+1. **Support: cannot be cleared at all.** There is no clear/delete
+   action for the Support conversation, full stop — it is a single,
+   always-available conversation ("só tem uma") that simply never
+   leaves the list, so "clear" does not apply to it as a concept. This
+   is not a gap or an oversight — the product owner confirmed
+   explicitly that no such action exists for Support. See REQ-35
+   (final) below, written as an explicit unwanted-behavior requirement
+   rather than a silent omission.
+2. **"Base de artigos" (RAG): clearable, with the same hard-delete
+   semantics as REQ-33's 1:1 clear.** Clearing a RAG conversation
+   permanently deletes that specific conversation and its full message
+   history; reopening "Base de artigos" afterward (via the "Falar com a
+   base de artigos" action, REQ-7) starts a brand-new, empty
+   conversation — no prior history is recoverable, exactly mirroring
+   REQ-33's person case. Since a viewer may have more than one RAG
+   conversation, "clear" here means deleting the one specific RAG
+   conversation the action was invoked on, not all of them. This also
+   needs a new backend endpoint that does not exist yet, same as
+   REQ-33 — see REQ-36 (final) below and "Out of scope."
+
 ## User stories
 
 - As any user, I want one place to go for "talk to someone," whether
@@ -144,6 +264,23 @@ No Tier 3 item remains open in this document.
   participant, promote another participant to admin, or change the
   group's visibility, from inside the group's own view.
 - As a group participant (admin or not), I want to leave a group myself.
+- **(Amended (3)):** As any user, I want my conversation list (column 1)
+  to be one simple, unlabeled list of everyone/everything I've already
+  talked to — no section headers getting in the way — with Support
+  always pinned at the top since I only ever have one.
+- **(Amended (3)):** As any user, I want a separate, always-available
+  full directory of everyone and every group I haven't yet talked to,
+  with its own search, ranked by who I've most recently interacted with
+  anywhere (even in a shared group, or a 1:1 I later cleared), so I
+  don't have to hunt for a "start new conversation" action to find
+  someone new.
+- **(Amended (3)):** As a user, I want to permanently clear a 1:1
+  conversation and its history when I no longer want it around, with a
+  clean slate if I talk to that person again later.
+- **(Amended (3), final round):** As a user, I want to permanently clear
+  a specific "Base de artigos" conversation and its history the same
+  way I can clear a 1:1, with a clean slate if I start a new one
+  afterward.
 
 ## Requirements (EARS/GEARS)
 
@@ -161,7 +298,7 @@ No Tier 3 item remains open in this document.
 > than reinvent one. REQ-1/REQ-2/REQ-3/REQ-5/REQ-6/REQ-7 below replace the
 > tab-strip design; REQ-4/REQ-8 through REQ-32 (search, group
 > creation/visibility/admin) are unaffected in behavior, only in where
-   they're anchored on screen.
+> they're anchored on screen.
 >
 > **Amended (2) 2026-08-09, same day** — a first cut of the amendment
 > above shipped as **3** persistent columns (directory, conversation, and
@@ -169,13 +306,13 @@ No Tier 3 item remains open in this document.
 > of the same person/group data). The product owner liked the
 > already-talked-to/haven't-talked-yet partitioning idea but found a
 > separate 3rd column redundant with the directory column's own People
-> rows. **Final direction: 2 columns, not 3** — the partitioning idea
-> moves *into* the directory column's People section (replacing its flat
-> list), instead of living in its own column. REQ-1/REQ-2/REQ-2a/REQ-2b/
-> REQ-2c below reflect this final, 2-column shape; there is no REQ-2b
-> "contacts column" anymore — see REQ-2 (amended) for where that
-> partitioning now lives. Groups/Support/"Base de artigos" are unaffected
-> by this second amendment, only People's own presentation.
+> rows. **Final direction (at the time): 2 columns, not 3** — the
+> partitioning idea moved *into* the directory column's People section
+> (replacing its flat list), instead of living in its own column.
+> **Superseded again by Amended (3) below**, which reintroduces a third
+> column with a different purpose (a full directory, not a partition of
+> the same data) — see that section for why this isn't the same idea
+> coming back unchanged.
 >
 > **Follow-up UX fixes, same day, reported by a tester on the shipped
 > 2-column cut (not requiring further re-architecture):** (a) the 3 quick
@@ -198,10 +335,36 @@ No Tier 3 item remains open in this document.
 > a tracked backend follow-up, not implemented here). (e) The "already
 > talked to" partition sorts most-recently-active first, proxied by
 > conversation id (descending) until the backend exposes a real
-   `lastMessageAt`/activity timestamp (tracked follow-up, see PLAN.md) —
-   and, critically, this sort never reacts to which row is merely
-   selected/open, only to genuine conversation data, so opening a
-   conversation cannot itself reorder the list.
+> `lastMessageAt`/activity timestamp (tracked follow-up, see PLAN.md) —
+> and, critically, this sort never reacts to which row is merely
+> selected/open, only to genuine conversation data, so opening a
+> conversation cannot itself reorder the list.
+>
+> **Amended (3) 2026-08-09, same day, final — zero open questions
+> remain.** After reviewing two screenshots of the shipped 2-column cut,
+> the product owner asked for two further changes to column 1 and a
+> brand-new column 3: (a) collapse column 1's "Already talked to"/"Haven't
+> talked yet"/"Groups" into **one single unlabeled list** ("CONVERSAS"),
+> one search field, mixing people and groups together — no section
+> headers; (b) add a **third column, same width as column 1**, listing
+> every user/group the viewer has *not* already got a column-1 entry for
+> (a full directory), with its own independent search field, sorted by
+> cross-surface last-interaction recency (see REQ-2d); (c) Support, being
+> a single, singular conversation, is **pinned/locked at the top** of
+> column 1's unified list rather than living in its own section; (d) RAG
+> ("Base de artigos") conversations also live as ordinary rows in column
+> 1's unified list, not a separate section; (e) a "clear conversation"
+> action permanently deletes a 1:1 conversation and its history (REQ-33),
+> making that person reappear in column 3; the same action does not
+> exist for groups (REQ-34, same as leaving); Support has no clear
+> action at all (REQ-35, final); "Base de artigos" clears the same way
+> as a 1:1, per-conversation (REQ-36, final). This is **not** the same
+> idea as the 3-column cut superseded by "Amended (2)": that earlier 3rd
+> column was a partition of the *same* interacted/not-interacted data
+> already shown in column 1 (hence "redundant"); this new column 3 is a
+> *disjoint* set — a full directory of people/groups the viewer has
+> **no** column-1 entry for at all, ranked by a materially richer,
+> cross-surface recency signal — a different, non-redundant purpose.
 
 - **REQ-1 [Ubiquitous]** The system shall provide a single top-level
   navigation entry ("Conversas") that replaces the previously separate
@@ -209,6 +372,13 @@ No Tier 3 item remains open in this document.
   laid out as **two** persistent columns — a directory column and a
   conversation column (REQ-2a) — instead of a sidebar that swaps the
   main panel's entire content per section.
+  - **REQ-1 (Amended (3), final):** the screen shall instead be laid
+    out as **three** persistent columns: a conversations column
+    (REQ-2, final — the unified "CONVERSAS" list), a conversation/
+    thread column (REQ-2a, unchanged), and a full-directory column
+    (REQ-2d, final), the first and third the same width. **Approved
+    for PLAN** — this 3-column version is now authoritative, replacing
+    the 2-column version above.
 - **REQ-2 [Ubiquitous]** The directory column (leftmost) shall always
   show, simultaneously and without a tab/section switch: (a) three
   direct action buttons — "Abrir chamado de suporte", "Falar com a base
@@ -231,12 +401,26 @@ No Tier 3 item remains open in this document.
     identically (REQ-3). Each row also shows the person's avatar
     (falling back to a generic icon when unavailable — see PLAN.md's
     note on the current `avatarUrl` data gap).
+    - **REQ-2 People rows (Amended (3), final):** the "Already talked
+      to"/"Haven't talked yet" partition above is superseded — People
+      rows with an existing 1:1 conversation move into **column 1's
+      single unified "CONVERSAS" list** (see below); People rows with
+      **no** existing conversation move entirely out of column 1 and
+      into **column 3** (REQ-2d) instead of a "Haven't talked yet"
+      partition of column 1. **Approved for PLAN.**
   - **Group rows** — every group conversation the viewer is a
     participant of, plus (see "Group visibility and discovery" below)
     discoverable groups the viewer isn't yet part of, plus
     `STAFF_ADMIN`/`MEMBER_ADMIN` look-ins per `internal-team-chat`'s
     existing REQ-1/REQ-7/REQ-8, unchanged — kept as a single list with
     its own single search field (REQ-8), not partitioned like People.
+    - **REQ-2 Group rows (Amended (3), final):** groups the viewer
+      already participates in move into column 1's unified "CONVERSAS"
+      list (mixed with People, not a separate Groups list);
+      discoverable groups the viewer is **not** yet a participant of
+      move into column 3 alongside not-yet-messaged People. Groups get
+      no "clear" action distinct from leaving (REQ-34) — fully
+      resolved, no remaining ambiguity. **Approved for PLAN.**
   - **Support row(s)** — the viewer's own existing Support channel/ticket
     (member), or the staff unclaimed-inbox/claimed-ticket entries (staff
     with the support permission), each opening the existing Support
@@ -247,6 +431,18 @@ No Tier 3 item remains open in this document.
     This row and the "Abrir chamado de suporte" action must be visibly
     distinct entries (not the same label twice — a duplication bug found
     and fixed the same day).
+    - **REQ-2 Support row (Amended (3), final, confirmed):** the
+      Support row shall be pinned as the **first** row of column 1's
+      unified list, always, regardless of sort order or any other
+      row's recency — never demoted below any person/group row,
+      mirroring the product owner's "fica travada em cima" instruction.
+      **Confirmed by the product owner (2026-08-09):** the pinned
+      Support row remains visible even while column 1's search field
+      has an active, non-matching query — it is exempt from the
+      unified search filter, same as REQ-9's existing Support
+      exemption, regardless of whether the typed text matches
+      "Suporte" or anything else. **Approved for PLAN.** Support has no
+      "clear" action at all — see REQ-35 (final).
   - **"Base de artigos" rows** — every existing RAG conversation the
     viewer has (`conversations`' existing REQ-1 through REQ-8; a viewer
     may have more than one), each opening in the conversation column
@@ -255,6 +451,15 @@ No Tier 3 item remains open in this document.
     SPEC ("When the user starts a new conversation... create it... make
     it the active conversation") — existing ones are reached via their
     row, never via that action.
+    - **REQ-2 "Base de artigos" rows (Amended (3), final):** existing
+      RAG conversations move into column 1's unified list as ordinary
+      rows (mixed with People/Groups/Support), no longer a visually
+      separate section — and become subject to column 1's single
+      unified search (superseding REQ-9's "never filtered" exemption
+      for this row kind specifically; Support's exemption is
+      unaffected, see above). **Approved for PLAN.** A RAG conversation
+      can be cleared the same way a 1:1 can, per-conversation — see
+      REQ-36 (final).
   - **Tenant-scoping of the 2 conversation-starting actions (bug fix,
     2026-08-09)**: "Abrir chamado de suporte" and "Falar com a base de
     artigos" both only mean something with an active tenant selected
@@ -275,17 +480,79 @@ No Tier 3 item remains open in this document.
   components/behavior for each kind (`message-thread`/
   `conversation-detail`, `SupportPageComponent`,
   `ConversationsPageComponent` respectively) — this SPEC changes only
-  which column renders them, not their own behavior.
+  which column renders them, not their own behavior. Unaffected by
+  Amended (3).
 - **REQ-2c [State-Driven]** While the viewport is narrower than the
-  layout's two-column breakpoint, the system shall collapse to showing
-  one column at a time (directory or conversation, whichever the viewer
+  layout's column breakpoint, the system shall collapse to showing one
+  column at a time (directory or conversation, whichever the viewer
   last activated) — mirroring the existing collapsible-sidebar
   convention already used by the app shell.
+  - **REQ-2c (Amended (3), final):** with a third column, the system
+    shall collapse to showing **one of the three columns at a time**
+    (conversations list, thread, or full directory — whichever the
+    viewer last activated), extending the same collapse convention
+    from two panes to three; the viewer navigates between the three via
+    the same back/forward affordance the existing collapsible sidebar
+    already uses (e.g. a back action from the thread returns to
+    whichever list column was last open). **Approved for PLAN** as a
+    direct extension of the already-approved 2-column collapse
+    behavior — no new UX decision beyond generalizing it to a third
+    pane.
+- **REQ-2d [Complex] (Amended (3), final)** The full-directory column
+  (rightmost, same width as column 1) shall show, simultaneously and
+  without a tab/section switch, every user the viewer is eligible to
+  message 1:1 with **no existing 1:1 conversation** and every group the
+  viewer is not yet a participant of that is discoverable to them
+  (`PUBLIC`/`REQUEST_TO_JOIN`, per REQ-19, unchanged) — the disjoint
+  complement of column 1's People/Group rows — **sorted as follows:**
+  for each such person, compute the timestamp of the most recent
+  interaction involving the current viewer and that person, across
+  every surface either has been part of: the most recent message in
+  any group conversation they currently share, and the most recent
+  message that ever existed in a 1:1 conversation between them —
+  including one since hard-deleted per REQ-33 (the interaction
+  happened even though the record is gone; if the backend cannot
+  recover that timestamp post-deletion, that person falls back to "no
+  known interaction," per below — this exact feasibility question is
+  the subject of the risk note below). Column 3 sorts descending by
+  that per-person timestamp; a person or discoverable group with no
+  computed timestamp (never interacted on any surface) sorts after
+  every entity that has one, using the directory's existing default
+  order (alphabetical by display name) as the tiebreak among them.
+  This ranking is deliberately **per-viewing-user and asymmetric** —
+  two people who interacted with each other may see each other ranked
+  differently in their own column 3, since each is computed from that
+  viewer's own vantage point (confirmed by the product owner's own
+  example, see Tier 3 resolution #2 above). It has its own independent
+  search field, filtering this column's rows only (never column 1's).
+  **Approved for PLAN.**
+  - **Implementation-risk note, not blocking approval but flagged
+    prominently for PLAN:** this ranking needs a "most recent
+    interaction with entity X, across any group message or a
+    since-deleted 1:1" derived value per (viewer, other-entity) pair.
+    `chat-directory-rows.service.ts`'s current data
+    (`ChatService.conversations()`/`.details()`) exposes
+    conversation-level data only — no per-participant "last time this
+    specific other person was active in a group I'm in" signal, and no
+    `lastMessageAt` on a conversation at all yet (`talkedPeople`'s own
+    doc comment already flags the id-descending recency proxy as a
+    stand-in for that exact, already-known gap). Computing REQ-2d's
+    sort client-side would require fetching and correlating full
+    message history per group per participant, which does not scale
+    and cannot survive a hard delete (REQ-33, since the row is gone).
+    This most likely needs new backend support (e.g. a "last
+    interaction timestamp with entity X" derived endpoint/field) that
+    does not obviously exist today. `PLAN.md` must resolve this
+    feasibility question — including whether it belongs in this
+    feature's PLAN at all or needs its own backend SPEC amendment —
+    before committing to an implementation approach; this is a PLAN-
+    level feasibility question, not a remaining SPEC ambiguity.
 - **REQ-3 [Event-Driven]** When the user clicks a person's row (either
   partition) in the directory column, the system shall open that
   person's existing 1:1 conversation if one exists, or create-and-open a
   new one if it doesn't — with no separate "Nova conversa" step, dialog,
-  or route in between.
+  or route in between. Applies identically regardless of whether the row
+  is in column 1 or column 3 once Amended (3) lands.
 - **REQ-4 [Unwanted Behavior]** If the user clicks a person they are not
   eligible to message 1:1 (per the backend's existing eligibility rule),
   then the system shall not offer that person as a row in the first
@@ -312,6 +579,53 @@ No Tier 3 item remains open in this document.
   REQ-1 through REQ-8) in the conversation column, unchanged in its own
   behavior.
 
+### Clearing a conversation (Amended (3))
+
+> **Fully resolved (2026-08-09) for all four conversation kinds — 1:1,
+> group, Support, and "Base de artigos." REQ-33 through REQ-37 below are
+> all final and approved for PLAN.**
+
+- **REQ-33 [Event-Driven]** When the user confirms clearing a 1:1
+  conversation from column 1, the system shall call a new backend
+  endpoint (not yet specified — see "Out of scope" below) that
+  permanently deletes that conversation and its full message history,
+  and on success remove that person's row from column 1 (they then
+  reappear in column 3, per REQ-2d's disjoint-complement rule, since
+  they no longer have an existing 1:1 conversation). Only a genuine
+  participant of that 1:1 conversation may clear it. Clicking that
+  person again afterward (REQ-3) creates a brand-new, empty
+  conversation — no prior history is recoverable.
+- **REQ-34 [Ubiquitous]** The system shall not offer a "clear
+  conversation" action for a group, distinct from "sair do grupo"
+  (REQ-16/REQ-17) — clearing a group conversation is not a concept
+  this SPEC defines; leaving is the only way a group ever leaves
+  column 1.
+- **REQ-35 [Unwanted Behavior] (final)** The system shall not offer a
+  "clear conversation"/"limpar" action for the Support row, under any
+  circumstance — Support is a single, always-available conversation per
+  viewer ("só tem uma") with no clear or delete action of any kind; it
+  simply never leaves column 1. This is a deliberate absence of a
+  feature, confirmed by the product owner, not an unspecified gap.
+- **REQ-36 [Event-Driven] (final)** When the user confirms clearing a
+  specific "Base de artigos" conversation from column 1, the system
+  shall call a new backend endpoint (not yet specified — see "Out of
+  scope" below) that permanently deletes that specific RAG conversation
+  and its full message history, and on success remove that
+  conversation's row from column 1. Only the conversation's own
+  participant (the viewer who owns it) may clear it. Reopening "Base de
+  artigos" afterward (via the "Falar com a base de artigos" action,
+  REQ-7) starts a brand-new, empty conversation — no prior history is
+  recoverable. If the viewer has other, uncleared RAG conversations,
+  those are entirely unaffected. Mirrors REQ-33's semantics exactly,
+  scoped to the RAG conversation type.
+- **REQ-37 [Unwanted Behavior]** If clearing a 1:1 conversation
+  (REQ-33) or a "Base de artigos" conversation (REQ-36) fails (backend
+  rejection, e.g. the caller isn't a participant, or a network/server
+  error), then the system shall show an inline error and leave that
+  conversation's row in column 1 exactly as it was before the attempt,
+  never optimistically removing it before the backend confirms
+  deletion.
+
 ### Search (by name only — see "Out of scope / Future work" for message
 content search)
 
@@ -321,23 +635,39 @@ content search)
   typed text, case-insensitively, updating as the user types. **Amended
   (2) 2026-08-09**: since People is now two partitions
   ("Already talked to"/"Haven't talked yet", see REQ-2), each partition
-  has its own independent search field — typing in one never affects the
+  has its own independent search field; typing in one never affects the
   other. Groups keeps a single search field over its own candidate set:
   every group the viewer already participates in, plus every
   **Discoverable** or **Public** group (see below) the viewer does not
   yet participate in — never a **Private** group the viewer isn't
   already in (REQ-19). No search here ever looks inside message content
   — see "Out of scope / Future work."
+  - **REQ-8 (Amended (3), final):** superseded now that REQ-1/REQ-2
+    (Amended (3)) are approved — column 1 gets **one** search field
+    over its whole unified list (people-with-conversation, groups-
+    with-conversation, RAG conversations; Support is exempt, see REQ-2
+    above), and column 3 gets its **own, separate** search field over
+    its own list (people-without-conversation, discoverable groups-
+    without-conversation). The two search fields never affect each
+    other's results. **Approved for PLAN.**
 - **REQ-9 [Ubiquitous]** The system shall not filter the Support or
   "Base de artigos" sections by this search — search narrows People/
   Groups only; both other sections remain always reachable.
+  - **REQ-9 (Amended (3), final):** superseded for "Base de artigos"
+    (RAG rows are now ordinary, searchable rows in column 1's unified
+    list, see REQ-2 above). **Confirmed by the product owner
+    (2026-08-09):** Support's exemption continues unchanged — the
+    pinned Support row stays visible regardless of any active,
+    non-matching search query. **Approved for PLAN.**
 - **REQ-10 [Unwanted Behavior]** If a search yields no matching person or
   group, then the system shall show a "no results for '<query>'" message
   distinct from the existing "no conversations yet" empty state, so a
   user can tell "I have zero conversations" apart from "my search typo
-  matched nothing."
+  matched nothing." Unaffected by Amended (3) beyond now applying per
+  column (1 and 3 each get their own empty/no-results state).
 - **REQ-11 [Event-Driven]** When the user clears the search field, the
   system shall restore the full, unfiltered People/Groups sections.
+  Unaffected by Amended (3) beyond applying per column independently.
 
 ### Group creation
 
@@ -477,12 +807,14 @@ authorization specified separately)
   (People/Groups/Support/Base de artigos), "Criar grupo" action
   (including its visibility-type choice), group visibility badges, join/
   request-to-join actions, approve/reject actions, promote-to-admin
-  action, and any "remover"/"sair do grupo"/"excluir grupo" actions must
-  all be keyboard-navigable and screen-reader-labeled, matching
-  `internal-team-chat`'s existing accessibility bar (WCAG AA).
-  Search-filtered-out entries (including Private groups, per REQ-19)
-  must be removed from the accessibility tree, not merely visually
-  hidden.
+  action, and any "remover"/"sair do grupo"/"excluir grupo"/"limpar
+  conversa" actions must all be keyboard-navigable and screen-reader-
+  labeled, matching `internal-team-chat`'s existing accessibility bar
+  (WCAG AA). Search-filtered-out entries (including Private groups, per
+  REQ-19) must be removed from the accessibility tree, not merely
+  visually hidden. **(Amended (3), final):** column 1's and column 3's
+  search fields each need their own accessible label, distinct from
+  each other.
 - Performance: REQ-8's search filters an already-fetched, already
   reasonably-bounded candidate list (the same eligible-participants/
   discoverable-groups data the backend already scopes down), and only
@@ -495,9 +827,11 @@ authorization specified separately)
   not something this SPEC pre-builds speculatively.
 - Responsiveness: the unified screen must be usable at the breakpoints
   already supported elsewhere in `knowly-app` (mobile, tablet, desktop) —
-  on narrow viewports, the sidebar and main panel follow the same
-  collapse/expand pattern `internal-team-chat`'s existing `/chat` screen
-  already uses.
+  on narrow viewports, the screen follows the same collapse/expand
+  pattern `internal-team-chat`'s existing `/chat` screen already uses.
+  **(Amended (3), final):** with three columns, the narrow-viewport
+  story shows one of the three at a time (REQ-2c, final), extending the
+  same convention.
 
 ## Acceptance criteria
 
@@ -559,6 +893,62 @@ authorization specified separately)
       shows an inline error and leaves the group's displayed state
       unchanged.
 
+**Amended (3), approved for PLAN (2026-08-09):**
+
+- [x] Column 1 shows one unified, unlabeled "CONVERSAS" list (people
+      with an existing conversation + groups already joined + Support +
+      RAG conversations), with Support always pinned first regardless of
+      sort/search, and one search field over the whole list (Support
+      exempt from that search). Verified by
+      `chat-directory.component.spec.ts` (tasks 151-157).
+- [x] Column 3, the same width as column 1, shows every person the
+      viewer is eligible to message but hasn't yet, plus every
+      discoverable group the viewer isn't a participant of — with zero
+      overlap against column 1's rows — and has its own independent
+      search field. Verified by `chat-full-directory.component.spec.ts`
+      and `chat-directory-rows.service.spec.ts` (tasks 136-137, 144-150).
+- [ ] Column 3 is sorted descending by, for each entity, the timestamp
+      of the most recent interaction (any shared group's most recent
+      message, or any 1:1 message ever exchanged with that person,
+      including via a since-cleared/deleted 1:1) involving the current
+      viewer and that entity; entities with no computed interaction
+      timestamp sort after all entities that have one, alphabetically
+      among themselves. **Not yet — ships today with the documented
+      interim fallback (alphabetical-only, see
+      `ChatDirectoryRowsService.discoveryRows()`'s doc comment); the real
+      cross-surface ranking is BLOCKED on TASKS.md's tasks 141-142
+      pending a new backend `interaction-recency`-style endpoint, per
+      PLAN.md's "Cross-surface recency sort" feasibility decision.**
+- [ ] Confirming "limpar" on a 1:1 conversation permanently deletes the
+      conversation and its full message history; only a genuine
+      participant may do this; the person then appears in column 3
+      instead of column 1; re-clicking them afterward starts a brand-new,
+      empty conversation. **BLOCKED — TASKS.md task 161 — needs a new
+      backend hard-delete endpoint for `PEER_DIRECT` conversations that
+      does not exist yet; not started.**
+- [x] No "clear conversation" action is offered for a group — "sair do
+      grupo" remains the only way a group leaves column 1. Verified by
+      `conversation-detail.component.spec.ts` (task 162).
+- [ ] A failed 1:1 clear attempt shows an inline error and leaves that
+      row in column 1 unchanged. **BLOCKED — same prerequisite as the
+      1:1 clear item above (TASKS.md task 161); not started.**
+- [x] No "clear conversation"/"limpar" action is ever offered for the
+      Support row, under any circumstance (REQ-35). Verified by
+      `chat-directory.component.spec.ts` (task 163).
+- [ ] Confirming "limpar" on a "Base de artigos" conversation permanently
+      deletes that specific RAG conversation and its full message
+      history; only its own participant may do this; the conversation's
+      row is removed from column 1 on success; a viewer's other RAG
+      conversations are unaffected; reopening "Base de artigos"
+      afterward starts a brand-new, empty conversation (REQ-36).
+      **BLOCKED — TASKS.md task 165 — needs a new backend hard-delete
+      endpoint for RAG conversations that does not exist yet; not
+      started.**
+- [ ] A failed "Base de artigos" clear attempt shows an inline error and
+      leaves that row in column 1 unchanged (REQ-37). **BLOCKED — same
+      prerequisite as the "Base de artigos" clear item above (TASKS.md
+      task 165); not started.**
+
 ## Out of scope / Future work
 
 - **Full-text search over message content** (searching by a snippet of
@@ -604,3 +994,29 @@ authorization specified separately)
 - Changing `internal-team-chat`'s or `conversations`' underlying
   permission/eligibility rules — this SPEC only changes how those rules
   are surfaced in the UI.
+- **(Amended (3)) 1:1 "clear conversation" backend endpoint** — the
+  semantics are resolved as a hard delete (REQ-33), but **no backend
+  endpoint for this exists yet** in this SPEC or in
+  `chat-group-membership-management`. Implementing REQ-33 requires a
+  new backend SPEC amendment (e.g. a `DELETE` on a 1:1 conversation,
+  scoped to a genuine participant of it) before PLAN can build against
+  it — this frontend SPEC does not invent that contract on its own.
+- **(Amended (3), final round) "Base de artigos" "clear conversation"
+  backend endpoint** — same gap as the 1:1 case above, and it applies
+  here too: REQ-36's semantics (hard delete of one specific RAG
+  conversation) are resolved, but **no backend endpoint for this exists
+  yet** either, in this SPEC, in `conversations`' own SPEC, or in
+  `chat-group-membership-management`. Implementing REQ-36 requires a new
+  backend SPEC amendment (e.g. a `DELETE` on a RAG conversation, scoped
+  to its own owning participant) before PLAN can build against it. This
+  gap does **not** apply to Support (REQ-35) — Support has no clear
+  action at all, by design, so there is no missing endpoint to track for
+  it.
+- **(Amended (3)) Column 3's sort order is now fully defined (REQ-2d,
+  final)** as cross-surface last-interaction recency — the remaining
+  open item is a PLAN-level feasibility question (see REQ-2d's
+  implementation-risk note), not a SPEC ambiguity: whether the backend
+  data needed to compute it exists today, and if not, whether that
+  backend work belongs to this feature's PLAN or needs its own backend
+  SPEC amendment.
+</content>

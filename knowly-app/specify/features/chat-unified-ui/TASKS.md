@@ -440,6 +440,222 @@
        an existing precedent for that exists in this codebase; otherwise
        manual verification only, documented in the commit message).
 
+## 12. Amendment (3): unified column 1 + full-directory column 3 (REQ-1/REQ-2/REQ-2c/REQ-2d, REQ-33–REQ-37)
+
+> Supersedes section 4's shipped-2-column tasks where noted. See
+> `PLAN.md`'s "Amendment (3) reconciliation" section for the full
+> rationale behind each decision below, including the two feasibility
+> calls (column-3 sort, hard-delete). Tasks marked **BLOCKED** must not
+> be started until the named backend prerequisite lands — do not
+> reorder them earlier just because they'd otherwise be next in
+> sequence.
+
+### 12a. `ChatDirectoryRowsService` — unified list + discovery rows
+
+- [x] 134. Test: `ChatDirectoryRowsService.conversationRows()` returns
+       `[supportRow, ...rest]` with Support always first regardless of
+       the underlying people/group/article ordering, and never affected
+       by `talkedQuery`/any search state (Red).
+- [x] 135. Implement `conversationRows` as a `computed()` merging
+       `talkedPeople()`, `groupRows()` (members only — discoverable,
+       non-member groups move to `discoveryRows`, see below), and
+       `articleRows()`, sorted by each kind's existing id-descending
+       proxy, with `supportRow` unconditionally prepended (Green).
+- [x] 136. Test: `discoveryRows()` (renamed from `notTalkedPeople`)
+       returns not-yet-messaged people **and** discoverable, non-member
+       groups combined, with zero overlap against `conversationRows()`
+       (Red).
+- [x] 137. Implement `discoveryRows` — extend the renamed computed to
+       include `ChatDirectoryService.discoverableGroups()` rows
+       alongside not-yet-messaged people (Green).
+- [x] 138. Update `groupRows()`'s doc comment and callers: it now backs
+       `conversationRows` (member groups only) — `personGroupRows()`'s
+       combined people+groups shape is retired in favor of the two
+       narrower computeds feeding `conversationRows`/`discoveryRows`
+       directly (small internal refactor, covered by tasks 134-137's
+       assertions; no new user-facing behavior).
+- [x] 139. Test: `discoveryRows()` sorts alphabetically by
+       `displayName` (the documented interim fallback, see PLAN.md's
+       column-3 feasibility decision) — asserting this is explicitly the
+       fallback branch, not a placeholder for an already-computed real
+       recency value (Red).
+- [x] 140. Implement that alphabetical sort, with a doc comment stating
+       explicitly this is REQ-2d's interim fallback pending the backend
+       amendment (Green).
+- [ ] 141. **BLOCKED — backend prerequisite: a new
+       `GET /api/chat/interaction-recency`-style endpoint (or
+       equivalent), specified via its own backend SPEC/PLAN amendment
+       (see PLAN.md's "Cross-surface recency sort" decision).** Once
+       that contract exists: test that `discoveryRows()` sorts
+       descending by the fetched per-entity last-interaction timestamp,
+       falling back to alphabetical only for entities with no computed
+       timestamp (REQ-2d, final ranking) — do not start this task until
+       the backend feature is approved and its PLAN.md is reconciled
+       into this feature's own PLAN.md first, mirroring
+       `chat-group-membership-management`'s existing reconciliation
+       precedent.
+- [ ] 142. **BLOCKED — same prerequisite as task 141.** Implement the
+       real cross-surface sort once the endpoint exists, replacing the
+       task-140 fallback (not deleting its alphabetical tiebreak, which
+       REQ-2d keeps as the tiebreak among zero-interaction entities even
+       in the final version).
+
+### 12b. `chat-full-directory.component.ts` — column 3
+
+- [x] 143. Extract `chat-directory.component.ts`'s existing
+       `filterByQuery` free function into a shared
+       `chat-directory-search.util.ts` (small refactor, no behavior
+       change) so both column components import one implementation.
+- [x] 144. Test: `ChatFullDirectoryComponent` renders
+       `rowsService.discoveryRows()`, filtered by its own independent
+       `searchQuery` signal (never affecting or affected by column 1's
+       search), with distinct `data-testid`/`aria-label`s from column 1
+       (Red).
+- [x] 145. Implement `ChatFullDirectoryComponent` (Green) — reuse
+       `AvatarComponent`/`GroupVisibilityBadgeComponent` and the same
+       click-to-open-or-create/join/request-to-join handlers already on
+       `ChatDirectoryRowsService`, no new interaction logic.
+- [x] 146. Test: a search with zero matches in column 3 shows its own
+       "no results for '<query>'" message, distinct from column 1's
+       (REQ-10, per-column) (Red).
+- [x] 147. Implement that empty state (Green).
+- [x] 148. Test: clicking a not-yet-messaged person or a discoverable
+       group in column 3 behaves identically to the same click in
+       column 1 today (create-and-open for a person, join/request-to-
+       join for a group) — REQ-3's "applies identically regardless of
+       whether the row is in column 1 or column 3" (Red).
+- [x] 149. Confirm/implement that reuse (Green — should be free, since
+       both components call the same `ChatDirectoryRowsService` methods;
+       write the test anyway as its own regression anchor).
+- [x] 150. Accessibility: column 3's search field and every row
+       keyboard-navigable with its own distinct `aria-label` from column
+       1's equivalents (Red), implement (Green).
+
+### 12c. `chat-directory.component.ts` rewrite — unified column 1
+
+- [x] 151. Test: `ChatDirectoryComponent` renders one `<ul>` over
+       `rowsService.conversationRows()` with Support always the first
+       row in the DOM, regardless of any other row's data (Red).
+- [x] 152. Implement that rewrite, deleting the 3-section (talked/
+       not-talked/groups) template entirely (Green) — reuses the
+       existing avatar/badge/active-row/error-row per-item rendering
+       already built for the shipped 2-column version.
+- [x] 153. Test: one `unifiedQuery` search field filters every row
+       except the pinned Support row, which stays visible under any
+       non-matching query (REQ-2/REQ-9, Support exemption confirmed)
+       (Red).
+- [x] 154. Implement that filtering, structurally excluding Support from
+       the filtered computed rather than special-casing it in the
+       template (Green).
+- [x] 155. Test: a search with zero matches shows the distinct "no
+       results for '<query>'" message; clearing the field restores the
+       full list (REQ-10/REQ-11, now over the unified list) (Red).
+- [x] 156. Implement (Green — likely free once 154 is correct).
+- [x] 157. Update `chat-directory.component.spec.ts`'s existing talked/
+       not-talked/groups-section assertions to match the unified list —
+       delete assertions for section headers/titles that no longer
+       exist (`chat.contacts.talkedTitle`/`notTalkedTitle`), replacing
+       i18n keys accordingly (see task 168).
+- [x] 158. `ChatShellComponent` wiring: render `ChatFullDirectoryComponent`
+       as the third pane alongside the existing directory/conversation
+       panes, extending its existing 2-pane dispatch (no separate Red;
+       covered by task 159's collapse test and a basic "3 panes render
+       simultaneously above the collapse breakpoint" smoke assertion
+       added to `chat-shell.component.spec.ts`).
+
+### 12d. Three-way collapse (REQ-2c, final)
+
+- [x] 159. Test: below the layout's column breakpoint, `ChatShellComponent`
+       shows exactly one of the three panes (conversations list, thread,
+       full directory) at a time, and a back/forward affordance moves
+       between them, extending the existing 2-pane collapse test (Red).
+- [x] 160. Implement that 3-way collapse, generalizing the existing
+       2-pane collapse state to track which of 3 panes (not 2) is
+       currently active (Green).
+
+### 12e. Clearing a 1:1 conversation (REQ-33, REQ-37) — BLOCKED
+
+- [ ] 161. **BLOCKED — backend prerequisite: a new endpoint that
+       hard-deletes a `PEER_DIRECT` conversation + its messages, scoped
+       to a genuine participant (see PLAN.md's hard-delete feasibility
+       decision — likely an extension of `DELETE
+       /api/chat/conversations/{id}` to accept `PEER_DIRECT`, or a new
+       endpoint, decided by that backend PLAN, not here).** Do not start:
+       `ChatGroupService`/a new `ChatConversationLifecycleService`
+       method calling that endpoint, a "limpar conversa" action on
+       column-1 person rows, row-removal-on-success (person then appears
+       in `discoveryRows()`), and the REQ-37 inline-error-on-failure
+       path, all wait on that backend contract landing and being
+       reconciled into this feature's PLAN.md first.
+
+### 12f. Clearing a group (REQ-34) — no new work
+
+- [x] 162. Confirm (no new test needed): REQ-34's "no clear action for
+       groups, distinct from leaving" is already fully satisfied by
+       section 8's existing "sair do grupo" tasks (102-105) — add one
+       assertion to `conversation-detail.component.spec.ts` (if not
+       already implied by its existing action-list assertions) that no
+       "limpar"/"clear" control renders anywhere in a group's view,
+       alongside its existing "sair do grupo" assertion, so this
+       non-requirement has an explicit regression anchor rather than
+       relying on absence-by-never-having-built-it.
+
+### 12g. Support has no clear action (REQ-35) — explicit non-task
+
+- [x] 163. Test: no "limpar"/"clear" control of any kind renders for the
+       Support row in column 1, under any state (Red — this is an
+       explicit regression test for an intentional absence, per
+       `chat-directory.component.spec.ts`'s existing convention for
+       "never" assertions, e.g. task 71/72's `PRIVATE`-group case).
+- [x] 164. No implementation task follows — REQ-35 is a deliberate
+       absence of a feature (SPEC.md, final round, item 1). If task 163
+       ever fails, that means a clear action was accidentally added to
+       the Support row and must be removed, not that this task list is
+       missing a "build it" step.
+
+### 12h. Clearing a "Base de artigos" conversation (REQ-36, REQ-37) — BLOCKED
+
+- [ ] 165. **BLOCKED — backend prerequisite: a new endpoint that
+       hard-deletes one specific RAG conversation + its messages, scoped
+       to its own owning participant (see PLAN.md's hard-delete
+       feasibility decision — e.g. `DELETE
+       /api/tenants/{tenantId}/conversations/{conversationId}`, decided
+       by that backend PLAN, not here).** Do not start: a
+       `ConversationService` (frontend) method calling that endpoint, a
+       "limpar" action on column-1 article rows, row-removal-on-success
+       (leaving the viewer's other RAG conversations untouched), and the
+       REQ-37 inline-error-on-failure path, all wait on that backend
+       contract landing and being reconciled into this feature's PLAN.md
+       first.
+
+### 12i. i18n, a11y, verification
+
+- [x] 166. Update i18n keys: retire
+       `chat.contacts.talkedTitle`/`notTalkedTitle`/`talkedSearchLabel`/
+       `notTalkedSearchLabel` (superseded by one unified search label);
+       add `chat.directory.unifiedSearchLabel`,
+       `chat.fullDirectory.searchLabel`,
+       `chat.fullDirectory.noResults`/`emptyState`, and (once 12e/12h
+       unblock) "limpar conversa"/"limpar" confirmation copy for 1:1 and
+       RAG rows.
+- [x] 167. Accessibility: column 1's and column 3's search fields each
+       have their own distinct `aria-label`, per SPEC.md's NFR
+       (Amended (3), final) — one combined test asserting the two labels
+       are never equal.
+- [x] 168. Run
+       `npm run format:check && npm test && npm run build && npm run lint`
+       for everything in section 12 that is not BLOCKED, and commit
+       incrementally per this repo's atomic-commit convention — do not
+       batch the whole amendment into one commit.
+- [x] 169. Update `PLAN.md`'s "Amendment (3) reconciliation" section (or
+       add a new "Emergent decisions, Amendment (3)" section) with
+       anything discovered while executing 12a-12i, following this
+       PLAN's own established precedent for documenting deviations.
+- [x] 170. Update `SPEC.md`'s Amended-(3) acceptance-criteria checkboxes
+       to reflect what's now verified — leave REQ-33/REQ-36/REQ-2d's
+       "real ranking" checkboxes unchecked with a note pointing at the
+       relevant BLOCKED task until their backend prerequisites land.
+
 ## 11. Final verification
 
 - [ ] 130. Run
