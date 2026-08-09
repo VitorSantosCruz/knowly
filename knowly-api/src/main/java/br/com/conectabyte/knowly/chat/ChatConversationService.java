@@ -170,9 +170,17 @@ public class ChatConversationService {
 
         Tenant tenant =
                 tenantAnchor == null ? null : tenantRepository.findById(tenantAnchor).orElse(null);
-        ChatConversation conversation =
-                chatConversationRepository.save(
-                        new ChatConversation(kind, tenant, request.title(), null));
+        ChatConversation newConversation =
+                new ChatConversation(kind, tenant, request.title(), null);
+        // Bug fix (2026-08-09): request.visibility() was previously never read at all -- every
+        // PEER_GROUP was silently persisted with the entity's PRIVATE default regardless of what
+        // the client (chat-unified-ui REQ-13/18) actually chose. DIRECT conversations have no
+        // notion of visibility, so this only applies to GROUP; a missing/null value on a GROUP
+        // request still defaults to PRIVATE, matching the entity's own default.
+        if (kind == ChatConversationKind.PEER_GROUP && request.visibility() != null) {
+            newConversation.setVisibility(request.visibility());
+        }
+        ChatConversation conversation = chatConversationRepository.save(newConversation);
 
         for (Long participantId : participantIds) {
             User participant = userRepository.findById(participantId).orElseThrow();

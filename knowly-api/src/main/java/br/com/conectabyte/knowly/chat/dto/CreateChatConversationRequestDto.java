@@ -1,5 +1,6 @@
 package br.com.conectabyte.knowly.chat.dto;
 
+import br.com.conectabyte.knowly.chat.ChatGroupVisibility;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
@@ -15,7 +16,11 @@ public record CreateChatConversationRequestDto(
         @NotNull ChatConversationRequestKind kind,
         Long tenantId,
         String title,
-        List<Long> participantUserIds) {
+        List<Long> participantUserIds,
+        // REQ-13/18 (chat-unified-ui): visibility is chosen at group-creation time. Nullable/
+        // optional -- DIRECT conversations have no notion of visibility, and the service layer
+        // defaults a missing value for GROUP to PRIVATE rather than rejecting the request outright.
+        ChatGroupVisibility visibility) {
 
     public CreateChatConversationRequestDto {
         if (participantUserIds == null) {

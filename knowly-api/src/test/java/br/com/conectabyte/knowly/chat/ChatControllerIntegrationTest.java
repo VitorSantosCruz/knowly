@@ -332,6 +332,49 @@ class ChatControllerIntegrationTest {
         assertThat(createResponse).hasStatus(HttpStatus.CREATED);
     }
 
+    // --- Bug fix (2026-08-09): visibility was never declared on the request DTO, so Jackson ---
+    // --- silently dropped it and every group ended up PRIVATE regardless of what was chosen. ---
+
+    @Test
+    void creatingAGroupWithPublicVisibilityPersistsPublicNotPrivate() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Visibility Co"));
+        member("visibility-owner@example.com", tenant);
+        Cookie session = logIn("visibility-owner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Public Group\",\"participantUserIds\":[],"
+                                        + "\"visibility\":\"PUBLIC\"}")
+                        .exchange();
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
+        Long conversationId =
+                ((Number)
+                                com.jayway.jsonpath.JsonPath.read(
+                                        createResponse.getResponse().getContentAsString(), "$.id"))
+                        .longValue();
+
+        var getResponse =
+                mockMvc.get()
+                        .uri("/api/chat/conversations/" + conversationId)
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(getResponse).hasStatus(HttpStatus.OK);
+        String visibility =
+                com.jayway.jsonpath.JsonPath.read(
+                        getResponse.getResponse().getContentAsString(), "$.visibility");
+        assertThat(visibility).isEqualTo("PUBLIC");
+    }
+
     @Test
     void staffAdminCanLookIntoAGroupTheyAreNotAParticipantOfWithoutBecomingOne() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Oversight Co"));

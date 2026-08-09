@@ -268,7 +268,11 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.DIRECT, null, null, java.util.List.of(2L));
+                        ChatConversationRequestKind.DIRECT,
+                        null,
+                        null,
+                        java.util.List.of(2L),
+                        null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(ChatConversationNotFoundException.class);
@@ -282,7 +286,7 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, 10L, "g", java.util.List.of(2L));
+                        ChatConversationRequestKind.GROUP, 10L, "g", java.util.List.of(2L), null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(ChatConversationNotFoundException.class);
@@ -307,11 +311,73 @@ class ChatConversationServiceTest {
         // active session tenant, never default to the staff-only null anchor.
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of());
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(), null);
 
         var result = service.createConversation(actor, request);
 
         assertThat(result.tenantId()).isEqualTo(20L);
+    }
+
+    // --- Bug fix (2026-08-09): the request's visibility field was declared nowhere on the DTO, ---
+    // --- so Jackson silently dropped it and every group was persisted as PRIVATE regardless of ---
+    // --- what the client (chat-unified-ui REQ-13/18) actually chose. ---
+
+    @Test
+    void createGroupConversationPersistsTheRequestedVisibilityInsteadOfAlwaysDefaultingToPrivate() {
+        User actor = user(1L);
+        Tenant activeTenant = tenant(20L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+        when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        when(chatEligibilityService.isEligibleAsActor(actor, 20L)).thenReturn(true);
+        when(tenantRepository.findById(20L)).thenReturn(Optional.of(activeTenant));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        var savedConversation = new java.util.concurrent.atomic.AtomicReference<ChatConversation>();
+        when(chatConversationRepository.save(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(
+                        invocation -> {
+                            ChatConversation conversation = invocation.getArgument(0);
+                            savedConversation.set(conversation);
+                            return conversation;
+                        });
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP,
+                        null,
+                        "g",
+                        java.util.List.of(),
+                        ChatGroupVisibility.PUBLIC);
+
+        service.createConversation(actor, request);
+
+        assertThat(savedConversation.get().getVisibility()).isEqualTo(ChatGroupVisibility.PUBLIC);
+    }
+
+    @Test
+    void createGroupConversationDefaultsToPrivateVisibilityWhenRequestOmitsIt() {
+        User actor = user(1L);
+        Tenant activeTenant = tenant(20L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+        when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        when(chatEligibilityService.isEligibleAsActor(actor, 20L)).thenReturn(true);
+        when(tenantRepository.findById(20L)).thenReturn(Optional.of(activeTenant));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        var savedConversation = new java.util.concurrent.atomic.AtomicReference<ChatConversation>();
+        when(chatConversationRepository.save(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(
+                        invocation -> {
+                            ChatConversation conversation = invocation.getArgument(0);
+                            savedConversation.set(conversation);
+                            return conversation;
+                        });
+
+        var request =
+                new CreateChatConversationRequestDto(
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(), null);
+
+        service.createConversation(actor, request);
+
+        assertThat(savedConversation.get().getVisibility()).isEqualTo(ChatGroupVisibility.PRIVATE);
     }
 
     // --- Bug fix (2026-08-09): a STAFF_ADMIN actor with an active tenant creating a group by ---
@@ -347,7 +413,7 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of());
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(), null);
 
         var result = service.createConversation(actor, request);
 
@@ -367,7 +433,7 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(2L));
+                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(2L), null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(
@@ -382,7 +448,7 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, 999L, "g", java.util.List.of());
+                        ChatConversationRequestKind.GROUP, 999L, "g", java.util.List.of(), null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(ChatAccessDeniedException.class);
