@@ -2,7 +2,6 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ActiveTenantService } from '../../core/active-tenant.service';
-import { ConversationService } from '../../core/conversation.service';
 import { SidebarStateService } from '../../core/sidebar-state.service';
 import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 import { ChatDirectoryComponent } from './chat-directory.component';
@@ -10,6 +9,7 @@ import { ChatFullDirectoryComponent } from './chat-full-directory.component';
 import { ChatSidebarComponent } from './chat-sidebar.component';
 import { ConversationDetailComponent } from './conversation-detail.component';
 import { CreateGroupDialogComponent } from './create-group-dialog.component';
+import { CreateConversationDialogComponent } from './create-conversation-dialog.component';
 import { ConversationsPageComponent } from '../conversations/conversations-page.component';
 import { SupportPageComponent } from '../support/support-page.component';
 
@@ -63,6 +63,7 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
     ConversationsPageComponent,
     NoActiveTenantStateComponent,
     CreateGroupDialogComponent,
+    CreateConversationDialogComponent,
   ],
   template: `
     <div data-testid="chat-shell" class="page-shell grid gap-4 md:grid-cols-[280px_1fr_280px]">
@@ -162,12 +163,15 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
     </div>
 
     <app-create-group-dialog [open]="createGroupOpen()" (dismissed)="createGroupOpen.set(false)" />
+    <app-create-conversation-dialog
+      [open]="createConversationOpen()"
+      (dismissed)="createConversationOpen.set(false)"
+    />
   `,
 })
 export class ChatShellComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
   protected readonly sidebarState = inject(SidebarStateService);
-  private readonly conversationService = inject(ConversationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -175,6 +179,7 @@ export class ChatShellComponent implements OnInit {
   private readonly querySection = signal<QuerySection>('people');
 
   protected readonly createGroupOpen = signal(false);
+  protected readonly createConversationOpen = signal(false);
 
   protected readonly activeSection = computed<QuerySection>(() => {
     const kind = this.chatRouteKind();
@@ -251,17 +256,20 @@ export class ChatShellComponent implements OnInit {
   }
 
   /** REQ-2's "Falar com a base de artigos" always starts a new RAG conversation (mirrors
-   * `conversations` SPEC's own REQ-2) — unlike existing rows, which reopen an existing one. */
+   * `conversations` SPEC's own REQ-2) — unlike existing rows, which reopen an existing one.
+   * **Amendment (4), REQ-38**: this now opens the naming dialog (name required, icon optional)
+   * instead of silently creating an unnamed conversation — see
+   * `create-conversation-dialog.component.ts`, which owns the actual
+   * `ConversationService.create(tenantId, title, icon)` call and create-and-open behavior. With
+   * no active tenant, this still falls back to the plain "articles" section navigation (no
+   * tenant to create a conversation in yet). */
   protected onOpenArticles(): void {
     const tenantId = this.activeTenantService.activeTenantId();
     if (tenantId === null) {
       this.router.navigate(['/chat'], { queryParams: { section: 'articles' } });
       return;
     }
-    this.conversationService.create(tenantId).subscribe({
-      next: (conversation) => this.router.navigate(['/chat/articles', conversation.id]),
-      error: () => this.router.navigate(['/chat'], { queryParams: { section: 'articles' } }),
-    });
+    this.createConversationOpen.set(true);
   }
 
   protected onBackToDirectory(): void {

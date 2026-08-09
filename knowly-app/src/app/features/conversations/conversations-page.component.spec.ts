@@ -36,7 +36,9 @@ describe('ConversationsPageComponent', () => {
     httpMock.verify();
   });
 
-  function flushActiveTenantAndList(conversations: { id: number; title: string | null }[]) {
+  function flushActiveTenantAndList(
+    conversations: { id: number; title: string | null; icon?: string | null }[],
+  ) {
     httpMock
       .expectOne('/api/tenants/active')
       .flush({ tenantId: 7, tenantName: 'Acme', role: 'MEMBER_ADMIN' });
@@ -92,6 +94,130 @@ describe('ConversationsPageComponent', () => {
     );
     expect(userMessage?.textContent).toContain('Hi');
     expect(assistantMessage?.textContent).toContain('Hello!');
+  });
+
+  describe('Amendment (4), REQ-39: RAG rename affordance', () => {
+    it('does not render the pencil when no conversation is open', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([]);
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversations-header-rename"]'),
+      ).toBeNull();
+    });
+
+    it('renders the pencil once a conversation the viewer owns is open (the list is already owner-scoped)', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([{ id: 1, title: 'First chat' }]);
+      fixture.nativeElement.querySelector('[data-testid="select-conversation-1"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush({ id: 1, title: 'First chat', messages: [] });
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversations-header-rename"]'),
+      ).toBeTruthy();
+    });
+
+    it('activating it opens an inline edit form prefilled with the current title/icon', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([{ id: 1, title: 'First chat', icon: 'BOOK_OPEN' }]);
+      fixture.nativeElement.querySelector('[data-testid="select-conversation-1"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush({ id: 1, title: 'First chat', messages: [] });
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="conversations-header-rename"]').click();
+      fixture.detectChanges();
+
+      const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
+        '[data-testid="rename-form-name-input"]',
+      );
+      expect(nameInput.value).toBe('First chat');
+      expect(
+        fixture.nativeElement
+          .querySelector('[data-testid="icon-picker-option-BOOK_OPEN"]')
+          .getAttribute('aria-pressed'),
+      ).toBe('true');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversations-header"]'),
+      ).toBeNull();
+    });
+
+    it('saving calls ConversationService.rename and updates the row without a full reload', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([{ id: 1, title: 'First chat' }]);
+      fixture.nativeElement.querySelector('[data-testid="select-conversation-1"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush({ id: 1, title: 'First chat', messages: [] });
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="conversations-header-rename"]').click();
+      fixture.detectChanges();
+      const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
+        '[data-testid="rename-form-name-input"]',
+      );
+      nameInput.value = 'Novo nome';
+      nameInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('[data-testid="rename-form-save"]').click();
+
+      const req = httpMock.expectOne('/api/tenants/7/conversations/1');
+      expect(req.request.method).toBe('PUT');
+      expect(req.request.body).toEqual({ title: 'Novo nome', icon: undefined });
+      req.flush({ id: 1, title: 'Novo nome', icon: null });
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversation-list"]').textContent,
+      ).toContain('Novo nome');
+      expect(fixture.nativeElement.querySelector('[data-testid="rename-form"]')).toBeNull();
+    });
+
+    it('a failed rename (400/404) renders the same generic error text and leaves the row unchanged', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([{ id: 1, title: 'First chat' }]);
+      fixture.nativeElement.querySelector('[data-testid="select-conversation-1"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush({ id: 1, title: 'First chat', messages: [] });
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="conversations-header-rename"]').click();
+      fixture.detectChanges();
+      const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
+        '[data-testid="rename-form-name-input"]',
+      );
+      nameInput.value = 'Novo nome';
+      nameInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="rename-form-save"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush(null, { status: 400, statusText: 'Bad Request' });
+      fixture.detectChanges();
+      const message400 = fixture.nativeElement.querySelector(
+        '[data-testid="rename-form-error"]',
+      ).textContent;
+
+      fixture.nativeElement.querySelector('[data-testid="rename-form-save"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush(null, { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
+      const message404 = fixture.nativeElement.querySelector(
+        '[data-testid="rename-form-error"]',
+      ).textContent;
+
+      expect(message400).toBe(message404);
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversation-list"]').textContent,
+      ).toContain('First chat');
+    });
   });
 
   it('shows a no-active-tenant state instead of hanging on loading when staff has no active tenant', () => {

@@ -1,6 +1,6 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
-import { TranslocoPipe } from '@jsverse/transloco';
-import { LucideLibrary } from '@lucide/angular';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { LucideLibrary, LucidePencil } from '@lucide/angular';
 import { EMPTY, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
@@ -8,6 +8,7 @@ import { ConversationService, ConversationSummary, Message } from '../../core/co
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
+import { RenameFormComponent } from '../../shared/chat/rename-form.component';
 
 type ConversationsError = 'network' | 'permission-denied' | null;
 
@@ -21,6 +22,8 @@ let nextLocalMessageId = -1;
     NoAccessStateComponent,
     NoActiveTenantStateComponent,
     LucideLibrary,
+    LucidePencil,
+    RenameFormComponent,
   ],
   template: `
     <div data-testid="conversations-page" class="page-shell flex gap-6">
@@ -64,19 +67,48 @@ let nextLocalMessageId = -1;
         </aside>
 
         <section class="flex flex-1 flex-col">
-          <header data-testid="conversations-header" class="mb-3 flex items-center gap-2">
-            <!-- REQ: knowledge-base (RAG) conversations are represented by a knowledge-base
-                 icon, not a person's photo. -->
-            <svg
-              lucideLibrary
-              data-testid="conversations-header-icon"
-              aria-hidden="true"
-              class="h-12 w-12 shrink-0 rounded-full bg-ink-100 p-2 text-ink-500 dark:bg-ink-800 dark:text-ink-400"
-            ></svg>
-            <h1 class="font-semibold text-ink-900 dark:text-white">
-              {{ 'conversations.title' | transloco }}
-            </h1>
-          </header>
+          @if (renaming()) {
+            <app-rename-form
+              [initialTitle]="activeConversationTitle() ?? ''"
+              [initialIcon]="activeConversationIcon()"
+              [error]="renameError()"
+              (saved)="onRenameSaved($event)"
+              (cancelled)="renaming.set(false)"
+            />
+          } @else {
+            <header data-testid="conversations-header" class="mb-3 flex items-center gap-2">
+              <!-- REQ: knowledge-base (RAG) conversations are represented by a knowledge-base
+                   icon, not a person's photo. -->
+              <svg
+                lucideLibrary
+                data-testid="conversations-header-icon"
+                aria-hidden="true"
+                class="h-12 w-12 shrink-0 rounded-full bg-ink-100 p-2 text-ink-500 dark:bg-ink-800 dark:text-ink-400"
+              ></svg>
+              <h1 class="font-semibold text-ink-900 dark:text-white">
+                {{ 'conversations.title' | transloco }}
+              </h1>
+              <!-- Amendment (4), REQ-39: this list is already owner-scoped by construction
+                   (GET /api/tenants/tenantId/conversations only ever returns the caller's own
+                   RAG conversations), so "only the conversation's own owning participant may
+                   rename it" is satisfied by the mere presence of an open conversation here —
+                   no separate ownership computed is needed/available on the wire today. -->
+              @if (activeConversationId() !== null) {
+                <button
+                  type="button"
+                  data-testid="conversations-header-rename"
+                  [attr.aria-label]="
+                    'chat.rename.pencilAriaLabel'
+                      | transloco: { title: activeConversationTitle() ?? '' }
+                  "
+                  (click)="renaming.set(true)"
+                  class="rounded-lg p-1 text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-ink-800"
+                >
+                  <svg lucidePencil class="h-4 w-4" aria-hidden="true"></svg>
+                </button>
+              }
+            </header>
+          }
 
           <ul
             data-testid="transcript"
@@ -147,6 +179,7 @@ let nextLocalMessageId = -1;
 export class ConversationsPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly conversationService = inject(ConversationService);
+  private readonly translocoService = inject(TranslocoService);
 
   protected readonly newConversationButtonClass = buttonClass('primary');
   protected readonly sendButtonClass = buttonClass('primary');
@@ -158,6 +191,14 @@ export class ConversationsPageComponent implements OnInit {
   protected readonly streamError = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<ConversationsError>(null);
+
+  protected readonly renaming = signal(false);
+  protected readonly renameError = signal(false);
+
+  protected readonly activeConversationTitle = () =>
+    this.conversations().find((c) => c.id === this.activeConversationId())?.title ?? null;
+  protected readonly activeConversationIcon = () =>
+    this.conversations().find((c) => c.id === this.activeConversationId())?.icon ?? null;
 
   private hasLoaded = false;
 
@@ -194,6 +235,32 @@ export class ConversationsPageComponent implements OnInit {
       });
   }
 
+  /** Amendment (4), REQ-39: on success, patches this component's own `conversations()` list (the
+   * same signal column 1's `ChatDirectoryRowsService.articleRows` re-derives its own rows
+   * from — see that service's `maybeFetchArticles()`) so the row reflects the new name/icon
+   * without a full page reload; on failure, one shared, status-code-agnostic error string (per
+   * AppSec's requirement — the backend's `404` for "not your conversation" must render exactly
+   * like a `400`/network failure, never a more specific "not found" string). */
+  protected onRenameSaved(event: { title: string; icon: ConversationSummary['icon'] }): void {
+    const tenantId = this.activeTenantService.activeTenantId();
+    const conversationId = this.activeConversationId();
+    if (tenantId === null || conversationId === null) {
+      return;
+    }
+    this.renameError.set(false);
+    this.conversationService
+      .rename(tenantId, conversationId, event.title, event.icon ?? undefined)
+      .subscribe({
+        next: (updated) => {
+          this.conversations.update((list) =>
+            list.map((c) => (c.id === conversationId ? updated : c)),
+          );
+          this.renaming.set(false);
+        },
+        error: () => this.renameError.set(true),
+      });
+  }
+
   protected onNewConversation(): void {
     const tenantId = this.activeTenantService.activeTenantId();
 
@@ -201,8 +268,14 @@ export class ConversationsPageComponent implements OnInit {
       return;
     }
 
+    // Amendment (4), REQ-38: naming now happens via `create-conversation-dialog.component.ts`,
+    // reached from the sidebar's "Falar com a base de artigos" action — this in-page "+ Nova
+    // conversa" button (a secondary, pre-existing creation path inside an already-open RAG view,
+    // out of REQ-38's own scope) keeps working by falling back to the same untitled default
+    // string `conversations.untitled` already renders for a `null` title, satisfying the
+    // backend's now-required non-blank `title`.
     this.conversationService
-      .create(tenantId)
+      .create(tenantId, this.translocoService.translate('conversations.new'))
       .pipe(
         catchError((err) => {
           this.error.set(err.status === 403 ? 'permission-denied' : 'network');

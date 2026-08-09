@@ -329,7 +329,7 @@ describe('ChatShellComponent', () => {
     ).toBeTruthy();
   });
 
-  it('clicking "Falar com a base de artigos" with an active tenant creates a new RAG conversation and navigates straight to it', () => {
+  it('clicking "Falar com a base de artigos" with an active tenant opens the naming dialog, not a silent create (REQ-38, Amendment (4))', () => {
     setup();
     queryParamMap$.next(convertToParamMap({}));
     fixture.detectChanges();
@@ -342,9 +342,39 @@ describe('ChatShellComponent', () => {
     httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
 
     fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]').click();
-    const req = httpMock.expectOne('/api/tenants/1/conversations');
-    expect(req.request.method).toBe('POST');
-    req.flush({ id: 42, title: null });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="create-conversation-dialog"]'),
+    ).toBeTruthy();
+    httpMock.expectNone((r) => r.url === '/api/tenants/1/conversations' && r.method === 'POST');
+  });
+
+  it('submitting the naming dialog creates the new RAG conversation and navigates to it', () => {
+    setup();
+    queryParamMap$.next(convertToParamMap({}));
+    fixture.detectChanges();
+    flushActiveTenant(1);
+    flushDirectory();
+    fixture.detectChanges();
+    flushEligibleParticipantsForResolvedTenant();
+    httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
+
+    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]').click();
+    fixture.detectChanges();
+
+    const nameInput: HTMLInputElement = fixture.nativeElement.querySelector(
+      '[data-testid="create-conversation-name-input"]',
+    );
+    nameInput.value = 'Artigos de RH';
+    nameInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="create-conversation-submit"]').click();
+
+    const req = httpMock.expectOne(
+      (r) => r.url === '/api/tenants/1/conversations' && r.method === 'POST',
+    );
+    req.flush({ id: 42, title: 'Artigos de RH', icon: null });
 
     expect(router.navigate).toHaveBeenCalledWith(['/chat/articles', 42]);
   });
