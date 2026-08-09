@@ -110,6 +110,8 @@ class ConversationControllerIntegrationTest {
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"My conversation\"}")
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
@@ -244,6 +246,8 @@ class ConversationControllerIntegrationTest {
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/" + tenant.getId() + "/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"My conversation\"}")
                         .cookie(session)
                         .cookie(csrf)
                         .header("X-XSRF-TOKEN", csrf.getValue())
@@ -254,5 +258,218 @@ class ConversationControllerIntegrationTest {
         List<AuditEvent> events =
                 auditEventRepository.findByActorUserIdOrderByOccurredAtDesc(user.getId());
         assertThat(events).extracting(AuditEvent::getAction).contains("conversation.create");
+    }
+
+    @Test
+    void createWithBlankTitleReturnsBadRequestAndCreatesNothing() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Blank Title Tenant"));
+        memberWithPermissions("blanktitle@example.com", tenant, Permission.CONVERSATION_USE);
+        Cookie session = logIn("blanktitle@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        long before = conversationRepository.count();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"   \"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(conversationRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void createWithInvalidIconReturnsBadRequestAndCreatesNothing() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Bad Icon Tenant"));
+        memberWithPermissions("badicon@example.com", tenant, Permission.CONVERSATION_USE);
+        Cookie session = logIn("badicon@example.com");
+        Cookie csrf = obtainCsrfCookie();
+        long before = conversationRepository.count();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Valid title\",\"icon\":\"NOT_A_REAL_ICON\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(conversationRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void createWithValidTitleAndIconPersistsBothAndEchoesThem() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Good Icon Tenant"));
+        memberWithPermissions("goodicon@example.com", tenant, Permission.CONVERSATION_USE);
+        Cookie session = logIn("goodicon@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/" + tenant.getId() + "/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Base de artigos\",\"icon\":\"BOOK_OPEN\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.CREATED);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"title\":\"Base de artigos\"")
+                .contains("\"icon\":\"BOOK_OPEN\"");
+    }
+
+    @Test
+    void renameByOwnerUpdatesTitleAndIconWithoutTouchingMessages() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Rename Tenant"));
+        User owner =
+                memberWithPermissions("renamer@example.com", tenant, Permission.CONVERSATION_USE);
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner, "Old title"));
+        messageRepository.saveAndFlush(new Message(conversation, MessageRole.USER, "Hello"));
+        Cookie session = logIn("renamer@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.put()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/conversations/"
+                                        + conversation.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"New title\",\"icon\":\"STAR\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("\"title\":\"New title\"")
+                .contains("\"icon\":\"STAR\"");
+
+        Conversation reloaded = conversationRepository.findById(conversation.getId()).orElseThrow();
+        assertThat(reloaded.getTitle()).isEqualTo("New title");
+        assertThat(reloaded.getIcon()).isEqualTo(br.com.conectabyte.knowly.icon.IconKey.STAR);
+        assertThat(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId()))
+                .extracting(Message::getContent)
+                .containsExactly("Hello");
+    }
+
+    @Test
+    void renameByNonOwnerReturnsNotFound() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Rename NonOwner Tenant"));
+        memberWithPermissions("nonowner@example.com", tenant, Permission.CONVERSATION_USE);
+        User owner =
+                memberWithPermissions("realowner@example.com", tenant, Permission.CONVERSATION_USE);
+        Conversation conversation =
+                conversationRepository.saveAndFlush(new Conversation(tenant, owner, "Old title"));
+        Cookie session = logIn("nonowner@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.put()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/conversations/"
+                                        + conversation.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"New title\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void renameOnAnotherTenantsConversationIdReturnsNotFound() {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        memberWithPermissions("callerA@example.com", tenantA, Permission.CONVERSATION_USE);
+        User ownerB =
+                memberWithPermissions("ownerB@example.com", tenantB, Permission.CONVERSATION_USE);
+        Conversation conversationB =
+                conversationRepository.saveAndFlush(new Conversation(tenantB, ownerB, "Old title"));
+        Cookie session = logIn("callerA@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var response =
+                mockMvc.put()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenantA.getId()
+                                        + "/conversations/"
+                                        + conversationB.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"New title\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void renameWithBlankTitleOrInvalidIconReturnsBadRequestWithNoPartialUpdate() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Rename Invalid Tenant"));
+        User owner =
+                memberWithPermissions(
+                        "renameinvalid@example.com", tenant, Permission.CONVERSATION_USE);
+        Conversation conversation =
+                conversationRepository.saveAndFlush(
+                        new Conversation(
+                                tenant,
+                                owner,
+                                "Original title",
+                                br.com.conectabyte.knowly.icon.IconKey.FOLDER));
+        Cookie session = logIn("renameinvalid@example.com");
+        Cookie csrf = obtainCsrfCookie();
+
+        var blankTitleResponse =
+                mockMvc.put()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/conversations/"
+                                        + conversation.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"   \"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+        assertThat(blankTitleResponse).hasStatus(HttpStatus.BAD_REQUEST);
+
+        var invalidIconResponse =
+                mockMvc.put()
+                        .uri(
+                                "/api/tenants/"
+                                        + tenant.getId()
+                                        + "/conversations/"
+                                        + conversation.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Valid\",\"icon\":\"NOT_REAL\"}")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .exchange();
+        assertThat(invalidIconResponse).hasStatus(HttpStatus.BAD_REQUEST);
+
+        Conversation reloaded = conversationRepository.findById(conversation.getId()).orElseThrow();
+        assertThat(reloaded.getTitle()).isEqualTo("Original title");
+        assertThat(reloaded.getIcon()).isEqualTo(br.com.conectabyte.knowly.icon.IconKey.FOLDER);
     }
 }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.icon.IconKey;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
@@ -82,6 +83,19 @@ class ConversationRepositoryTest {
                 .isEmpty();
         assertThat(conversationRepository.findByIdAndOwnerId(conversationB.getId(), userB.getId()))
                 .isPresent();
+    }
+
+    @Test
+    void conversationIconPersistsAndRoundTripsAsAnIconKey() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Icon Tenant"));
+        User owner = userRepository.saveAndFlush(new User("icon-owner@example.com"));
+        Conversation saved =
+                conversationRepository.saveAndFlush(
+                        new Conversation(tenant, owner, "Titled", IconKey.SPARKLES));
+
+        Conversation reloaded = conversationRepository.findById(saved.getId()).orElseThrow();
+
+        assertThat(reloaded.getIcon()).isEqualTo(IconKey.SPARKLES);
     }
 
     static class ConversationQueryService {

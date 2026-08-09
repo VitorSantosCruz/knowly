@@ -107,3 +107,49 @@
        during implementation.
 - [x] 38. Update `SPEC.md`'s acceptance-criteria checkboxes to reflect
        what's now verified by tests.
+
+## 6. Naming, renaming, and icon (Amended 2026-08-09 — REQ-13 through REQ-16)
+
+> Coordinate task 39 with whoever implements `chat-group-naming-and-icon`
+> — the `IconKey` enum is shared and should only be created once.
+
+- [x] 39. Create the new `br.com.conectabyte.knowly.icon` package with
+       the `IconKey` enum, confirming its value list against
+       `knowly-app`'s actual `@lucide/angular` icon-picker catalog (not
+       an independently-invented list) — if that frontend catalog
+       doesn't exist yet as a fixed, enumerable list, coordinate with
+       `frontend-engineer`/`software-architect` (frontend) before
+       finalizing values, since the backend enum must match, not lead.
+- [x] 40. `V32__add_title_required_and_icon_to_conversations.sql`
+       (confirm actual next-available version number at implementation
+       time): backfill null titles, `title` `NOT NULL`, add `icon`
+       column to `conversations` and `conversations_aud`.
+- [x] 41. Test: `Conversation.icon` persists and round-trips as an
+       `IconKey` (Red).
+- [x] 42. Implement the `icon` field on `Conversation` (Green).
+- [x] 43. Test: `POST .../conversations` without a `title` (or blank)
+       returns `400` and creates nothing (Red).
+- [x] 44. Test: `POST .../conversations` with a `title` and an invalid
+       `icon` string returns `400` and creates nothing (Red).
+- [x] 45. Test: `POST .../conversations` with a valid `title`/`icon`
+       persists both and echoes them in the `201` body (Red).
+- [x] 46. Implement `CreateConversationRequestDto` + update
+       `ConversationController#create`/`ConversationService#create` to
+       accept and persist `title`/`icon` (Green, tasks 43-45).
+- [x] 47. Test: `PUT .../conversations/{id}` by the owning user with a
+       new `title`/`icon` updates both, leaves messages untouched (Red).
+- [x] 48. Test: `PUT .../conversations/{id}` by a non-owner, or on
+       another tenant's conversation id, returns `404` (Red).
+- [x] 49. Test: `PUT .../conversations/{id}` with a blank `title` or
+       invalid `icon` returns `400` with the conversation's prior
+       `title`/`icon` unchanged afterward (no partial update) (Red).
+- [x] 50. Implement `RenameConversationRequestDto` +
+       `ConversationController`/`ConversationService`'s rename endpoint,
+       reusing `requireOwnConversation` (Green, tasks 47-49).
+- [x] 51. Update `ConversationSummaryDto`/`ConversationDetailDto` to
+       include `icon`.
+- [x] 52. Add `@AuditLog(action = "conversation.rename", ...)` on the
+       rename endpoint, consistent with REQ-7's existing coverage.
+- [x] 53. Update `SPEC.md`'s three new (Amended 2026-08-09) acceptance
+       criteria checkboxes once verified.
+- [x] 54. Run `./mvnw spotless:apply && ./mvnw verify` and confirm green.

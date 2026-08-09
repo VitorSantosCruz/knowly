@@ -4,6 +4,7 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.conversation.dto.ConversationDetailDto;
 import br.com.conectabyte.knowly.conversation.dto.ConversationSummaryDto;
 import br.com.conectabyte.knowly.conversation.exception.ConversationNotFoundException;
+import br.com.conectabyte.knowly.icon.IconKey;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantRepository;
@@ -32,11 +33,24 @@ public class ConversationService {
     }
 
     @Transactional
-    public ConversationSummaryDto create(User owner, Long tenantId) {
+    public ConversationSummaryDto create(User owner, Long tenantId, String title, IconKey icon) {
         requireActiveTenant(tenantId);
         Tenant tenant =
                 tenantRepository.findById(tenantId).orElseThrow(ConversationNotFoundException::new);
-        Conversation conversation = conversationRepository.save(new Conversation(tenant, owner));
+        Conversation conversation =
+                conversationRepository.save(new Conversation(tenant, owner, title, icon));
+
+        return ConversationSummaryDto.from(conversation);
+    }
+
+    @Transactional
+    public ConversationSummaryDto rename(
+            User owner, Long tenantId, Long conversationId, String title, IconKey icon) {
+        requireActiveTenant(tenantId);
+        Conversation conversation = requireOwnConversation(owner, conversationId);
+        conversation.setTitle(title);
+        conversation.setIcon(icon);
+        conversationRepository.save(conversation);
 
         return ConversationSummaryDto.from(conversation);
     }

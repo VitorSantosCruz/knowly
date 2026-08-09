@@ -7,6 +7,8 @@ import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.auth.exception.AuthenticatedUserNotFoundException;
 import br.com.conectabyte.knowly.conversation.dto.ConversationDetailDto;
 import br.com.conectabyte.knowly.conversation.dto.ConversationSummaryDto;
+import br.com.conectabyte.knowly.conversation.dto.CreateConversationRequestDto;
+import br.com.conectabyte.knowly.conversation.dto.RenameConversationRequestDto;
 import br.com.conectabyte.knowly.conversation.dto.SendMessageRequestDto;
 import br.com.conectabyte.knowly.tenancy.Permission;
 import jakarta.validation.Valid;
@@ -17,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,10 +45,30 @@ public class ConversationController {
     @PostMapping
     @RequiresPermission(Permission.CONVERSATION_USE)
     @AuditLog(action = "conversation.create", resourceType = "Conversation")
-    public ResponseEntity<ConversationSummaryDto> create(@PathVariable Long tenantId) {
-        ConversationSummaryDto conversation = conversationService.create(currentUser(), tenantId);
+    public ResponseEntity<ConversationSummaryDto> create(
+            @PathVariable Long tenantId, @Valid @RequestBody CreateConversationRequestDto request) {
+        ConversationSummaryDto conversation =
+                conversationService.create(
+                        currentUser(), tenantId, request.title(), request.icon());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(conversation);
+    }
+
+    @PutMapping("/{conversationId}")
+    @RequiresPermission(Permission.CONVERSATION_USE)
+    @AuditLog(
+            action = "conversation.rename",
+            resourceType = "Conversation",
+            resourceIdExpression = "#conversationId")
+    public ResponseEntity<ConversationSummaryDto> rename(
+            @PathVariable Long tenantId,
+            @PathVariable Long conversationId,
+            @Valid @RequestBody RenameConversationRequestDto request) {
+        ConversationSummaryDto conversation =
+                conversationService.rename(
+                        currentUser(), tenantId, conversationId, request.title(), request.icon());
+
+        return ResponseEntity.ok(conversation);
     }
 
     @GetMapping
