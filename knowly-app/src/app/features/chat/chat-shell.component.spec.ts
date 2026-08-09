@@ -81,6 +81,17 @@ describe('ChatShellComponent', () => {
     flushActiveTenant(null);
   }
 
+  /** `ChatDirectoryRowsService` re-fetches `/api/chat/eligible-participants` once more, now
+   * carrying the real `activeTenantId()`, the moment `ActiveTenantService` resolves after
+   * `flushDirectory()` already flushed the earlier, pre-resolution (staff-only) request — bug
+   * fix under test in `chat-directory.component.spec.ts`. Drains 0-or-1 such request, same
+   * tolerant match-all style as `flushActiveTenant`/`flushProfile` above. */
+  function flushEligibleParticipantsForResolvedTenant(): void {
+    for (const req of httpMock.match((r) => r.url === '/api/chat/eligible-participants')) {
+      req.flush([]);
+    }
+  }
+
   function flushSupportPageBootstrap(): void {
     httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
     httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
@@ -137,6 +148,7 @@ describe('ChatShellComponent', () => {
     flushDirectory();
     fixture.detectChanges();
     flushActiveTenant(1);
+    flushEligibleParticipantsForResolvedTenant();
     // Both `ConversationsPageComponent`'s own fetch and `ChatDirectoryRowsService`'s
     // article-row fetch hit this exact same endpoint once the tenant resolves.
     for (const req of httpMock.match((r) => r.url === '/api/tenants/1/conversations')) {
@@ -188,6 +200,7 @@ describe('ChatShellComponent', () => {
     flushActiveTenant(1);
     flushDirectory();
     fixture.detectChanges();
+    flushEligibleParticipantsForResolvedTenant();
     // ChatDirectoryRowsService's own article-row fetch, triggered once activeTenantId
     // resolves to 1 — unrelated to the action under test, just needs flushing.
     httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
@@ -227,6 +240,7 @@ describe('ChatShellComponent', () => {
     flushActiveTenant(1);
     flushDirectory();
     fixture.detectChanges();
+    flushEligibleParticipantsForResolvedTenant();
     // ChatDirectoryRowsService's own article-row fetch, triggered once activeTenantId
     // resolves to 1 — unrelated to the action under test, just needs flushing.
     httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
@@ -257,6 +271,7 @@ describe('ChatShellComponent', () => {
     flushActiveTenant(1);
     flushDirectory();
     fixture.detectChanges();
+    flushEligibleParticipantsForResolvedTenant();
     httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
 
     // Still correct once resolved with a real active tenant.
@@ -285,6 +300,7 @@ describe('ChatShellComponent', () => {
     flushDirectory();
     fixture.detectChanges();
     flushActiveTenant(1);
+    flushEligibleParticipantsForResolvedTenant();
     for (const req of httpMock.match((r) => r.url === '/api/tenants/1/conversations')) {
       req.flush([]);
     }

@@ -55,6 +55,11 @@ export interface ArticleRow {
 
 export type DirectoryRow = PersonRow | GroupRow | SupportRow | ArticleRow;
 
+/** Sentinel distinguishing "never fetched" from "fetched for the no-active-tenant/staff-only
+ * case" (`undefined`) — see `ChatDirectoryRowsService`'s `eligibleParticipantsFetchedForTenant`
+ * doc comment. */
+const NOT_FETCHED_YET = Symbol('not-fetched-yet');
+
 /**
  * Shared engine backing `chat-directory.component.ts` (the directory column's unified,
  * searchable list) — REQ-2. Originally split out (2026-08-09) to also back a separate
@@ -83,11 +88,33 @@ export class ChatDirectoryRowsService {
   private loaded = false;
   private articlesFetchedForTenant: number | null = null;
 
+  /**
+   * Bug fix (2026-08-09, reported as a regression right after `chat-shell.component.ts`'s
+   * "no-active-tenant flash" fix, though investigation showed that commit was unrelated —
+   * this gap predates it): `ensureLoaded()` used to call
+   * `chatService.fetchEligibleParticipants('direct')` **once**, with no `tenantId`, before
+   * `ActiveTenantService` had resolved. A staff viewer working inside an active tenant has no
+   * `TenantMembership` row for it (server-side session state only, per this codebase's
+   * documented staff-session gotcha), so the backend's `direct`-scope eligibility check keeps
+   * resolving that staff viewer to their staff-only anchor forever, regardless of which tenant
+   * they're actually in — the "Haven't talked yet" people list (and, via the same
+   * membership-based eligibility path, `ChatDirectoryService`'s discoverable-groups list) then
+   * never reflects the active tenant's own people/groups. `undefined` (`unset`) as the initial
+   * sentinel — as opposed to `null` — lets the very first, pre-resolution fetch (tenantId
+   * `undefined`, i.e. staff-only) always happen once, then re-fires exactly once more when
+   * `activeTenantResolved()` flips true, this time carrying the real `activeTenantId()` (or
+   * still `undefined` for a genuine no-active-tenant session) — never flashing a third, wrong
+   * state in between, mirroring `maybeFetchArticles()`'s own re-check-on-resolve shape below.
+   */
+  private eligibleParticipantsFetchedForTenant: number | undefined | typeof NOT_FETCHED_YET =
+    NOT_FETCHED_YET;
+
   constructor() {
     // Reacts to ActiveTenantService.activeTenantId() resolving asynchronously (its own fetch()
     // call, triggered by ensureLoaded()) — a plain post-fetch call wouldn't see the resolved
     // value yet at that point since fetch() subscribes internally and doesn't block.
     effect(() => this.maybeFetchArticles());
+    effect(() => this.maybeRefetchEligibleParticipants());
   }
 
   private readonly ownDirectConversations = computed(() =>
@@ -201,13 +228,42 @@ export class ChatDirectoryRowsService {
     }
     this.loaded = true;
     this.chatService.fetchConversations();
-    this.chatService.fetchEligibleParticipants('direct');
     this.chatDirectoryService.fetchDiscoverableGroups();
     this.profileService
       .getOwnProfile()
       .subscribe((profile) => this.currentUserId.set(profile.userId));
     this.activeTenantService.fetch();
+    this.maybeRefetchEligibleParticipants();
     this.maybeFetchArticles();
+  }
+
+  /**
+   * See `eligibleParticipantsFetchedForTenant`'s doc comment above. Fires once immediately
+   * (from `ensureLoaded()`, before `ActiveTenantService` has resolved — `activeTenantId()`
+   * reads `null` at that point, so this fetches with `tenantId: undefined`, same as before)
+   * and again exactly once more when `activeTenantResolved()` flips `true`, this time with the
+   * real `activeTenantId()` (still `undefined` if genuinely no active tenant) — never a 3rd,
+   * stale re-fetch after that, and never skipped just because the unresolved fetch already ran.
+   */
+  private maybeRefetchEligibleParticipants(): void {
+    // Both signals must be read unconditionally, before the `loaded` early-return below, so
+    // Angular's effect keeps tracking them as dependencies even on a run that skips (e.g. the
+    // effect's own guaranteed first run, which always fires before `ensureLoaded()` has set
+    // `loaded`) — otherwise this effect would never see `activeTenantId()`/
+    // `activeTenantResolved()` change and would silently stop reacting to the real tenant
+    // resolving.
+    const resolved = this.activeTenantService.activeTenantResolved();
+    const tenantId = resolved
+      ? (this.activeTenantService.activeTenantId() ?? undefined)
+      : undefined;
+    if (!this.loaded) {
+      return;
+    }
+    if (this.eligibleParticipantsFetchedForTenant === tenantId) {
+      return;
+    }
+    this.eligibleParticipantsFetchedForTenant = tenantId;
+    this.chatService.fetchEligibleParticipants('direct', tenantId);
   }
 
   /** Re-checked on every call (cheap, in-memory) since `ActiveTenantService.activeTenantId()`

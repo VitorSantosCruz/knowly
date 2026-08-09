@@ -34,13 +34,16 @@ describe('ChatDirectoryComponent', () => {
   function flushInit(opts: {
     conversations?: unknown[];
     eligible?: unknown[];
+    eligibleForTenant?: unknown[];
     discoverable?: unknown[];
     activeTenantId?: number | null;
     articles?: unknown[];
   }): void {
     httpMock.expectOne('/api/chat/conversations').flush(opts.conversations ?? []);
+    // Fires once, unconditionally, before ActiveTenantService resolves (tenantId param absent
+    // — see ChatDirectoryRowsService's eligibleParticipantsFetchedForTenant doc comment).
     httpMock
-      .expectOne((r) => r.url === '/api/chat/eligible-participants')
+      .expectOne((r) => r.url === '/api/chat/eligible-participants' && !r.params.has('tenantId'))
       .flush(opts.eligible ?? []);
     httpMock
       .expectOne((r) => r.url === '/api/chat/discoverable-groups')
@@ -65,6 +68,15 @@ describe('ChatDirectoryComponent', () => {
         .flush({ tenantId, tenantName: 'Acme', role: 'MEMBER' });
       fixture.detectChanges();
       httpMock.expectOne(`/api/tenants/${tenantId}/conversations`).flush(opts.articles ?? []);
+      // Re-fetched once more now that ActiveTenantService has resolved with a real tenant —
+      // the bug fix under test: this must carry the real tenantId, not stay staff-scoped.
+      httpMock
+        .expectOne(
+          (r) =>
+            r.url === '/api/chat/eligible-participants' &&
+            r.params.get('tenantId') === String(tenantId),
+        )
+        .flush(opts.eligibleForTenant ?? opts.eligible ?? []);
     }
   }
 
@@ -422,6 +434,51 @@ describe('ChatDirectoryComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]'),
     ).toBeTruthy();
+  });
+
+  it('shows the tenant\'s own "haven\'t talked yet" candidates once the active tenant resolves, not the staff-only ones from before resolution (bug fix: staff-inside-a-tenant seeing staff-scope data)', () => {
+    fixture.detectChanges();
+    flushInit({
+      eligible: [{ userId: 3, nickname: 'Staff Colleague' }],
+      eligibleForTenant: [{ userId: 4, nickname: 'Tenant Teammate' }],
+      activeTenantId: 5,
+    });
+    fixture.detectChanges();
+
+    // The final rendered list reflects the tenant's own candidates, not the pre-resolution
+    // staff-only fetch this component always makes first for a fast initial paint.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:4"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:3"]'),
+    ).toBeNull();
+  });
+
+  it('does not refetch eligible-participants a 3rd time once already resolved with the same active tenant (no repeated flash/thrash)', () => {
+    fixture.detectChanges();
+    flushInit({
+      eligible: [{ userId: 3, nickname: 'Staff Colleague' }],
+      eligibleForTenant: [{ userId: 4, nickname: 'Tenant Teammate' }],
+      activeTenantId: 5,
+    });
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    httpMock.expectNone((r) => r.url === '/api/chat/eligible-participants');
+  });
+
+  it('stays staff-scoped (no extra request) once resolved with genuinely no active tenant, matching the pre-existing flash fix', () => {
+    fixture.detectChanges();
+    flushInit({
+      eligible: [{ userId: 3, nickname: 'Staff Colleague' }],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:3"]'),
+    ).toBeTruthy();
+    httpMock.expectNone((r) => r.url === '/api/chat/eligible-participants');
   });
 
   it('clicking a "Base de artigos" row navigates to that conversation', () => {
