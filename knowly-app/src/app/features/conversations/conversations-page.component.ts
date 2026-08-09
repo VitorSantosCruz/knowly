@@ -9,6 +9,7 @@ import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 import { RenameFormComponent } from '../../shared/chat/rename-form.component';
+import { ChatIconComponent } from '../../shared/chat/chat-icon.component';
 
 type ConversationsError = 'network' | 'permission-denied' | null;
 
@@ -24,6 +25,7 @@ let nextLocalMessageId = -1;
     LucideLibrary,
     LucidePencil,
     RenameFormComponent,
+    ChatIconComponent,
   ],
   template: `
     <div data-testid="conversations-page" class="page-shell flex gap-6">
@@ -78,15 +80,29 @@ let nextLocalMessageId = -1;
           } @else {
             <header data-testid="conversations-header" class="mb-3 flex items-center gap-2">
               <!-- REQ: knowledge-base (RAG) conversations are represented by a knowledge-base
-                   icon, not a person's photo. -->
-              <svg
-                lucideLibrary
-                data-testid="conversations-header-icon"
-                aria-hidden="true"
-                class="h-12 w-12 shrink-0 rounded-full bg-ink-100 p-2 text-ink-500 dark:bg-ink-800 dark:text-ink-400"
-              ></svg>
+                   icon, not a person's photo. Amendment (4): once a conversation is open, its
+                   own chosen icon/title (already computed above for the rename form) render
+                   here too, so a named/iconed conversation doesn't look identical to an unnamed
+                   one once opened; the generic label/icon remain the empty-state default. -->
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink-100 p-2 text-ink-500 dark:bg-ink-800 dark:text-ink-400"
+              >
+                @if (activeConversationIcon(); as icon) {
+                  <app-chat-icon [icon]="icon" data-testid="conversations-header-icon" />
+                } @else {
+                  <svg
+                    lucideLibrary
+                    data-testid="conversations-header-icon"
+                    aria-hidden="true"
+                  ></svg>
+                }
+              </div>
               <h1 class="font-semibold text-ink-900 dark:text-white">
-                {{ 'conversations.title' | transloco }}
+                {{
+                  activeConversationId() !== null
+                    ? (activeConversationTitle() ?? ('conversations.untitled' | transloco))
+                    : ('conversations.title' | transloco)
+                }}
               </h1>
               <!-- Amendment (4), REQ-39: this list is already owner-scoped by construction
                    (GET /api/tenants/tenantId/conversations only ever returns the caller's own

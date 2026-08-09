@@ -96,6 +96,54 @@ describe('ConversationsPageComponent', () => {
     expect(assistantMessage?.textContent).toContain('Hello!');
   });
 
+  describe('Amendment (4): header reflects the active conversation title/icon', () => {
+    it('renders the generic label/icon when no conversation is selected', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([]);
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversations-header"]').textContent,
+      ).toContain('Knowledge base');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversations-header-icon"]'),
+      ).toBeTruthy();
+    });
+
+    it("renders the active conversation's real title and icon once opened", () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([{ id: 1, title: 'Políticas de RH', icon: 'BOOK_OPEN' }]);
+      fixture.nativeElement.querySelector('[data-testid="select-conversation-1"]').click();
+      httpMock.expectOne('/api/tenants/7/conversations/1').flush({
+        id: 1,
+        title: 'Políticas de RH',
+        icon: 'BOOK_OPEN',
+        messages: [],
+      });
+      fixture.detectChanges();
+
+      const header = fixture.nativeElement.querySelector('[data-testid="conversations-header"]');
+      expect(header.textContent).toContain('Políticas de RH');
+      expect(header.textContent).not.toContain('conversations.title');
+      expect(header.querySelector('[data-testid="chat-icon-BOOK_OPEN"]')).toBeTruthy();
+    });
+
+    it('falls back to the generic icon when the active conversation has no icon set', () => {
+      fixture.detectChanges();
+      flushActiveTenantAndList([{ id: 1, title: 'First chat' }]);
+      fixture.nativeElement.querySelector('[data-testid="select-conversation-1"]').click();
+      httpMock
+        .expectOne('/api/tenants/7/conversations/1')
+        .flush({ id: 1, title: 'First chat', messages: [] });
+      fixture.detectChanges();
+
+      const header = fixture.nativeElement.querySelector('[data-testid="conversations-header"]');
+      expect(header.textContent).toContain('First chat');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="conversations-header-icon"]'),
+      ).toBeTruthy();
+    });
+  });
+
   describe('Amendment (4), REQ-39: RAG rename affordance', () => {
     it('does not render the pencil when no conversation is open', () => {
       fixture.detectChanges();
