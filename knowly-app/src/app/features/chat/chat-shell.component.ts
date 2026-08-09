@@ -92,26 +92,6 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
         </div>
       }
 
-      @if (sidebarState.viewportIsDesktop() || mobileView() === 'fullDirectory') {
-        <div
-          data-testid="chat-shell-full-directory-column"
-          class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
-        >
-          @if (!sidebarState.viewportIsDesktop()) {
-            <button
-              type="button"
-              data-testid="chat-shell-mobile-back"
-              [attr.aria-label]="'chat.shell.backToDirectory' | transloco"
-              (click)="onBackToDirectory()"
-              class="mb-3 text-sm font-medium text-signal-700 dark:text-signal-300"
-            >
-              {{ 'chat.shell.backToDirectory' | transloco }}
-            </button>
-          }
-          <app-chat-full-directory />
-        </div>
-      }
-
       @if (sidebarState.viewportIsDesktop() || mobileView() === 'conversation') {
         <div
           data-testid="chat-shell-conversation-column"
@@ -157,6 +137,26 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
               }
             }
           }
+        </div>
+      }
+
+      @if (sidebarState.viewportIsDesktop() || mobileView() === 'fullDirectory') {
+        <div
+          data-testid="chat-shell-full-directory-column"
+          class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+        >
+          @if (!sidebarState.viewportIsDesktop()) {
+            <button
+              type="button"
+              data-testid="chat-shell-mobile-back"
+              [attr.aria-label]="'chat.shell.backToDirectory' | transloco"
+              (click)="onBackToDirectory()"
+              class="mb-3 text-sm font-medium text-signal-700 dark:text-signal-300"
+            >
+              {{ 'chat.shell.backToDirectory' | transloco }}
+            </button>
+          }
+          <app-chat-full-directory />
         </div>
       }
     </div>

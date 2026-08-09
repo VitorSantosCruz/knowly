@@ -138,6 +138,24 @@ describe('ChatShellComponent', () => {
     expect(fixture.nativeElement.querySelector('app-chat-full-directory')).toBeTruthy();
   });
 
+  it('lays out the 3 columns in conversations → thread → full-directory DOM order (REQ-1, Amended (3), final)', () => {
+    setup();
+    fixture.detectChanges();
+    flushActiveTenant(null);
+    flushDirectory();
+    fixture.detectChanges();
+
+    const columns = Array.from(
+      fixture.nativeElement.querySelectorAll('[data-testid$="-column"]') as NodeListOf<HTMLElement>,
+    ).map((el) => el.dataset['testid']);
+
+    expect(columns).toEqual([
+      'chat-shell-directory-column',
+      'chat-shell-conversation-column',
+      'chat-shell-full-directory-column',
+    ]);
+  });
+
   it("column 1's and column 3's search fields each have their own, never-equal aria-label (SPEC.md's a11y NFR, Amended (3), final)", () => {
     setup();
     fixture.detectChanges();
