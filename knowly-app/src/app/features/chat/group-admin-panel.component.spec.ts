@@ -182,6 +182,22 @@ describe('GroupAdminPanelComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="remove-2"]')).toBeNull();
   });
 
+  it.each([['PRIVATE'], ['REQUEST_TO_JOIN'], ['PUBLIC']] as const)(
+    'reflects the real group visibility (%s) as the selected option on open, not a hardcoded default',
+    (visibility) => {
+      fixture.componentRef.setInput('detail', detailFixture({ visibility }));
+      fixture.componentRef.setInput('currentUserId', 1);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/api/chat/conversations/1/join-requests').flush([]);
+      fixture.detectChanges();
+
+      const select: HTMLSelectElement = fixture.nativeElement.querySelector(
+        '[data-testid="group-admin-visibility-select"]',
+      );
+      expect(select.value).toBe(visibility);
+    },
+  );
+
   it('changing visibility calls the update endpoint and updates the badge on success only', () => {
     fixture.componentRef.setInput('detail', detailFixture({ visibility: 'PUBLIC' }));
     fixture.componentRef.setInput('currentUserId', 1);

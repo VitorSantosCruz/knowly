@@ -88,12 +88,13 @@ const VISIBILITY_VALUES: ChatGroupVisibility[] = ['PRIVATE', 'REQUEST_TO_JOIN', 
             <select
               data-testid="group-admin-visibility-select"
               [attr.aria-label]="'chat.adminPanel.changeVisibility' | transloco"
-              [value]="detail().visibility"
               (change)="onVisibilityChange($any($event.target).value)"
               class="rounded-lg border border-ink-200/70 px-2 py-1 text-xs dark:border-ink-800/70"
             >
               @for (option of visibilityOptions; track option) {
-                <option [value]="option">{{ option }}</option>
+                <option [value]="option" [selected]="option === detail().visibility">
+                  {{ option }}
+                </option>
               }
             </select>
           </div>
