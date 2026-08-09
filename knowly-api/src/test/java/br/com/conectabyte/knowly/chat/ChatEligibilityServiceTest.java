@@ -211,6 +211,37 @@ class ChatEligibilityServiceTest {
     }
 
     @Test
+    void listCandidatesExposesTheCandidateAvatarUrlWhenTheProfileHasOne() {
+        User staff = staffUser();
+        User member = plainMember();
+        when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff, member));
+        when(tenantMembershipRepository.findByUserAndTenant(
+                        org.mockito.ArgumentMatchers.eq(member), argThatTenant(10L)))
+                .thenReturn(Optional.of(activeMembership(member, tenant(10L))));
+
+        var memberProfile = new br.com.conectabyte.knowly.identity.UserProfile();
+        memberProfile.setAvatarUrl("https://minio.local/avatars/2");
+        when(userProfileRepository.findById(2L)).thenReturn(Optional.of(memberProfile));
+
+        var candidates = service.listCandidates(staff, "group", 10L);
+
+        assertThat(candidates)
+                .extracting("avatarUrl")
+                .containsExactly("https://minio.local/avatars/2");
+    }
+
+    @Test
+    void listCandidatesExposesNullAvatarUrlWhenTheCandidateHasNoProfile() {
+        User staff = staffUser();
+        User member = plainMember();
+        when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff, member));
+
+        var candidates = service.listCandidates(member, "group-staff-only", null);
+
+        assertThat(candidates).extracting("avatarUrl").containsExactly((Object) null);
+    }
+
+    @Test
     void softDeletedStaffUserIsIneligibleForAStaffOnlyGroupEvenIfAlreadyLoaded() {
         User staff = staffUser();
         staff.setDeletedAt(java.time.Instant.now());

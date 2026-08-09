@@ -110,7 +110,10 @@ public class ChatEligibilityService {
                                     return false;
                             }
                         })
-                .map(user -> new CandidateUserDto(user.getId(), nicknameOf(user)))
+                .map(
+                        user ->
+                                new CandidateUserDto(
+                                        user.getId(), nicknameOf(user), avatarUrlOf(user)))
                 .toList();
     }
 
@@ -123,6 +126,15 @@ public class ChatEligibilityService {
                 .map(UserProfile::getFullName)
                 .filter(name -> name != null && !name.isBlank())
                 .orElseGet(user::getEmail);
+    }
+
+    // Reuses the same avatar URL already resolved/stored by UserProfileService#updateOwnAvatar
+    // (AvatarStorageService/MinIO-backed presigned URL) -- no new storage/URL mechanism here.
+    private String avatarUrlOf(User user) {
+        return userProfileRepository
+                .findById(user.getId())
+                .map(UserProfile::getAvatarUrl)
+                .orElse(null);
     }
 
     private boolean isStaffCapable(User user) {

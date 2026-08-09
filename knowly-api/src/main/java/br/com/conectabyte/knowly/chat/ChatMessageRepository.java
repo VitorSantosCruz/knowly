@@ -39,4 +39,23 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             @Param("conversationId") Long conversationId,
             @Param("cursor") Long cursor,
             org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * Backs {@code ChatConversationSummaryDto#lastMessageAt} (chat-unified-ui frontend gap): one
+     * aggregate query per {@code listConversations} call rather than N, keyed by conversation id so
+     * a conversation with zero messages simply doesn't appear in the result (falls back to the
+     * conversation's own {@code createdAt} in the caller).
+     */
+    @Query(
+            "select m.conversation.id as conversationId, max(m.createdAt) as lastMessageAt "
+                    + "from ChatMessage m where m.conversation.id in :conversationIds "
+                    + "group by m.conversation.id")
+    List<ConversationLastMessageAt> findLastMessageAtByConversationIdIn(
+            @Param("conversationIds") List<Long> conversationIds);
+
+    interface ConversationLastMessageAt {
+        Long getConversationId();
+
+        Instant getLastMessageAt();
+    }
 }

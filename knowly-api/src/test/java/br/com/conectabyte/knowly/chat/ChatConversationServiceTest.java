@@ -90,6 +90,57 @@ class ChatConversationServiceTest {
     }
 
     @Test
+    void listConversationsExposesTheMostRecentMessageTimestampWhenTheConversationHasMessages() {
+        User actor = user(1L);
+        Tenant tenant = tenant(20L);
+        ChatConversation conversation = groupConversation(100L, tenant);
+        ChatParticipant participant = new ChatParticipant(conversation, actor);
+        java.time.Instant lastMessageAt = java.time.Instant.parse("2026-08-08T10:00:00Z");
+
+        when(chatParticipantRepository.findByUserId(1L)).thenReturn(java.util.List.of(participant));
+        when(chatMessageRepository.findLastMessageAtByConversationIdIn(java.util.List.of(100L)))
+                .thenReturn(
+                        java.util.List.of(
+                                new ChatMessageRepository.ConversationLastMessageAt() {
+                                    @Override
+                                    public Long getConversationId() {
+                                        return 100L;
+                                    }
+
+                                    @Override
+                                    public java.time.Instant getLastMessageAt() {
+                                        return lastMessageAt;
+                                    }
+                                }));
+        when(chatParticipantRepository.findByConversationId(100L))
+                .thenReturn(java.util.List.of(participant));
+
+        var summaries = service.listConversations(actor);
+
+        assertThat(summaries).extracting("lastMessageAt").containsExactly(lastMessageAt);
+    }
+
+    @Test
+    void listConversationsFallsBackToConversationCreatedAtWhenThereAreNoMessagesYet() {
+        User actor = user(1L);
+        Tenant tenant = tenant(20L);
+        ChatConversation conversation = groupConversation(100L, tenant);
+        ChatParticipant participant = new ChatParticipant(conversation, actor);
+
+        when(chatParticipantRepository.findByUserId(1L)).thenReturn(java.util.List.of(participant));
+        when(chatMessageRepository.findLastMessageAtByConversationIdIn(java.util.List.of(100L)))
+                .thenReturn(java.util.List.of());
+        when(chatParticipantRepository.findByConversationId(100L))
+                .thenReturn(java.util.List.of(participant));
+
+        var summaries = service.listConversations(actor);
+
+        assertThat(summaries)
+                .extracting("lastMessageAt")
+                .containsExactly(conversation.getCreatedAt());
+    }
+
+    @Test
     void memberAdminIsRejectedFromAGroupOfATenantTheyDoNotAdminister() {
         User memberAdmin = user(1L);
         Tenant otherTenant = tenant(20L);

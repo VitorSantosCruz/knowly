@@ -163,17 +163,39 @@ public class ChatConversationService {
             chatParticipantRepository.save(participantRow);
         }
 
-        return ChatConversationSummaryDto.from(conversation, List.copyOf(participantIds));
+        return ChatConversationSummaryDto.from(conversation, List.copyOf(participantIds), null);
     }
 
     @Transactional(readOnly = true)
     public List<ChatConversationSummaryDto> listConversations(User actor) {
-        return chatParticipantRepository.findByUserId(actor.getId()).stream()
-                .map(ChatParticipant::getConversation)
+        List<ChatConversation> conversations =
+                chatParticipantRepository.findByUserId(actor.getId()).stream()
+                        .map(ChatParticipant::getConversation)
+                        .toList();
+
+        Map<Long, Instant> lastMessageAtByConversationId =
+                conversations.isEmpty()
+                        ? Map.of()
+                        : chatMessageRepository
+                                .findLastMessageAtByConversationIdIn(
+                                        conversations.stream()
+                                                .map(ChatConversation::getId)
+                                                .toList())
+                                .stream()
+                                .collect(
+                                        Collectors.toMap(
+                                                ChatMessageRepository.ConversationLastMessageAt
+                                                        ::getConversationId,
+                                                ChatMessageRepository.ConversationLastMessageAt
+                                                        ::getLastMessageAt));
+
+        return conversations.stream()
                 .map(
                         conversation ->
                                 ChatConversationSummaryDto.from(
-                                        conversation, participantIdsOf(conversation.getId())))
+                                        conversation,
+                                        participantIdsOf(conversation.getId()),
+                                        lastMessageAtByConversationId.get(conversation.getId())))
                 .toList();
     }
 
