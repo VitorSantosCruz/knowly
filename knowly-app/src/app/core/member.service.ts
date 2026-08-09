@@ -14,6 +14,7 @@ export interface Member {
 export interface AccessGroup {
   id: number;
   name: string;
+  permissions: Permission[];
 }
 
 export interface MemberDetail extends Member {
@@ -158,6 +159,19 @@ export class MemberService {
     return this.http.post<void>(
       `/api/tenants/${tenantId}/access-groups/${accessGroupId}/permissions`,
       { permission },
+    );
+  }
+
+  // role-permission-management-ui: mirrors grantAccessGroupPermission()'s shape exactly -- no
+  // deletion-confirmation-token step, per the backend PLAN's explicit decision for this endpoint
+  // (unlike revokePermission(), the member-level equivalent, which does have one).
+  revokeAccessGroupPermission(
+    tenantId: number,
+    accessGroupId: number,
+    permission: Permission,
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `/api/tenants/${tenantId}/access-groups/${accessGroupId}/permissions/${permission}`,
     );
   }
 

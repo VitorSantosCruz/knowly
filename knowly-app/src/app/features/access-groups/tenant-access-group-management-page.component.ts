@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { LucideSquarePen, LucideTrash } from '@lucide/angular';
-import { EMPTY, Observable, catchError, forkJoin, of } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, forkJoin, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -13,8 +13,8 @@ import { AccessGroup, Member, MemberDetail, MemberService } from '../../core/mem
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { GlobalPermissionsService } from '../../core/global-permissions.service';
 import { MemberAccessGroupAssignmentComponent } from './member-access-group-assignment.component';
-import { translatePermissionLabel } from '../../shared/permission-labels';
-import { TranslocoService } from '@jsverse/transloco';
+import { PermissionListComponent } from '../../shared/permission-list/permission-list.component';
+import { PermissionListRow } from '../../shared/permission-list/permission-list.model';
 
 type PageError = 'network' | 'permission-denied' | null;
 
@@ -46,6 +46,7 @@ type PageError = 'network' | 'permission-denied' | null;
     SharedListComponent,
     ConfirmDialogComponent,
     MemberAccessGroupAssignmentComponent,
+    PermissionListComponent,
   ],
   template: `
     <div data-testid="tenant-access-group-management-page" class="page-shell">
@@ -95,27 +96,26 @@ type PageError = 'network' | 'permission-denied' | null;
               {{ 'accessGroupManagement.membersOf' | transloco: { group: group.name } }}
             </h3>
 
-            @if (canGrantPermission()) {
-              <form
-                data-testid="grant-permission-form"
-                class="mb-5 flex gap-2"
-                (submit)="onGrantPermission($event)"
-              >
-                <select
-                  data-testid="grant-permission-select"
-                  [value]="pendingGrantPermission()"
-                  (change)="pendingGrantPermission.set($any($event.target).value)"
-                  class="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-800 dark:text-white"
+            <section class="mb-5">
+              <h4 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
+                {{ 'tenantAccessGroupManagement.permissions' | transloco }}
+              </h4>
+              @if (permissionActionError()) {
+                <p
+                  data-testid="permission-action-error"
+                  role="alert"
+                  class="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
                 >
-                  @for (permission of allPermissions; track permission) {
-                    <option [value]="permission">{{ permissionLabel(permission) }}</option>
-                  }
-                </select>
-                <button type="submit" [class]="secondaryButtonClass">
-                  {{ 'tenantAccessGroupManagement.grantPermission' | transloco }}
-                </button>
-              </form>
-            }
+                  {{ 'tenantAccessGroupManagement.permissionActionError' | transloco }}
+                </p>
+              }
+              <app-permission-list
+                [rows]="permissionListRows()"
+                [mode]="permissionListMode()"
+                [disabled]="pendingPermissionToggles().size > 0"
+                (permissionToggle)="onTogglePermission($any($event))"
+              />
+            </section>
 
             @if (candidatesLoading()) {
               <p class="text-sm text-ink-400">…</p>
@@ -232,7 +232,6 @@ export class TenantAccessGroupManagementPageComponent implements OnInit {
   private readonly memberService = inject(MemberService);
   private readonly activeTenantService = inject(ActiveTenantService);
   private readonly globalPermissionsService = inject(GlobalPermissionsService);
-  private readonly transloco = inject(TranslocoService);
 
   protected readonly primaryButtonClass = buttonClass('primary');
   protected readonly secondaryButtonClass = buttonClass('secondary');
@@ -249,7 +248,34 @@ export class TenantAccessGroupManagementPageComponent implements OnInit {
   // groups re-filters this rather than re-fetching (PLAN's performance decision).
   protected readonly memberDetails = signal<Map<number, MemberDetail>>(new Map());
 
-  protected readonly pendingGrantPermission = signal<Permission>(ALL_PERMISSIONS[0]);
+  // role-permission-management-ui: seeded from the selected group's `permissions` field on
+  // `selectGroup()`; the permission-list rows/toggle-optimism read/write this alone, so a toggle
+  // failure can revert it without re-fetching or mutating the cached `groups()` array.
+  protected readonly groupPermissions = signal<Set<Permission>>(new Set());
+  // AppSec review (2026-08-08): in-flight guard -- disables the whole list while any row's own
+  // grant/revoke call hasn't resolved yet, preventing a fast double-click from firing two
+  // out-of-order requests on the same row.
+  protected readonly pendingPermissionToggles = signal<Set<Permission>>(new Set());
+  protected readonly permissionActionError = signal<'network' | 'permission-denied' | null>(null);
+
+  protected readonly permissionListRows = computed<PermissionListRow[]>(() =>
+    this.allPermissions.map((permission) => ({
+      value: permission,
+      granted: this.groupPermissions().has(permission),
+    })),
+  );
+
+  protected readonly canRevokePermission = computed(
+    () =>
+      this.viewerIsMemberAdmin() ||
+      this.globalPermissionsService.has('TENANT_PERMISSION_GRANT_DELETE'),
+  );
+
+  // Always shown (req 6 says the granted set is always visible) -- editable only when at least
+  // one of grant/revoke is allowed, per PLAN.
+  protected readonly permissionListMode = computed(() =>
+    this.canGrantPermission() || this.canRevokePermission() ? 'editable' : 'readonly',
+  );
 
   protected readonly assigningMember = signal<MemberDetail | null>(null);
 
@@ -390,6 +416,8 @@ export class TenantAccessGroupManagementPageComponent implements OnInit {
 
   selectGroup(group: AccessGroup): void {
     this.selectedGroup.set(group);
+    this.groupPermissions.set(new Set(group.permissions ?? []));
+    this.permissionActionError.set(null);
     this.assigningMember.set(null);
 
     if (this.memberDetails().size > 0 || this.candidatesLoading()) {
@@ -434,15 +462,6 @@ export class TenantAccessGroupManagementPageComponent implements OnInit {
       });
   }
 
-  protected permissionLabel(permission: Permission): string {
-    return translatePermissionLabel(permission, this.transloco);
-  }
-
-  protected onGrantPermission(event: Event): void {
-    event.preventDefault();
-    this.grantPermission(this.pendingGrantPermission());
-  }
-
   protected grantPermission(permission: Permission): void {
     const group = this.selectedGroup();
     if (!group) {
@@ -455,6 +474,62 @@ export class TenantAccessGroupManagementPageComponent implements OnInit {
         catchError((err) => {
           this.error.set(err.status === 403 ? 'permission-denied' : 'network');
           return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
+
+  // role-permission-management-ui SPEC req 9/10, PLAN's optimistic-toggle-with-rollback +
+  // AppSec's in-flight guard: flips `groupPermissions` immediately, calls grant (toggled on) or
+  // revoke (toggled off) for that scope, and reverts + surfaces an inline error on a non-2xx --
+  // never leaving a stuck optimistic toggle. Ignored entirely while any row's own call is still
+  // in flight (double-click race guard).
+  protected onTogglePermission(permission: Permission): void {
+    const group = this.selectedGroup();
+
+    if (!group || this.pendingPermissionToggles().size > 0) {
+      return;
+    }
+
+    const wasGranted = this.groupPermissions().has(permission);
+
+    this.groupPermissions.update((current) => {
+      const next = new Set(current);
+      if (wasGranted) {
+        next.delete(permission);
+      } else {
+        next.add(permission);
+      }
+      return next;
+    });
+    this.permissionActionError.set(null);
+    this.pendingPermissionToggles.update((current) => new Set(current).add(permission));
+
+    const request = wasGranted
+      ? this.memberService.revokeAccessGroupPermission(this.tenantId, group.id, permission)
+      : this.memberService.grantAccessGroupPermission(this.tenantId, group.id, permission);
+
+    request
+      .pipe(
+        catchError((err) => {
+          this.groupPermissions.update((current) => {
+            const reverted = new Set(current);
+            if (wasGranted) {
+              reverted.add(permission);
+            } else {
+              reverted.delete(permission);
+            }
+            return reverted;
+          });
+          this.permissionActionError.set(err.status === 403 ? 'permission-denied' : 'network');
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.pendingPermissionToggles.update((current) => {
+            const next = new Set(current);
+            next.delete(permission);
+            return next;
+          });
         }),
       )
       .subscribe();

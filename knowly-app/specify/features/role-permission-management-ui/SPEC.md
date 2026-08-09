@@ -205,27 +205,27 @@ already distinct enum string values, each with its own existing name.
 
 ## Acceptance criteria
 
-- [ ] Reusable permission-list component exists, used by all four
+- [x] Reusable permission-list component exists, used by all four
       consumers below, not duplicated per consumer.
-- [ ] `member-detail-panel.component.ts` has "Personal data" and
+- [x] `member-detail-panel.component.ts` has "Personal data" and
       "Permissions" tabs (in that order); the toggle-button grid it uses
       today is gone.
-- [ ] `staff-user-detail-panel.component.ts` has "Personal data" and
+- [x] `staff-user-detail-panel.component.ts` has "Personal data" and
       "Permissions" tabs (in that order); the toggle-button grid it uses
       today is gone.
-- [ ] Tenant roles page's permission editing uses the permission-list
+- [x] Tenant roles page's permission editing uses the permission-list
       component; the old single-`<select>`-plus-button control is gone.
-- [ ] Staff/global roles page gains a permission-editing view using the
+- [x] Staff/global roles page gains a permission-editing view using the
       permission-list component (new — did not exist before).
-- [ ] Role creation (both scopes) remains name-only.
-- [ ] Toggling a permission off calls the new backend revoke endpoint;
+- [x] Role creation (both scopes) remains name-only.
+- [x] Toggling a permission off calls the new backend revoke endpoint;
       toggling on calls the existing grant endpoint; a failed call
       leaves the row's prior state visible and shows an error.
-- [ ] Every `Permission`/`GlobalPermission` value has a name + description
+- [x] Every `Permission`/`GlobalPermission` value has a name + description
       in both `en`/`pt-BR` locale files (translated from the drafted
       English copy above once approved), no permission renders with a
       blank description.
-- [ ] `npm run format:check && npm test && npm run build && npm run lint`
+- [x] `npm run format:check && npm test && npm run build && npm run lint`
       all green.
 
 ## Out of scope

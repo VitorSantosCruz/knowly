@@ -12,8 +12,11 @@ import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { translatePermissionLabel } from '../../shared/permission-labels';
 import { ProfileSectionComponent } from '../user-management/profile-section.component';
+import { PermissionListComponent } from '../../shared/permission-list/permission-list.component';
+import { PermissionListRow } from '../../shared/permission-list/permission-list.model';
 
 type DetailError = 'network' | 'permission-denied' | null;
+type MemberDetailTab = 'personal' | 'permissions';
 
 @Component({
   selector: 'app-member-detail-panel',
@@ -23,6 +26,7 @@ type DetailError = 'network' | 'permission-denied' | null;
     NoAccessStateComponent,
     ProfileSectionComponent,
     ConfirmDialogComponent,
+    PermissionListComponent,
   ],
   template: `
     @if (error() === 'permission-denied') {
@@ -49,202 +53,222 @@ type DetailError = 'network' | 'permission-denied' | null;
           }
         </header>
 
-        @if (detail.role === 'MEMBER_ADMIN') {
-          <section data-testid="member-admin-tier-actions" class="mb-5">
-            @if (viewerIsMemberAdminOfThisTenant()) {
-              @if (pendingDemote()) {
-                <div class="flex items-center gap-2">
-                  <span class="text-sm text-ink-600 dark:text-ink-400">{{
-                    'members.demoteConfirm' | transloco: { email: detail.email }
-                  }}</span>
-                  <button
-                    type="button"
-                    data-testid="member-demote-confirm"
-                    [class]="dangerButtonClass"
-                    (click)="confirmDemote()"
-                  >
-                    {{ 'common.confirm' | transloco }}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="member-demote-cancel"
-                    [class]="secondaryButtonClass"
-                    (click)="pendingDemote.set(false)"
-                  >
-                    {{ 'common.cancel' | transloco }}
-                  </button>
-                </div>
-              } @else {
-                <button
-                  type="button"
-                  data-testid="member-demote-button"
-                  [class]="secondaryButtonClass"
-                  [disabled]="detail.isLastAdminOfType"
-                  [attr.title]="
-                    detail.isLastAdminOfType
-                      ? ('members.demoteDisabledLastAdmin' | transloco)
-                      : null
-                  "
-                  [attr.aria-describedby]="
-                    detail.isLastAdminOfType ? 'member-demote-disabled-reason' : null
-                  "
-                  (click)="pendingDemote.set(true)"
-                >
-                  {{ 'members.demote' | transloco }}
-                </button>
-                @if (detail.isLastAdminOfType) {
-                  <p
-                    id="member-demote-disabled-reason"
-                    data-testid="member-demote-disabled-reason"
-                    class="mt-1 text-xs text-ink-500 dark:text-ink-400"
-                  >
-                    {{ 'members.demoteDisabledLastAdmin' | transloco }}
-                  </p>
-                }
-              }
-            }
-          </section>
-        } @else {
-          <section data-testid="direct-permissions" class="mb-5">
-            <div class="mb-2 flex items-center justify-between">
-              <h3 class="text-sm font-medium text-ink-700 dark:text-ink-300">
-                {{ 'members.directPermissions' | transloco }}
-              </h3>
-              @if (viewerIsMemberAdminOfThisTenant()) {
-                @if (pendingPromote()) {
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm text-ink-600 dark:text-ink-400">{{
-                      'members.promoteConfirm' | transloco: { email: detail.email }
-                    }}</span>
+        <div role="tablist" class="mb-6 flex gap-1 rounded-xl bg-ink-100 p-1 dark:bg-ink-800">
+          <button
+            type="button"
+            role="tab"
+            id="member-tab-personal"
+            data-testid="member-tab-personal"
+            aria-controls="member-panel-personal"
+            [attr.aria-selected]="activeTab() === 'personal'"
+            (click)="selectTab('personal')"
+            (keydown)="onTabKeydown($event)"
+            [class]="tabClass('personal')"
+          >
+            {{ 'members.tabs.personal' | transloco }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="member-tab-permissions"
+            data-testid="member-tab-permissions"
+            aria-controls="member-panel-permissions"
+            [attr.aria-selected]="activeTab() === 'permissions'"
+            (click)="selectTab('permissions')"
+            (keydown)="onTabKeydown($event)"
+            [class]="tabClass('permissions')"
+          >
+            {{ 'members.tabs.permissions' | transloco }}
+          </button>
+        </div>
+
+        @if (activeTab() === 'personal') {
+          <div id="member-panel-personal" role="tabpanel" aria-labelledby="member-tab-personal">
+            @if (detail.role === 'MEMBER_ADMIN') {
+              <section data-testid="member-admin-tier-actions" class="mb-5">
+                @if (viewerIsMemberAdminOfThisTenant()) {
+                  @if (pendingDemote()) {
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                        'members.demoteConfirm' | transloco: { email: detail.email }
+                      }}</span>
+                      <button
+                        type="button"
+                        data-testid="member-demote-confirm"
+                        [class]="dangerButtonClass"
+                        (click)="confirmDemote()"
+                      >
+                        {{ 'common.confirm' | transloco }}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="member-demote-cancel"
+                        [class]="secondaryButtonClass"
+                        (click)="pendingDemote.set(false)"
+                      >
+                        {{ 'common.cancel' | transloco }}
+                      </button>
+                    </div>
+                  } @else {
                     <button
                       type="button"
-                      data-testid="member-promote-confirm"
+                      data-testid="member-demote-button"
                       [class]="secondaryButtonClass"
-                      (click)="confirmPromote()"
+                      [disabled]="detail.isLastAdminOfType"
+                      [attr.title]="
+                        detail.isLastAdminOfType
+                          ? ('members.demoteDisabledLastAdmin' | transloco)
+                          : null
+                      "
+                      [attr.aria-describedby]="
+                        detail.isLastAdminOfType ? 'member-demote-disabled-reason' : null
+                      "
+                      (click)="pendingDemote.set(true)"
                     >
-                      {{ 'common.confirm' | transloco }}
+                      {{ 'members.demote' | transloco }}
                     </button>
+                    @if (detail.isLastAdminOfType) {
+                      <p
+                        id="member-demote-disabled-reason"
+                        data-testid="member-demote-disabled-reason"
+                        class="mt-1 text-xs text-ink-500 dark:text-ink-400"
+                      >
+                        {{ 'members.demoteDisabledLastAdmin' | transloco }}
+                      </p>
+                    }
+                  }
+                }
+              </section>
+            }
+
+            <section data-testid="access-groups" class="mb-5">
+              <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
+                {{ 'members.accessGroups' | transloco }}
+              </h3>
+              <ul class="mb-2 flex flex-col gap-1">
+                @for (group of detail.accessGroups; track group.id) {
+                  <li
+                    class="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-1.5 text-sm text-ink-800 dark:bg-ink-800/50 dark:text-ink-100"
+                  >
+                    {{ group.name }}
+                    <button
+                      [attr.data-testid]="'unassign-access-group-' + group.id"
+                      (click)="onUnassignAccessGroup(group.id)"
+                      class="text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      {{ 'members.unassign' | transloco }}
+                    </button>
+                  </li>
+                }
+              </ul>
+
+              <ul class="flex flex-col gap-1">
+                @for (group of assignableAccessGroups(detail); track group.id) {
+                  <li
+                    class="flex items-center justify-between text-sm text-ink-600 dark:text-ink-400"
+                  >
+                    {{ group.name }}
+                    <button
+                      [attr.data-testid]="'assign-access-group-' + group.id"
+                      (click)="onAssignAccessGroup(group.id)"
+                      class="text-signal-600 transition-colors duration-fast ease-fluid hover:text-signal-700 dark:text-signal-400 dark:hover:text-signal-300"
+                    >
+                      {{ 'members.assign' | transloco }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+
+            <section data-testid="effective-permissions">
+              <h3 class="mb-1 text-sm font-medium text-ink-700 dark:text-ink-300">
+                {{ 'members.effectivePermissions' | transloco }}
+              </h3>
+              <p class="text-sm text-ink-600 dark:text-ink-400">
+                {{ effectivePermissionLabels(detail) }}
+              </p>
+            </section>
+
+            <app-profile-section
+              [userId]="detail.userId"
+              [canEdit]="canEdit()"
+              [ownUserId]="ownUserId()"
+              [hideEditToggle]="true"
+              [editTrigger]="editProfileTrigger()"
+            />
+          </div>
+        } @else {
+          <div
+            id="member-panel-permissions"
+            role="tabpanel"
+            aria-labelledby="member-tab-permissions"
+          >
+            @if (detail.role !== 'MEMBER_ADMIN') {
+              <section data-testid="direct-permissions" class="mb-5">
+                <div class="mb-2 flex items-center justify-between">
+                  <h3 class="text-sm font-medium text-ink-700 dark:text-ink-300">
+                    {{ 'members.directPermissions' | transloco }}
+                  </h3>
+                  @if (viewerIsMemberAdminOfThisTenant()) {
+                    @if (pendingPromote()) {
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm text-ink-600 dark:text-ink-400">{{
+                          'members.promoteConfirm' | transloco: { email: detail.email }
+                        }}</span>
+                        <button
+                          type="button"
+                          data-testid="member-promote-confirm"
+                          [class]="secondaryButtonClass"
+                          (click)="confirmPromote()"
+                        >
+                          {{ 'common.confirm' | transloco }}
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="member-promote-cancel"
+                          [class]="secondaryButtonClass"
+                          (click)="pendingPromote.set(false)"
+                        >
+                          {{ 'common.cancel' | transloco }}
+                        </button>
+                      </div>
+                    } @else {
+                      <button
+                        type="button"
+                        data-testid="member-promote-button"
+                        [class]="secondaryButtonClass"
+                        (click)="pendingPromote.set(true)"
+                      >
+                        {{ 'members.promote' | transloco }}
+                      </button>
+                    }
+                  }
+                </div>
+
+                <app-permission-list
+                  mode="editable"
+                  [rows]="permissionListRows()"
+                  [disabled]="!viewerCanManageDirectPermissions()"
+                  (permissionToggle)="onTogglePermission($any($event))"
+                />
+
+                @if (hasPendingPermissionChanges()) {
+                  <div class="mt-3">
                     <button
                       type="button"
-                      data-testid="member-promote-cancel"
-                      [class]="secondaryButtonClass"
-                      (click)="pendingPromote.set(false)"
+                      data-testid="member-save-permissions-button"
+                      [class]="buttonClassPrimary"
+                      [disabled]="!viewerCanManageDirectPermissions()"
+                      (click)="onSaveBatchPermissions()"
                     >
-                      {{ 'common.cancel' | transloco }}
+                      {{ 'members.save' | transloco }}
                     </button>
                   </div>
-                } @else {
-                  <button
-                    type="button"
-                    data-testid="member-promote-button"
-                    [class]="secondaryButtonClass"
-                    (click)="pendingPromote.set(true)"
-                  >
-                    {{ 'members.promote' | transloco }}
-                  </button>
                 }
-              }
-            </div>
-
-            @for (permission of allPermissions; track permission) {
-              <span
-                class="mr-3 mb-1 inline-flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300"
-              >
-                <button
-                  type="button"
-                  role="switch"
-                  [attr.aria-checked]="pendingPermissions().has(permission)"
-                  [attr.aria-label]="permissionLabel(permission)"
-                  [attr.data-testid]="'permission-toggle-' + permission"
-                  [disabled]="!viewerCanManageDirectPermissions()"
-                  (click)="onTogglePermission(permission)"
-                  [class]="
-                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast ease-fluid disabled:pointer-events-none disabled:opacity-50 ' +
-                    (pendingPermissions().has(permission)
-                      ? 'bg-signal-600'
-                      : 'bg-ink-300 dark:bg-ink-700')
-                  "
-                >
-                  <span
-                    [class]="
-                      'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-fast ease-fluid ' +
-                      (pendingPermissions().has(permission) ? 'translate-x-4' : 'translate-x-1')
-                    "
-                  ></span>
-                </button>
-                {{ permissionLabel(permission) }}
-              </span>
+              </section>
             }
-
-            @if (hasPendingPermissionChanges()) {
-              <div class="mt-3">
-                <button
-                  type="button"
-                  data-testid="member-save-permissions-button"
-                  [class]="buttonClassPrimary"
-                  [disabled]="!viewerCanManageDirectPermissions()"
-                  (click)="onSaveBatchPermissions()"
-                >
-                  {{ 'members.save' | transloco }}
-                </button>
-              </div>
-            }
-          </section>
+          </div>
         }
-
-        <section data-testid="access-groups" class="mb-5">
-          <h3 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'members.accessGroups' | transloco }}
-          </h3>
-          <ul class="mb-2 flex flex-col gap-1">
-            @for (group of detail.accessGroups; track group.id) {
-              <li
-                class="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-1.5 text-sm text-ink-800 dark:bg-ink-800/50 dark:text-ink-100"
-              >
-                {{ group.name }}
-                <button
-                  [attr.data-testid]="'unassign-access-group-' + group.id"
-                  (click)="onUnassignAccessGroup(group.id)"
-                  class="text-red-600 transition-colors duration-fast ease-fluid hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  {{ 'members.unassign' | transloco }}
-                </button>
-              </li>
-            }
-          </ul>
-
-          <ul class="flex flex-col gap-1">
-            @for (group of assignableAccessGroups(detail); track group.id) {
-              <li class="flex items-center justify-between text-sm text-ink-600 dark:text-ink-400">
-                {{ group.name }}
-                <button
-                  [attr.data-testid]="'assign-access-group-' + group.id"
-                  (click)="onAssignAccessGroup(group.id)"
-                  class="text-signal-600 transition-colors duration-fast ease-fluid hover:text-signal-700 dark:text-signal-400 dark:hover:text-signal-300"
-                >
-                  {{ 'members.assign' | transloco }}
-                </button>
-              </li>
-            }
-          </ul>
-        </section>
-
-        <section data-testid="effective-permissions">
-          <h3 class="mb-1 text-sm font-medium text-ink-700 dark:text-ink-300">
-            {{ 'members.effectivePermissions' | transloco }}
-          </h3>
-          <p class="text-sm text-ink-600 dark:text-ink-400">
-            {{ effectivePermissionLabels(detail) }}
-          </p>
-        </section>
-
-        <app-profile-section
-          [userId]="detail.userId"
-          [canEdit]="canEdit()"
-          [ownUserId]="ownUserId()"
-          [hideEditToggle]="true"
-          [editTrigger]="editProfileTrigger()"
-        />
       </div>
 
       @if (pendingPermissionRevoke(); as permission) {
@@ -328,6 +352,17 @@ export class MemberDetailPanelComponent implements OnChanges {
   protected readonly allPermissions = ALL_PERMISSIONS;
   protected readonly error = signal<DetailError>(null);
 
+  // role-permission-management-ui: "Personal data"/"Permissions" tabs, copying
+  // login-page.component.ts's activeTab/tabClass/selectTab/onTabKeydown pattern verbatim.
+  protected readonly activeTab = signal<MemberDetailTab>('personal');
+
+  protected readonly permissionListRows = computed<PermissionListRow[]>(() =>
+    this.allPermissions.map((permission) => ({
+      value: permission,
+      granted: this.pendingPermissions().has(permission),
+    })),
+  );
+
   protected readonly pendingPermissionRevoke = signal<Permission | null>(null);
   protected readonly permissionRevokeRetryToken = signal(0);
   protected readonly pendingGroupUnassign = signal<AccessGroup | null>(null);
@@ -397,6 +432,28 @@ export class MemberDetailPanelComponent implements OnChanges {
 
   protected permissionLabel(permission: Permission): string {
     return translatePermissionLabel(permission, this.transloco);
+  }
+
+  protected tabClass(tab: MemberDetailTab): string {
+    const base =
+      'flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-fast ease-fluid';
+    return this.activeTab() === tab
+      ? `${base} bg-white text-ink-900 shadow-sm dark:bg-ink-700 dark:text-white`
+      : `${base} text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200`;
+  }
+
+  protected selectTab(tab: MemberDetailTab): void {
+    this.activeTab.set(tab);
+  }
+
+  protected onTabKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return;
+    }
+
+    event.preventDefault();
+    this.selectTab(this.activeTab() === 'personal' ? 'permissions' : 'personal');
+    (document.getElementById(`member-tab-${this.activeTab()}`) as HTMLElement | null)?.focus();
   }
 
   protected effectivePermissionLabels(detail: MemberDetail): string {

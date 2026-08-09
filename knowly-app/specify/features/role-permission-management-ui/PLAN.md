@@ -290,3 +290,38 @@ panels, just extracted into the new component).
 - Run via `npm test` per task as each component/page changes; full
   `npm run format:check && npm test && npm run build && npm run lint`
   reserved for end-of-feature per repo convention.
+
+## Deviations from this PLAN (recorded during implementation, 2026-08-08)
+
+- **`PermissionListComponent`'s output was renamed `(toggle)` →
+  `(permissionToggle)`** — `@angular-eslint/no-output-native` flags
+  `toggle` as a native DOM event name (`<details>` has one); caught by
+  `npm run lint`, not earlier, exactly the failure mode
+  `knowly-app/CLAUDE.md` warns about. Fixed at the root (renamed the
+  output and every consumer binding) rather than suppressed.
+- **`PermissionListComponent` gained an additional `disabled: input(false)`
+  input**, not in this PLAN's original model (`PermissionListRow` only
+  has `value`/`granted`). Needed for two things this PLAN didn't
+  explicitly resolve: (1) the two detail panels' existing
+  `viewerCanManageDirectPermissions`/`viewerIsStaffAdmin` viewer-level
+  gate on the whole grid (previously implemented per-button via
+  `[disabled]` on the old inline markup); (2) the AppSec in-flight
+  double-click guard on both role pages, applied as a single
+  list-wide disable rather than a true per-row disabled set (simpler,
+  and still closes the race — a fast double-click on *any* row is
+  blocked while *any* row's call is in flight, a superset of the
+  literal "that row's own call" wording but not a weaker guarantee).
+- **`Permission` (frontend enum) gained `PROFILE_VIEW`/`SUPPORT_CHANNEL_VIEW`**,
+  which already existed in the backend `Permission` enum and already
+  had `permissions.<ENUM>` i18n labels, but were missing from the
+  frontend's `Permission` union/`ALL_PERMISSIONS` array — a pre-existing
+  gap, not a new permission. Needed so the tenant role-editing view
+  (which enumerates `ALL_PERMISSIONS`) can show/toggle every permission
+  the backend actually has, not a subset. Not itself a change to which
+  permissions exist at the backend (explicitly out of scope per SPEC) —
+  purely closing a frontend representation gap.
+- **`groupPermissions.set(new Set(group.permissions ?? []))`** on both
+  role pages' `selectGroup()`, not the PLAN's literal
+  `new Set(group.permissions)` — defensive against a group object
+  missing the field entirely (for tests/fixtures predating this PLAN's
+  DTO extension); the real backend contract always includes the field.

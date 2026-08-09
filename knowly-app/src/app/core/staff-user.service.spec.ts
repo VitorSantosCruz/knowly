@@ -133,6 +133,49 @@ describe('StaffUserService', () => {
     req.flush({});
   });
 
+  // role-permission-management-ui: mirrors grantAccessGroupPermission()'s shape exactly -- no
+  // deletion-confirmation-token step, per the backend PLAN's explicit decision for this endpoint.
+  it('revokeAccessGroupPermission() deletes the permission, no body/token', () => {
+    let succeeded = false;
+    service.revokeAccessGroupPermission(3, 'STAFF_USER_CREATE').subscribe(() => {
+      succeeded = true;
+    });
+
+    const req = httpMock.expectOne('/api/staff/access-groups/3/permissions/STAFF_USER_CREATE');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toBeNull();
+    req.flush(null, { status: 200, statusText: 'OK' });
+
+    expect(succeeded).toBe(true);
+  });
+
+  it('revokeAccessGroupPermission() propagates a non-2xx error', () => {
+    let error: { status: number } | undefined;
+    service.revokeAccessGroupPermission(3, 'STAFF_USER_CREATE').subscribe({
+      error: (err) => (error = err),
+    });
+
+    const req = httpMock.expectOne('/api/staff/access-groups/3/permissions/STAFF_USER_CREATE');
+    req.flush(
+      { code: 'ACCESS_GROUP_PERMISSION_NOT_GRANTED' },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    expect(error?.status).toBe(400);
+  });
+
+  // Type-level: GlobalAccessGroup must carry the extended `permissions` field from the extended
+  // DTO.
+  it('GlobalAccessGroup carries a permissions field', () => {
+    const group: import('./staff-user.service').GlobalAccessGroup = {
+      id: 1,
+      name: 'Support',
+      permissions: ['STAFF_USER_CREATE'],
+    };
+
+    expect(group.permissions).toEqual(['STAFF_USER_CREATE']);
+  });
+
   it('assignAccessGroup() posts the assignment', () => {
     service.assignAccessGroup(1, 3).subscribe();
 

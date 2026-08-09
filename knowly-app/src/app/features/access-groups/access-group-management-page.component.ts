@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { LucideSquarePen } from '@lucide/angular';
-import { EMPTY, Observable, catchError, forkJoin, of } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, forkJoin, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog.component';
 import { ErrorStateComponent } from '../../shared/error-state.component';
@@ -14,6 +14,10 @@ import {
   StaffUserService,
   StaffUserSummary,
 } from '../../core/staff-user.service';
+import { ALL_GLOBAL_PERMISSIONS, GlobalPermission } from '../../core/global-permission';
+import { GlobalPermissionsService } from '../../core/global-permissions.service';
+import { PermissionListComponent } from '../../shared/permission-list/permission-list.component';
+import { PermissionListRow } from '../../shared/permission-list/permission-list.model';
 
 type PageError = 'network' | 'permission-denied' | null;
 
@@ -42,6 +46,7 @@ type PageError = 'network' | 'permission-denied' | null;
     NoAccessStateComponent,
     SharedListComponent,
     ConfirmDialogComponent,
+    PermissionListComponent,
   ],
   template: `
     <div data-testid="access-group-management-page" class="page-shell">
@@ -88,6 +93,27 @@ type PageError = 'network' | 'permission-denied' | null;
             <h3 class="mb-4 text-sm font-semibold text-ink-900 dark:text-white">
               {{ 'accessGroupManagement.membersOf' | transloco: { group: group.name } }}
             </h3>
+
+            <section class="mb-5">
+              <h4 class="mb-2 text-sm font-medium text-ink-700 dark:text-ink-300">
+                {{ 'tenantAccessGroupManagement.permissions' | transloco }}
+              </h4>
+              @if (permissionActionError()) {
+                <p
+                  data-testid="permission-action-error"
+                  role="alert"
+                  class="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
+                >
+                  {{ 'tenantAccessGroupManagement.permissionActionError' | transloco }}
+                </p>
+              }
+              <app-permission-list
+                [rows]="permissionListRows()"
+                [mode]="permissionListMode()"
+                [disabled]="pendingPermissionToggles().size > 0"
+                (permissionToggle)="onTogglePermission($any($event))"
+              />
+            </section>
 
             @if (candidatesLoading()) {
               <p class="text-sm text-ink-400">…</p>
@@ -165,8 +191,10 @@ type PageError = 'network' | 'permission-denied' | null;
 })
 export class AccessGroupManagementPageComponent implements OnInit {
   private readonly staffUserService = inject(StaffUserService);
+  private readonly globalPermissionsService = inject(GlobalPermissionsService);
 
   protected readonly primaryButtonClass = buttonClass('primary');
+  protected readonly allPermissions = ALL_GLOBAL_PERMISSIONS;
 
   protected readonly groups = signal<GlobalAccessGroup[]>([]);
   protected readonly groupsLoading = signal(true);
@@ -178,6 +206,25 @@ export class AccessGroupManagementPageComponent implements OnInit {
   // Non-admin candidates' own fetched details (source of truth for group membership),
   // keyed by userId — see class doc for why this is an N+1 fetch.
   protected readonly candidateDetails = signal<Map<number, StaffUserDetail>>(new Map());
+
+  // role-permission-management-ui: same shape as the tenant roles page (task 7) --
+  // seeded from the selected group's `permissions` field on `selectGroup()`.
+  protected readonly groupPermissions = signal<Set<GlobalPermission>>(new Set());
+  protected readonly pendingPermissionToggles = signal<Set<GlobalPermission>>(new Set());
+  protected readonly permissionActionError = signal<'network' | 'permission-denied' | null>(null);
+
+  protected readonly permissionListRows = computed<PermissionListRow[]>(() =>
+    this.allPermissions.map((permission) => ({
+      value: permission,
+      granted: this.groupPermissions().has(permission),
+    })),
+  );
+
+  // Gated on STAFF_PERMISSION_MANAGE -- the same permission that already gates reaching this
+  // page at all (nav guard) -- for edit vs. read-only.
+  protected readonly permissionListMode = computed(() =>
+    this.globalPermissionsService.has('STAFF_PERMISSION_MANAGE') ? 'editable' : 'readonly',
+  );
 
   protected readonly pendingUnassign = signal<{
     user: StaffUserSummary;
@@ -275,7 +322,62 @@ export class AccessGroupManagementPageComponent implements OnInit {
 
   protected selectGroup(group: GlobalAccessGroup): void {
     this.selectedGroup.set(group);
+    this.groupPermissions.set(new Set(group.permissions ?? []));
+    this.permissionActionError.set(null);
     this.loadCandidates();
+  }
+
+  // Mirrors TenantAccessGroupManagementPageComponent#onTogglePermission's optimistic-toggle-with-
+  // rollback + in-flight guard shape exactly (task 7), against the staff/global scope.
+  protected onTogglePermission(permission: GlobalPermission): void {
+    const group = this.selectedGroup();
+
+    if (!group || this.pendingPermissionToggles().size > 0) {
+      return;
+    }
+
+    const wasGranted = this.groupPermissions().has(permission);
+
+    this.groupPermissions.update((current) => {
+      const next = new Set(current);
+      if (wasGranted) {
+        next.delete(permission);
+      } else {
+        next.add(permission);
+      }
+      return next;
+    });
+    this.permissionActionError.set(null);
+    this.pendingPermissionToggles.update((current) => new Set(current).add(permission));
+
+    const request = wasGranted
+      ? this.staffUserService.revokeAccessGroupPermission(group.id, permission)
+      : this.staffUserService.grantAccessGroupPermission(group.id, permission);
+
+    request
+      .pipe(
+        catchError((err) => {
+          this.groupPermissions.update((current) => {
+            const reverted = new Set(current);
+            if (wasGranted) {
+              reverted.add(permission);
+            } else {
+              reverted.delete(permission);
+            }
+            return reverted;
+          });
+          this.permissionActionError.set(err.status === 403 ? 'permission-denied' : 'network');
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.pendingPermissionToggles.update((current) => {
+            const next = new Set(current);
+            next.delete(permission);
+            return next;
+          });
+        }),
+      )
+      .subscribe();
   }
 
   // REQ-23: STAFF_ADMIN is filtered out client-side before any per-user detail fetch —

@@ -342,7 +342,11 @@
     "confirmDelete": "Excluir permanentemente a conta de {{email}}? Esta ação não pode ser desfeita.",
     "deleteDisabledLastAdmin": "É necessário manter ao menos um MEMBER_ADMIN neste tenant.",
     "save": "Salvar",
-    "confirmBatchSave": "Salvar alterações de permissões para {{email}}?"
+    "confirmBatchSave": "Salvar alterações de permissões para {{email}}?",
+    "tabs": {
+      "personal": "Dados pessoais",
+      "permissions": "Permissões"
+    }
   },
   "sharedList": {
     "selectAll": "Selecionar tudo",
@@ -410,7 +414,11 @@
     "confirmDelete": "Excluir {{email}}? Esta ação não pode ser desfeita.",
     "deleteDisabledLastAdmin": "É necessário manter ao menos um STAFF_ADMIN.",
     "save": "Salvar",
-    "confirmBatchSave": "Salvar alterações de permissões para {{email}}?"
+    "confirmBatchSave": "Salvar alterações de permissões para {{email}}?",
+    "tabs": {
+      "personal": "Dados pessoais",
+      "permissions": "Permissões"
+    }
   },
   "accessGroupManagement": {
     "title": "Papéis",
@@ -426,6 +434,8 @@
   },
   "tenantAccessGroupManagement": {
     "grantPermission": "Conceder permissão",
+    "permissions": "Permissões",
+    "permissionActionError": "Algo deu errado ao atualizar essa permissão. Tente novamente.",
     "deleteGroup": "Excluir papel",
     "confirmDeleteGroup": "Excluir o papel '{{group}}'? As atribuições de membros e concessões de permissão também serão removidas."
   },
