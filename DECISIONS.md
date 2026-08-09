@@ -2469,6 +2469,79 @@ tenant-scoped screen going forward without that check, and don't
 default to the reactive pattern either if the SPEC is explicit about
 "shall not issue any... requests."
 
+### "Nothing to revoke" rejects rather than silently no-ops, diverging from the existing direct-permission-revoke precedent
+
+Decided while writing `role-permission-revoke/PLAN.md` (2026-08-08). This
+codebase already has a revoke pattern for direct grants
+(`TenantService#revokePermission`/`StaffService#revokePermission` on
+`DirectPermissionGrant`/`DirectGlobalPermissionGrant`): calling revoke on
+a permission that isn't currently granted silently no-ops
+(`.ifPresent(grant -> ...)`, no exception). `role-permission-revoke`'s
+SPEC (REQ-8) explicitly requires the opposite for role-level revoke: a
+caller revoking a not-currently-granted `(role, permission)` pair must
+get a rejection, so it can distinguish "nothing to do" from "revoked."
+**Decision:** a new `AccessGroupPermissionNotGrantedException` (400,
+`ACCESS_GROUP_PERMISSION_NOT_GRANTED`) is thrown instead of silently
+returning success, on both the tenant and staff/global revoke endpoints.
+The unknown/deleted-role case is *not* changed to match — that still
+mirrors the sibling grant endpoint's existing `TenantAccessDeniedException`
+(403) rejection, per REQ-7, so this is a narrow, SPEC-driven divergence
+from one specific precedent (silent no-op on "nothing to revoke"), not a
+wholesale change to how revoke endpoints in general behave.
+**Why:** the SPEC treats a role's permission set as a corrective,
+frequently-round-tripped edit surface (grant/revoke/re-grant), where a
+caller silently getting 200 for a revoke that did nothing is more likely
+to mask a real mistake (wrong permission enum, stale UI state) than the
+direct-permission-grant revoke case, which is a rarer, more deliberate
+admin action. This SPEC made that tradeoff explicitly (REQ-8's own
+wording); it's not a general re-litigation of the no-op precedent.
+**Applies to new decisions:** when adding a new revoke-style endpoint,
+check its own SPEC for whether "nothing to revoke" must reject or may
+no-op — do not assume the direct-permission-grant precedent applies by
+default, and do not assume this feature's "always reject" applies by
+default either. Each SPEC's own requirements decide it.
+
+### Frontend permission-toggle rows go optimistic-with-rollback, diverging from the existing pending-Set+batch-confirm pattern
+
+Decided while writing `knowly-app/specify/features/role-permission-management-ui/PLAN.md`
+(2026-08-08). This codebase's only existing per-permission toggle UI
+(`member-detail-panel.component.ts`/`staff-user-detail-panel.component.ts`'s
+direct-permission grids) is *not* optimistic: toggling only mutates a
+local `pendingPermissions` Set, and nothing is sent to the backend until
+a single, security-phrase-confirmed batch save — so there was never a
+"the call failed, revert this one row" case to handle before now. The
+new role-editing views (`tenant-access-group-management-page.component.ts`,
+`access-group-management-page.component.ts`) call grant/revoke
+immediately per toggle (their SPEC's REQ-9 requires this, and the
+backend's revoke endpoint deliberately has no confirmation step — see
+the "Nothing to revoke" entry above), so a failed call now needs an
+actual rollback, which nothing in this codebase does yet.
+**Decision:** each role page holds the selected role's granted-permission
+set in its own page-level signal (not read directly off the cached role
+list), flips the toggled permission in that signal immediately on click,
+fires the grant/revoke call, and on any non-2xx response reverts that
+one entry in the signal and sets a small page-level `permissionActionError`
+signal rendered inline near the permission list (not the page's
+full-page `error` state, which would blank out the whole roster/list
+underneath it for what is a single-row failure).
+**Why:** SPEC's unwanted-behavior requirement (role-permission-management-ui
+REQ-10) explicitly forbids a stuck optimistic toggle and requires a
+visible error — the existing batch-confirm pattern satisfies an
+equivalent goal by never being optimistic in the first place, which
+isn't an option here once toggles fire immediately per SPEC's own
+wording. Reverting a single derived signal (rather than re-fetching the
+whole role) keeps the blast radius of a failure to the one row the user
+actually acted on.
+**Applies to new decisions:** when a new SPEC calls for an immediate,
+per-item toggle/action (not batched, not confirmation-gated), don't
+assume the existing pending-Set+batch-save pattern transfers — that
+pattern's "never actually stuck" property comes specifically from *never
+calling the backend until a single deliberate confirm*, which an
+immediate-call requirement removes. Use a dedicated, revertible
+per-item signal and a *local*, non-page-blanking error surface instead,
+and check whether the item's own SPEC actually requires immediate calls
+before defaulting to either pattern.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact
