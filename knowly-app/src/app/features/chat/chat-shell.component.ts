@@ -6,6 +6,7 @@ import { ConversationService } from '../../core/conversation.service';
 import { SidebarStateService } from '../../core/sidebar-state.service';
 import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 import { ChatDirectoryComponent } from './chat-directory.component';
+import { ChatFullDirectoryComponent } from './chat-full-directory.component';
 import { ChatSidebarComponent } from './chat-sidebar.component';
 import { ConversationDetailComponent } from './conversation-detail.component';
 import { CreateGroupDialogComponent } from './create-group-dialog.component';
@@ -19,22 +20,27 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
  * Route: `/chat`, `/chat/:conversationId`, `/chat/support/:channelId`,
  * `/chat/articles/:conversationId` — no route guard (REQ-1/REQ-2, PLAN.md's rationale).
  *
- * **Amended 2026-08-09**: this shell lays out 2 persistent columns — a directory column
- * (`ChatSidebarComponent`'s 3 direct actions + `ChatDirectoryComponent`'s unified list, itself
- * now partitioning People into "Already talked to"/"Haven't talked yet") and a conversation
- * column showing whichever conversation/Support/RAG view is currently open, using the exact
- * same unchanged components as before (`ConversationDetailComponent`/`SupportPageComponent`/
- * `ConversationsPageComponent`) — only which column renders them changed.
+ * **Amendment (3), 2026-08-09**: this shell lays out **3** persistent columns — a
+ * conversations column (`ChatSidebarComponent`'s 3 direct actions + `ChatDirectoryComponent`'s
+ * one unified, Support-pinned list), a conversation/thread column showing whichever
+ * conversation/Support/RAG view is currently open, and a full-directory column
+ * (`ChatFullDirectoryComponent`, REQ-2d) listing everyone/every group not already in column 1 —
+ * the first and third the same width, using the exact same unchanged conversation-column
+ * components as before (`ConversationDetailComponent`/`SupportPageComponent`/
+ * `ConversationsPageComponent`).
  *
- * This replaces two earlier same-day iterations, in order: (1) the originally-shipped
- * tab-strip design (entire main panel swapped per section); (2) a 3-column cut that added a
- * separate `ChatContactsPanelComponent` "já falou"/"ainda não falou" column — the product owner
- * found that 3rd column redundant with column 1's own People rows and asked for the same
- * partitioning idea to live *inside* `ChatDirectoryComponent` instead (see that component's own
- * doc comment), which is what's implemented now. Below the 2-column breakpoint, the shell
- * collapses to one column at a time (REQ-2c), reusing `SidebarStateService.viewportIsDesktop()`
- * — the same breakpoint signal `app-shell.component.ts` already uses for its own
- * collapsible-sidebar convention.
+ * History: (1) the originally-shipped tab-strip design (entire main panel swapped per section);
+ * (2) a 3-column cut with a separate `ChatContactsPanelComponent` "já falou"/"ainda não falou"
+ * column, retired same-day for being redundant with column 1's own People rows; (3) a 2-column
+ * cut that folded that partition into column 1 directly; (4) this Amendment (3) 3-column cut,
+ * which unifies column 1 into one list and reintroduces a genuine, disjoint column 3. Below the
+ * 3-column breakpoint, the shell collapses to **one of the three columns at a time** (REQ-2c,
+ * Amended (3), final), reusing `SidebarStateService.viewportIsDesktop()` — the same breakpoint
+ * signal `app-shell.component.ts` already uses for its own collapsible-sidebar convention. A
+ * `mobileFullDirectoryOpen` signal (reset whenever the route itself changes, e.g. opening a
+ * conversation from either directory column) tracks whether the viewer last activated column 3
+ * over column 1 — the third pane is otherwise never route-addressable on its own, unlike the
+ * conversation column.
  *
  * Which view opens in the conversation column is still resolved from the same two sources as
  * before:
@@ -51,6 +57,7 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
     TranslocoPipe,
     ChatSidebarComponent,
     ChatDirectoryComponent,
+    ChatFullDirectoryComponent,
     ConversationDetailComponent,
     SupportPageComponent,
     ConversationsPageComponent,
@@ -58,7 +65,7 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
     CreateGroupDialogComponent,
   ],
   template: `
-    <div data-testid="chat-shell" class="page-shell grid gap-4 md:grid-cols-[280px_1fr]">
+    <div data-testid="chat-shell" class="page-shell grid gap-4 md:grid-cols-[280px_1fr_280px]">
       @if (sidebarState.viewportIsDesktop() || mobileView() === 'directory') {
         <div
           data-testid="chat-shell-directory-column"
@@ -70,7 +77,38 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
             (openArticles)="onOpenArticles()"
             (createGroup)="createGroupOpen.set(true)"
           />
+          @if (!sidebarState.viewportIsDesktop()) {
+            <button
+              type="button"
+              data-testid="chat-shell-mobile-browse-directory"
+              [attr.aria-label]="'chat.shell.toggleContacts' | transloco"
+              (click)="mobileFullDirectoryOpen.set(true)"
+              class="text-sm font-medium text-signal-700 dark:text-signal-300"
+            >
+              {{ 'chat.shell.toggleContacts' | transloco }}
+            </button>
+          }
           <app-chat-directory />
+        </div>
+      }
+
+      @if (sidebarState.viewportIsDesktop() || mobileView() === 'fullDirectory') {
+        <div
+          data-testid="chat-shell-full-directory-column"
+          class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+        >
+          @if (!sidebarState.viewportIsDesktop()) {
+            <button
+              type="button"
+              data-testid="chat-shell-mobile-back"
+              [attr.aria-label]="'chat.shell.backToDirectory' | transloco"
+              (click)="onBackToDirectory()"
+              class="mb-3 text-sm font-medium text-signal-700 dark:text-signal-300"
+            >
+              {{ 'chat.shell.backToDirectory' | transloco }}
+            </button>
+          }
+          <app-chat-full-directory />
         </div>
       }
 
@@ -168,23 +206,35 @@ export class ChatShellComponent implements OnInit {
       this.activeTenantService.activeTenantId() !== null,
   );
 
-  /** REQ-2c: which single column is shown below the 2-column breakpoint — derived entirely
-   * from the current route, not a separately-tracked toggle, so it always matches what's
-   * actually open (a specific conversation/Support/RAG view means "conversation", anything
-   * else means "directory"). */
-  protected readonly mobileView = computed<'directory' | 'conversation'>(() => {
+  /** REQ-2c (Amended (3), final): which single column is shown below the 3-column breakpoint.
+   * The conversation/directory halves are still derived entirely from the current route, same
+   * as before (a specific conversation/Support/RAG view means "conversation", anything else
+   * means "directory") — the third state, `'fullDirectory'`, is the one exception: column 3 has
+   * no route of its own to derive from, so it's the only branch driven by a manually-toggled
+   * signal (`mobileFullDirectoryOpen`, reset on every route change below) rather than the URL. */
+  protected readonly mobileView = computed<'directory' | 'conversation' | 'fullDirectory'>(() => {
     if (this.chatRouteKind() === 'peer') {
       return 'conversation';
     }
     const section = this.activeSection();
-    return section === 'support' || section === 'articles' ? 'conversation' : 'directory';
+    if (section === 'support' || section === 'articles') {
+      return 'conversation';
+    }
+    return this.mobileFullDirectoryOpen() ? 'fullDirectory' : 'directory';
   });
+
+  /** REQ-2c (Amended (3), final): tracks whether the viewer last activated column 3 over
+   * column 1 below the collapse breakpoint — reset to `false` on every route change (below), so
+   * opening a conversation from either directory column always lands back on the conversation
+   * pane, never leaving a stale "was browsing column 3" state behind. */
+  protected readonly mobileFullDirectoryOpen = signal(false);
 
   ngOnInit(): void {
     this.activeTenantService.fetch();
 
     this.route.data.subscribe((data) => {
       this.chatRouteKind.set((data['chatSection'] as ChatRouteKind) ?? 'directory');
+      this.mobileFullDirectoryOpen.set(false);
     });
 
     this.route.queryParamMap.subscribe((params) => {
@@ -192,6 +242,7 @@ export class ChatShellComponent implements OnInit {
       this.querySection.set(
         value === 'groups' || value === 'support' || value === 'articles' ? value : 'people',
       );
+      this.mobileFullDirectoryOpen.set(false);
     });
   }
 
@@ -214,6 +265,10 @@ export class ChatShellComponent implements OnInit {
   }
 
   protected onBackToDirectory(): void {
+    if (this.mobileFullDirectoryOpen()) {
+      this.mobileFullDirectoryOpen.set(false);
+      return;
+    }
     this.router.navigate(['/chat']);
   }
 }

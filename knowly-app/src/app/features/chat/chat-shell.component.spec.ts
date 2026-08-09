@@ -81,6 +81,10 @@ describe('ChatShellComponent', () => {
     flushActiveTenant(null);
   }
 
+  /** `ChatDirectoryRowsService` is shared by column 1 and column 3, but `ensureLoaded()` is
+   * idempotent (`this.loaded` guard) — only column 1 (mounted first) actually triggers the
+   * fetches `flushDirectory()` drains; column 3 mounting alongside it makes no extra requests. */
+
   /** `ChatDirectoryRowsService` re-fetches `/api/chat/eligible-participants` once more, now
    * carrying the real `activeTenantId()`, the moment `ActiveTenantService` resolves after
    * `flushDirectory()` already flushed the earlier, pre-resolution (staff-only) request — bug
@@ -115,6 +119,44 @@ describe('ChatShellComponent', () => {
     ).toBeTruthy();
   });
 
+  it('renders 3 panes simultaneously above the collapse breakpoint (REQ-1, Amended (3), final)', () => {
+    setup();
+    fixture.detectChanges();
+    flushActiveTenant(null);
+    flushDirectory();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-directory-column"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-conversation-column"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-full-directory-column"]'),
+    ).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-chat-full-directory')).toBeTruthy();
+  });
+
+  it("column 1's and column 3's search fields each have their own, never-equal aria-label (SPEC.md's a11y NFR, Amended (3), final)", () => {
+    setup();
+    fixture.detectChanges();
+    flushActiveTenant(null);
+    flushDirectory();
+    fixture.detectChanges();
+
+    const column1Label = fixture.nativeElement
+      .querySelector('[data-testid="chat-directory-search"]')
+      .getAttribute('aria-label');
+    const column3Label = fixture.nativeElement
+      .querySelector('[data-testid="chat-full-directory-search"]')
+      .getAttribute('aria-label');
+
+    expect(column1Label).toBeTruthy();
+    expect(column3Label).toBeTruthy();
+    expect(column1Label).not.toEqual(column3Label);
+  });
+
   it('collapses to one column at a time below the breakpoint (REQ-2c) — directory only, no conversation open yet', () => {
     setup({ viewportIsDesktop: false });
     fixture.detectChanges();
@@ -125,6 +167,42 @@ describe('ChatShellComponent', () => {
     expect(fixture.nativeElement.querySelector('app-chat-directory')).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-shell-conversation-column"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-full-directory-column"]'),
+    ).toBeNull();
+  });
+
+  it('below the breakpoint, a "browse everyone" affordance switches to the full-directory pane alone (REQ-2c, Amended (3), final)', () => {
+    setup({ viewportIsDesktop: false });
+    fixture.detectChanges();
+    flushActiveTenant(null);
+    flushDirectory();
+    fixture.detectChanges();
+
+    fixture.nativeElement
+      .querySelector('[data-testid="chat-shell-mobile-browse-directory"]')
+      .click();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-full-directory-column"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-directory-column"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-conversation-column"]'),
+    ).toBeNull();
+
+    fixture.nativeElement.querySelector('[data-testid="chat-shell-mobile-back"]').click();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-directory-column"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-full-directory-column"]'),
     ).toBeNull();
   });
 
