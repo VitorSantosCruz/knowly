@@ -1,6 +1,18 @@
 # SPEC — internal-team-chat (frontend)
 
 > The what and the why. No technical implementation details.
+>
+> **Superseded in part by `chat-unified-ui/SPEC.md` (2026-08-09,
+> implemented):** REQ-1/REQ-2/REQ-3's separate "Nova conversa"
+> picker flow (a distinct route/dialog to start a 1:1 or group
+> conversation) has been replaced by `chat-unified-ui`'s single
+> navigation shell — clicking a person or "Criar grupo" in the unified
+> screen's People/Groups sections now opens/creates a conversation
+> directly, with no separate picker step. This document's REQ-1/REQ-2/
+> REQ-3 remain the source of truth for the underlying eligibility rules
+> and group-kind semantics (unchanged); only the entry-point UI they
+> describe has moved. Also see the "Out of scope" line below, now
+> reversed by `chat-unified-ui`'s own Tier 3 resolution #1.
 
 ## Context and motivation
 
@@ -277,8 +289,13 @@ chat screen is unaffected.
 
 ## Out of scope
 
-- The pre-existing knowledge-base article chat screen — unrelated,
-  unchanged.
+- ~~The pre-existing knowledge-base article chat screen — unrelated,
+  unchanged.~~ **Reversed by `chat-unified-ui/SPEC.md` (2026-08-09,
+  implemented)**: the RAG/knowledge-base chat is now reachable as the
+  "Base de artigos" section of the same unified navigation shell this
+  SPEC's peer/support screens are also folded into — only the shared
+  navigation surface merged, per that SPEC's Tier 3 resolution #1; the
+  RAG chat's own internal behavior is unchanged.
 - Message editing/deletion UI, read receipts, typing indicators, file/
   image attachment UI in peer or support chat.
 - Push/email/browser notifications for new messages.

@@ -385,60 +385,60 @@ authorization specified separately)
 
 ## Acceptance criteria
 
-- [ ] A single "Conversas" navigation entry replaces the previously
+- [x] A single "Conversas" navigation entry replaces the previously
       separate chat/support/conversations entries.
-- [ ] The sidebar shows People, Groups, Support, and "Base de artigos" as
+- [x] The sidebar shows People, Groups, Support, and "Base de artigos" as
       four distinct sections in one screen, each behaving exactly as its
       own existing SPEC already describes.
-- [ ] Clicking a person opens or creates their 1:1 conversation directly,
+- [x] Clicking a person opens or creates their 1:1 conversation directly,
       with no intermediate "new conversation" screen/dialog.
-- [ ] A person the viewer isn't eligible to message never appears in the
+- [x] A person the viewer isn't eligible to message never appears in the
       People section.
-- [ ] Clicking a group the viewer participates in opens it, preserving
+- [x] Clicking a group the viewer participates in opens it, preserving
       the existing look-in framing for `STAFF_ADMIN`/`MEMBER_ADMIN`
       oversight access.
-- [ ] Selecting Support shows the existing role-appropriate Support
+- [x] Selecting Support shows the existing role-appropriate Support
       experience, unchanged in behavior/permissions.
-- [ ] Selecting "Base de artigos" shows the existing RAG conversation
+- [x] Selecting "Base de artigos" shows the existing RAG conversation
       list/detail, unchanged in behavior, inside the same screen.
-- [ ] Typing in the search field filters People and Groups by display
+- [x] Typing in the search field filters People and Groups by display
       name only; Support and "Base de artigos" are never filtered; no
       match is ever found against message content.
-- [ ] A search with no matches shows a distinct "no results" message,
+- [x] A search with no matches shows a distinct "no results" message,
       not the generic empty-conversations message.
-- [ ] Clearing the search field restores the full list.
-- [ ] "Criar grupo" requires choosing a visibility type (Privado / Com
+- [x] Clearing the search field restores the full list.
+- [x] "Criar grupo" requires choosing a visibility type (Privado / Com
       solicitação de entrada / Público) before creating the group, which
       contains only the creator (as admin) and opens immediately.
-- [ ] A Private group never appears in another non-participant's search
+- [x] A Private group never appears in another non-participant's search
       results, under any query.
-- [ ] A Com-solicitação-de-entrada group appears in a non-participant's
+- [x] A Com-solicitação-de-entrada group appears in a non-participant's
       search results; clicking it submits a join request and shows it
       as pending, without opening the group's conversation view.
-- [ ] A Público group appears in a non-participant's search results;
+- [x] A Público group appears in a non-participant's search results;
       clicking it joins immediately and opens the group's conversation
       view, with no approval step.
-- [ ] Only a viewer the backend reports as the group's admin sees
+- [x] Only a viewer the backend reports as the group's admin sees
       pending-join-request approve/reject actions, visibility-change,
       promote-to-admin, and delete-group actions; a non-admin
       participant sees none of them.
-- [ ] Approving a join request adds the requester as a participant;
+- [x] Approving a join request adds the requester as a participant;
       rejecting does not.
-- [ ] Every group listing (Groups section, search results, group header)
+- [x] Every group listing (Groups section, search results, group header)
       shows its visibility type.
-- [ ] A group admin removing a participant removes them from the
+- [x] A group admin removing a participant removes them from the
       displayed list on success only.
-- [ ] Any genuine group participant sees a "sair do grupo" action
+- [x] Any genuine group participant sees a "sair do grupo" action
       (never shown to an admin present only via tenant-level look-in);
       confirming it removes the group from their own list and navigates
       them away on success only.
-- [ ] A group admin changing visibility updates the displayed badge and
+- [x] A group admin changing visibility updates the displayed badge and
       the group's future discoverability in search on success only.
-- [ ] A group admin promoting another participant makes admin-only
+- [x] A group admin promoting another participant makes admin-only
       actions available to that participant on their next load.
-- [ ] A group admin deleting a group removes it from every participant's
+- [x] A group admin deleting a group removes it from every participant's
       list and navigates the acting admin away, on success only.
-- [ ] A failed join, join-request, approve/reject, remove-participant,
+- [x] A failed join, join-request, approve/reject, remove-participant,
       leave-group, change-visibility, promote, or delete-group call
       shows an inline error and leaves the group's displayed state
       unchanged.

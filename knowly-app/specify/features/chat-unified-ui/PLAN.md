@@ -598,6 +598,74 @@ for TASKS.md generation in full, including the group-governance
 portion, once the mandatory AppSec review of both PLANs (this one and
 the backend's) referenced in this feature's coordination flow has run.
 
+## Emergent decisions (implementation, 2026-08-09)
+
+Deviations discovered while executing TASKS.md, following
+`internal-team-chat/PLAN.md`'s own precedent for documenting these
+rather than silently drifting from the plan:
+
+- **`create-group-dialog.component.ts` uses a `signal` + `(input)`
+  binding for the group-name field, not `[(ngModel)]`/`FormsModule`.**
+  During TDAD a `[(ngModel)]`-bound plain field did not reliably
+  propagate into a `computed()` signal's dependency in this app's
+  zoneless setup — a simulated keystroke updated the DOM but
+  `submitDisabled()` kept evaluating against a stale value. Switching
+  the field to a `signal` written via `(input)` (the same pattern
+  `conversations-page.component.ts`'s message input already uses)
+  fixed it outright and is now the safer default for any new form
+  field in this codebase's zoneless components — `ngModel` on a plain
+  (non-signal) property should be treated as a known trap here, not
+  reached for by default the way `new-conversation-dialog.component.ts`
+  (now retired) and `support-page.component.ts` still do.
+- **`ConversationListItemComponent` is retired, not reused.** The PLAN
+  called for `chat-directory.component.ts` to reuse it unchanged for
+  group rows; in practice, `ChatDirectoryComponent`'s combined
+  People+Groups row model (one discriminated-union `DirectoryRow[]`
+  list driving click-to-open-or-create for a person, open/join/
+  request-to-join for a group, and per-row inline error state) didn't
+  map cleanly onto that component's narrower "one existing conversation,
+  one row, `routerLink` only" shape without either duplicating its
+  template inline anyway or forcing awkward inputs onto it for cases
+  (join/request-to-join) it was never designed for. Rather than ship it
+  unused, it was deleted alongside the other retired components.
+- **`GroupAdminPanelComponent`'s remove-participant/delete-group
+  confirmations are a lightweight inline two-click "are you sure?"
+  step, not a reuse of `ConfirmDialogComponent`.** That component's
+  actual shape (discovered while wiring this up) requires a
+  backend-issued typed confirmation *word* via a `fetchToken: () =>
+  Observable<string>` input — a flow built for
+  `deletion-confirmation-token`'s higher-risk deletions, with no
+  equivalent token endpoint anywhere in this feature's (or the backend
+  companion's) API contract. Inventing one would have been unscoped
+  backend work; the inline confirm keeps the "explicit second step
+  before an irreversible action" property without it.
+- **`chat-sidebar.component.ts` has no search input**, despite the
+  components table's literal "4 section tabs + search input"
+  description — the search field and its `searchQuery` state live
+  entirely in `chat-directory.component.ts` (as PLAN.md's own "State
+  and data" section already specifies), so adding a second copy in the
+  sidebar would only mean prop-drilling a query string shell → sidebar
+  → directory for state that already lives one level down. The sidebar
+  is tabs only.
+- **`ChatShellComponent` resolves which section to render from two
+  sources** — `ActivatedRoute.data.chatSection` (`'peer'`/`'support'`/
+  `'articles'`, set per id-carrying route in `app.routes.ts`) for the
+  3 routes that carry a resource id, and the `section` query param
+  (defaulting to `'people'`) only for the bare `/chat` path — rather
+  than a single unified signal. This wasn't spelled out at the task
+  level in TASKS.md (tasks 107/116 described the two halves
+  separately) but is the mechanism that makes both halves of the
+  redirect table (`/support/:channelId` → a real nested route;
+  `/support` → `/chat?section=support`) work without four separate
+  child routes.
+- **`/support` and `/conversations`'s `redirectTo` are functions, not
+  bare strings**, so the new `section` query param is added alongside
+  whatever other query params a bookmarked URL might already carry
+  (Angular's string `redirectTo` would silently drop them). `Route`'s
+  function-based `redirectTo` (Angular 22) is used for exactly this;
+  `/support/:channelId` stays a plain string redirect since it only
+  needs to carry the path param through, not merge query params.
+
 **Backend now implemented (2026-08-09).**
 `knowly-api/specify/features/chat-group-membership-management/` shipped
 all 138 TASKS.md items against the exact contract this reconciliation

@@ -1,5 +1,13 @@
 # SPEC — Conversations (chat UI)
 
+> **Superseded in part by `chat-unified-ui/SPEC.md` (2026-08-09,
+> implemented):** REQ-1's "dedicated `/conversations` route" is now
+> folded under the shared navigation shell at `/chat?section=articles`
+> (nested resource id: `/chat/articles/:conversationId`) as the "Base
+> de artigos" section — content/behavior below are otherwise unchanged.
+> The old `/conversations` route still resolves (redirected into the
+> new path) rather than being removed.
+
 ## Context and motivation
 
 The `knowly` backend's `conversations` feature already implements a full
