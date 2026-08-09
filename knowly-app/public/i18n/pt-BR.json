@@ -443,7 +443,9 @@
     "title": "Base de conhecimento",
     "new": "Nova conversa",
     "untitled": "Conversa sem título",
-    "send": "Enviar"
+    "send": "Enviar",
+    "you": "Você",
+    "assistant": "Assistente"
   },
   "articles": {
     "titlePlaceholder": "Título",
@@ -707,8 +709,6 @@
       "actionError": "Esta ação falhou. Tente novamente."
     },
     "sidebar": {
-      "actionSupport": "Abrir chamado de suporte",
-      "actionSupportAriaLabel": "Abrir chamado de suporte",
       "actionArticles": "Falar com a base de artigos",
       "actionArticlesAriaLabel": "Iniciar uma nova conversa com a base de artigos"
     },

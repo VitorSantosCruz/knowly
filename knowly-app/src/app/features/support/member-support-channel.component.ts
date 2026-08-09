@@ -14,8 +14,8 @@ import { AvatarComponent } from '../../shared/avatar.component';
   selector: 'app-member-support-channel',
   imports: [TranslocoPipe, MessageThreadComponent, AvatarComponent],
   template: `
-    <div data-testid="member-support-channel" class="flex flex-col gap-3">
-      <header class="flex items-center gap-2">
+    <div data-testid="member-support-channel" class="flex h-full min-h-0 flex-col gap-3">
+      <header class="flex shrink-0 items-center gap-2">
         <!-- No real staff avatar to show here (support is handled by whichever staff
              member claims the ticket, not a fixed person), so this is always the generic
              fallback, same pattern as chat-header.component.ts. -->
@@ -37,7 +37,7 @@ import { AvatarComponent } from '../../shared/avatar.component';
         </button>
       } @else if (supportService.myChannel(); as channel) {
         <app-message-thread
-          [messages]="entry().messages"
+          [messages]="displayMessages()"
           [hasMore]="entry().hasMore"
           [loading]="entry().loading"
           [loadError]="entry().loadError"
@@ -71,6 +71,8 @@ import { AvatarComponent } from '../../shared/avatar.component';
       }
     </div>
   `,
+  // See ChatShellComponent's :host comment.
+  styles: [':host { display: block; flex: 1 1 0%; min-height: 0; }'],
 })
 export class MemberSupportChannelComponent implements OnInit {
   readonly tenantId = input.required<number>();
@@ -83,6 +85,14 @@ export class MemberSupportChannelComponent implements OnInit {
   protected readonly entry = computed(() =>
     this.supportService.entryOf(this.tenantId(), this.memberUserId()),
   );
+
+  protected readonly displayMessages = computed(() => {
+    const memberUserId = this.memberUserId();
+    return this.entry().messages.map((message) => ({
+      ...message,
+      fromViewer: message.senderUserId === memberUserId,
+    }));
+  });
 
   protected readonly canStartNewTicket = computed(
     () =>

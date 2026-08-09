@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ActiveTenantService } from '../../core/active-tenant.service';
@@ -15,6 +15,16 @@ import { SupportPageComponent } from '../support/support-page.component';
 
 type ChatRouteKind = 'directory' | 'peer' | 'support' | 'articles';
 type QuerySection = 'people' | 'groups' | 'support' | 'articles';
+
+/**
+ * UX fix (2026-08-10, reported by a tester): 3 fixed-280px-plus-content columns need real
+ * room — `SidebarStateService.viewportIsDesktop()`'s shared 768px breakpoint (tuned for the
+ * app-wide single collapsible nav rail) let the 3-column grid try to render well before it
+ * actually fit, causing horizontal+vertical scroll everywhere in the 768–1024px range. This is
+ * a dedicated, wider breakpoint just for chat's own column collapse, independent of the shared
+ * sidebar rail's threshold (unaffected, so other routes keep their existing behavior).
+ */
+const CHAT_COLUMNS_QUERY = '(min-width: 1024px)';
 
 /**
  * Route: `/chat`, `/chat/:conversationId`, `/chat/support/:channelId`,
@@ -66,98 +76,108 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
     CreateConversationDialogComponent,
   ],
   template: `
-    <div data-testid="chat-shell" class="page-shell grid gap-4 md:grid-cols-[280px_1fr_280px]">
-      @if (sidebarState.viewportIsDesktop() || mobileView() === 'directory') {
+    <div
+      data-testid="chat-shell"
+      class="page-shell grid h-full min-h-0 grid-rows-1 gap-4 overflow-hidden lg:grid-cols-[280px_1fr_280px]"
+    >
+      @if (viewportFitsColumns() || mobileView() === 'directory') {
         <div
           data-testid="chat-shell-directory-column"
-          class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+          class="flex h-full min-h-0 flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
         >
-          <app-chat-sidebar
-            [hasActiveTenant]="hasActiveTenantForSidebar()"
-            (openSupport)="onOpenSupport()"
-            (openArticles)="onOpenArticles()"
-            (createGroup)="createGroupOpen.set(true)"
-          />
-          @if (!sidebarState.viewportIsDesktop()) {
-            <button
-              type="button"
-              data-testid="chat-shell-mobile-browse-directory"
-              [attr.aria-label]="'chat.shell.toggleContacts' | transloco"
-              (click)="mobileFullDirectoryOpen.set(true)"
-              class="text-sm font-medium text-signal-700 dark:text-signal-300"
-            >
-              {{ 'chat.shell.toggleContacts' | transloco }}
-            </button>
-          }
-          <app-chat-directory />
+          <div class="flex shrink-0 flex-col gap-4">
+            <app-chat-sidebar
+              [hasActiveTenant]="hasActiveTenantForSidebar()"
+              (openArticles)="onOpenArticles()"
+              (createGroup)="createGroupOpen.set(true)"
+            />
+            @if (!viewportFitsColumns()) {
+              <button
+                type="button"
+                data-testid="chat-shell-mobile-browse-directory"
+                [attr.aria-label]="'chat.shell.toggleContacts' | transloco"
+                (click)="mobileFullDirectoryOpen.set(true)"
+                class="text-sm font-medium text-signal-700 dark:text-signal-300"
+              >
+                {{ 'chat.shell.toggleContacts' | transloco }}
+              </button>
+            }
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <app-chat-directory />
+          </div>
         </div>
       }
 
-      @if (sidebarState.viewportIsDesktop() || mobileView() === 'conversation') {
+      @if (viewportFitsColumns() || mobileView() === 'conversation') {
         <div
           data-testid="chat-shell-conversation-column"
-          class="rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+          class="flex h-full min-h-0 flex-col rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
         >
-          @if (!sidebarState.viewportIsDesktop()) {
+          @if (!viewportFitsColumns()) {
             <button
               type="button"
               data-testid="chat-shell-mobile-back"
               [attr.aria-label]="'chat.shell.backToDirectory' | transloco"
               (click)="onBackToDirectory()"
-              class="mb-3 text-sm font-medium text-signal-700 dark:text-signal-300"
+              class="mb-3 shrink-0 text-sm font-medium text-signal-700 dark:text-signal-300"
             >
               {{ 'chat.shell.backToDirectory' | transloco }}
             </button>
           }
 
-          @switch (activeSection()) {
-            @case ('support') {
-              <app-support-page />
-            }
-            @case ('articles') {
-              @if (!activeTenantService.activeTenantResolved()) {
-                <p data-testid="chat-shell-articles-loading-state" class="text-sm text-ink-400">
-                  …
-                </p>
-              } @else if (activeTenantService.activeTenantId() !== null) {
-                <app-conversations-page />
-              } @else {
-                <app-no-active-tenant-state />
+          <div class="flex min-h-0 flex-1 flex-col">
+            @switch (activeSection()) {
+              @case ('support') {
+                <app-support-page />
+              }
+              @case ('articles') {
+                @if (!activeTenantService.activeTenantResolved()) {
+                  <p data-testid="chat-shell-articles-loading-state" class="text-sm text-ink-400">
+                    …
+                  </p>
+                } @else if (activeTenantService.activeTenantId() !== null) {
+                  <app-conversations-page />
+                } @else {
+                  <app-no-active-tenant-state />
+                }
+              }
+              @default {
+                @if (chatRouteKind() === 'peer') {
+                  <app-conversation-detail />
+                } @else {
+                  <p
+                    data-testid="chat-shell-conversation-placeholder"
+                    class="text-sm text-ink-500 dark:text-ink-400"
+                  >
+                    {{ 'chat.shell.noConversationSelected' | transloco }}
+                  </p>
+                }
               }
             }
-            @default {
-              @if (chatRouteKind() === 'peer') {
-                <app-conversation-detail />
-              } @else {
-                <p
-                  data-testid="chat-shell-conversation-placeholder"
-                  class="text-sm text-ink-500 dark:text-ink-400"
-                >
-                  {{ 'chat.shell.noConversationSelected' | transloco }}
-                </p>
-              }
-            }
-          }
+          </div>
         </div>
       }
 
-      @if (sidebarState.viewportIsDesktop() || mobileView() === 'fullDirectory') {
+      @if (viewportFitsColumns() || mobileView() === 'fullDirectory') {
         <div
           data-testid="chat-shell-full-directory-column"
-          class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+          class="flex h-full min-h-0 flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
         >
-          @if (!sidebarState.viewportIsDesktop()) {
+          @if (!viewportFitsColumns()) {
             <button
               type="button"
               data-testid="chat-shell-mobile-back"
               [attr.aria-label]="'chat.shell.backToDirectory' | transloco"
               (click)="onBackToDirectory()"
-              class="mb-3 text-sm font-medium text-signal-700 dark:text-signal-300"
+              class="mb-3 shrink-0 text-sm font-medium text-signal-700 dark:text-signal-300"
             >
               {{ 'chat.shell.backToDirectory' | transloco }}
             </button>
           }
-          <app-chat-full-directory />
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <app-chat-full-directory />
+          </div>
         </div>
       }
     </div>
@@ -168,6 +188,12 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
       (dismissed)="createConversationOpen.set(false)"
     />
   `,
+  // Angular component hosts default to display:inline with no explicit height, which breaks
+  // percentage-height chains (h-full) at every component boundary — this host needs a real,
+  // definite height (it sits directly under app-shell's own h-dvh/flex-1/overflow-y-auto <main>)
+  // so its grid can fill the viewport and let each column scroll internally instead of the whole
+  // page scrolling as one block.
+  styles: [':host { display: block; height: 100%; min-height: 0; overflow: hidden; }'],
 })
 export class ChatShellComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
@@ -175,8 +201,21 @@ export class ChatShellComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  private readonly columnsQueryList = window.matchMedia(CHAT_COLUMNS_QUERY);
+  protected readonly viewportFitsColumns = signal(this.columnsQueryList.matches);
+
   protected readonly chatRouteKind = signal<ChatRouteKind>('directory');
   private readonly querySection = signal<QuerySection>('people');
+
+  constructor() {
+    const listener = (event: MediaQueryListEvent): void => {
+      this.viewportFitsColumns.set(event.matches);
+    };
+    this.columnsQueryList.addEventListener('change', listener);
+    inject(DestroyRef).onDestroy(() => {
+      this.columnsQueryList.removeEventListener('change', listener);
+    });
+  }
 
   protected readonly createGroupOpen = signal(false);
   protected readonly createConversationOpen = signal(false);
@@ -249,10 +288,6 @@ export class ChatShellComponent implements OnInit {
       );
       this.mobileFullDirectoryOpen.set(false);
     });
-  }
-
-  protected onOpenSupport(): void {
-    this.router.navigate(['/chat'], { queryParams: { section: 'support' } });
   }
 
   /** REQ-2's "Falar com a base de artigos" always starts a new RAG conversation (mirrors

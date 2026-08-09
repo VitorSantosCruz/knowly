@@ -443,7 +443,9 @@
     "title": "Knowledge base",
     "new": "New conversation",
     "untitled": "Untitled conversation",
-    "send": "Send"
+    "send": "Send",
+    "you": "You",
+    "assistant": "Assistant"
   },
   "articles": {
     "titlePlaceholder": "Title",
@@ -707,8 +709,6 @@
       "actionError": "This action failed. Please try again."
     },
     "sidebar": {
-      "actionSupport": "Open a support ticket",
-      "actionSupportAriaLabel": "Open a support ticket",
       "actionArticles": "Talk to the knowledge base",
       "actionArticlesAriaLabel": "Start a new knowledge base conversation"
     },

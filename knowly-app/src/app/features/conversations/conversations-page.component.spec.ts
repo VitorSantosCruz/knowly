@@ -66,7 +66,9 @@ describe('ConversationsPageComponent', () => {
     httpMock.expectOne('/api/tenants/7/conversations').flush({ id: 9, title: null });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('[data-testid="message-input"]')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="message-composer-input"]'),
+    ).toBeTruthy();
   });
 
   it('selecting a past conversation loads and shows its messages', () => {
@@ -88,12 +90,9 @@ describe('ConversationsPageComponent', () => {
     });
     fixture.detectChanges();
 
-    const userMessage = fixture.nativeElement.querySelector('[data-testid="message-role-USER"]');
-    const assistantMessage = fixture.nativeElement.querySelector(
-      '[data-testid="message-role-ASSISTANT"]',
-    );
-    expect(userMessage?.textContent).toContain('Hi');
-    expect(assistantMessage?.textContent).toContain('Hello!');
+    const items = fixture.nativeElement.querySelectorAll('[data-testid="message-thread-item"]');
+    expect(items[0]?.textContent).toContain('Hi');
+    expect(items[1]?.textContent).toContain('Hello!');
   });
 
   describe('Amendment (4): header reflects the active conversation title/icon', () => {
@@ -317,21 +316,24 @@ describe('ConversationsPageComponent', () => {
       vi.spyOn(conversationService, 'sendMessage').mockReturnValue(streamSubject.asObservable());
     });
 
-    function typeAndSubmit(content: string) {
-      const input: HTMLInputElement = fixture.nativeElement.querySelector(
-        '[data-testid="message-input"]',
+    async function typeAndSubmit(content: string) {
+      const input: HTMLTextAreaElement = fixture.nativeElement.querySelector(
+        '[data-testid="message-composer-input"]',
       );
       input.value = content;
       input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
       const form: HTMLFormElement = fixture.nativeElement.querySelector(
-        '[data-testid="send-message-form"]',
+        '[data-testid="message-composer"]',
       );
       form.dispatchEvent(new Event('submit'));
       fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
     }
 
-    it('shows the user message immediately then streams the assistant reply', () => {
-      typeAndSubmit('What is X?');
+    it('shows the user message immediately then streams the assistant reply', async () => {
+      await typeAndSubmit('What is X?');
 
       expect(fixture.nativeElement.textContent).toContain('What is X?');
 
@@ -340,37 +342,39 @@ describe('ConversationsPageComponent', () => {
       streamSubject.next({ type: 'done' });
       fixture.detectChanges();
 
-      const assistantMessage = fixture.nativeElement.querySelector(
-        '[data-testid="message-role-ASSISTANT"]',
-      );
-      expect(assistantMessage?.textContent).toContain('Hello, world!');
+      const items = fixture.nativeElement.querySelectorAll('[data-testid="message-thread-item"]');
+      expect(items[items.length - 1]?.textContent).toContain('Hello, world!');
     });
 
-    it('disables the input while streaming and re-enables it on completion', () => {
-      typeAndSubmit('question');
+    it('disables the composer while streaming and re-enables it on completion', async () => {
+      await typeAndSubmit('question');
 
-      const input: HTMLInputElement = fixture.nativeElement.querySelector(
-        '[data-testid="message-input"]',
+      const input: HTMLTextAreaElement = fixture.nativeElement.querySelector(
+        '[data-testid="message-composer-input"]',
       );
       expect(input.disabled).toBe(true);
 
       streamSubject.next({ type: 'done' });
       fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
       expect(input.disabled).toBe(false);
     });
 
-    it('shows an inline error when the stream ends with an error event', () => {
-      typeAndSubmit('question');
+    it('shows an inline error when the stream ends with an error event', async () => {
+      await typeAndSubmit('question');
 
       streamSubject.next({ type: 'error', data: 'The assistant is unavailable.' });
+      fixture.detectChanges();
+      await fixture.whenStable();
       fixture.detectChanges();
 
       expect(
         fixture.nativeElement.querySelector('[data-testid="message-stream-error"]'),
       ).toBeTruthy();
-      const input: HTMLInputElement = fixture.nativeElement.querySelector(
-        '[data-testid="message-input"]',
+      const input: HTMLTextAreaElement = fixture.nativeElement.querySelector(
+        '[data-testid="message-composer-input"]',
       );
       expect(input.disabled).toBe(false);
     });

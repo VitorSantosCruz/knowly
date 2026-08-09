@@ -172,13 +172,17 @@ export interface MessagePage {
   nextCursor: string | null;
 }
 
-/** Client-only per-message send state (REQ-5/REQ-6) — never part of the API response. */
-export type MessageSendState = 'pending' | 'failed' | undefined;
+/** Client-only per-message send state (REQ-5/REQ-6) — 'streaming' additionally covers the
+ * knowledge-base assistant's in-progress reply (empty/growing content, no id round-trip yet). */
+export type MessageSendState = 'pending' | 'failed' | 'streaming' | undefined;
 
 export interface DisplayMessage extends Message {
   sendState?: MessageSendState;
   /** Correlates an optimistic message with its eventual server-confirmed replacement. */
   localId?: string;
+  /** True when the viewer themself is the sender — drives the self-end/self-start bubble
+   * alignment shared by peer/group chats and knowledge-base conversations alike. */
+  fromViewer?: boolean;
 }
 
 export interface CreateConversationRequest {

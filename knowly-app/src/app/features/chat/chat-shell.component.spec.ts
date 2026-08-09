@@ -290,34 +290,13 @@ describe('ChatShellComponent', () => {
     expect(fixture.nativeElement.querySelector('app-conversation-detail')).toBeTruthy();
   });
 
-  it('clicking the "Abrir chamado de suporte" action navigates via the Router with the support section, not a full reload', () => {
-    setup();
-    fixture.detectChanges();
-    flushActiveTenant(1);
-    flushDirectory();
-    fixture.detectChanges();
-    flushEligibleParticipantsForResolvedTenant();
-    // ChatDirectoryRowsService's own article-row fetch, triggered once activeTenantId
-    // resolves to 1 — unrelated to the action under test, just needs flushing.
-    httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
-
-    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]').click();
-
-    expect(router.navigate).toHaveBeenCalledWith(['/chat'], {
-      queryParams: { section: 'support' },
-    });
-  });
-
-  it('hides the "Abrir chamado de suporte"/"Falar com a base de artigos" quick actions without an active tenant (bug fix: staff-without-tenant oversight view), while still reaching Support via its always-present row', () => {
+  it('hides the "Falar com a base de artigos" quick action without an active tenant (bug fix: staff-without-tenant oversight view), while still reaching Support via its always-present row', () => {
     setup();
     fixture.detectChanges();
     flushActiveTenant(null);
     flushDirectory();
     fixture.detectChanges();
 
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]'),
-    ).toBeNull();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]'),
     ).toBeNull();
@@ -388,9 +367,6 @@ describe('ChatShellComponent', () => {
     // no-active-tenant look, or a reload would visibly (if briefly) present as "lost the
     // tenant" before the real response lands.
     expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]'),
-    ).toBeTruthy();
-    expect(
       fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]'),
     ).toBeTruthy();
 
@@ -401,9 +377,6 @@ describe('ChatShellComponent', () => {
     httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
 
     // Still correct once resolved with a real active tenant.
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]'),
-    ).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]'),
     ).toBeTruthy();

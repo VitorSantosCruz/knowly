@@ -16,9 +16,9 @@ import { TicketStatusBadgeComponent } from './ticket-status-badge.component';
   selector: 'app-staff-support-channel',
   imports: [FormsModule, TranslocoPipe, MessageThreadComponent, TicketStatusBadgeComponent],
   template: `
-    <div data-testid="staff-support-channel" class="flex flex-col gap-3">
+    <div data-testid="staff-support-channel" class="flex h-full min-h-0 flex-col gap-3">
       @if (supportService.activeTicket(); as ticket) {
-        <div class="flex items-center gap-3">
+        <div class="flex shrink-0 items-center gap-3">
           <app-ticket-status-badge [status]="ticket.status" />
 
           @if (ticket.status !== 'CLOSED') {
@@ -70,7 +70,7 @@ import { TicketStatusBadgeComponent } from './ticket-status-badge.component';
       }
 
       <app-message-thread
-        [messages]="entry().messages"
+        [messages]="displayMessages()"
         [hasMore]="entry().hasMore"
         [loading]="entry().loading"
         [loadError]="entry().loadError"
@@ -81,6 +81,8 @@ import { TicketStatusBadgeComponent } from './ticket-status-badge.component';
       />
     </div>
   `,
+  // See ChatShellComponent's :host comment.
+  styles: [':host { display: block; flex: 1 1 0%; min-height: 0; }'],
 })
 export class StaffSupportChannelComponent implements OnInit {
   readonly tenantId = input.required<number>();
@@ -95,6 +97,14 @@ export class StaffSupportChannelComponent implements OnInit {
   protected readonly entry = computed(() =>
     this.supportService.entryOf(this.tenantId(), this.memberUserId()),
   );
+
+  protected readonly displayMessages = computed(() => {
+    const currentUserId = this.currentUserId();
+    return this.entry().messages.map((message) => ({
+      ...message,
+      fromViewer: message.senderUserId === currentUserId,
+    }));
+  });
 
   protected readonly isAssignedToMe = computed(
     () => this.supportService.activeTicket()?.assignedStaffUserId === this.currentUserId(),

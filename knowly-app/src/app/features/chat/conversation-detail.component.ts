@@ -39,40 +39,47 @@ const POLL_INTERVAL_MS = 5000;
     @if (chatService.detailErrors().has(conversationId())) {
       <app-no-access-state />
     } @else if (detail(); as detail) {
-      <app-chat-header
-        [detail]="detail"
-        [viewerRelation]="viewerRelation()!"
-        [currentUserId]="currentUserId()"
-        (openInfo)="infoModalOpen.set(true)"
-      />
+      <div class="flex h-full min-h-0 flex-col gap-3">
+        <div class="shrink-0">
+          <app-chat-header
+            [detail]="detail"
+            [viewerRelation]="viewerRelation()!"
+            [currentUserId]="currentUserId()"
+            (openInfo)="infoModalOpen.set(true)"
+          />
 
-      @if (detail.kind === 'PEER_GROUP') {
-        <app-group-info-modal
-          [open]="infoModalOpen()"
-          [detail]="detail"
-          [currentUserId]="currentUserId()"
-          (dismissed)="infoModalOpen.set(false)"
-        />
-      } @else {
-        <app-person-info-modal
-          [open]="infoModalOpen()"
-          [userId]="otherParticipantId()"
-          (dismissed)="infoModalOpen.set(false)"
-        />
-      }
+          @if (detail.kind === 'PEER_GROUP') {
+            <app-group-info-modal
+              [open]="infoModalOpen()"
+              [detail]="detail"
+              [currentUserId]="currentUserId()"
+              (dismissed)="infoModalOpen.set(false)"
+            />
+          } @else {
+            <app-person-info-modal
+              [open]="infoModalOpen()"
+              [userId]="otherParticipantId()"
+              (dismissed)="infoModalOpen.set(false)"
+            />
+          }
+        </div>
 
-      <app-message-thread
-        [messages]="entry().messages"
-        [hasMore]="entry().hasMore"
-        [loading]="entry().loading"
-        [loadError]="entry().loadError"
-        [showComposer]="viewerRelation() === 'PARTICIPANT'"
-        (loadMore)="chatService.loadOlderMessages(conversationId())"
-        (send)="onSend($event)"
-        (retry)="onRetry($event)"
-      />
+        <app-message-thread
+          [messages]="displayMessages()"
+          [hasMore]="entry().hasMore"
+          [loading]="entry().loading"
+          [loadError]="entry().loadError"
+          [showComposer]="viewerRelation() === 'PARTICIPANT'"
+          (loadMore)="chatService.loadOlderMessages(conversationId())"
+          (send)="onSend($event)"
+          (retry)="onRetry($event)"
+        />
+      </div>
     }
   `,
+  // See ChatShellComponent's :host comment — same reasoning applies to every component nested
+  // inside chat-shell's flex column that needs to grow and scroll internally.
+  styles: [':host { display: block; flex: 1 1 0%; min-height: 0; }'],
 })
 export class ConversationDetailComponent implements OnInit {
   protected readonly chatService = inject(ChatService);
@@ -87,6 +94,13 @@ export class ConversationDetailComponent implements OnInit {
 
   protected readonly detail = computed(() => this.chatService.details().get(this.conversationId()));
   protected readonly entry = computed(() => this.chatService.entryOf(this.conversationId()));
+  protected readonly displayMessages = computed(() => {
+    const currentUserId = this.currentUserId();
+    return this.entry().messages.map((message) => ({
+      ...message,
+      fromViewer: message.senderUserId === currentUserId,
+    }));
+  });
   protected readonly viewerRelation = computed(() => {
     const detail = this.detail();
     if (!detail) {

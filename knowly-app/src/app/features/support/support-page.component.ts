@@ -47,12 +47,14 @@ const POLL_INTERVAL_MS = 5000;
     MemberSupportBrowseComponent,
   ],
   template: `
-    <div data-testid="support-page" class="page-shell flex flex-col gap-6">
+    <div data-testid="support-page" class="flex h-full min-h-0 flex-col gap-6">
       @if (!viewerReady()) {
         <!-- intentionally blank while permissions/profile are still resolving -->
       } @else if (isStaffHandler()) {
-        <div class="grid gap-6 md:grid-cols-[320px_1fr]">
-          <app-staff-support-inbox />
+        <div class="grid h-full min-h-0 gap-6 md:grid-cols-[320px_1fr]">
+          <div class="min-h-0 overflow-y-auto">
+            <app-staff-support-inbox />
+          </div>
           @if (staffChannel(); as staffChannel) {
             <app-staff-support-channel
               [tenantId]="staffChannel.tenantId"
@@ -62,9 +64,9 @@ const POLL_INTERVAL_MS = 5000;
           }
         </div>
       } @else {
-        <div class="flex flex-col gap-6">
+        <div class="flex h-full min-h-0 flex-col gap-6">
           @if (canBrowseSupport()) {
-            <div class="flex flex-col gap-3">
+            <div class="flex shrink-0 flex-col gap-3">
               <label class="text-sm text-ink-600 dark:text-ink-400" for="browse-member-id">
                 {{ 'support.browse.title' | transloco }}
               </label>
@@ -96,6 +98,8 @@ const POLL_INTERVAL_MS = 5000;
       }
     </div>
   `,
+  // See ChatShellComponent's :host comment.
+  styles: [':host { display: block; flex: 1 1 0%; min-height: 0; }'],
 })
 export class SupportPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);

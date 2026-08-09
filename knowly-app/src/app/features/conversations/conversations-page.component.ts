@@ -1,4 +1,4 @@
-import { Component, OnInit, effect, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { LucideLibrary, LucidePencil } from '@lucide/angular';
@@ -6,11 +6,13 @@ import { EMPTY, catchError, of } from 'rxjs';
 import { buttonClass } from '../../shared/button-classes';
 import { ActiveTenantService } from '../../core/active-tenant.service';
 import { ConversationService, ConversationSummary, Message } from '../../core/conversation.service';
+import { DisplayMessage } from '../../core/chat.model';
 import { ErrorStateComponent } from '../../shared/error-state.component';
 import { NoAccessStateComponent } from '../../shared/no-access-state.component';
 import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 import { RenameFormComponent } from '../../shared/chat/rename-form.component';
 import { ChatIconComponent } from '../../shared/chat/chat-icon.component';
+import { MessageThreadComponent } from '../../shared/chat/message-thread.component';
 
 type ConversationsError = 'network' | 'permission-denied' | null;
 
@@ -27,9 +29,10 @@ let nextLocalMessageId = -1;
     LucidePencil,
     RenameFormComponent,
     ChatIconComponent,
+    MessageThreadComponent,
   ],
   template: `
-    <div data-testid="conversations-page" class="flex gap-6">
+    <div data-testid="conversations-page" class="flex h-full min-h-0 gap-6">
       @if (!activeTenantService.activeTenantResolved()) {
         <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (activeTenantService.activeTenantId() === null) {
@@ -42,18 +45,18 @@ let nextLocalMessageId = -1;
         <app-error-state />
       } @else {
         @if (!openedFromRoute()) {
-          <aside class="w-64 shrink-0">
+          <aside class="flex h-full min-h-0 w-64 shrink-0 flex-col">
             <button
               data-testid="new-conversation"
               (click)="onNewConversation()"
-              [class]="newConversationButtonClass + ' mb-3 w-full'"
+              [class]="newConversationButtonClass + ' mb-3 w-full shrink-0'"
             >
               {{ 'conversations.new' | transloco }}
             </button>
             <ul
               data-testid="conversation-list"
               role="listbox"
-              class="flex w-full flex-col gap-1 border-0"
+              class="flex w-full min-h-0 flex-1 flex-col gap-1 overflow-y-auto border-0"
             >
               @for (conversation of conversations(); track conversation.id) {
                 <li role="option" [attr.aria-selected]="conversation.id === activeConversationId()">
@@ -71,7 +74,7 @@ let nextLocalMessageId = -1;
           </aside>
         }
 
-        <section class="flex flex-1 flex-col">
+        <section class="flex h-full min-h-0 flex-1 flex-col">
           @if (renaming()) {
             <app-rename-form
               [initialTitle]="activeConversationTitle() ?? ''"
@@ -81,7 +84,10 @@ let nextLocalMessageId = -1;
               (cancelled)="renaming.set(false)"
             />
           } @else {
-            <header data-testid="conversations-header" class="mb-3 flex items-center gap-2">
+            <header
+              data-testid="conversations-header"
+              class="mb-3 flex shrink-0 items-center gap-2"
+            >
               <!-- REQ: knowledge-base (RAG) conversations are represented by a knowledge-base
                    icon, not a person's photo. Amendment (4): once a conversation is open, its
                    own chosen icon/title (already computed above for the rename form) render
@@ -129,41 +135,6 @@ let nextLocalMessageId = -1;
             </header>
           }
 
-          <ul
-            data-testid="transcript"
-            class="mb-4 flex flex-1 flex-col gap-2 rounded-2xl border border-ink-200/70 bg-white p-4 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
-          >
-            @for (message of messages(); track message.id) {
-              <li
-                [attr.data-testid]="'message-role-' + message.role"
-                class="enter-fluid"
-                [class]="
-                  message.role === 'USER'
-                    ? 'self-end rounded-2xl rounded-br-sm bg-ink-800 px-3 py-2 text-sm text-white shadow-sm dark:bg-ink-700'
-                    : 'self-start rounded-2xl rounded-bl-sm bg-ink-100 px-3 py-2 text-sm text-ink-900 shadow-sm dark:bg-ink-800 dark:text-ink-100'
-                "
-              >
-                @if (message.role === 'ASSISTANT' && sending() && message.content === '') {
-                  <span
-                    data-testid="assistant-typing-indicator"
-                    class="inline-flex items-center gap-1"
-                    aria-live="polite"
-                  >
-                    <span
-                      class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500 [animation-delay:-0.2s]"
-                    ></span>
-                    <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500"></span>
-                    <span
-                      class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500 [animation-delay:0.2s]"
-                    ></span>
-                  </span>
-                } @else {
-                  {{ message.content }}
-                }
-              </li>
-            }
-          </ul>
-
           @if (streamError(); as streamErrorMessage) {
             <p
               data-testid="message-stream-error"
@@ -173,27 +144,21 @@ let nextLocalMessageId = -1;
             </p>
           }
 
-          <form data-testid="send-message-form" class="flex gap-2" (submit)="onSend($event)">
-            <input
-              data-testid="message-input"
-              type="text"
-              [value]="draft()"
-              (input)="draft.set($any($event.target).value)"
-              [disabled]="sending() || activeConversationId() === null"
-              class="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-signal-500 focus:ring-1 focus:ring-signal-500 focus:outline-none dark:border-ink-700 dark:bg-ink-800 dark:text-white"
-            />
-            <button
-              type="submit"
-              [class]="sendButtonClass"
-              [disabled]="sending() || activeConversationId() === null"
-            >
-              {{ 'conversations.send' | transloco }}
-            </button>
-          </form>
+          <app-message-thread
+            [messages]="displayMessages()"
+            [showComposer]="activeConversationId() !== null"
+            [composerDisabled]="sending()"
+            (send)="onSend($event)"
+          />
         </section>
       }
     </div>
   `,
+  // See ChatShellComponent's :host comment — this component is rendered as a flex child of
+  // chat-shell's conversation column and needs to actually grow into that space (flex: 1) with
+  // min-height: 0 (overriding the default min-height: auto that would otherwise let its content
+  // force the whole column, and the page, to grow instead of scrolling internally).
+  styles: [':host { display: block; flex: 1 1 0%; min-height: 0; }'],
 })
 export class ConversationsPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
@@ -202,12 +167,11 @@ export class ConversationsPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly newConversationButtonClass = buttonClass('primary');
-  protected readonly sendButtonClass = buttonClass('primary');
   protected readonly conversations = signal<ConversationSummary[]>([]);
   protected readonly activeConversationId = signal<number | null>(null);
   protected readonly messages = signal<Message[]>([]);
-  protected readonly draft = signal('');
   protected readonly sending = signal(false);
+  private readonly streamingAssistantMessageId = signal<number | null>(null);
   protected readonly streamError = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<ConversationsError>(null);
@@ -225,6 +189,27 @@ export class ConversationsPageComponent implements OnInit {
     this.conversations().find((c) => c.id === this.activeConversationId())?.title ?? null;
   protected readonly activeConversationIcon = () =>
     this.conversations().find((c) => c.id === this.activeConversationId())?.icon ?? null;
+
+  /** Maps this RAG conversation's `{role, content}` messages onto the same `DisplayMessage`
+   * shape `MessageThreadComponent` already renders for peer/group chats, so the transcript looks
+   * identical everywhere: `fromViewer` drives left/right bubble alignment (USER === viewer), and
+   * the in-flight assistant reply gets `sendState: 'streaming'` so the shared typing-indicator
+   * (empty content) and later token-by-token fill-in "just work" without RAG-specific markup. */
+  protected readonly displayMessages = computed<DisplayMessage[]>(() => {
+    const streamingId = this.streamingAssistantMessageId();
+    const you = this.translocoService.translate('conversations.you');
+    const assistant = this.translocoService.translate('conversations.assistant');
+
+    return this.messages().map((message) => ({
+      id: message.id,
+      senderUserId: message.role === 'USER' ? 1 : 0,
+      senderNickname: message.role === 'USER' ? you : assistant,
+      content: message.content,
+      createdAt: '',
+      fromViewer: message.role === 'USER',
+      sendState: message.id === streamingId ? 'streaming' : undefined,
+    }));
+  });
 
   private hasLoaded = false;
   private pendingConversationId: number | null = null;
@@ -363,17 +348,14 @@ export class ConversationsPageComponent implements OnInit {
       });
   }
 
-  protected onSend(event: Event): void {
-    event.preventDefault();
+  protected onSend(content: string): void {
     const tenantId = this.activeTenantService.activeTenantId();
     const conversationId = this.activeConversationId();
-    const content = this.draft();
 
     if (tenantId === null || conversationId === null || !content || this.sending()) {
       return;
     }
 
-    this.draft.set('');
     this.streamError.set(null);
     this.messages.update((messages) => [
       ...messages,
@@ -384,6 +366,7 @@ export class ConversationsPageComponent implements OnInit {
       ...messages,
       { id: assistantMessageId, role: 'ASSISTANT', content: '' },
     ]);
+    this.streamingAssistantMessageId.set(assistantMessageId);
     this.sending.set(true);
 
     this.conversationService.sendMessage(tenantId, conversationId, content).subscribe({
@@ -392,17 +375,21 @@ export class ConversationsPageComponent implements OnInit {
           this.appendToAssistantMessage(assistantMessageId, chatEvent.data);
         } else if (chatEvent.type === 'done') {
           this.sending.set(false);
+          this.streamingAssistantMessageId.set(null);
         } else if (chatEvent.type === 'error') {
           this.streamError.set(chatEvent.data);
           this.sending.set(false);
+          this.streamingAssistantMessageId.set(null);
         } else if (chatEvent.type === 'permission-denied') {
           this.sending.set(false);
+          this.streamingAssistantMessageId.set(null);
           this.error.set('permission-denied');
         }
       },
       error: () => {
         this.streamError.set('The assistant is unavailable.');
         this.sending.set(false);
+        this.streamingAssistantMessageId.set(null);
       },
     });
   }
