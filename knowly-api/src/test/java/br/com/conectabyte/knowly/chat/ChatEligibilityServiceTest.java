@@ -318,6 +318,31 @@ class ChatEligibilityServiceTest {
         assertThat(candidates).extracting("userId").containsExactly(2L);
     }
 
+    // --- product decision (2026-08-09): a staff member browsing inside an active tenant must see
+    // ONLY that tenant's members for "direct" scope -- never other staff colleagues mixed in ---
+
+    @Test
+    void listCandidatesForDirectScopeExcludesOtherStaffWhenActorHasAnActiveTenant() {
+        User staff = staffUser();
+        User tenantMember = plainMember();
+        User otherStaff = new User("other-staff@example.com");
+        otherStaff.setId(3L);
+        otherStaff.setGlobalRole(GlobalRole.STAFF);
+        Tenant tenant = tenant(10L);
+
+        when(userRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(staff, tenantMember, otherStaff));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(tenantMember))
+                .thenReturn(List.of(activeMembership(tenantMember, tenant)));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(otherStaff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        var candidates = service.listCandidates(staff, "direct", null);
+
+        assertThat(candidates).extracting("userId").containsExactly(2L);
+    }
+
     @Test
     void aClientSuppliedTenantIdNeverExpandsDirectScopeEligibilityBeyondTheSessionsActiveTenant() {
         User staff = staffUser();

@@ -91,6 +91,31 @@ public class ChatEligibilityService {
     }
 
     /**
+     * Product decision (2026-08-09): while a staff member is browsing *inside* an active tenant,
+     * "who can I direct-message" must show only that tenant's members -- never other staff
+     * colleagues, since a tenant-scoped conversation menu listing unrelated staff makes no sense to
+     * the tenant-side user. Unlike {@link #eligibleAnchorsForActor(User)} (still used for the
+     * "group" scope, which appsec has already reviewed as correct), the session's active tenant
+     * here *replaces* the staff-only ({@code null}) anchor rather than being added alongside it.
+     * The staff-only anchor is only used when the actor has no active tenant in their session.
+     */
+    private Set<Long> directScopeAnchorsForActor(User actor) {
+        Set<Long> anchors = new HashSet<>(eligibleAnchorsFor(actor));
+
+        if (isStaffCapable(actor)) {
+            tenantContext
+                    .getActiveTenantId()
+                    .ifPresent(
+                            activeTenantId -> {
+                                anchors.remove(null);
+                                anchors.add(activeTenantId);
+                            });
+        }
+
+        return anchors;
+    }
+
+    /**
      * Resolves the shared anchor for a 1:1 peer chat between {@code actor} and {@code target},
      * evaluating capacity-per-conversation exactly like group eligibility (REQ-5). Prefers a
      * concrete tenant anchor over the {@code null} (staff-only) anchor when both are shared, since
@@ -115,7 +140,8 @@ public class ChatEligibilityService {
         List<User> users = userRepository.findAllByDeletedAtIsNull();
         Set<Long> actorAnchors =
                 switch (scope) {
-                    case "direct", "group" -> eligibleAnchorsForActor(actor);
+                    case "direct" -> directScopeAnchorsForActor(actor);
+                    case "group" -> eligibleAnchorsForActor(actor);
                     default -> null;
                 };
 
