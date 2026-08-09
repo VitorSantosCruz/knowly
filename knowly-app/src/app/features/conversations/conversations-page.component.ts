@@ -41,33 +41,35 @@ let nextLocalMessageId = -1;
       } @else if (error() === 'network') {
         <app-error-state />
       } @else {
-        <aside class="w-64 shrink-0">
-          <button
-            data-testid="new-conversation"
-            (click)="onNewConversation()"
-            [class]="newConversationButtonClass + ' mb-3 w-full'"
-          >
-            {{ 'conversations.new' | transloco }}
-          </button>
-          <ul
-            data-testid="conversation-list"
-            role="listbox"
-            class="flex w-full flex-col gap-1 border-0"
-          >
-            @for (conversation of conversations(); track conversation.id) {
-              <li role="option" [attr.aria-selected]="conversation.id === activeConversationId()">
-                <button
-                  type="button"
-                  [attr.data-testid]="'select-conversation-' + conversation.id"
-                  class="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
-                  (click)="onSelectConversation(conversation.id)"
-                >
-                  {{ conversation.title ?? ('conversations.untitled' | transloco) }}
-                </button>
-              </li>
-            }
-          </ul>
-        </aside>
+        @if (!openedFromRoute()) {
+          <aside class="w-64 shrink-0">
+            <button
+              data-testid="new-conversation"
+              (click)="onNewConversation()"
+              [class]="newConversationButtonClass + ' mb-3 w-full'"
+            >
+              {{ 'conversations.new' | transloco }}
+            </button>
+            <ul
+              data-testid="conversation-list"
+              role="listbox"
+              class="flex w-full flex-col gap-1 border-0"
+            >
+              @for (conversation of conversations(); track conversation.id) {
+                <li role="option" [attr.aria-selected]="conversation.id === activeConversationId()">
+                  <button
+                    type="button"
+                    [attr.data-testid]="'select-conversation-' + conversation.id"
+                    class="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition-colors duration-fast ease-fluid hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+                    (click)="onSelectConversation(conversation.id)"
+                  >
+                    {{ conversation.title ?? ('conversations.untitled' | transloco) }}
+                  </button>
+                </li>
+              }
+            </ul>
+          </aside>
+        }
 
         <section class="flex flex-1 flex-col">
           @if (renaming()) {
@@ -213,6 +215,12 @@ export class ConversationsPageComponent implements OnInit {
   protected readonly renaming = signal(false);
   protected readonly renameError = signal(false);
 
+  /** Amendment: true when this page was opened at `/chat/articles/:conversationId` (a sidebar
+   * click on a specific knowledge-base conversation) rather than the bare browsing state — hides
+   * the in-page list so the layout matches `ConversationDetailComponent`'s single-conversation
+   * view for peer/group chats. */
+  protected readonly openedFromRoute = signal(false);
+
   protected readonly activeConversationTitle = () =>
     this.conversations().find((c) => c.id === this.activeConversationId())?.title ?? null;
   protected readonly activeConversationIcon = () =>
@@ -246,6 +254,7 @@ export class ConversationsPageComponent implements OnInit {
     // peer/group behavior).
     this.route.paramMap.subscribe((params) => {
       const idParam = params.get('conversationId');
+      this.openedFromRoute.set(idParam !== null);
       if (idParam === null) {
         return;
       }
