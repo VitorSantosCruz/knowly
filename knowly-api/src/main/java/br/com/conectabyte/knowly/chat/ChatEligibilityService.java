@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.chat;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.chat.dto.CandidateUserDto;
+import br.com.conectabyte.knowly.chat.exception.ChatAccessDeniedException;
 import br.com.conectabyte.knowly.chat.exception.ChatIneligibleParticipantException;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
@@ -112,7 +113,20 @@ public class ChatEligibilityService {
         // logical-delete-everywhere (2026-08-04): a soft-deleted user must never surface as an
         // eligible chat participant candidate.
         List<User> users = userRepository.findAllByDeletedAtIsNull();
-        Set<Long> actorAnchors = "direct".equals(scope) ? eligibleAnchorsForActor(actor) : null;
+        Set<Long> actorAnchors =
+                switch (scope) {
+                    case "direct", "group" -> eligibleAnchorsForActor(actor);
+                    default -> null;
+                };
+
+        // Cross-tenant PII leak fix: "group" trusts a client-supplied tenantId query param to
+        // decide *which candidates* to expose, so it must first confirm the actor themselves is
+        // actually anchored to that tenant (real membership, or -- for staff -- their session's
+        // active tenant per TenantContext). Without this, any authenticated user could pass an
+        // arbitrary tenantId they have no relationship with and enumerate that tenant's members.
+        if ("group".equals(scope) && (actorAnchors == null || !actorAnchors.contains(tenantId))) {
+            throw new ChatAccessDeniedException();
+        }
 
         return users.stream()
                 .filter(user -> !user.getId().equals(actor.getId()))
@@ -130,6 +144,12 @@ public class ChatEligibilityService {
                                 case "group":
                                     return isEligible(user, tenantId);
                                 case "group-staff-only":
+                                    // Verified (2026-08-09 appsec review): unlike "group", this
+                                    // scope takes no client-supplied tenantId to trust/misuse --
+                                    // it always exposes the same fixed staff-capable candidate
+                                    // pool regardless of actor, which is the existing intended
+                                    // behavior (any actor may look up staff to start a
+                                    // staff-support conversation). No cross-tenant leak here.
                                     return isEligible(user, null);
                                 default:
                                     return false;

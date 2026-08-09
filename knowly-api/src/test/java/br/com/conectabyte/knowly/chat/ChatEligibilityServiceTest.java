@@ -151,6 +151,11 @@ class ChatEligibilityServiceTest {
         User member = plainMember();
         Tenant tenant = tenant(10L);
         when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff, member));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        // The actor (staff) must themselves be anchored to tenant 10 -- via their session's
+        // active tenant, same mechanism already used for "direct" scope -- for the security fix
+        // below to let this legitimate request through.
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
         when(tenantMembershipRepository.findByUserAndTenant(
                         org.mockito.ArgumentMatchers.eq(member), argThatTenant(10L)))
                 .thenReturn(Optional.of(activeMembership(member, tenant)));
@@ -158,6 +163,26 @@ class ChatEligibilityServiceTest {
         var candidates = service.listCandidates(staff, "group", 10L);
 
         assertThat(candidates).extracting("userId").containsExactly(2L);
+    }
+
+    // --- cross-tenant PII leak fix (2026-08-09 appsec): "group" must not trust a
+    // client-supplied tenantId the actor has no real relationship with ---
+
+    @Test
+    void listCandidatesForGroupScopeRejectsAnActorWithNoRelationshipToTheRequestedTenant() {
+        User attacker = plainMember();
+        User victimTenantMember = new User("victim@example.com");
+        victimTenantMember.setId(3L);
+        Tenant tenantB = tenant(20L);
+
+        when(userRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(attacker, victimTenantMember));
+        // The actor (attacker) has no membership at all -- in particular, none in tenant B.
+        when(tenantMembershipRepository.findByUserAndActiveTrue(attacker)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.listCandidates(attacker, "group", tenantB.getId()))
+                .isInstanceOf(
+                        br.com.conectabyte.knowly.chat.exception.ChatAccessDeniedException.class);
     }
 
     @Test
@@ -220,6 +245,8 @@ class ChatEligibilityServiceTest {
         User staff = staffUser();
         User member = plainMember();
         when(userRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(staff, member));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
         when(tenantMembershipRepository.findByUserAndTenant(
                         org.mockito.ArgumentMatchers.eq(member), argThatTenant(10L)))
                 .thenReturn(Optional.of(activeMembership(member, tenant(10L))));
