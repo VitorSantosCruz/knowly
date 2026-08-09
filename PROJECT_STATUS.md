@@ -1070,6 +1070,63 @@ SPEC before implementation, roughly in this order:**
     look-in/Support-scope questions above, language config) before any
     PLAN/implementation — do not start from this bullet alone.
 
+17. **Frictionless login for trusted devices — deferred future
+    improvement, not yet scheduled (documented 2026-08-08, not started).**
+    User's original idea: skip email+code entry entirely on a device
+    already trusted, using signals like a paired Bluetooth device or a
+    known Wi-Fi SSID as the shortcut condition, opt-in the first time the
+    user logs in the traditional way. Full discussion happened in chat,
+    not yet a SPEC — captured here so the reasoning isn't lost:
+    - **Bluetooth-paired / known-Wi-Fi-SSID as the *sole* trust signal is
+      explicitly rejected as unsafe** — both are spoofable (MAC/SSID) and
+      "same network" doesn't prove "same user, same trusted device."
+      Anyone else on the same Wi-Fi (e.g. a public/office network) must
+      not inherit the session. If network signals are used at all, they
+      can only ever be a secondary UX nicety layered on top of a real
+      credential, never the credential itself.
+    - **Recommended direction instead: WebAuthn/FIDO2 passkeys**, not a
+      custom "trusted device" refresh-token scheme. The user's own
+      restatement of the idea ("um token que já tenha usuário e senha que
+      fica no Bitwarden, o sistema vê que tenho o Bitwarden instalado e
+      loga só com a chave") *is* passkeys — the user's Bitwarden vault
+      already acts as a WebAuthn authenticator today, no custom protocol
+      needed. Passkeys beat the device-trust-token idea on every axis
+      that matters here: private key never leaves the authenticator
+      (nothing to steal from a cookie/localStorage), phishing-resistant
+      (bound to the exact origin), portable across devices via the
+      synced vault (not pinned to one machine like a device-trust token
+      would be), and it's a W3C standard with mature library support
+      (`webauthn4j` or Yubico's `java-webauthn-server` on the backend,
+      native `navigator.credentials` in the browser) instead of
+      hand-rolled session-security code to audit.
+    - If a lower-friction *secondary* signal is still wanted on top of
+      passkeys later (e.g. auto-focus/pre-fill based on network context),
+      that's a separate, much smaller UX decision to make only after
+      passkeys exist — not a substitute for them, and not in scope for
+      the initial SPEC.
+    - **Current state confirmed by investigation (2026-08-08): zero
+      groundwork exists.** No WebAuthn/FIDO2 dependency in
+      `knowly-api/pom.xml`, no passkey/credential controllers/entities,
+      no `navigator.credentials` usage anywhere in `knowly-app`. Today's
+      auth is entirely the passwordless email login-code (OTP) flow
+      (`AuthController`, `LoginCodeService`, `OneTimePasswordService`,
+      `FailedAttemptService`, `CaptchaService`), backed by
+      `HttpSession`/`HttpSessionSecurityContextRepository` — not
+      stateless JWT. This flow's shape (credential-verification step →
+      session creation → audit log entry, all through one choke point)
+      is a reasonable pattern to extend: a passkey assertion could plug
+      in as an alternative credential-verification step feeding the same
+      session-creation/audit code path. Everything WebAuthn-specific
+      (challenge generation/storage, credential public-key storage per
+      user/device, relying-party config for the domain, browser API
+      integration on the frontend) would be new, not a retrofit of
+      existing code.
+    Needs its own SPEC on both sides (`knowly-api` for the
+    challenge/credential endpoints and storage, `knowly-app` for the
+    browser WebAuthn integration and the "register this device" opt-in
+    UI reachable after a normal login) before any PLAN/implementation —
+    do not start from this bullet alone.
+
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
 
