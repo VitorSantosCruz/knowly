@@ -670,7 +670,8 @@
       "supportRowAriaLabel": "Abrir Suporte",
       "supportRowLabel": "Suporte",
       "articleRowAriaLabel": "Abrir conversa da base de artigos {{title}}",
-      "untitledArticleConversation": "Nova conversa"
+      "untitledArticleConversation": "Nova conversa",
+      "unifiedSearchLabel": "Buscar em suas conversas"
     },
     "createGroup": {
       "title": "Criar grupo",
@@ -710,17 +711,18 @@
       "actionArticles": "Falar com a base de artigos",
       "actionArticlesAriaLabel": "Iniciar uma nova conversa com a base de artigos"
     },
-    "contacts": {
-      "talkedTitle": "Já falou",
-      "notTalkedTitle": "Ainda não falou",
-      "talkedSearchLabel": "Buscar pessoas/grupos com quem você já falou",
-      "notTalkedSearchLabel": "Buscar pessoas/grupos com quem você ainda não falou"
-    },
     "shell": {
       "backToDirectory": "Voltar",
       "noConversationSelected": "Selecione alguém para começar a conversar.",
       "toggleContacts": "Mostrar contatos",
       "closeContacts": "Fechar contatos"
+    },
+    "fullDirectory": {
+      "title": "Todos os outros",
+      "searchLabel": "Buscar pessoas e grupos com quem você ainda não falou",
+      "searchPlaceholder": "Buscar por nome…",
+      "noResults": "Nenhum resultado para '{{query}}'",
+      "emptyState": "Ninguém novo para conversar no momento."
     }
   },
   "support": {

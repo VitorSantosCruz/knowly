@@ -670,7 +670,8 @@
       "supportRowAriaLabel": "Open Support",
       "supportRowLabel": "Support",
       "articleRowAriaLabel": "Open knowledge base conversation {{title}}",
-      "untitledArticleConversation": "New conversation"
+      "untitledArticleConversation": "New conversation",
+      "unifiedSearchLabel": "Search your conversations"
     },
     "createGroup": {
       "title": "Create group",
@@ -710,17 +711,18 @@
       "actionArticles": "Talk to the knowledge base",
       "actionArticlesAriaLabel": "Start a new knowledge base conversation"
     },
-    "contacts": {
-      "talkedTitle": "Already talked to",
-      "notTalkedTitle": "Haven't talked yet",
-      "talkedSearchLabel": "Search people/groups you've talked to",
-      "notTalkedSearchLabel": "Search people/groups you haven't talked to"
-    },
     "shell": {
       "backToDirectory": "Back",
       "noConversationSelected": "Select someone to start chatting.",
       "toggleContacts": "Show contacts",
       "closeContacts": "Close contacts"
+    },
+    "fullDirectory": {
+      "title": "Everyone else",
+      "searchLabel": "Search people and groups you have not talked to yet",
+      "searchPlaceholder": "Search by name…",
+      "noResults": "No results for '{{query}}'",
+      "emptyState": "Nobody new to talk to right now."
     }
   },
   "support": {

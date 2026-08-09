@@ -61,15 +61,19 @@ export type DirectoryRow = PersonRow | GroupRow | SupportRow | ArticleRow;
 const NOT_FETCHED_YET = Symbol('not-fetched-yet');
 
 /**
- * Shared engine backing `chat-directory.component.ts` (the directory column's unified,
- * searchable list) — REQ-2. Originally split out (2026-08-09) to also back a separate
- * `ChatContactsPanelComponent` third column; the product owner then found a 3rd column
- * redundant with column 1 and asked for that same "já falou"/"ainda não falou" partitioning
- * idea to *replace* the People section's flat list instead (2026-08-09, same day) — so the
- * shell stays 2 columns (directory, conversation), and `talkedPeople`/`notTalkedPeople` below
- * are consumed directly by `ChatDirectoryComponent`, not a separate panel. Kept as its own
- * service anyway (not inlined back into the component) since it still centralizes the
- * click-to-open-or-create/join/request-to-join logic in one place.
+ * Shared engine backing both directory columns of Amendment (3)'s 3-column layout:
+ * `chat-directory.component.ts` (column 1, `conversationRows` — one unified, Support-pinned
+ * "CONVERSAS" list) and `chat-full-directory.component.ts` (column 3, `discoveryRows` — the
+ * disjoint complement: not-yet-messaged people plus discoverable, non-member groups).
+ *
+ * History: originally split out (2026-08-09) to back a separate `ChatContactsPanelComponent`
+ * third column; the product owner found that 3rd column redundant with column 1's own People
+ * rows and asked for a "já falou"/"ainda não falou" partition to live *inside* column 1 instead
+ * (same day) — briefly a 2-column shell. Amendment (3) (2026-08-09, later the same day)
+ * supersedes that: column 1 becomes one unified list (`conversationRows`, Support pinned first)
+ * and a real column 3 returns (`discoveryRows`), this time genuinely disjoint from column 1
+ * rather than duplicating it. Kept as its own service throughout since it centralizes the
+ * click-to-open-or-create/join/request-to-join logic in one place for both columns.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatDirectoryRowsService {
@@ -186,39 +190,88 @@ export class ChatDirectoryRowsService {
       .sort((a, b) => (b.conversationId ?? 0) - (a.conversationId ?? 0)),
   );
 
-  /** People eligible but not yet messaged — "Haven't talked yet" (no conversation to rank by
-   * recency, so this keeps the backend's own eligible-participants order). */
-  readonly notTalkedPeople = computed<PersonRow[]>(() =>
+  /**
+   * People eligible but not yet messaged — feeds `discoveryRows()` (column 3), not rendered
+   * directly by any component (Amendment (3), task 138: `personGroupRows()`'s combined shape is
+   * retired in favor of the narrower computeds feeding `conversationRows`/`discoveryRows`
+   * directly).
+   */
+  private readonly notTalkedPeople = computed<PersonRow[]>(() =>
     this.personGroupRows().filter(
       (row): row is PersonRow => row.kind === 'person' && row.conversationId === null,
     ),
   );
 
-  /** Same id-descending recency proxy as `talkedPeople` above, same known gap/rationale. */
+  /**
+   * Groups the viewer already participates in — feeds `conversationRows()` (column 1).
+   * Same id-descending recency proxy as `talkedPeople` above, same known gap/rationale.
+   * **Amendment (3), task 138:** narrowed to member groups only — discoverable, non-member
+   * groups moved out to `discoverableGroupRows` below, feeding `discoveryRows()` (column 3)
+   * instead of this computed.
+   */
   readonly groupRows = computed<GroupRow[]>(() =>
     this.personGroupRows()
-      .filter((row): row is GroupRow => row.kind === 'group')
+      .filter((row): row is GroupRow => row.kind === 'group' && row.isMember)
       .sort((a, b) => b.id - a.id),
+  );
+
+  /** Discoverable groups the viewer is **not** yet a participant of — feeds `discoveryRows()`
+   * (column 3), per REQ-2d's disjoint-complement rule. */
+  private readonly discoverableGroupRows = computed<GroupRow[]>(() =>
+    this.personGroupRows().filter((row): row is GroupRow => row.kind === 'group' && !row.isMember),
   );
 
   readonly supportRow: SupportRow = { kind: 'support', key: 'support' };
 
+  /** Same id-descending recency proxy as `talkedPeople`/`groupRows` above — not currently
+   * sorted at all before Amendment (3), a small extension rather than a new concept. */
   readonly articleRows = computed<ArticleRow[]>(() =>
-    this.articleConversations().map((c) => ({
-      kind: 'article',
-      key: `article:${c.id}`,
-      id: c.id,
-      displayName: c.title ?? '',
-    })),
+    this.articleConversations()
+      .map((c) => ({
+        kind: 'article' as const,
+        key: `article:${c.id}`,
+        id: c.id,
+        displayName: c.title ?? '',
+      }))
+      .sort((a, b) => b.id - a.id),
   );
 
-  /** Full unified list (REQ-2): person/group rows plus the always-present Support row and
-   * every existing "Base de artigos" conversation. */
-  readonly rows = computed<DirectoryRow[]>(() => [
-    ...this.personGroupRows(),
+  /**
+   * Column 1's unified "CONVERSAS" list (REQ-1/REQ-2, Amended (3), final): Support
+   * unconditionally first, then every conversation the viewer already has — people already
+   * messaged, groups already joined, and every existing "Base de artigos" conversation — each
+   * kind sorted by its own already-documented recency proxy (see `talkedPeople`/`groupRows`/
+   * `articleRows`'s own doc comments). This is a thin `computed()` that only concatenates
+   * already-sorted per-kind lists, deliberately not a single flat sort, so each kind's own known
+   * gap/proxy stays documented at the computed that owns it rather than smeared into one
+   * function body.
+   */
+  readonly conversationRows = computed<DirectoryRow[]>(() => [
     this.supportRow,
+    ...this.talkedPeople(),
+    ...this.groupRows(),
     ...this.articleRows(),
   ]);
+
+  /**
+   * Column 3's full-directory list (REQ-2d, Amended (3), final) — the disjoint complement of
+   * `conversationRows()`: people with no existing 1:1 conversation, plus every discoverable
+   * group the viewer isn't a participant of.
+   *
+   * **Sort — interim fallback (2026-08-09), not the real REQ-2d ranking:** alphabetical by
+   * `displayName`. REQ-2d's actual sort (descending by cross-surface last-interaction
+   * timestamp, survivable across a hard-deleted 1:1) needs a new backend endpoint that does not
+   * exist yet (`GET /api/chat/interaction-recency`-style, see `PLAN.md`'s "Cross-surface
+   * recency sort" feasibility decision) — TASKS.md tracks the real sort as BLOCKED (tasks
+   * 141-142). Every row here is treated as "no known interaction" for now, which is exactly
+   * REQ-2d's own documented tiebreak for that case, not a placeholder standing in for an
+   * already-computed real value.
+   */
+  readonly discoveryRows = computed<(PersonRow | GroupRow)[]>(() =>
+    [...this.notTalkedPeople(), ...this.discoverableGroupRows()].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName),
+    ),
+  );
 
   /** Fetches every data source this list needs — idempotent, safe to call from more than one
    * host component (`ChatDirectoryComponent` and `ChatContactsPanelComponent` both call it). */

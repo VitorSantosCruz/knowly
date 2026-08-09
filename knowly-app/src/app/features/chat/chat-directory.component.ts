@@ -5,263 +5,154 @@ import { filter, map, startWith } from 'rxjs';
 import { TranslocoPipe } from '@jsverse/transloco';
 import {
   ChatDirectoryRowsService,
+  DirectoryRow,
   GroupRow,
   PersonRow,
 } from '../../core/chat-directory-rows.service';
 import { AvatarComponent } from '../../shared/avatar.component';
+import { filterByQuery } from './chat-directory-search.util';
 import { GroupVisibilityBadgeComponent } from './group-visibility-badge.component';
 
 /**
- * Directory column's (only column 1, in this 2-column layout — REQ-1/REQ-2) permanent
- * content — a single, always-visible list combining People, Groups, the Support row, and
- * every "Base de artigos" conversation, never hidden behind a section tab.
+ * Directory column's (column 1 of the 3-column layout — REQ-1/REQ-2, Amended (3), final)
+ * permanent content — one unified, searchable "CONVERSAS" list: the always-pinned Support row
+ * first, then every person already messaged, every group already joined, and every existing
+ * "Base de artigos" conversation, mixed together (not partitioned into sections). A single
+ * `unifiedQuery` search field filters everything **except** the pinned Support row, which stays
+ * visible under any query (REQ-2/REQ-9's continued Support exemption).
  *
- * **People (2026-08-09, same-day follow-up to the 3-column amendment)**: the product owner
- * found a separate 3rd "contacts" column redundant with this column's own People rows, so
- * that column's "já falou"/"ainda não falou" partitioning idea now lives *here* instead,
- * replacing the flat People list — "Already talked to" (an existing 1:1 conversation) and
- * "Haven't talked yet" (eligible, not yet messaged), each with its own independent search.
- * Groups keep a single search field (REQ-8, unchanged for Groups); Support/"Base de artigos"
- * are never filtered by any search (REQ-9).
+ * **Amendment (3), 2026-08-09 (same day as the previous 2-column cut this supersedes)**: the
+ * product owner's earlier "já falou"/"ainda não falou" partition (People) and the separate
+ * Groups section are both retired — not-yet-messaged people and discoverable, non-member groups
+ * move out entirely to `chat-full-directory.component.ts` (column 3), so this column only ever
+ * shows conversations the viewer already has. See `ChatDirectoryRowsService.conversationRows`'s
+ * own doc comment for the merge/sort rationale.
  *
  * The actual click-to-open-or-create/join/request-to-join logic and the underlying data
- * (`ChatService`/`ChatDirectoryService`/`ChatGroupService`) live in `ChatDirectoryRowsService`.
+ * (`ChatService`/`ChatDirectoryService`/`ChatGroupService`) live in `ChatDirectoryRowsService`,
+ * shared with column 3.
  */
 @Component({
   selector: 'app-chat-directory',
   imports: [TranslocoPipe, GroupVisibilityBadgeComponent, AvatarComponent],
   template: `
-    <div data-testid="chat-directory" class="flex flex-col gap-6">
-      <section>
-        <h2 class="mb-2 text-xs font-semibold tracking-wider text-ink-500 uppercase">
-          {{ 'chat.contacts.talkedTitle' | transloco }}
-        </h2>
-        <label class="mb-2 flex flex-col gap-1 text-sm">
-          <span class="sr-only">{{ 'chat.contacts.talkedSearchLabel' | transloco }}</span>
-          <input
-            type="search"
-            data-testid="chat-directory-talked-search"
-            [attr.aria-label]="'chat.contacts.talkedSearchLabel' | transloco"
-            [value]="talkedQuery()"
-            (input)="talkedQuery.set($any($event.target).value)"
-            class="rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
-          />
-        </label>
-        @if (filteredTalked().length === 0) {
-          @if (talkedQuery() === '') {
-            <p class="text-sm text-ink-500 dark:text-ink-400">
-              {{ 'chat.directory.emptyState' | transloco }}
-            </p>
-          } @else {
-            <p
-              data-testid="chat-directory-talked-no-results"
-              class="text-sm text-ink-500 dark:text-ink-400"
-            >
-              {{ 'chat.directory.noResults' | transloco: { query: talkedQuery() } }}
-            </p>
-          }
-        } @else {
-          <ul class="flex flex-col gap-1">
-            @for (row of filteredTalked(); track row.key) {
-              <li>
+    <div data-testid="chat-directory" class="flex flex-col gap-4">
+      <label class="mb-1 flex flex-col gap-1 text-sm">
+        <span class="sr-only">{{ 'chat.directory.unifiedSearchLabel' | transloco }}</span>
+        <input
+          type="search"
+          data-testid="chat-directory-search"
+          [attr.aria-label]="'chat.directory.unifiedSearchLabel' | transloco"
+          [value]="unifiedQuery()"
+          (input)="unifiedQuery.set($any($event.target).value)"
+          placeholder="{{ 'chat.directory.searchPlaceholder' | transloco }}"
+          class="rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
+        />
+      </label>
+
+      <ul data-testid="chat-directory-list" class="flex flex-col gap-1">
+        @for (row of filteredRows(); track row.key) {
+          <li>
+            @switch (row.kind) {
+              @case ('support') {
+                <button
+                  type="button"
+                  data-testid="chat-directory-row-support"
+                  [attr.aria-label]="'chat.directory.supportRowAriaLabel' | transloco"
+                  (click)="rowsService.onSupportClick()"
+                  [attr.aria-current]="isSupportActive() ? 'page' : null"
+                  class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
+                  [class.bg-signal-50]="isSupportActive()"
+                  [class.dark:bg-signal-900]="isSupportActive()"
+                >
+                  {{ 'chat.directory.supportRowLabel' | transloco }}
+                </button>
+              }
+              @case ('person') {
                 <button
                   type="button"
                   [attr.data-testid]="'chat-directory-row-' + row.key"
                   [attr.aria-label]="
-                    'chat.directory.personRowAriaLabel' | transloco: { nickname: row.displayName }
+                    'chat.directory.personRowAriaLabel'
+                      | transloco: { nickname: personRow(row).displayName }
                   "
-                  (click)="onPersonClick(row)"
-                  [attr.aria-current]="isPersonRowActive(row) ? 'page' : null"
+                  (click)="onPersonClick(personRow(row))"
+                  [attr.aria-current]="isPersonRowActive(personRow(row)) ? 'page' : null"
                   class="flex w-full items-center gap-2 rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
-                  [class.bg-signal-50]="isPersonRowActive(row)"
-                  [class.dark:bg-signal-900]="isPersonRowActive(row)"
+                  [class.bg-signal-50]="isPersonRowActive(personRow(row))"
+                  [class.dark:bg-signal-900]="isPersonRowActive(personRow(row))"
                 >
-                  <app-avatar [avatarUrl]="row.avatarUrl" />
-                  <span>{{ row.displayName }}</span>
+                  <app-avatar [avatarUrl]="personRow(row).avatarUrl" />
+                  <span>{{ personRow(row).displayName }}</span>
                 </button>
                 @if (rowErrors().has(row.key)) {
                   <p role="alert" class="mt-1 text-xs text-red-600 dark:text-red-400">
                     {{ 'chat.directory.actionError' | transloco }}
                   </p>
                 }
-              </li>
-            }
-          </ul>
-        }
-      </section>
-
-      <section>
-        <h2 class="mb-2 text-xs font-semibold tracking-wider text-ink-500 uppercase">
-          {{ 'chat.contacts.notTalkedTitle' | transloco }}
-        </h2>
-        <label class="mb-2 flex flex-col gap-1 text-sm">
-          <span class="sr-only">{{ 'chat.contacts.notTalkedSearchLabel' | transloco }}</span>
-          <input
-            type="search"
-            data-testid="chat-directory-not-talked-search"
-            [attr.aria-label]="'chat.contacts.notTalkedSearchLabel' | transloco"
-            [value]="notTalkedQuery()"
-            (input)="notTalkedQuery.set($any($event.target).value)"
-            class="rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
-          />
-        </label>
-        @if (filteredNotTalked().length === 0) {
-          @if (notTalkedQuery() === '') {
-            <p data-testid="chat-directory-empty" class="text-sm text-ink-500 dark:text-ink-400">
-              {{ 'chat.directory.emptyState' | transloco }}
-            </p>
-          } @else {
-            <p
-              data-testid="chat-directory-not-talked-no-results"
-              class="text-sm text-ink-500 dark:text-ink-400"
-            >
-              {{ 'chat.directory.noResults' | transloco: { query: notTalkedQuery() } }}
-            </p>
-          }
-        } @else {
-          <ul class="flex flex-col gap-1">
-            @for (row of filteredNotTalked(); track row.key) {
-              <li>
+              }
+              @case ('group') {
                 <button
                   type="button"
                   [attr.data-testid]="'chat-directory-row-' + row.key"
                   [attr.aria-label]="
-                    'chat.directory.personRowAriaLabel' | transloco: { nickname: row.displayName }
+                    'chat.directory.groupRowAriaLabel'
+                      | transloco: { title: groupRow(row).displayName }
                   "
-                  (click)="onPersonClick(row)"
-                  [attr.aria-current]="isPersonRowActive(row) ? 'page' : null"
-                  class="flex w-full items-center gap-2 rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
-                  [class.bg-signal-50]="isPersonRowActive(row)"
-                  [class.dark:bg-signal-900]="isPersonRowActive(row)"
-                >
-                  <app-avatar [avatarUrl]="row.avatarUrl" />
-                  <span>{{ row.displayName }}</span>
-                </button>
-                @if (rowErrors().has(row.key)) {
-                  <p role="alert" class="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {{ 'chat.directory.actionError' | transloco }}
-                  </p>
-                }
-              </li>
-            }
-          </ul>
-        }
-      </section>
-
-      <section>
-        <h2 class="mb-2 text-xs font-semibold tracking-wider text-ink-500 uppercase">
-          {{ 'chat.directory.groupsTitle' | transloco }}
-        </h2>
-        <label class="mb-2 flex flex-col gap-1 text-sm">
-          <span class="sr-only">{{ 'chat.directory.searchLabel' | transloco }}</span>
-          <input
-            type="search"
-            data-testid="chat-directory-search"
-            [attr.aria-label]="'chat.directory.searchLabel' | transloco"
-            [value]="groupQuery()"
-            (input)="groupQuery.set($any($event.target).value)"
-            placeholder="{{ 'chat.directory.searchPlaceholder' | transloco }}"
-            class="rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
-          />
-        </label>
-        @if (filteredGroups().length === 0) {
-          @if (groupQuery() === '') {
-            <p
-              data-testid="chat-directory-groups-empty"
-              class="text-sm text-ink-500 dark:text-ink-400"
-            >
-              {{ 'chat.directory.emptyState' | transloco }}
-            </p>
-          } @else {
-            <p
-              data-testid="chat-directory-no-results"
-              class="text-sm text-ink-500 dark:text-ink-400"
-            >
-              {{ 'chat.directory.noResults' | transloco: { query: groupQuery() } }}
-            </p>
-          }
-        } @else {
-          <ul class="flex flex-col gap-1">
-            @for (row of filteredGroups(); track row.key) {
-              <li>
-                <button
-                  type="button"
-                  [attr.data-testid]="'chat-directory-row-' + row.key"
-                  [attr.aria-label]="groupRowAriaLabel(row) | transloco: { title: row.displayName }"
-                  [disabled]="pendingGroupIds().has(row.id)"
-                  (click)="onGroupClick(row)"
-                  [attr.aria-current]="row.isMember && row.id === activePeerId() ? 'page' : null"
-                  class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 disabled:opacity-60 dark:border-ink-800/70 dark:hover:bg-ink-800"
-                  [class.bg-signal-50]="row.isMember && row.id === activePeerId()"
-                  [class.dark:bg-signal-900]="row.isMember && row.id === activePeerId()"
+                  (click)="onGroupClick(groupRow(row))"
+                  [attr.aria-current]="groupRow(row).id === activePeerId() ? 'page' : null"
+                  class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
+                  [class.bg-signal-50]="groupRow(row).id === activePeerId()"
+                  [class.dark:bg-signal-900]="groupRow(row).id === activePeerId()"
                 >
                   <span class="flex items-center gap-2">
                     <app-avatar kind="group" />
-                    {{ row.displayName }}
+                    {{ groupRow(row).displayName }}
                   </span>
-                  @if (row.visibility) {
-                    <app-group-visibility-badge [visibility]="row.visibility" />
+                  @if (groupRow(row).visibility) {
+                    <app-group-visibility-badge [visibility]="groupRow(row).visibility!" />
                   }
                 </button>
-                @if (pendingGroupIds().has(row.id)) {
-                  <p
-                    data-testid="chat-directory-request-pending"
-                    class="mt-1 text-xs text-ink-500 dark:text-ink-400"
-                  >
-                    {{ 'chat.directory.requestPending' | transloco }}
-                  </p>
-                }
                 @if (rowErrors().has(row.key)) {
                   <p role="alert" class="mt-1 text-xs text-red-600 dark:text-red-400">
                     {{ 'chat.directory.actionError' | transloco }}
                   </p>
                 }
-              </li>
+              }
+              @case ('article') {
+                <button
+                  type="button"
+                  [attr.data-testid]="'chat-directory-row-' + row.key"
+                  [attr.aria-label]="
+                    'chat.directory.articleRowAriaLabel'
+                      | transloco
+                        : {
+                            title:
+                              articleRow(row).displayName ||
+                              ('chat.directory.untitledArticleConversation' | transloco),
+                          }
+                  "
+                  (click)="rowsService.onArticleClick(articleRow(row))"
+                  [attr.aria-current]="articleRow(row).id === activeArticleId() ? 'page' : null"
+                  class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
+                  [class.bg-signal-50]="articleRow(row).id === activeArticleId()"
+                  [class.dark:bg-signal-900]="articleRow(row).id === activeArticleId()"
+                >
+                  {{
+                    articleRow(row).displayName ||
+                      ('chat.directory.untitledArticleConversation' | transloco)
+                  }}
+                </button>
+              }
             }
-          </ul>
-        }
-      </section>
-
-      <ul class="flex flex-col gap-1">
-        <li>
-          <button
-            type="button"
-            data-testid="chat-directory-row-support"
-            [attr.aria-label]="'chat.directory.supportRowAriaLabel' | transloco"
-            (click)="rowsService.onSupportClick()"
-            [attr.aria-current]="isSupportActive() ? 'page' : null"
-            class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
-            [class.bg-signal-50]="isSupportActive()"
-            [class.dark:bg-signal-900]="isSupportActive()"
-          >
-            {{ 'chat.directory.supportRowLabel' | transloco }}
-          </button>
-        </li>
-        @for (row of articleRows(); track row.key) {
-          <li>
-            <button
-              type="button"
-              [attr.data-testid]="'chat-directory-row-' + row.key"
-              [attr.aria-label]="
-                'chat.directory.articleRowAriaLabel'
-                  | transloco
-                    : {
-                        title:
-                          row.displayName ||
-                          ('chat.directory.untitledArticleConversation' | transloco),
-                      }
-              "
-              (click)="rowsService.onArticleClick(row)"
-              [attr.aria-current]="row.id === activeArticleId() ? 'page' : null"
-              class="flex w-full items-center justify-between rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
-              [class.bg-signal-50]="row.id === activeArticleId()"
-              [class.dark:bg-signal-900]="row.id === activeArticleId()"
-            >
-              {{ row.displayName || ('chat.directory.untitledArticleConversation' | transloco) }}
-            </button>
           </li>
         }
       </ul>
+      @if (noResults()) {
+        <p data-testid="chat-directory-no-results" class="text-sm text-ink-500 dark:text-ink-400">
+          {{ 'chat.directory.noResults' | transloco: { query: unifiedQuery() } }}
+        </p>
+      }
     </div>
   `,
 })
@@ -302,35 +193,48 @@ export class ChatDirectoryComponent implements OnInit {
     return row.conversationId !== null && row.conversationId === this.activePeerId();
   }
 
-  protected readonly talkedQuery = signal('');
-  protected readonly notTalkedQuery = signal('');
-  protected readonly groupQuery = signal('');
+  /** REQ-2/REQ-9's single unified search field — filters every row except the pinned Support
+   * row, which is structurally excluded from filtering below rather than special-cased in the
+   * template. */
+  protected readonly unifiedQuery = signal('');
 
-  protected readonly articleRows = this.rowsService.articleRows;
   protected readonly rowErrors = this.rowsService.rowErrors;
-  protected readonly pendingGroupIds = this.rowsService.pendingGroupIds;
 
-  protected readonly filteredTalked = computed(() =>
-    filterByQuery(this.rowsService.talkedPeople(), this.talkedQuery()),
+  private readonly filteredNonSupportRows = computed(() =>
+    filterByQuery(
+      this.rowsService
+        .conversationRows()
+        .filter((row): row is Exclude<DirectoryRow, { kind: 'support' }> => row.kind !== 'support'),
+      this.unifiedQuery(),
+    ),
   );
-  protected readonly filteredNotTalked = computed(() =>
-    filterByQuery(this.rowsService.notTalkedPeople(), this.notTalkedQuery()),
-  );
-  protected readonly filteredGroups = computed(() =>
-    filterByQuery(this.rowsService.groupRows(), this.groupQuery()),
+
+  protected readonly filteredRows = computed<DirectoryRow[]>(() => [
+    this.rowsService.supportRow,
+    ...this.filteredNonSupportRows(),
+  ]);
+
+  /** REQ-10: "no results" only means "the unified search matched nothing among the *filterable*
+   * rows" — the always-pinned, never-filtered Support row keeps the list from ever reading as
+   * literally empty, so this can't key off `filteredRows().length === 0`. */
+  protected readonly noResults = computed(
+    () => this.unifiedQuery() !== '' && this.filteredNonSupportRows().length === 0,
   );
 
   ngOnInit(): void {
     this.rowsService.ensureLoaded();
   }
 
-  protected groupRowAriaLabel(row: GroupRow): string {
-    if (row.isMember) {
-      return 'chat.directory.groupRowAriaLabel';
-    }
-    return row.visibility === 'REQUEST_TO_JOIN'
-      ? 'chat.directory.requestToJoinAriaLabel'
-      : 'chat.directory.joinGroupAriaLabel';
+  protected personRow(row: DirectoryRow): PersonRow {
+    return row as PersonRow;
+  }
+
+  protected groupRow(row: DirectoryRow): GroupRow {
+    return row as GroupRow;
+  }
+
+  protected articleRow(row: DirectoryRow) {
+    return row as Extract<DirectoryRow, { kind: 'article' }>;
   }
 
   protected onPersonClick(row: PersonRow): void {
@@ -340,12 +244,4 @@ export class ChatDirectoryComponent implements OnInit {
   protected onGroupClick(row: GroupRow): void {
     this.rowsService.onGroupClick(row);
   }
-}
-
-function filterByQuery<T extends { displayName: string }>(rows: T[], query: string): T[] {
-  const q = query.trim().toLowerCase();
-  if (q === '') {
-    return rows;
-  }
-  return rows.filter((row) => row.displayName.toLowerCase().includes(q));
 }
