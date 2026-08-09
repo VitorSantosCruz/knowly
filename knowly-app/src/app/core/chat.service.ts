@@ -241,6 +241,24 @@ export class ChatService {
       .subscribe((candidates) => this._eligibleParticipants.set(candidates));
   }
 
+  /** Small cross-service seam for `ChatGroupService`: writes a fresh detail (e.g. from a
+   * governance action's response) straight into this service's own `_details` map, the single
+   * source of truth for conversation detail state — never a second, parallel copy. */
+  patchDetail(id: number, detail: ConversationDetail): void {
+    this._details.update((map) => new Map(map).set(id, detail));
+  }
+
+  /** Small cross-service seam for `ChatGroupService`'s `leave`/`deleteGroup`: drops a
+   * conversation from this service's own list + detail map once the backend confirms it. */
+  dropConversation(id: number): void {
+    this._conversations.update((list) => list.filter((c) => c.id !== id));
+    this._details.update((map) => {
+      const next = new Map(map);
+      next.delete(id);
+      return next;
+    });
+  }
+
   entryOf(id: number): MessageCacheEntry {
     return this._messageCache().get(id) ?? emptyMessageCacheEntry();
   }
