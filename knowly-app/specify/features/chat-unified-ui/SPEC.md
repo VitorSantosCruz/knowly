@@ -149,55 +149,114 @@ No Tier 3 item remains open in this document.
 
 ### Unified navigation surface
 
+> **Amended 2026-08-09** after the first shipped cut of this screen (tab
+> strip that swaps the entire main panel per section) was tried by the
+> product owner and reported as unintuitive — reaching a person/group AND
+> checking prior history both took too many clicks, and the tab strip hid
+> most of the screen's own value at any given moment. Direction given:
+> follow the layout pattern already proven intuitive by established
+> messaging apps (WhatsApp Web, Telegram Web, Slack) — a persistent list
+> column with search and direct new-conversation/new-group actions, never
+> hidden behind a tab, alongside a persistent conversation column — rather
+> than reinvent one. REQ-1/REQ-2/REQ-3/REQ-5/REQ-6/REQ-7 below replace the
+> tab-strip design; REQ-4/REQ-8 through REQ-32 (search, group
+> creation/visibility/admin) are unaffected in behavior, only in where
+   they're anchored on screen.
+
 - **REQ-1 [Ubiquitous]** The system shall provide a single top-level
   navigation entry ("Conversas") that replaces the previously separate
   `/chat`, `/support`, and `/conversations` entries, opening one screen
-  with a single sidebar and a single main panel.
-- **REQ-2 [Ubiquitous]** The sidebar shall present four distinct,
-  always-visible sections, each preserving its existing behavior and
-  permission model exactly as already specified elsewhere, with this
-  SPEC changing only where each is reached from:
-  - **People** — every user the current viewer is eligible to message
-    1:1, per `internal-team-chat`'s existing eligibility rules (REQ-2),
-    each with their existing/most-recent 1:1 conversation if one exists.
-  - **Groups** — every group conversation the viewer is a participant
-    of, plus (new, see "Group visibility and discovery" below)
+  laid out as three persistent columns — a directory column, a
+  conversation column, and a contacts column (REQ-2a/REQ-2b/REQ-2c) —
+  instead of a sidebar that swaps the main panel's entire content per
+  section.
+- **REQ-2 [Ubiquitous]** The directory column (leftmost) shall always
+  show, simultaneously and without a tab/section switch: (a) three
+  direct action buttons — "Abrir chamado de suporte", "Falar com a base
+  de artigos", "Criar grupo" — and (b) a single unified, searchable list
+  combining every person, group, existing Support channel/ticket, and
+  existing "Base de artigos" conversation the viewer already has, sorted
+  most-recently-active first, exactly like an established messaging
+  app's chat list. This list is never itself hidden behind a section
+  tab; it is the directory column's permanent content.
+  - **People rows** — every user the current viewer is eligible to
+    message 1:1, per `internal-team-chat`'s existing eligibility rules
+    (REQ-2), each with their existing/most-recent 1:1 conversation if
+    one exists.
+  - **Group rows** — every group conversation the viewer is a
+    participant of, plus (see "Group visibility and discovery" below)
     discoverable groups the viewer isn't yet part of, plus
     `STAFF_ADMIN`/`MEMBER_ADMIN` look-ins per `internal-team-chat`'s
     existing REQ-1/REQ-7/REQ-8, unchanged.
-  - **Support** — the existing Support experience (member's own channel,
-    staff inbox/claim, view-only history, transfer, close) per
-    `internal-team-chat`'s existing REQ-10 through REQ-18, unchanged,
-    including its own permission gating.
-  - **Base de artigos** — the existing RAG assistant per `conversations`'
-    existing REQ-1 through REQ-8, unchanged.
-- **REQ-3 [Event-Driven]** When the user clicks a person in the People
-  section, the system shall open that person's existing 1:1 conversation
-  if one exists, or create-and-open a new one if it doesn't — with no
-  separate "Nova conversa" step, dialog, or route in between.
+  - **Support row(s)** — the viewer's own existing Support channel/ticket
+    (member), or the staff unclaimed-inbox/claimed-ticket entries (staff
+    with the support permission), each opening the existing Support
+    experience (`internal-team-chat` REQ-10–REQ-18, unchanged) in the
+    conversation column. The "Abrir chamado de suporte" action (REQ-2)
+    is the only way to start a brand-new one; existing ones are rows
+    like any other conversation, not hidden behind a separate action.
+  - **"Base de artigos" rows** — every existing RAG conversation the
+    viewer has (`conversations`' existing REQ-1 through REQ-8; a viewer
+    may have more than one), each opening in the conversation column
+    exactly as today. The "Falar com a base de artigos" action (REQ-2)
+    always starts a new one — mirrors REQ-2 of `conversations`' own
+    SPEC ("When the user starts a new conversation... create it... make
+    it the active conversation") — existing ones are reached via their
+    row, never via that action.
+- **REQ-2a [Ubiquitous]** The conversation column (center) shall show
+  whichever conversation, group, Support channel, or "Base de artigos"
+  conversation is currently open, using the existing unchanged
+  components/behavior for each kind (`message-thread`/
+  `conversation-detail`, `SupportPageComponent`,
+  `ConversationsPageComponent` respectively) — this SPEC changes only
+  which column renders them, not their own behavior.
+- **REQ-2b [Ubiquitous]** The contacts column (rightmost) shall show a
+  second, independent view of the same directory data (REQ-2), always
+  partitioned into two groups: people/groups the viewer has an existing
+  conversation with ("já falou"), and people/groups the viewer is
+  eligible to talk to but hasn't yet ("ainda não falou") — each with its
+  own search field filtering only its own partition. Clicking an entry
+  here behaves identically to clicking the equivalent row in the
+  directory column (REQ-3/REQ-20/REQ-21). This column is a convenience
+  view for "who have I talked to," derived entirely from data the
+  directory column already loads — it introduces no new backend
+  endpoint or state.
+- **REQ-2c [State-Driven]** While the viewport is narrower than the
+  layout's two-column breakpoint, the system shall collapse to showing
+  one column at a time (directory or conversation, whichever the viewer
+  last activated), with the contacts column (REQ-2b) reachable as a
+  secondary view rather than simultaneously rendered — mirroring the
+  existing collapsible-sidebar convention already used by the app shell.
+- **REQ-3 [Event-Driven]** When the user clicks a person's row in the
+  directory or contacts column, the system shall open that person's
+  existing 1:1 conversation if one exists, or create-and-open a new one
+  if it doesn't — with no separate "Nova conversa" step, dialog, or
+  route in between.
 - **REQ-4 [Unwanted Behavior]** If the user clicks a person they are not
   eligible to message 1:1 (per the backend's existing eligibility rule),
-  then the system shall not offer that person in the People section in
-  the first place — mirrors `internal-team-chat` REQ-2's existing
+  then the system shall not offer that person as a row in either column
+  in the first place — mirrors `internal-team-chat` REQ-2's existing
   eligibility filtering, just applied to a list instead of a picker.
 - **REQ-5 [Event-Driven]** When the user clicks a group they already
-  participate in (in the Groups section), the system shall open that
-  group's conversation view, identically to `internal-team-chat`'s
+  participate in, the system shall open that group's conversation view
+  in the conversation column, identically to `internal-team-chat`'s
   existing REQ-1/REQ-7/REQ-8 behavior (including the distinct "looking
   in" framing for an admin's look-in access — note: this is the
   existing tenant-level `STAFF_ADMIN`/`MEMBER_ADMIN` oversight, a
   different concept from the new per-group "group admin" role
   introduced below).
-- **REQ-6 [Event-Driven]** When the user selects the Support section,
-  the system shall show the existing Support experience appropriate to
-  the viewer's role — own channel (member), unclaimed inbox/claimed
-  ticket (staff with the support permission), or read-only browse
-  (support-view permission) — exactly as `internal-team-chat`'s existing
-  REQ-10 through REQ-18 already specify, unchanged.
-- **REQ-7 [Event-Driven]** When the user selects "Base de artigos", the
-  system shall show the existing RAG conversation list/detail view
-  (`conversations`' existing REQ-1 through REQ-8) inside the same
-  screen's main panel, unchanged in its own behavior.
+- **REQ-6 [Event-Driven]** When the user activates "Abrir chamado de
+  suporte" or clicks an existing Support row, the system shall show the
+  existing Support experience appropriate to the viewer's role — own
+  channel (member), unclaimed inbox/claimed ticket (staff with the
+  support permission), or read-only browse (support-view permission) —
+  exactly as `internal-team-chat`'s existing REQ-10 through REQ-18
+  already specify, unchanged — in the conversation column.
+- **REQ-7 [Event-Driven]** When the user activates "Falar com a base de
+  artigos" or clicks an existing "Base de artigos" row, the system shall
+  show the existing RAG conversation view (`conversations`' existing
+  REQ-1 through REQ-8) in the conversation column, unchanged in its own
+  behavior.
 
 ### Search (by name only — see "Out of scope / Future work" for message
 content search)
