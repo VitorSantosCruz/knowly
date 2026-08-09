@@ -987,6 +987,89 @@ SPEC before implementation, roughly in this order:**
     this time: `npm run format`, `format:check`, `test` (186 passing),
     `build` all green; committed.
 
+16. **Chat message full-text search — deferred future improvement, not yet
+    scheduled (documented 2026-08-08, not started).** Currently mid-flight:
+    two SPECs are being written to overhaul the chat UI/permissions —
+    `knowly-app/specify/features/chat-unified-ui/SPEC.md` (single nav
+    surface for 1:1/groups/Support/RAG-article-chat, client-side name
+    search, clickable people list instead of a "Nova conversa" button,
+    "Criar grupo" flow) and `knowly-api/specify/features/chat-group-membership-management/SPEC.md`
+    (per-group admin role separate from `STAFF_ADMIN`/`MEMBER_ADMIN`,
+    add/remove/leave, `PRIVATE`/`REQUEST_TO_JOIN`/`PUBLIC` group
+    visibility with join-request approval, auto-succession when a group's
+    last admin leaves, permanent group deletion with 4 authorization
+    paths). **Explicitly out of scope for both of those SPECs**: a
+    Slack-level search over message *content* — "de quem / para quem-onde
+    (grupo) / quando" filters plus free-text recall of a remembered
+    fragment when the user doesn't recall who or which group they said it
+    in. User's own words when deferring it: "como é uma coisa mais
+    complexa, deixe como melhoria futura, mas documente muito bem para não
+    ficar perdido." Full technical analysis already done by
+    `data-architect-dba` so a future SPEC doesn't have to redo the
+    investigation:
+    - `chat_messages.content` today is plain `TEXT`, zero search indexing
+      beyond the `(conversation_id, id DESC)` cursor index — a substring
+      search today would be an unindexed `ILIKE` sequential scan.
+    - **Recommended approach: native Postgres full-text search, not
+      pgvector.** pgvector/embeddings solve *semantic* recall ("about
+      topic X" even if reworded); the stated need is *lexical* recall
+      ("I remember roughly what I typed") — `tsvector`/`tsquery` + GIN is
+      the right tool, far cheaper (no embedding pipeline, no per-message
+      API calls, no drift risk) at this corpus size. Do **not** reach for
+      Elasticsearch either — a second search datastore means a
+      sync/dual-write pipeline and re-implementing `chat_participants`
+      tenant/ACL scoping inside it, pure overkill for an internal-chat
+      corpus (thousands–low tens of thousands of rows per tenant, not
+      Slack-corporate scale).
+    - Sketch migration (next free number, confirm against `ls` at
+      implementation time — `V31` as of this writing, but
+      `chat-group-membership-management` will likely land its own
+      migration(s) first): `ALTER TABLE chat_messages ADD COLUMN
+      content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('portuguese',
+      content)) STORED;` + `CREATE INDEX ix_chat_messages_content_tsv ON
+      chat_messages USING GIN (content_tsv);`. Stored/generated column is
+      safe because messages are immutable (no edit/delete of content is
+      in scope anywhere in chat today). Language config (`'portuguese'`
+      vs `'simple'`) needs an explicit call at implementation time — stemming
+      helps recall but can hurt on mixed PT/EN/jargon content.
+    - Sketch endpoint: `GET /api/chat/messages/search` with `q` (parsed
+      via `websearch_to_tsquery()`, not raw `to_tsquery()`, so free-text
+      input like quotes/`-exclude` just works), optional `senderId`,
+      optional `conversationId` (covers both `PEER_GROUP` and
+      `PEER_DIRECT` — no separate `groupId` param needed),
+      optional `dateFrom`/`dateTo`, required cursor pagination. Default
+      sort **chronological, not `ts_rank` relevance** for v1 (matches the
+      "I don't remember who/where, only roughly what" use case better,
+      and avoids an unindexed per-row rank computation); relevance
+      ordering is a valid future increment, not a v1 requirement.
+    - **Critical constraint carried over from both current SPECs, do not
+      relax without an explicit product decision**: search must join
+      through `chat_participants` filtered to the caller, or the
+      Support permission model, before any filter is applied — never
+      trust a client-supplied `conversationId` without re-verifying the
+      caller's access first. The `STAFF_ADMIN`/`MEMBER_ADMIN`
+      "oversight look-in" bypass (`chat.group.oversight_view`,
+      `REQ-5a`/`REQ-5b`, and the archived-group staff-visibility grants
+      in `chat-group-membership-management`) was scoped as *one-group,
+      explicitly-opened inspection* — silently reusing it for a search
+      endpoint would let staff keyword-search every group platform-wide
+      in one request, which is a materially different capability and
+      needs its own explicit product yes/no, not an inferred
+      generalization. Whether Support-channel content is in scope for
+      this search at all also needs an explicit call — the user's stated
+      use case sounds peer/group-chat specific, not support-ticket
+      specific. Once `chat-group-membership-management` ships its
+      soft-delete (REQ-49) and archive semantics, search must also
+      respect those — a deleted/archived group's messages must not
+      surface for anyone who's lost access.
+    - Main implementation risk to test explicitly: an integration test
+      asserting search never returns a message from a conversation the
+      caller isn't currently a participant of (this is the standard
+      cross-tenant-leak failure mode for this kind of feature).
+    Needs its own SPEC (EARS requirements, Tier 3 decisions on the
+    look-in/Support-scope questions above, language config) before any
+    PLAN/implementation — do not start from this bullet alone.
+
 Backend and frontend work can proceed in parallel per feature once each
 one has an approved SPEC/PLAN that defines the API contract.
 
