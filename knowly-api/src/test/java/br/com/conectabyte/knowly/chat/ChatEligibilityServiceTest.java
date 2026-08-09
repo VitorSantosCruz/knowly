@@ -145,6 +145,38 @@ class ChatEligibilityServiceTest {
         assertThat(service.resolveDirectAnchor(staff, member)).isEqualTo(10L);
     }
 
+    // --- product decision (2026-08-09): a staff actor with an active tenant session must never
+    // be able to open/create a DIRECT conversation with another staff member either -- the active
+    // tenant REPLACES the staff-only anchor for direct-scope resolution, same exclusivity already
+    // applied to listCandidates' "direct" scope via directScopeAnchorsForActor ---
+
+    @Test
+    void resolveDirectAnchorRejectsAStaffActorWithAnActiveTenantTargetingAnotherStaffUser() {
+        User staff = staffUser();
+        User otherStaff = new User("other-staff@example.com");
+        otherStaff.setId(3L);
+        otherStaff.setGlobalRole(GlobalRole.STAFF);
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(otherStaff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        assertThatThrownBy(() -> service.resolveDirectAnchor(staff, otherStaff))
+                .isInstanceOf(ChatIneligibleParticipantException.class);
+    }
+
+    @Test
+    void resolveDirectAnchorStillWorksForAStaffActorWithNoActiveTenantTargetingAnotherStaffUser() {
+        User staff = staffUser();
+        User otherStaff = new User("other-staff@example.com");
+        otherStaff.setId(3L);
+        otherStaff.setGlobalRole(GlobalRole.STAFF);
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantMembershipRepository.findByUserAndActiveTrue(otherStaff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
+
+        assertThat(service.resolveDirectAnchor(staff, otherStaff)).isNull();
+    }
+
     @Test
     void listCandidatesForGroupScopeOnlyReturnsEligibleUsers() {
         User staff = staffUser();

@@ -120,9 +120,16 @@ public class ChatEligibilityService {
      * evaluating capacity-per-conversation exactly like group eligibility (REQ-5). Prefers a
      * concrete tenant anchor over the {@code null} (staff-only) anchor when both are shared, since
      * a 1:1 between two tenant peers should be treated as a member-only conversation.
+     *
+     * <p>Product decision (2026-08-09): reuses {@link #directScopeAnchorsForActor} rather than
+     * {@link #eligibleAnchorsForActor} -- while the actor has an active tenant in their session,
+     * that tenant *replaces* their staff-only anchor for the direct scope, exactly as already
+     * enforced for the "Haven't talked yet" candidate list. Without this, a staff actor could
+     * bypass that exclusion by targeting a known staff user id directly via {@code POST
+     * /api/chat/conversations} instead of the candidate list.
      */
     public Long resolveDirectAnchor(User actor, User target) {
-        Set<Long> actorAnchors = eligibleAnchorsForActor(actor);
+        Set<Long> actorAnchors = directScopeAnchorsForActor(actor);
         Set<Long> targetAnchors = eligibleAnchorsFor(target);
         Set<Long> shared = new HashSet<>(actorAnchors);
         shared.retainAll(targetAnchors);
