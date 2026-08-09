@@ -1,4 +1,5 @@
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { LucideLibrary, LucidePencil } from '@lucide/angular';
 import { EMPTY, catchError, of } from 'rxjs';
@@ -196,6 +197,7 @@ export class ConversationsPageComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
   private readonly conversationService = inject(ConversationService);
   private readonly translocoService = inject(TranslocoService);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly newConversationButtonClass = buttonClass('primary');
   protected readonly sendButtonClass = buttonClass('primary');
@@ -217,6 +219,7 @@ export class ConversationsPageComponent implements OnInit {
     this.conversations().find((c) => c.id === this.activeConversationId())?.icon ?? null;
 
   private hasLoaded = false;
+  private pendingConversationId: number | null = null;
 
   constructor() {
     effect(() => {
@@ -225,12 +228,35 @@ export class ConversationsPageComponent implements OnInit {
       if (tenantId !== null && !this.hasLoaded) {
         this.hasLoaded = true;
         this.loadConversations(tenantId);
+
+        if (this.pendingConversationId !== null) {
+          this.onSelectConversation(this.pendingConversationId);
+          this.pendingConversationId = null;
+        }
       }
     });
   }
 
   ngOnInit(): void {
     this.activeTenantService.fetch();
+
+    // Amendment: opening a specific knowledge-base conversation from the sidebar navigates to
+    // `/chat/articles/:conversationId` — read it here so this page opens that conversation
+    // directly instead of always landing on the bare list (matching `ConversationDetailComponent`'s
+    // peer/group behavior).
+    this.route.paramMap.subscribe((params) => {
+      const idParam = params.get('conversationId');
+      if (idParam === null) {
+        return;
+      }
+
+      const conversationId = Number(idParam);
+      if (this.activeTenantService.activeTenantId() !== null) {
+        this.onSelectConversation(conversationId);
+      } else {
+        this.pendingConversationId = conversationId;
+      }
+    });
   }
 
   private loadConversations(tenantId: number): void {
