@@ -1170,6 +1170,76 @@ entry — not built here.
 group/1:1 access control, admin oversight override, support-channel
 permission gating).
 
+**`chat-group-membership-management` backend is now implemented
+(2026-08-09)** — amends `internal-team-chat` per its own SPEC/PLAN in
+`knowly-api/specify/features/chat-group-membership-management/`. New
+migration `V31__chat_group_membership_management.sql`: `is_admin`
+(boolean) on `chat_participants`; `visibility`
+(`PRIVATE`/`REQUEST_TO_JOIN`/`PUBLIC`, default `PRIVATE`) and
+`archived_at` on `chat_conversations`; **`SoftDeleteFilter` extended to
+the three chat entities it didn't cover yet** (`ChatConversation`,
+`ChatParticipant`, `ChatMessage` — each now carries the `@FilterDef`/
+`@Filter` pairing alongside `ChatConversation`'s existing `TenantFilter`,
+mirroring `Conversation`/`AccessGroup`'s dual-filter shape); new
+`chat_join_requests`/`chat_join_requests_aud` tables (own lifecycle,
+partial-unique index for "one PENDING request per (conversation,
+requester)"). New `Permission.CHAT_GROUP_DELETE` (no `viewDependency()`).
+`ChatConversationService` gained: `promoteToAdmin`/`addParticipants`/
+`removeParticipant`/`leaveConversation` (with `handleAdminDepartureIfNeeded`
+auto-succession, REQ-54, tie-broken by `joinedAt` then `user.id`, run
+inside the same transaction as the triggering removal)/`archiveIfEmptied`
+(leave-only, `PRIVATE`/`REQUEST_TO_JOIN` archives on emptying,
+`PUBLIC` never does)/`changeVisibility`/`listDiscoverableGroups`
+(`PageResponseDto<ChatDiscoverableGroupDto>`, eligibility+already-joined
+filtered in-memory after the DB page per PLAN)/`submitJoinRequest`/
+`listJoinRequests`/`approveJoinRequest` (**re-derives
+`ChatEligibilityService.isEligible` a second time, at approval, not just
+at submission — REQ-30a, an AppSec-mandated fix to a real TOCTOU gap;
+leaves the request `PENDING` rather than auto-rejecting on failure**)/
+`rejectJoinRequest`/`joinPublicGroup`/`deleteConversation` (REQ-48's four
+authorization paths tried in order — `STAFF_ADMIN` unconditional, active
+`MEMBER_ADMIN` of the group's tenant, a `CHAT_GROUP_DELETE` holder in
+that tenant, or a current group admin of that specific group — the only
+method in this feature carrying `@AllowDeletedForOversight` +
+`@BypassTenantFilterForOversight`, needed so it can distinguish REQ-51
+not-found from REQ-53 already-deleted before re-deriving authorization
+from scratch). `requireReadableConversation` gained a new archived-group
+branch (REQ-44/45/46: any `STAFF` role for an archived **tenant** group,
+`STAFF_ADMIN`-only for an archived **staff** group — a deliberately new,
+broader-than-REQ-5a/5b grant, checked *before* the existing active-group
+`STAFF_ADMIN`/`MEMBER_ADMIN` look-in so `MEMBER_ADMIN` does **not**
+inherit residual access to archived history). `ChatConversationDetailDto`
+extended additively (`visibility`, `archivedAt`, `adminUserIds`). All new
+endpoints live on the existing `ChatController` (`/api/chat/**`) per the
+PLAN's contract table; five new exception types map to
+`ChatExceptionHandler` (`ChatGroupStateConflictException` carries a
+`Detail` enum — `NOT_PEER_GROUP`/`ARCHIVED`/`ALREADY_DELETED`/
+`WRONG_VISIBILITY_MODE`/`WOULD_EMPTY_GROUP` — covering four-plus distinct
+409 conditions with one exception class, per PLAN's own precedent).
+`./mvnw spotless:apply`/`verify` green; service-level unit coverage
+(`ChatGroupMembershipServiceTest`) includes the full admin-role/succession
+matrix (including the tie-break-determinism and REQ-30a
+eligible-then-revoked scenarios), the AppSec-required 403 two-case
+negative matrix (admin-of-a-different-group vs. non-admin-participant-
+of-this-group) for `addParticipants`/`removeParticipant`, and all four
+deletion-path positives with their negative-scope proofs; one controller
+integration test (`ChatGroupMembershipControllerIntegrationTest`)
+exercises the full lifecycle end-to-end through real CSRF/session.
+**One pragmatic scope reduction, not silently made**: REQ-12/17/26/37/41's
+"archived/deleted → 409, not 404" distinction is only implemented with
+the `@AllowDeletedForOversight` load path for `deleteConversation`
+itself (where REQ-53 makes it a hard acceptance criterion); every other
+group-mutating method relies on `SoftDeleteFilter`'s default-on
+exclusion, so a request against an already-*deleted* (not just archived)
+group surfaces as a plain 404 there instead of a distinct 409 — consistent
+with REQ-49's "no longer reachable through any normal path" wording, but
+worth flagging if a future SPEC amendment wants that distinction
+surfaced everywhere. Full formal per-task TDAD commit granularity (one
+commit per one of TASKS.md's 138 items) was not practical at this scope;
+work landed as a small number of logically-scoped commits instead
+(migration/schema, entities+filters, service+controller+DTOs+exceptions,
+tests+docs), each internally following Red→Green.
+
 **`internal-team-chat` (item 14) frontend is now fully implemented
 (2026-07-31)** — all 119 `knowly-app/specify/features/internal-team-chat/
 TASKS.md` items done, committed. `chat.service.ts`/`support.service.ts`

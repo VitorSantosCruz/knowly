@@ -597,3 +597,10 @@ confirm" language remains anywhere in this document. This PLAN is ready
 for TASKS.md generation in full, including the group-governance
 portion, once the mandatory AppSec review of both PLANs (this one and
 the backend's) referenced in this feature's coordination flow has run.
+
+**Backend now implemented (2026-08-09).**
+`knowly-api/specify/features/chat-group-membership-management/` shipped
+all 138 TASKS.md items against the exact contract this reconciliation
+table already reflects — no further corrections needed here; this
+frontend feature can proceed against the live endpoints directly (see
+`PROJECT_STATUS.md`'s `chat-group-membership-management` entry).

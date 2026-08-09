@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.chat;
 
 import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.softdelete.SoftDeleteFilter;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantFilter;
 import jakarta.persistence.Column;
@@ -19,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -39,6 +41,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Filter(name = TenantFilter.NAME, condition = "tenant_id = :" + TenantFilter.PARAMETER)
+@FilterDef(name = SoftDeleteFilter.NAME, defaultCondition = "deleted_at is null")
+@Filter(name = SoftDeleteFilter.NAME)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -61,6 +65,16 @@ public class ChatConversation {
     @ManyToOne
     @JoinColumn(name = "owner_user_id")
     private User owner;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ChatGroupVisibility visibility = ChatGroupVisibility.PRIVATE;
+
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

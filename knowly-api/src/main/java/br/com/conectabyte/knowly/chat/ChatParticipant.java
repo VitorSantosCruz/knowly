@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.chat;
 
 import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.softdelete.SoftDeleteFilter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -15,6 +16,8 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -30,6 +33,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
         uniqueConstraints = @UniqueConstraint(columnNames = {"conversation_id", "user_id"}))
 @Audited
 @EntityListeners(AuditingEntityListener.class)
+@FilterDef(name = SoftDeleteFilter.NAME, defaultCondition = "deleted_at is null")
+@Filter(name = SoftDeleteFilter.NAME)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -46,6 +51,12 @@ public class ChatParticipant {
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Column(name = "is_admin", nullable = false)
+    private boolean admin = false;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @CreatedDate
     @Column(name = "joined_at", nullable = false, updatable = false)

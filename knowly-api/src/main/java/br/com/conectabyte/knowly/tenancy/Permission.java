@@ -12,7 +12,8 @@ public enum Permission {
     DASHBOARD_VIEW,
     PROFILE_VIEW,
     PROFILE_EDIT,
-    SUPPORT_CHANNEL_VIEW;
+    SUPPORT_CHANNEL_VIEW,
+    CHAT_GROUP_DELETE;
 
     /**
      * permission-granularity-model REQ-2: the view/list permission this permission requires the

@@ -34,6 +34,7 @@ class ChatConversationServiceTest {
     @Mock private ChatConversationRepository chatConversationRepository;
     @Mock private ChatParticipantRepository chatParticipantRepository;
     @Mock private ChatMessageRepository chatMessageRepository;
+    @Mock private ChatJoinRequestRepository chatJoinRequestRepository;
     @Mock private SupportTicketRepository supportTicketRepository;
     @Mock private ChatEligibilityService chatEligibilityService;
     @Mock private ChatOversightConversationLoader oversightConversationLoader;
@@ -55,6 +56,7 @@ class ChatConversationServiceTest {
                         chatConversationRepository,
                         chatParticipantRepository,
                         chatMessageRepository,
+                        chatJoinRequestRepository,
                         supportTicketRepository,
                         chatEligibilityService,
                         oversightConversationLoader,

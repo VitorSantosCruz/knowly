@@ -1,11 +1,21 @@
 package br.com.conectabyte.knowly.chat;
 
+import java.time.Instant;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
+
+    /** REQ-49: soft-delete every message of a deleted conversation, in the same transaction. */
+    @Modifying
+    @Query(
+            "update ChatMessage m set m.deletedAt = :deletedAt where m.conversation.id ="
+                    + " :conversationId")
+    void softDeleteAllByConversationId(
+            @Param("conversationId") Long conversationId, @Param("deletedAt") Instant deletedAt);
 
     @Query(
             "select m from ChatMessage m where m.conversation.id = :conversationId "
