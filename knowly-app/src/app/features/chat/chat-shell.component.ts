@@ -20,11 +20,13 @@ type QuerySection = 'people' | 'groups' | 'support' | 'articles';
  * UX fix (2026-08-10, reported by a tester): 3 fixed-280px-plus-content columns need real
  * room — `SidebarStateService.viewportIsDesktop()`'s shared 768px breakpoint (tuned for the
  * app-wide single collapsible nav rail) let the 3-column grid try to render well before it
- * actually fit, causing horizontal+vertical scroll everywhere in the 768–1024px range. This is
- * a dedicated, wider breakpoint just for chat's own column collapse, independent of the shared
- * sidebar rail's threshold (unaffected, so other routes keep their existing behavior).
+ * actually fit, causing horizontal+vertical scroll everywhere, then (after raising this to
+ * 1024px) an uncomfortably cramped middle column with real conversation content well past that
+ * too — short messages wrapping across 5–6 lines. This is a dedicated, wider breakpoint just for
+ * chat's own column collapse, independent of the shared sidebar rail's threshold (unaffected, so
+ * other routes keep their existing behavior).
  */
-const CHAT_COLUMNS_QUERY = '(min-width: 1024px)';
+const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
 
 /**
  * Route: `/chat`, `/chat/:conversationId`, `/chat/support/:channelId`,
@@ -78,7 +80,7 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1024px)';
   template: `
     <div
       data-testid="chat-shell"
-      class="page-shell grid h-full min-h-0 grid-rows-1 gap-4 overflow-hidden lg:grid-cols-[280px_1fr_280px]"
+      class="page-shell grid h-full min-h-0 grid-rows-1 gap-4 overflow-hidden xl:grid-cols-[280px_1fr_280px]"
     >
       @if (viewportFitsColumns() || mobileView() === 'directory') {
         <div
