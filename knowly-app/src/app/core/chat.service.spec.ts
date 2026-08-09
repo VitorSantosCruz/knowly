@@ -234,4 +234,28 @@ describe('ChatService', () => {
       )
       .flush([{ userId: 1, nickname: 'Staffer' }]);
   });
+
+  it('getEligibleParticipants returns candidates directly without touching the shared eligibleParticipants signal', () => {
+    service.fetchEligibleParticipants('direct');
+    httpMock
+      .expectOne(
+        (r) => r.url === '/api/chat/eligible-participants' && r.params.get('scope') === 'direct',
+      )
+      .flush([{ userId: 1, nickname: 'Staffer' }]);
+
+    let result: { userId: number; nickname: string }[] | undefined;
+    service.getEligibleParticipants('group', 7).subscribe((candidates) => (result = candidates));
+    httpMock
+      .expectOne(
+        (r) =>
+          r.url === '/api/chat/eligible-participants' &&
+          r.params.get('scope') === 'group' &&
+          r.params.get('tenantId') === '7',
+      )
+      .flush([{ userId: 2, nickname: 'Member' }]);
+
+    expect(result).toEqual([{ userId: 2, nickname: 'Member' }]);
+    // the shared signal (backing the directory's "haven't talked yet" list) is untouched
+    expect(service.eligibleParticipants()).toEqual([{ userId: 1, nickname: 'Staffer' }]);
+  });
 });

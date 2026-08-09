@@ -50,6 +50,24 @@ describe('ChatHeaderComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
   });
 
+  it('the icon+name is a clickable button that emits openInfo on click', () => {
+    fixture.componentRef.setInput('viewerRelation', 'PARTICIPANT');
+    fixture.detectChanges();
+
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector(
+      '[data-testid="chat-header-open-info"]',
+    );
+    expect(button).toBeTruthy();
+    expect(button.tagName).toBe('BUTTON');
+    expect(button.getAttribute('aria-label')).toBeTruthy();
+
+    let emitted = false;
+    fixture.componentInstance.openInfo.subscribe(() => (emitted = true));
+    button.click();
+
+    expect(emitted).toBe(true);
+  });
+
   it('renders a distinct oversight banner, non-"joined" copy, for LOOKING_IN', () => {
     fixture.componentRef.setInput('viewerRelation', 'LOOKING_IN');
     fixture.detectChanges();

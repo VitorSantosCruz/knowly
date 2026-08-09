@@ -65,6 +65,13 @@ describe('ConversationDetailComponent', () => {
       .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
   }
 
+  /** Opens the group info modal via the header's icon+name button — everything that used to be
+   * always-visible under the header now lives there (2026-08-09 UX follow-up). */
+  function openInfoModal() {
+    fixture.nativeElement.querySelector('[data-testid="chat-header-open-info"]').click();
+    fixture.detectChanges();
+  }
+
   it('opens the conversation on route param change and passes data into message-thread', () => {
     fixture.detectChanges();
     flushOpen([1, 2]);
@@ -123,24 +130,34 @@ describe('ConversationDetailComponent', () => {
       .flush({ messages: [], nextCursor: null });
   });
 
-  it('shows "sair do grupo" for a genuine participant, not for a LOOKING_IN viewer (REQ-16)', () => {
+  it('the header icon+name opens the group info modal, which hosts "leave group" for a genuine participant', () => {
     fixture.detectChanges();
     flushOpen([1, 2]);
     fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="leave-group"]')).toBeNull();
+
+    openInfoModal();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="group-info-modal"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="leave-group"]')).toBeTruthy();
   });
 
-  it('omits "sair do grupo" for a LOOKING_IN viewer', () => {
+  it('omits "leave group" for a LOOKING_IN viewer, even with the modal open', () => {
     fixture.detectChanges();
     flushOpen([2, 3]);
     fixture.detectChanges();
+
+    openInfoModal();
+
     expect(fixture.nativeElement.querySelector('[data-testid="leave-group"]')).toBeNull();
   });
 
-  it('confirming "sair do grupo" calls ChatGroupService.leave and navigates away on success (REQ-17)', () => {
+  it('confirming "leave group" calls ChatGroupService.leave and navigates away on success (REQ-17)', () => {
     fixture.detectChanges();
     flushOpen([1, 2]);
     fixture.detectChanges();
+    openInfoModal();
 
     fixture.nativeElement.querySelector('[data-testid="leave-group"]').click();
     fixture.detectChanges();
@@ -157,6 +174,7 @@ describe('ConversationDetailComponent', () => {
     fixture.detectChanges();
     flushOpen([1, 2]);
     fixture.detectChanges();
+    openInfoModal();
 
     fixture.nativeElement.querySelector('[data-testid="leave-group"]').click();
     fixture.detectChanges();
@@ -171,14 +189,47 @@ describe('ConversationDetailComponent', () => {
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeTruthy();
   });
 
-  it('renders GroupAdminPanelComponent for a PEER_GROUP conversation', () => {
+  it('renders GroupAdminPanelComponent inside the group info modal for a PEER_GROUP conversation', () => {
     fixture.detectChanges();
     flushOpen([1, 2]);
     fixture.detectChanges();
+    openInfoModal();
+
     // Non-admin fixture (empty adminUserIds): the panel itself renders nothing visible, but its
     // host element is present in the tree — see group-admin-panel.component.spec.ts for its
     // own admin-gating coverage.
     expect(fixture.nativeElement.querySelector('app-group-admin-panel')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="group-admin-panel"]')).toBeNull();
+  });
+
+  it('a PEER_DIRECT conversation opens the person info modal instead, for the other participant', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/chat/conversations/1').flush({
+      id: 1,
+      kind: 'PEER_DIRECT',
+      tenantId: null,
+      title: null,
+      participantUserIds: [1, 2],
+      participantNicknames: { 1: 'Me', 2: 'Bob' },
+      visibility: 'PRIVATE',
+      archivedAt: null,
+      adminUserIds: [],
+    });
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/conversations/1/messages')
+      .flush({ messages: [], nextCursor: null });
+    httpMock
+      .expectOne('/api/users/me/profile')
+      .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    fixture.detectChanges();
+
+    openInfoModal();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="group-info-modal"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="person-info-modal"]')).toBeTruthy();
+
+    httpMock
+      .expectOne('/api/users/2/profile')
+      .flush({ userId: 2, email: 'bob@x.com', fields: { fullName: 'Bob' }, avatarUrl: null });
   });
 });

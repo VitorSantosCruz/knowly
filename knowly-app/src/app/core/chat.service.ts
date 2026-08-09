@@ -241,6 +241,24 @@ export class ChatService {
       .subscribe((candidates) => this._eligibleParticipants.set(candidates));
   }
 
+  /**
+   * Same endpoint as `fetchEligibleParticipants`, but returns the list directly instead of
+   * writing it into the shared `eligibleParticipants` signal — that signal already backs the
+   * directory's "haven't talked yet" People list (`scope: 'direct'`); a caller fetching
+   * `'group'`-scoped invite candidates (e.g. the group info modal's "invite someone" picker)
+   * must not clobber it just because both happen to be visible on the same page.
+   */
+  getEligibleParticipants(scope: EligibilityScope, tenantId?: number): Observable<CandidateUser[]> {
+    let params = new HttpParams().set('scope', scope);
+    if (tenantId !== undefined) {
+      params = params.set('tenantId', tenantId);
+    }
+
+    return this.http
+      .get<CandidateUser[]>('/api/chat/eligible-participants', { params })
+      .pipe(catchError(() => of([] as CandidateUser[])));
+  }
+
   /** Small cross-service seam for `ChatGroupService`: writes a fresh detail (e.g. from a
    * governance action's response) straight into this service's own `_details` map, the single
    * source of truth for conversation detail state — never a second, parallel copy. */

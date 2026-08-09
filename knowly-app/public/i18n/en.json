@@ -633,7 +633,13 @@
     },
     "header": {
       "lookingInBanner": "You're viewing this as support/admin oversight — you are not a member of this group.",
-      "lookingInAriaLabel": "Viewing as support/admin oversight, not as a member"
+      "lookingInAriaLabel": "Viewing as support/admin oversight, not as a member",
+      "openInfoAriaLabel": "View details for {{title}}"
+    },
+    "groupInfoModal": {
+      "membersTitle": "Members",
+      "inviteButton": "Invite someone",
+      "addSelected": "Add to group"
     },
     "picker": {
       "candidateAriaLabel": "Select {{nickname}}"
@@ -750,6 +756,7 @@
   "common": {
     "confirm": "Confirm",
     "cancel": "Cancel",
+    "close": "Close",
     "noActiveTenant": "No active tenant selected.",
     "confirmDialog": {
       "loading": "Generating confirmation word…",

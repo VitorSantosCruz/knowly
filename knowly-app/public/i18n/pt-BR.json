@@ -633,7 +633,13 @@
     },
     "header": {
       "lookingInBanner": "Você está visualizando isso como supervisão de suporte/admin — você não é membro deste grupo.",
-      "lookingInAriaLabel": "Visualizando como supervisão de suporte/admin, não como membro"
+      "lookingInAriaLabel": "Visualizando como supervisão de suporte/admin, não como membro",
+      "openInfoAriaLabel": "Ver detalhes de {{title}}"
+    },
+    "groupInfoModal": {
+      "membersTitle": "Membros",
+      "inviteButton": "Convidar alguém",
+      "addSelected": "Adicionar ao grupo"
     },
     "picker": {
       "candidateAriaLabel": "Selecionar {{nickname}}"
@@ -750,6 +756,7 @@
   "common": {
     "confirm": "Confirmar",
     "cancel": "Cancelar",
+    "close": "Fechar",
     "noActiveTenant": "Nenhum tenant ativo selecionado.",
     "confirmDialog": {
       "loading": "Gerando palavra de confirmação…",
