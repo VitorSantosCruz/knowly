@@ -123,16 +123,14 @@ describe('GroupAdminPanelComponent', () => {
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="reject-request-5"]').click();
-    httpMock
-      .expectOne('/api/chat/conversations/1/join-requests/5/reject')
-      .flush({
-        id: 5,
-        conversationId: 1,
-        requesterUserId: 9,
-        requesterNickname: 'Dan',
-        status: 'REJECTED',
-        decidedAt: 'now',
-      });
+    httpMock.expectOne('/api/chat/conversations/1/join-requests/5/reject').flush({
+      id: 5,
+      conversationId: 1,
+      requesterUserId: 9,
+      requesterNickname: 'Dan',
+      status: 'REJECTED',
+      decidedAt: 'now',
+    });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="reject-request-5"]')).toBeNull();

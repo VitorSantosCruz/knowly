@@ -165,16 +165,14 @@ describe('ChatDirectoryComponent', () => {
     fixture.detectChanges();
 
     fixture.nativeElement.querySelector('[data-testid="chat-directory-row-group:10"]').click();
-    httpMock
-      .expectOne('/api/chat/conversations/10/join-requests')
-      .flush({
-        id: 1,
-        conversationId: 10,
-        requesterUserId: 1,
-        requesterNickname: 'Me',
-        status: 'PENDING',
-        decidedAt: null,
-      });
+    httpMock.expectOne('/api/chat/conversations/10/join-requests').flush({
+      id: 1,
+      conversationId: 10,
+      requesterUserId: 1,
+      requesterNickname: 'Me',
+      status: 'PENDING',
+      decidedAt: null,
+    });
     fixture.detectChanges();
 
     expect(

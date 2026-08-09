@@ -142,16 +142,14 @@ describe('ChatGroupService', () => {
         ]);
 
       service.approveJoinRequest(1, 7).subscribe();
-      httpMock
-        .expectOne('/api/chat/conversations/1/join-requests/7/approve')
-        .flush({
-          id: 7,
-          conversationId: 1,
-          requesterUserId: 5,
-          requesterNickname: 'Carol',
-          status: 'APPROVED',
-          decidedAt: 'now',
-        });
+      httpMock.expectOne('/api/chat/conversations/1/join-requests/7/approve').flush({
+        id: 7,
+        conversationId: 1,
+        requesterUserId: 5,
+        requesterNickname: 'Carol',
+        status: 'APPROVED',
+        decidedAt: 'now',
+      });
 
       expect(service.pendingJoinRequests().get(1)).toEqual([]);
       httpMock.expectOne('/api/chat/conversations/1').flush(detailFixture());
@@ -234,16 +232,14 @@ describe('ChatGroupService', () => {
         ]);
 
       service.rejectJoinRequest(1, 7).subscribe();
-      httpMock
-        .expectOne('/api/chat/conversations/1/join-requests/7/reject')
-        .flush({
-          id: 7,
-          conversationId: 1,
-          requesterUserId: 5,
-          requesterNickname: 'Carol',
-          status: 'REJECTED',
-          decidedAt: 'now',
-        });
+      httpMock.expectOne('/api/chat/conversations/1/join-requests/7/reject').flush({
+        id: 7,
+        conversationId: 1,
+        requesterUserId: 5,
+        requesterNickname: 'Carol',
+        status: 'REJECTED',
+        decidedAt: 'now',
+      });
       expect(
         service
           .pendingJoinRequests()
