@@ -15,6 +15,7 @@ import br.com.conectabyte.knowly.chat.dto.ChatJoinRequestDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessageDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessagePageDto;
 import br.com.conectabyte.knowly.chat.dto.CreateChatConversationRequestDto;
+import br.com.conectabyte.knowly.chat.dto.RenameChatConversationRequestDto;
 import br.com.conectabyte.knowly.chat.dto.SendChatMessageRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import jakarta.validation.Valid;
@@ -128,6 +129,18 @@ public class ChatController {
     public ResponseEntity<ChatConversationDetailDto> promoteToAdmin(
             @PathVariable Long id, @PathVariable Long userId) {
         return ResponseEntity.ok(chatConversationService.promoteToAdmin(currentUser(), id, userId));
+    }
+
+    @PutMapping("/conversations/{id}")
+    @AuditLog(
+            action = "chat.group.rename",
+            resourceType = "ChatConversation",
+            resourceIdExpression = "#id")
+    public ResponseEntity<ChatConversationDetailDto> renameConversation(
+            @PathVariable Long id, @Valid @RequestBody RenameChatConversationRequestDto request) {
+        return ResponseEntity.ok(
+                chatConversationService.renameConversation(
+                        currentUser(), id, request.title(), request.icon()));
     }
 
     @PutMapping("/conversations/{id}/visibility")

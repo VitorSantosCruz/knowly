@@ -25,6 +25,7 @@ import br.com.conectabyte.knowly.chat.exception.ChatGroupStateConflictException.
 import br.com.conectabyte.knowly.chat.exception.ChatIneligibleParticipantException;
 import br.com.conectabyte.knowly.chat.exception.ChatJoinRequestConflictException;
 import br.com.conectabyte.knowly.chat.exception.ChatVisibilityUnchangedException;
+import br.com.conectabyte.knowly.icon.IconKey;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.softdelete.AllowDeletedForOversight;
@@ -179,6 +180,12 @@ public class ChatConversationService {
         // request still defaults to PRIVATE, matching the entity's own default.
         if (kind == ChatConversationKind.PEER_GROUP && request.visibility() != null) {
             newConversation.setVisibility(request.visibility());
+        }
+        // REQ-1/REQ-4 (chat-group-naming-and-icon): icon is only a concept for PEER_GROUP -- a
+        // DIRECT conversation has no icon concept, mirroring how visibility is already ignored for
+        // DIRECT above (an icon present on a DIRECT request is silently ignored, not rejected).
+        if (kind == ChatConversationKind.PEER_GROUP && request.icon() != null) {
+            newConversation.setIcon(request.icon());
         }
         ChatConversation conversation = chatConversationRepository.save(newConversation);
 
@@ -780,6 +787,28 @@ public class ChatConversationService {
         }
 
         conversation.setVisibility(newVisibility);
+        chatConversationRepository.save(conversation);
+
+        return buildDetailDto(conversation);
+    }
+
+    @Transactional
+    @AuditLog(
+            action = "chat.group.rename",
+            resourceType = "ChatConversation",
+            resourceIdExpression = "#conversationId")
+    public ChatConversationDetailDto renameConversation(
+            User actor, Long conversationId, String title, IconKey icon) {
+        // Deliberately no requirePeerGroup call here (unlike promoteToAdmin/addParticipants) -- per
+        // PLAN.md's explicit "Tier-1 no code needed" note: requireGroupAdmin's own
+        // chat_participants.is_admin check already rejects a DIRECT conversation id (never
+        // admin-flagged for that kind) with the same 403/404 this action needs, without a
+        // second, redundant kind-check.
+        ChatConversation conversation = loadConversation(conversationId);
+        requireGroupAdmin(actor, conversation);
+
+        conversation.setTitle(title);
+        conversation.setIcon(icon);
         chatConversationRepository.save(conversation);
 
         return buildDetailDto(conversation);

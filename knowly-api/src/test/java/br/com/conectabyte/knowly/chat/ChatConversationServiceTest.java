@@ -272,6 +272,7 @@ class ChatConversationServiceTest {
                         null,
                         null,
                         java.util.List.of(2L),
+                        null,
                         null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
@@ -286,7 +287,12 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, 10L, "g", java.util.List.of(2L), null);
+                        ChatConversationRequestKind.GROUP,
+                        10L,
+                        "g",
+                        java.util.List.of(2L),
+                        null,
+                        null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(ChatConversationNotFoundException.class);
@@ -311,7 +317,12 @@ class ChatConversationServiceTest {
         // active session tenant, never default to the staff-only null anchor.
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(), null);
+                        ChatConversationRequestKind.GROUP,
+                        null,
+                        "g",
+                        java.util.List.of(),
+                        null,
+                        null);
 
         var result = service.createConversation(actor, request);
 
@@ -346,7 +357,8 @@ class ChatConversationServiceTest {
                         null,
                         "g",
                         java.util.List.of(),
-                        ChatGroupVisibility.PUBLIC);
+                        ChatGroupVisibility.PUBLIC,
+                        null);
 
         service.createConversation(actor, request);
 
@@ -373,7 +385,12 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(), null);
+                        ChatConversationRequestKind.GROUP,
+                        null,
+                        "g",
+                        java.util.List.of(),
+                        null,
+                        null);
 
         service.createConversation(actor, request);
 
@@ -413,7 +430,12 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(), null);
+                        ChatConversationRequestKind.GROUP,
+                        null,
+                        "g",
+                        java.util.List.of(),
+                        null,
+                        null);
 
         var result = service.createConversation(actor, request);
 
@@ -433,7 +455,12 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, null, "g", java.util.List.of(2L), null);
+                        ChatConversationRequestKind.GROUP,
+                        null,
+                        "g",
+                        java.util.List.of(2L),
+                        null,
+                        null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(
@@ -448,7 +475,12 @@ class ChatConversationServiceTest {
 
         var request =
                 new CreateChatConversationRequestDto(
-                        ChatConversationRequestKind.GROUP, 999L, "g", java.util.List.of(), null);
+                        ChatConversationRequestKind.GROUP,
+                        999L,
+                        "g",
+                        java.util.List.of(),
+                        null,
+                        null);
 
         assertThatThrownBy(() -> service.createConversation(actor, request))
                 .isInstanceOf(ChatAccessDeniedException.class);

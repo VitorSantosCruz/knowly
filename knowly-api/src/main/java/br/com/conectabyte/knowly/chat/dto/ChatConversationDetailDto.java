@@ -3,6 +3,7 @@ package br.com.conectabyte.knowly.chat.dto;
 import br.com.conectabyte.knowly.chat.ChatConversation;
 import br.com.conectabyte.knowly.chat.ChatConversationKind;
 import br.com.conectabyte.knowly.chat.ChatGroupVisibility;
+import br.com.conectabyte.knowly.icon.IconKey;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ public record ChatConversationDetailDto(
         ChatConversationKind kind,
         Long tenantId,
         String title,
+        IconKey icon,
         List<Long> participantUserIds,
         Map<Long, String> participantNicknames,
         ChatGroupVisibility visibility,
@@ -51,6 +53,7 @@ public record ChatConversationDetailDto(
                 conversation.getKind(),
                 conversation.getTenant() == null ? null : conversation.getTenant().getId(),
                 conversation.getTitle(),
+                conversation.getIcon(),
                 participantUserIds,
                 participantNicknames,
                 conversation.getVisibility(),

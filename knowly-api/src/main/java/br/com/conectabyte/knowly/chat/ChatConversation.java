@@ -1,6 +1,7 @@
 package br.com.conectabyte.knowly.chat;
 
 import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.icon.IconKey;
 import br.com.conectabyte.knowly.softdelete.SoftDeleteFilter;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantFilter;
@@ -62,6 +63,15 @@ public class ChatConversation {
 
     @Column private String title;
 
+    /**
+     * Optional, fixed-key icon (see {@link IconKey}), shared with the RAG {@code Conversation}
+     * entity's own icon field -- nullable at the schema level even though IconKey is a fixed enum:
+     * an unset icon keeps the frontend's own default/fallback presentation.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 50)
+    private IconKey icon;
+
     @ManyToOne
     @JoinColumn(name = "owner_user_id")
     private User owner;
@@ -97,5 +107,11 @@ public class ChatConversation {
         this.tenant = tenant;
         this.title = title;
         this.owner = owner;
+    }
+
+    public ChatConversation(
+            ChatConversationKind kind, Tenant tenant, String title, User owner, IconKey icon) {
+        this(kind, tenant, title, owner);
+        this.icon = icon;
     }
 }

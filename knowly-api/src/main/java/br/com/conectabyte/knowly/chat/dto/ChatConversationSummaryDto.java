@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.chat.dto;
 
 import br.com.conectabyte.knowly.chat.ChatConversation;
 import br.com.conectabyte.knowly.chat.ChatConversationKind;
+import br.com.conectabyte.knowly.icon.IconKey;
 import java.time.Instant;
 import java.util.List;
 
@@ -10,6 +11,7 @@ public record ChatConversationSummaryDto(
         ChatConversationKind kind,
         Long tenantId,
         String title,
+        IconKey icon,
         List<Long> participantUserIds,
         Instant lastMessageAt) {
 
@@ -25,6 +27,7 @@ public record ChatConversationSummaryDto(
                 conversation.getKind(),
                 conversation.getTenant() == null ? null : conversation.getTenant().getId(),
                 conversation.getTitle(),
+                conversation.getIcon(),
                 participantUserIds,
                 lastMessageAt == null ? conversation.getCreatedAt() : lastMessageAt);
     }
