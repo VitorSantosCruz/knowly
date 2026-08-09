@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ChatGroupService } from '../../core/chat-group.service';
 import { ChatGroupVisibility, ConversationDetail } from '../../core/chat.model';
@@ -199,6 +199,9 @@ export class GroupAdminPanelComponent {
 
   readonly detail = input.required<ConversationDetail>();
   readonly currentUserId = input<number | null>(null);
+  /** REQ-32: lets the host (`conversation-detail.component.ts`) navigate the acting admin away
+   * on a successful delete — this panel stays presentational and never owns routing itself. */
+  readonly groupDeleted = output<void>();
 
   protected readonly visibilityOptions = VISIBILITY_VALUES;
 
@@ -298,6 +301,7 @@ export class GroupAdminPanelComponent {
     this.confirmingDelete.set(false);
     const id = this.detail().id;
     this.chatGroupService.deleteGroup(id).subscribe({
+      next: () => this.groupDeleted.emit(),
       error: () => this.deleteError.set(true),
     });
   }
