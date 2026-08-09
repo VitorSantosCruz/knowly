@@ -293,6 +293,46 @@ class ChatControllerIntegrationTest {
     }
 
     @Test
+    void staffAdminCanCreateAGroupInTheirOwnActiveSessionTenantWithoutARealMembershipRow() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("No Membership Co"));
+        User admin = userRepository.saveAndFlush(new User("real-staffadmin@example.com"));
+        admin.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(admin);
+        // Deliberately no TenantMembership row for `admin` in `tenant` -- STAFF_ADMIN must be
+        // eligible for their own active-session tenant regardless (see
+        // ChatEligibilityService#isEligibleAsActor).
+        Cookie adminSession = logIn("real-staffadmin@example.com");
+        Cookie switchCsrf = obtainCsrfCookie();
+
+        var switchResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(adminSession)
+                        .cookie(switchCsrf)
+                        .header("X-XSRF-TOKEN", switchCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenant.getId() + "}")
+                        .exchange();
+        assertThat(switchResponse).hasStatus(HttpStatus.OK);
+        Cookie groupCsrf = obtainCsrfCookie();
+
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(adminSession)
+                        .cookie(groupCsrf)
+                        .header("X-XSRF-TOKEN", groupCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"tenantId\":"
+                                        + tenant.getId()
+                                        + ",\"title\":\"Admin Group\",\"participantUserIds\":[]}")
+                        .exchange();
+
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
+    }
+
+    @Test
     void staffAdminCanLookIntoAGroupTheyAreNotAParticipantOfWithoutBecomingOne() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Oversight Co"));
         member("oversight-owner@example.com", tenant);

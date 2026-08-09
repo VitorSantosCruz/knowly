@@ -158,7 +158,7 @@ public class ChatConversationService {
                 // (see ChatEligibilityService#isEligibleAsActor). Every other participant being
                 // added still requires a real membership via the unweakened isEligible check.
                 boolean eligible =
-                        participant.equals(actor)
+                        participant.getId().equals(actor.getId())
                                 ? chatEligibilityService.isEligibleAsActor(
                                         participant, tenantAnchor)
                                 : chatEligibilityService.isEligible(participant, tenantAnchor);

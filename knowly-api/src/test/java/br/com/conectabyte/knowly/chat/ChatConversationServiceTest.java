@@ -325,10 +325,21 @@ class ChatConversationServiceTest {
         actor.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF_ADMIN);
         Tenant activeTenant = tenant(20L);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
-        when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        // Deliberately a *different* User instance than `actor`, representing the same id --
+        // this is what really happens in production: `actor` comes from the security
+        // context/session while `participant` is freshly loaded via the repository. Reusing
+        // the same reference here would mask an equals()-by-reference bug (User does not
+        // override equals()/hashCode()), which is exactly what happened before this fix: see
+        // ChatConversationService#createConversation using
+        // participant.getId().equals(actor.getId())
+        // instead of participant.equals(actor).
+        User participantSameIdAsActor = user(1L);
+        when(userRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(participantSameIdAsActor));
         // No real TenantMembership: plain isEligible would reject the actor, but
         // isEligibleAsActor -- called for the actor specifically -- must accept them.
-        when(chatEligibilityService.isEligibleAsActor(actor, 20L)).thenReturn(true);
+        when(chatEligibilityService.isEligibleAsActor(participantSameIdAsActor, 20L))
+                .thenReturn(true);
         when(tenantRepository.findById(20L)).thenReturn(Optional.of(activeTenant));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(chatConversationRepository.save(org.mockito.ArgumentMatchers.any()))
