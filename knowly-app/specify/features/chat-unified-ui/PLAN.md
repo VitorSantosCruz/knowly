@@ -1070,6 +1070,221 @@ fixes on the shipped cut:
   tester to read it as a button rather than a permanently-"selected"
   list row (list rows have no selection styling of their own today).
 
+## Amendment (4) reconciliation (2026-08-09): naming, renaming, icon (REQ-38–REQ-41, REQ-13)
+
+> Covers SPEC.md's fourth amendment. The backend prerequisite is now
+> **done and committed**: `POST /api/tenants/{tenantId}/conversations`
+> (RAG, `title` required, `icon` optional), `PUT
+> /api/tenants/{tenantId}/conversations/{id}` (RAG rename), and `PUT
+> /api/chat/conversations/{id}` (group rename, title + optional icon) all
+> exist, backed by a shared `br.com.conectabyte.knowly.icon.IconKey` enum
+> (24 values, each verified to map to a real `@lucide/angular` export —
+> see the list below). This section is written against the real,
+> committed contract (`conversations/PLAN.md` §"API contracts",
+> `chat-group-naming-and-icon/PLAN.md`), not a provisional guess — no
+> "to confirm" language remains here. Nothing in this section touches
+> column layout, collapse, search, or governance — those stay exactly as
+> Amendment (3) left them.
+
+### Consumed API contracts (final)
+
+| Method | Path | Request | Response | Status |
+|---|---|---|---|---|
+| `POST` | `/api/tenants/{tenantId}/conversations` | `{ title: string (required, non-blank), icon?: IconKey }` | `ConversationSummaryDto { id, title, icon }` | `201`; `400` blank title/invalid icon; `403` missing `CONVERSATION_USE` |
+| `PUT` | `/api/tenants/{tenantId}/conversations/{id}` | `{ title: string (required, non-blank), icon?: IconKey }` | `ConversationSummaryDto { id, title, icon }` | `200`; `400` blank title/invalid icon; `404` if not the caller's own conversation (deliberate — a 403 here would leak existence, per that PLAN's own "404 not 403" note; same reasoning REQ-16 already documents for the ownership case) |
+| `PUT` | `/api/chat/conversations/{id}` | `{ title: string (required, non-blank), icon?: IconKey }` | `ChatConversationDetailDto` (`icon` field added, additive) | `200`; `400` blank title/invalid icon; `403` caller is not a current group admin (or is a `PEER_DIRECT` participant — the existing `requireGroupAdmin` check, reused unchanged); `404` unknown/wrong-kind/deleted conversation id |
+| `POST` | `/api/chat/conversations` | (existing, +) `icon?: IconKey` alongside `kind`/`tenantId`/`title`/`participantUserIds`/`visibility` | `ChatConversationSummaryDto` (`icon` added) | `201`; `400` invalid icon key |
+
+`IconKey` (24 values, both DTOs share the exact same enum — no separate
+frontend/backend catalogs to keep in sync beyond string-literal parity):
+`MESSAGE_CIRCLE`, `MESSAGES_SQUARE`, `BOOK_OPEN`, `NOTEBOOK`, `SPARKLES`,
+`BOT`, `USERS`, `HASH`, `FOLDER`, `STAR`, `HEART`, `FLAG`, `TARGET`,
+`ROCKET`, `LIGHTBULB`, `GLOBE`, `COMPASS`, `GRADUATION_CAP`,
+`BRIEFCASE`, `ARCHIVE`, `TAG`, `BOOKMARK`, `LAYERS`, `CODE`.
+
+Note the RAG endpoints' ownership-failure status code is **404, not
+403** (deliberately, per the backend PLAN's own existing rationale) while
+the group endpoint's equivalent failure is **403** (reusing
+`requireGroupAdmin`'s existing, already-403 behavior, unchanged by this
+amendment) — REQ-41's "inline error, dialog stays open" handling must
+branch on status code per surface, not assume both dialogs get the same
+code for "you don't own/administer this."
+
+### Architectural decisions
+
+- **New `IconKey` union type + a fixed display-name/Lucide-component
+  lookup table live in `core/chat.model.ts`** (not duplicated in
+  `conversation.service.ts` and `chat-group.service.ts` separately) —
+  why: both RAG and group dialogs need the exact same 24-entry catalog,
+  same as the backend sharing one enum between two DTOs; a single
+  frontend source of truth (`ICON_KEYS: IconKey[]` + a
+  `Record<IconKey, Type<LucideIconComponent>>` map for rendering) avoids
+  the two dialogs drifting out of sync the way two independent frontend
+  enums could.
+- **One new shared, standalone `icon-picker.component.ts`
+  (`shared/chat/`)**, not two near-duplicate pickers inside
+  `create-group-dialog.component.ts` and the new RAG creation dialog —
+  why: REQ-38's RAG picker and REQ-13(final round)/REQ-40's group picker
+  are explicitly "same mechanism, same fixed icon set" per the product
+  owner's own confirmation, not two independently-evolving UIs. A
+  presentational component taking `[selected]: IconKey | null` and
+  emitting `(iconSelected): IconKey` (a signal-based `input`/`output`
+  pair, no form control wrapper needed since it's a single-value picker,
+  not part of a larger reactive form) is reused by three call sites: the
+  new RAG creation dialog, the new RAG rename affordance, and
+  `create-group-dialog.component.ts` (creation) plus the new group
+  rename affordance. Rendered as a grid of 24 `@lucide/angular` icon
+  buttons, each `aria-label`ed with a human-readable name (not the raw
+  enum key), consistent with this feature area's existing a11y
+  convention (REQ requires "keyboard-reachable with `aria-label`s").
+  This is a genuinely new, reusable UI pattern with no existing
+  precedent in this codebase (badge/dialog precedents exist, a fixed-set
+  icon-grid picker does not) — flagged here per PLAN.md discipline #1,
+  not silently introduced; it needs no new dependency (`@lucide/angular`
+  is already installed) so it is not a Tier 3 item.
+- **The RAG creation dialog is a new `create-conversation-dialog.component.ts`**
+  (`features/chat/`), replacing `onOpenArticles()`'s current silent
+  `conversationService.create(tenantId)` call in
+  `chat-shell.component.ts` — mirrors `create-group-dialog.component.ts`'s
+  existing shape exactly (native `<dialog>`, template-driven signal-bound
+  state, submit disabled until name is non-blank, per REQ-38/REQ-13's
+  "mirroring 'Criar grupo''s existing disabled-until-named pattern").
+  Composes `icon-picker.component.ts` for the optional icon. On submit,
+  calls the now-title/icon-accepting `ConversationService.create`
+  (signature change below) and opens the result as the active
+  conversation, exactly as today's create-and-open behavior otherwise
+  (REQ-38's closing clause).
+- **Rename is a small inline affordance on each row, not a context
+  menu.** Investigated this codebase's existing row-level-action
+  precedent first, per the task brief: groups today expose "sair do
+  grupo" as an action *inside the group's own opened view*
+  (`conversation-detail.component.ts`, gated on `isParticipant`), never
+  as a control on the directory row itself — there is no existing
+  row-level context-menu/kebab pattern anywhere in `chat-directory
+  .component.ts` or `chat-full-directory.component.ts` to follow.
+  **Decision: rename lives inside the conversation's own opened view
+  (column 2), as a small pencil-icon button next to the conversation's
+  title in its header**, for both RAG and group conversations — this
+  extends the *existing* "actions live inside the opened view, not on
+  the directory row" convention `conversation-detail.component.ts`
+  already establishes for "sair do grupo"/admin actions, rather than
+  inventing a new context-menu interaction pattern column 1's rows have
+  never had. Clicking it opens a small inline form (name input +
+  `icon-picker.component.ts`, prefilled with the current title/icon) in
+  place of the header, with save/cancel — not a new `<dialog>`, since
+  this is an edit-in-place of already-visible content, not a modal
+  workflow like creation. On success, the row's displayed title/icon in
+  column 1 must update without a full reload (REQ-39/REQ-40's explicit
+  requirement) — satisfied by patching the same shared signal state
+  `ChatService`/`ChatDirectoryRowsService` already read from (see State
+  and data below), the same "single source of truth, multiple thin
+  consumers" pattern this PLAN already uses for group governance.
+- **Rename ownership gating reuses each surface's existing capability
+  computed, not a new one**: the RAG rename affordance renders only when
+  the viewer is the conversation's own owning participant (mirrors
+  REQ-36's existing "only the conversation's own participant may clear
+  it" gating, same computed reused); the group rename affordance renders
+  only when `adminUserIds.includes(currentUserId)` (the exact same
+  `isAdmin` computed `group-admin-panel.component.ts` already derives,
+  reused rather than duplicated — REQ-40's "same authorization model as
+  REQ-28/REQ-31").
+- **`ConversationService.create`/new `.rename` and
+  `ChatGroupService.rename`/`ChatService.createConversation`'s `icon`
+  field are all non-optimistic**, matching this PLAN's already-
+  established REQ-25/REQ-27 pattern for group governance and REQ-41's
+  own explicit wording ("never optimistically applying the change before
+  the backend confirms it") — call the endpoint, patch local signal
+  state only on success, inline error + dialog/edit-form stays open on
+  failure.
+- **[AppSec-added, 2026-08-09] RAG rename's `404` must render the same
+  generic inline-error copy as every other rename/creation failure
+  (e.g. "Não foi possível renomear. Tente novamente."), never a
+  existence-specific string like "conversa não encontrada" or anything
+  that would let the caller distinguish "this conversation id doesn't
+  exist" from "it exists but isn't yours anymore" — the backend
+  deliberately returns `404` instead of `403` for this exact
+  existence-hiding reason (see "Consumed API contracts" above), and a
+  frontend that renders a more specific message on `404` than on `400`/
+  network failure would quietly reopen the leak the backend closed. The
+  13d/13f inline edit-form's error branch must use one shared,
+  status-code-agnostic error string per surface (RAG vs group), not a
+  `switch` on status code that special-cases `404` text — group rename's
+  `403` and `404` (wrong-kind/deleted/unknown id) may also share the
+  same generic copy for the same reason. This is a MUST for task 200's
+  and 214's Green implementation, not just the Red test's status-code
+  assertion — the existing task wording ("surfaces distinctly to the
+  caller") only covers *that an* error shows, not *what it says*; add an
+  explicit assertion in 180/200/214's tests that the rendered message
+  text is identical across the failure-status variants tested, not just
+  that "an error shows."
+- **[AppSec-added, 2026-08-09] Icon picker must only ever emit one of
+  the 24 `IconKey` literal values** — `icon-picker.component.ts`'s
+  `iconSelected` output type is the `IconKey` union itself (not
+  `string`), and the component has no free-text/manual-entry path; every
+  icon button's click handler emits a value drawn from the fixed
+  `ICON_KEYS` constant it iterates to render the grid, never a value
+  constructed from user input. This keeps the invalid-icon-key case
+  frontend-unreachable by construction (defense in depth on top of the
+  backend's own `400` validation) — confirm task 173's Green
+  implementation has no `string`-typed intermediate that widens the type
+  before emission.
+- **[AppSec-added, 2026-08-09] Rename-affordance visibility must be
+  computed from data already available client-side, not shown
+  optimistically and gated only by the backend's `403`/`404`.** 13d/13f
+  already specify reusing the existing ownership/admin computeds
+  (REQ-36's owning-participant computed, `group-admin-panel.component.ts`'s
+  `isAdmin` computed) — this is confirmed correct and is the load-bearing
+  mechanism keeping the pencil icon off Support conversations and off
+  RAG/group conversations the viewer doesn't control. Tasks 196/208's Red
+  tests must assert non-rendering for a viewer who lacks the right
+  (not just rendering for one who has it) to actually anchor this as a
+  regression test, not just a happy-path one.
+
+### Service method signature changes
+
+- **`ConversationService`** (`core/conversation.service.ts`):
+  - `ConversationSummary` gains `icon: IconKey | null` (additive).
+  - `create(tenantId: number)` → `create(tenantId: number, title: string, icon?: IconKey)`,
+    now `POST`ing `{ title, icon }` instead of `{}` — every existing call
+    site (`chat-shell.component.ts`'s `onOpenArticles()`) must be updated
+    to route through the new creation dialog instead of calling this
+    directly with no name.
+  - New method: `rename(tenantId: number, conversationId: number, title: string, icon?: IconKey): Observable<ConversationSummary>`,
+    `PUT`ting `/api/tenants/${tenantId}/conversations/${conversationId}`
+    with `{ title, icon }`.
+- **`ChatGroupService`** (`core/chat-group.service.ts`): new method
+  `rename(id: number, title: string, icon?: IconKey): Observable<ConversationDetail>`,
+  `PUT`ting `/api/chat/conversations/${id}` with `{ title, icon }`, and
+  on `200` patching `ChatService`'s `_details` map with the returned
+  detail — same "patch the shared map on success only" pattern every
+  other `ChatGroupService` action already follows. `ConversationDetail`
+  (`core/chat.model.ts`) gains `icon: IconKey | null` (additive, matches
+  the backend's extended `ChatConversationDetailDto`).
+- **`ChatService.createConversation`**'s `CreateConversationRequest`
+  (`core/chat.model.ts`) gains an optional `icon?: IconKey` field,
+  forwarded verbatim in the existing `POST /api/chat/conversations` call
+  — no new method, since group creation already goes through this one
+  request shape (REQ-13, final round).
+
+### V32 migration — NOT NULL backfill check (verified, no gap)
+
+Read `knowly-api/src/main/resources/db/migration/V32__add_title_required_and_icon_to_conversations.sql`
+directly: it runs `UPDATE conversations SET title = 'Conversa sem
+título' WHERE title IS NULL` **before** `ALTER TABLE conversations ALTER
+COLUMN title SET NOT NULL`. Every pre-existing `NULL`-title row (the
+"Nova conversa" rows already present in dev, confirmed by this task's
+own brief) is backfilled to a real, non-blank string before the
+constraint is added — the migration cannot fail against existing data,
+and no existing RAG conversation row violates the new `NOT NULL`. **This
+is not a gap.** The one frontend-visible consequence worth noting
+explicitly (not a bug, a UX fact): any RAG conversation created before
+this feature shipped will render in column 1 with the literal fallback
+title "Conversa sem título" and no icon (`icon` is nullable, untouched
+by the backfill) — REQ-2's existing "falling back to a default icon
+otherwise" clause already covers the no-icon case; no extra frontend
+handling is needed for the backfilled title itself, since it's just an
+ordinary non-blank string from the row's own perspective.
+
 ## Emergent decisions (implementation, 2026-08-09, TASKS.md section 12
 completion pass)
 
@@ -1120,3 +1335,99 @@ completion pass)
   was fixed via `prettier --write` as part of this pass rather than
   left for a later cleanup commit, per this repo's "resolve warnings
   before commit" convention.
+
+## Emergent decisions, Amendment (4) (implementation, 2026-08-09,
+TASKS.md section 13 completion pass)
+
+> Covers 13a–13h end to end. All backend endpoints consumed exactly as
+> committed (see "Consumed API contracts" above) — no backend surprises
+> found during implementation.
+
+- **`ConversationSummary` (RAG, `core/conversation.service.ts`) and
+  `ConversationSummary` (group, `core/chat.model.ts`) both needed the
+  additive `icon` field** — not just `ConversationDetail`. Column 1's
+  group rows read a group's icon from the already-fetched
+  `ChatService.conversations()` list (`GET /api/chat/conversations`,
+  `ChatConversationSummaryDto`), not from a per-row detail fetch (no
+  such fetch happens until a group is actually opened) — the PLAN's
+  original "carried on `ConversationDetail`" framing undersold this;
+  the summary DTO carries it too, and the frontend needed a matching
+  field to avoid a group row waiting on a detail fetch that may never
+  happen before it's rendered.
+- **Two small, deliberately duplicated 24-entry lookups exist**:
+  `core/chat-icon-registry.ts` (`IconKey` → `{ component, selector,
+  labelKey }`, used for `icon-picker.component.ts`'s `aria-label`s) and
+  `shared/chat/chat-icon.component.ts` (a `@switch` over the same 24
+  keys, statically importing every Lucide icon component so nothing
+  needs `NgComponentOutlet`/dynamic-component wiring, consistent with
+  this codebase's existing attribute-selector `@lucide/angular`
+  convention). Not unified into one file because the registry's
+  `Type<unknown>` entries were never actually consumed by anything
+  once `ChatIconComponent`'s own static `@switch` was written — kept
+  both since the registry's `labelKey`s are genuinely still needed for
+  `icon-picker.component.ts`'s per-button `aria-label`s and merging
+  would have made `chat-icon.component.ts` import a component type
+  in a way `@switch` doesn't need. A follow-up could fold the registry
+  into `chat-icon.component.ts` as a `labelKey`-only map; left as-is
+  since both are small, single-purpose, and already tested.
+- **RAG rename's "owning participant" gating (REQ-39) is satisfied by
+  construction, not a new client-side computed.** `conversations
+  -page.component.ts`'s conversation list already only ever contains
+  the caller's own RAG conversations (`GET
+  /api/tenants/{tenantId}/conversations` is caller-scoped, per
+  `conversations`' backend contract) — REQ-36's clearing feature (which
+  PLAN.md originally said this gating "reuses") was never actually
+  implemented in this codebase (no `clearConversation`/REQ-36 code
+  exists yet), so there was no existing ownership computed to reuse.
+  The rename pencil is shown whenever a RAG conversation is open at
+  all, which is equivalent to "the viewer owns it" given the list is
+  already owner-scoped server-side — documented here rather than
+  silently diverging from the PLAN's stated reuse.
+- **Group rename (REQ-40) lives in `chat-header.component.ts`
+  directly** (injecting `ChatGroupService`, gated by a new
+  `canRenameGroup` computed mirroring `group-admin-panel.component
+  .ts`'s `isAdmin`), not in `conversation-detail.component.ts` or a new
+  component — `ChatHeaderComponent` is the one place already shared by
+  every `PEER_GROUP`/`PEER_DIRECT`/`SUPPORT` detail view, and it already
+  owns the icon+title rendering the rename form replaces in place.
+- **`RenameFormComponent` (`shared/chat/rename-form.component.ts`)
+  seeds its editable `name`/`icon` signals from `initialTitle()`/
+  `initialIcon()` via a one-time-guarded `effect()`, not a field
+  initializer or constructor-body read** — Angular's `NG8118` static
+  check forbids reading a signal `input()` synchronously in a field
+  initializer/constructor body (the value isn't guaranteed set until
+  the first change-detection pass), and a plain always-reactive
+  `effect()` would clobber an in-progress edit if the parent's
+  `initialTitle()`/`initialIcon()` binding happened to re-evaluate
+  (e.g. a parent re-render) while the form was open — the `seeded`
+  guard makes this a genuine "read-once" prefill.
+- **`onNewConversation()` (`conversations-page.component.ts`'s
+  pre-existing in-page "+ Nova conversa" button, a secondary creation
+  path inside an already-open RAG view, not the sidebar's "Falar com a
+  base de artigos" action REQ-38 actually covers) needed a compile-safe
+  title now that `ConversationService.create` requires one** — it now
+  passes the existing `conversations.new` i18n string as a default
+  title rather than gaining its own naming dialog, since REQ-38's scope
+  is specifically the sidebar action (tasks 194/195); flagged here as a
+  deliberate, minimal fix to an out-of-scope call site rather than a
+  silent behavior change.
+- **`AvatarComponent` gained an `icon: IconKey | null` input** (highest
+  precedence, checked before both the existing image and `kind`
+  fallback) rather than a parallel new component — every existing call
+  site (person rows, group headers) is unaffected since the input
+  defaults to `null`, and this reuses `AvatarComponent`'s existing
+  round-avatar-with-fallback layout for RAG/group icons rather than
+  duplicating it.
+- **`icon-picker.component.ts` gained a `groupLabel` input** (an
+  `aria-label` on its own `role="group"` wrapper) after `ng lint`
+  caught `@angular-eslint/template/label-has-associated-control`
+  errors on the two `<label>` wrappers originally used around it (in
+  `create-group-dialog.component.ts`/`create-conversation-dialog
+  .component.ts`) — a `<label>` needs an associated single form
+  control, which a 24-button grid isn't; replaced with a `<div>` +
+  visible `<span>` text + the picker's own `role="group"`
+  `aria-label`, satisfying both the lint rule and screen-reader
+  labeling.
+- Full verification (`npm run format:check && npm test && npm run
+  build && npm run lint`) passed clean: 925 tests across 107 spec
+  files, zero lint errors, a clean production build.

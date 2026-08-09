@@ -1157,34 +1157,42 @@ authorization specified separately)
       prerequisite as the "Base de artigos" clear item above (TASKS.md
       task 165); not started.**
 
-**Amended (4), fully specified and approved for PLAN, not yet started
-(2026-08-09) — all items below are BLOCKED only on backend work, not on
-any remaining SPEC ambiguity:**
+**Amended (4), fully implemented and verified (2026-08-09) — backend
+prerequisites landed, and TASKS.md section 13 (13a–13h) is complete:**
 
-- [ ] "Falar com a base de artigos" opens a naming dialog (name required,
+- [x] "Falar com a base de artigos" opens a naming dialog (name required,
       icon optional from a fixed Lucide set) instead of silently
       creating a conversation; submitting it creates the conversation
-      with that name/icon and opens it. **BLOCKED — needs
-      `conversations`' new create-with-title/icon backend contract
-      (REQ-13/REQ-15) — not yet implemented.**
-- [ ] An existing "Base de artigos" row can be renamed (name and/or
+      with that name/icon and opens it. Verified by
+      `create-conversation-dialog.component.spec.ts` and
+      `chat-shell.component.spec.ts` (tasks 188-195).
+- [x] An existing "Base de artigos" row can be renamed (name and/or
       icon) via a rename action; the row's displayed name/icon updates
-      on success only. **BLOCKED — needs `conversations`' new rename
-      endpoint (REQ-14) — not yet implemented.**
-- [ ] "Criar grupo"'s dialog additionally offers an icon picker (same
+      on success only. Verified by
+      `conversations-page.component.spec.ts` (tasks 196-203).
+- [x] "Criar grupo"'s dialog additionally offers an icon picker (same
       fixed Lucide set), optional at creation; a group created without
-      one keeps the default/fallback presentation. **BLOCKED — needs a
-      new backend group-icon-at-creation contract that does not exist
-      yet — not yet specified, let alone implemented.**
-- [ ] An existing group can be renamed (title and/or icon) via a rename
+      one keeps the default/fallback presentation. Verified by
+      `create-group-dialog.component.spec.ts` (tasks 204-207).
+- [x] An existing group can be renamed (title and/or icon) via a rename
       action from inside the group's own view, by a group admin; the
       group's displayed name/icon updates everywhere it appears on
-      success only. **BLOCKED — needs a new backend group-rename
-      endpoint (covering both title and icon) that does not exist yet —
-      not yet specified, let alone implemented.**
-- [ ] A failed create-with-name, RAG rename, group-creation-with-icon, or
+      success only. Verified by `chat-header.component.spec.ts` and
+      `chat-group.service.spec.ts` (tasks 208-215).
+- [x] A failed create-with-name, RAG rename, group-creation-with-icon, or
       group rename shows an inline error and leaves the dialog open /
-      row unchanged. **BLOCKED — same prerequisites as the items above.**
+      row unchanged, rendering one shared, status-code-agnostic error
+      string per surface (never a more specific message for a RAG `404`
+      or group `403`/`404` than for a `400`/network failure, per
+      AppSec's requirement). Verified by
+      `conversation.service.spec.ts`, `chat-group.service.spec.ts`,
+      `conversations-page.component.spec.ts`, and
+      `chat-header.component.spec.ts`.
+- [x] Column 1's article and group rows render each conversation's own
+      icon when set, falling back to the existing generic
+      person/group icon otherwise (including every pre-Amendment-(4)
+      row, which keeps `icon: null` from the V32 backfill). Verified by
+      `chat-directory.component.spec.ts` (tasks 216-221).
 
 ## Out of scope / Future work
 

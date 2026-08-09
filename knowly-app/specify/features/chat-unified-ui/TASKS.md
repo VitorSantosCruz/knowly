@@ -656,12 +656,198 @@
        "real ranking" checkboxes unchecked with a note pointing at the
        relevant BLOCKED task until their backend prerequisites land.
 
+## 13. Amendment (4): naming, renaming, icon (REQ-38–REQ-41, REQ-13 final round)
+
+> Backend prerequisite is done and committed (see PLAN.md's "Amendment
+> (4) reconciliation" section for the final contract). Nothing here is
+> BLOCKED. V32's NOT NULL backfill was verified clean — no backend fix
+> needed before starting this section.
+
+### 13a. Shared model + icon-picker component
+
+- [x] 171. Add `IconKey` union type (24 literal values, matching the
+       backend enum verbatim) and an `ICON_KEYS: IconKey[]` constant to
+       `core/chat.model.ts`. Add `icon: IconKey | null` to
+       `ConversationSummary` (`conversation.service.ts`) and
+       `ConversationDetail` (`chat.model.ts`). No test needed (pure type
+       change); run `npm run build` after this task to confirm no
+       existing literal fixture breaks under `strict`.
+- [x] 172. Test: `icon-picker.component.ts` renders all 24 icon buttons,
+       each with a distinct, human-readable `aria-label` (not the raw
+       enum key), keyboard-reachable; clicking one emits `iconSelected`
+       with that key; the currently-`[selected]` key (if any) is visually
+       distinguished from the rest (Red).
+- [x] 173. Implement `icon-picker.component.ts` (`shared/chat/`) as a
+       standalone, signal-`input`/`output` component (Green).
+- [x] 174. Test: passing `[selected]="null"` renders no icon as selected;
+       passing an unset/omitted `[selected]` behaves identically (Red).
+- [x] 175. Implement/confirm that default-unselected state (Green).
+
+### 13b. `ConversationService`/`ChatGroupService`/`ChatService` signature changes
+
+- [x] 176. Test: `ConversationService.create(tenantId, title, icon?)`
+       `POST`s `{ title, icon }` (icon omitted/`undefined` when not
+       passed) to `/api/tenants/{tenantId}/conversations` (Red).
+- [x] 177. Implement that signature change; update
+       `chat-shell.component.ts`'s `onOpenArticles()` call site (see
+       13c) so this compiles (Green).
+- [x] 178. Test: `ConversationService.rename(tenantId, conversationId,
+       title, icon?)` `PUT`s `{ title, icon }` to
+       `/api/tenants/{tenantId}/conversations/{conversationId}` and
+       returns the updated `ConversationSummary` (Red).
+- [x] 179. Implement `rename` (Green).
+- [x] 180. Test: `rename`'s `400` (blank title/invalid icon) and `404`
+       (not the caller's own conversation — deliberate, not `403`, per
+       the reconciled contract) each surface distinctly to the caller,
+       with no local state to roll back (this service holds no signal
+       state of its own) (Red).
+- [x] 181. Implement that error surfacing (Green).
+- [x] 182. Test: `ChatGroupService.rename(id, title, icon?)` `PUT`s `{
+       title, icon }` to `/api/chat/conversations/{id}` and, on `200`,
+       patches `ChatService`'s `_details` map with the returned
+       `ConversationDetail` (Red).
+- [x] 183. Implement `rename` (Green).
+- [x] 184. Test: `rename`'s `400` (blank title/invalid icon), `403` (not
+       group admin — note: `403`, not `404`, unlike the RAG case), `404`
+       (unknown/wrong-kind/deleted) each leave `_details` untouched with
+       an inline error (Red).
+- [x] 185. Implement that error handling (Green).
+- [x] 186. Test: `ChatService.createConversation` forwards an optional
+       `icon` field verbatim in its existing `POST
+       /api/chat/conversations` body when provided (Red).
+- [x] 187. Implement that additive field (Green).
+
+### 13c. RAG creation dialog (REQ-7 Amended (4), REQ-38)
+
+- [x] 188. Test: `CreateConversationDialogComponent` disables submit
+       until a non-blank name is entered (icon optional), mirroring
+       `create-group-dialog.component.ts`'s existing pattern (REQ-38)
+       (Red).
+- [x] 189. Implement that validation gating (template-driven signal-bound
+       state, no `ReactiveFormsModule`) (Green).
+- [x] 190. Test: submitting calls `ConversationService.create(tenantId,
+       title, icon)` and, on success, opens the new conversation as
+       active in the conversation column, identically to today's
+       create-and-open behavior otherwise (Red).
+- [x] 191. Implement that submit wiring (Green).
+- [x] 192. Test: a failed creation (`400`/`403`) shows an inline error
+       and keeps the dialog open with the entered name/icon intact
+       (REQ-41) (Red).
+- [x] 193. Implement that error handling (Green).
+- [x] 194. Test: `chat-shell.component.ts`'s `onOpenArticles()` now opens
+       `CreateConversationDialogComponent` instead of calling
+       `conversationService.create(tenantId)` with no name (REQ-7,
+       Amended (4)) (Red).
+- [x] 195. Implement that dispatch change; delete the now-dead direct
+       `conversationService.create(tenantId)` no-args call path (Green).
+
+### 13d. RAG rename affordance (REQ-39)
+
+- [x] 196. Test: a pencil-icon rename affordance renders in the RAG
+       conversation's own header (column 2) only when the viewer is that
+       conversation's owning participant — reuses the existing
+       "owns/participant" computed REQ-36's clear-affordance gating
+       already established (Red).
+- [x] 197. Implement that gating + affordance (Green).
+- [x] 198. Test: activating it opens an inline edit form (name input +
+       `icon-picker.component.ts`, prefilled with the current
+       title/icon) in place of the header, with save/cancel (Red).
+- [x] 199. Implement that inline form (Green).
+- [x] 200. Test: saving calls `ConversationService.rename(...)` and, on
+       success, updates the row's displayed title/icon in column 1
+       without a full page reload (REQ-39) — asserted via whichever
+       shared signal (`ChatDirectoryRowsService`/`ChatService`) column 1
+       reads from (Red).
+- [x] 201. Implement that success-path patch (Green).
+- [x] 202. Test: a failed rename (`400`/`404`) shows an inline error and
+       leaves the row's displayed name/icon unchanged (REQ-41) (Red).
+- [x] 203. Implement that error handling (Green).
+
+### 13e. Group creation dialog gains icon picker (REQ-13, final round)
+
+- [x] 204. Test: `create-group-dialog.component.ts` renders
+       `icon-picker.component.ts`, optional (submit stays enabled with no
+       icon chosen — only name + visibility remain required, unchanged
+       from before this amendment) (Red).
+- [x] 205. Implement that addition (Green).
+- [x] 206. Test: submitting with an icon chosen includes `icon` in the
+       `POST /api/chat/conversations` body (via
+       `ChatService.createConversation`'s new field); submitting with
+       none chosen omits it (Red).
+- [x] 207. Implement that wiring (Green).
+
+### 13f. Group rename affordance (REQ-40)
+
+- [x] 208. Test: a pencil-icon rename affordance renders in a group's own
+       header (column 2) only when the viewer is that group's admin
+       (`adminUserIds.includes(currentUserId)`, the exact computed
+       `group-admin-panel.component.ts` already derives) (Red).
+- [x] 209. Implement that gating + affordance (Green).
+- [x] 210. Test: activating it opens the same inline edit form shape as
+       13d (name + `icon-picker.component.ts`, prefilled), with
+       save/cancel (Red).
+- [x] 211. Implement that inline form, reusing the same presentational
+       sub-component as 13d rather than a second copy (Green).
+- [x] 212. Test: saving calls `ChatGroupService.rename(...)` and, on
+       success, updates the group's displayed title/icon everywhere it
+       appears — its own header, column 1's row, search results (column
+       3) — without a full page reload (REQ-40) (Red).
+- [x] 213. Implement that success-path patch, via `ChatGroupService
+       .rename`'s existing `_details`-map patch (Green — should be
+       largely free once `_details` is patched, since column 1/3 already
+       read from that shared state; write the test anyway as its own
+       regression anchor).
+- [x] 214. Test: a failed rename (`400`/`403`/`404`) shows an inline
+       error and leaves the group's displayed name/icon unchanged
+       everywhere (REQ-41) (Red).
+- [x] 215. Implement that error handling (Green).
+
+### 13g. Row rendering of custom title/icon (extends existing rendering)
+
+- [x] 216. Test: `chat-directory.component.ts`'s article rows render
+       each conversation's own `title` (already the case since
+       `title` was always displayed) and, when `icon` is set, that
+       `IconKey`'s Lucide icon instead of the generic fallback icon
+       (Red).
+- [x] 217. Implement that icon rendering, reusing the `IconKey` → Lucide
+       component lookup table added in 13a (Green).
+- [x] 218. Test: `chat-directory.component.ts`'s group rows render a
+       group's own `icon` when set, falling back to the existing default
+       otherwise (same lookup table) (Red).
+- [x] 219. Implement that rendering (Green).
+- [x] 220. Test: a RAG/group row with no `icon` set (including every
+       pre-Amendment-(4) row, per the V32 backfill — `icon` stays `null`
+       for those) renders the existing default/fallback icon, not a
+       broken/blank one (Red).
+- [x] 221. Confirm/implement that fallback (Green).
+
+### 13h. i18n and verification
+
+- [x] 222. Add i18n keys: RAG creation dialog (name label, icon-picker
+       label, submit-disabled hint), rename affordance labels
+       (`aria-label` for the pencil button, save/cancel), icon-picker's
+       24 per-icon `aria-label`s (human-readable names, not raw enum
+       keys), inline rename-error copy.
+- [x] 223. Run
+       `npm run format:check && npm test && npm run build && npm run lint`
+       for section 13 and commit incrementally per this repo's
+       atomic-commit convention — do not batch the whole amendment into
+       one commit.
+- [x] 224. Update `PLAN.md`'s "Amendment (4) reconciliation" section (or
+       add a new "Emergent decisions, Amendment (4)" section) with
+       anything discovered while executing 13a–13g, following this
+       PLAN's own established precedent for documenting deviations.
+- [x] 225. Update `SPEC.md`'s Amended-(4) acceptance-criteria checkboxes
+       to reflect what's now verified.
+
 ## 11. Final verification
 
 - [ ] 130. Run
        `npm run format:check && npm test && npm run build && npm run lint`
        and confirm everything is green — `npm run lint` is mandatory,
-       per this subproject's `CLAUDE.md`.
+       per this subproject's `CLAUDE.md`. Covers sections 1–9, 12, and 13
+       (all now unblocked or fully implemented at this point) — 12e/12h/
+       141/142 remain BLOCKED and stay excluded from this pass.
 - [ ] 131. Update `PLAN.md`'s "Reconciliation status" section (or add an
        "Emergent decisions" section) with anything that changed during
        implementation, following `internal-team-chat/PLAN.md`'s
