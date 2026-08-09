@@ -143,6 +143,17 @@ describe('ConversationDetailComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="leave-group"]')).toBeTruthy();
   });
 
+  it('renders no "limpar"/"clear" control anywhere in a group\'s view — distinct from leaving (REQ-34)', () => {
+    fixture.detectChanges();
+    flushOpen([1, 2]);
+    fixture.detectChanges();
+    openInfoModal();
+
+    expect(fixture.nativeElement.querySelector('[data-testid*="clear"]')).toBeNull();
+    expect(fixture.nativeElement.textContent.toLowerCase()).not.toContain('limpar');
+    expect(fixture.nativeElement.textContent.toLowerCase()).not.toContain('clear conversation');
+  });
+
   it('omits "leave group" for a LOOKING_IN viewer, even with the modal open', () => {
     fixture.detectChanges();
     flushOpen([2, 3]);
