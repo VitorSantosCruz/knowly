@@ -29,7 +29,7 @@ let nextLocalMessageId = -1;
     ChatIconComponent,
   ],
   template: `
-    <div data-testid="conversations-page" class="page-shell flex gap-6">
+    <div data-testid="conversations-page" class="flex gap-6">
       @if (!activeTenantService.activeTenantResolved()) {
         <p data-testid="loading-state" class="text-sm text-ink-500 dark:text-ink-400">…</p>
       } @else if (activeTenantService.activeTenantId() === null) {
