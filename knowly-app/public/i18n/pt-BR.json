@@ -296,7 +296,7 @@
       "account": "Conta"
     },
     "dashboard": "Painel",
-    "chat": "Chat",
+    "chat": "Conversas",
     "articles": "Artigos",
     "conversations": "Conversas",
     "members": "Membros",
@@ -634,22 +634,70 @@
       "lookingInBanner": "Você está visualizando isso como supervisão de suporte/admin — você não é membro deste grupo.",
       "lookingInAriaLabel": "Visualizando como supervisão de suporte/admin, não como membro"
     },
-    "newConversation": {
-      "title": "Nova conversa",
-      "modeDirect": "1:1",
-      "modeMemberGroup": "Grupo de membros",
-      "modeStaffGroup": "Grupo de staff",
-      "tenantLabel": "Tenant",
-      "participantsLabel": "Participantes",
-      "create": "Criar",
-      "cancel": "Cancelar",
-      "error": "Não foi possível criar esta conversa. O participante selecionado pode não ser elegível."
-    },
     "picker": {
       "candidateAriaLabel": "Selecionar {{nickname}}"
     },
     "error": {
       "notFound": "Esta conversa não está disponível para você."
+    },
+    "groupVisibility": {
+      "private": "Privado",
+      "requestToJoin": "Solicitação de entrada",
+      "public": "Público"
+    },
+    "directory": {
+      "searchLabel": "Buscar pessoas e grupos",
+      "searchPlaceholder": "Buscar por nome…",
+      "peopleTitle": "Pessoas",
+      "groupsTitle": "Grupos",
+      "createGroup": "Criar grupo",
+      "createGroupAriaLabel": "Criar um novo grupo",
+      "personRowAriaLabel": "Abrir conversa com {{nickname}}",
+      "groupRowAriaLabel": "Abrir grupo {{title}}",
+      "joinGroupAriaLabel": "Entrar no grupo {{title}}",
+      "requestToJoinAriaLabel": "Solicitar entrada no grupo {{title}}",
+      "requestPending": "Pedido pendente",
+      "noResults": "Nenhum resultado para '{{query}}'",
+      "emptyState": "Nenhuma conversa ainda.",
+      "actionError": "Esta ação falhou. Tente novamente."
+    },
+    "createGroup": {
+      "title": "Criar grupo",
+      "nameLabel": "Nome do grupo",
+      "namePlaceholder": "Nome do grupo",
+      "visibilityLabel": "Visibilidade",
+      "visibilityPrivateDescription": "Somente convite — nunca aparece na busca.",
+      "visibilityRequestToJoinDescription": "Descobrível — pedidos de entrada precisam de aprovação do admin.",
+      "visibilityPublicDescription": "Descobrível — qualquer elegível pode entrar imediatamente.",
+      "cancel": "Cancelar",
+      "create": "Criar",
+      "error": "Não foi possível criar este grupo. Tente novamente."
+    },
+    "adminPanel": {
+      "title": "Administração do grupo",
+      "pendingRequestsTitle": "Pedidos de entrada pendentes",
+      "approve": "Aprovar",
+      "reject": "Rejeitar",
+      "approveAriaLabel": "Aprovar pedido de entrada de {{nickname}}",
+      "rejectAriaLabel": "Rejeitar pedido de entrada de {{nickname}}",
+      "notApprovableAnymore": "Este pedido não pode mais ser aprovado.",
+      "promote": "Promover a admin",
+      "promoteAriaLabel": "Promover {{nickname}} a admin",
+      "remove": "Remover",
+      "removeAriaLabel": "Remover {{nickname}} do grupo",
+      "changeVisibility": "Mudar visibilidade",
+      "deleteGroup": "Excluir grupo",
+      "confirmRemove": "Remover {{nickname}} deste grupo?",
+      "confirmDelete": "Excluir este grupo? Isso não pode ser desfeito.",
+      "leaveGroup": "Sair do grupo",
+      "confirmLeave": "Sair deste grupo?",
+      "actionError": "Esta ação falhou. Tente novamente."
+    },
+    "sidebar": {
+      "sectionPeople": "Pessoas",
+      "sectionGroups": "Grupos",
+      "sectionSupport": "Suporte",
+      "sectionArticles": "Base de artigos"
     }
   },
   "support": {

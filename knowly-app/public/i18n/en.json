@@ -293,7 +293,7 @@
       "account": "Account"
     },
     "dashboard": "Dashboard",
-    "chat": "Chat",
+    "chat": "Conversations",
     "articles": "Articles",
     "conversations": "Conversations",
     "members": "Members",
@@ -634,22 +634,70 @@
       "lookingInBanner": "You're viewing this as support/admin oversight — you are not a member of this group.",
       "lookingInAriaLabel": "Viewing as support/admin oversight, not as a member"
     },
-    "newConversation": {
-      "title": "New conversation",
-      "modeDirect": "1:1",
-      "modeMemberGroup": "Member group",
-      "modeStaffGroup": "Staff group",
-      "tenantLabel": "Tenant",
-      "participantsLabel": "Participants",
-      "create": "Create",
-      "cancel": "Cancel",
-      "error": "Could not create this conversation. The selected participant may not be eligible."
-    },
     "picker": {
       "candidateAriaLabel": "Select {{nickname}}"
     },
     "error": {
       "notFound": "This conversation isn't available to you."
+    },
+    "groupVisibility": {
+      "private": "Private",
+      "requestToJoin": "Request to join",
+      "public": "Public"
+    },
+    "directory": {
+      "searchLabel": "Search people and groups",
+      "searchPlaceholder": "Search by name…",
+      "peopleTitle": "People",
+      "groupsTitle": "Groups",
+      "createGroup": "Create group",
+      "createGroupAriaLabel": "Create a new group",
+      "personRowAriaLabel": "Open conversation with {{nickname}}",
+      "groupRowAriaLabel": "Open group {{title}}",
+      "joinGroupAriaLabel": "Join group {{title}}",
+      "requestToJoinAriaLabel": "Request to join group {{title}}",
+      "requestPending": "Request pending",
+      "noResults": "No results for '{{query}}'",
+      "emptyState": "No conversations yet.",
+      "actionError": "This action failed. Please try again."
+    },
+    "createGroup": {
+      "title": "Create group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "Group name",
+      "visibilityLabel": "Visibility",
+      "visibilityPrivateDescription": "Invite-only — never shown in search.",
+      "visibilityRequestToJoinDescription": "Discoverable — join requests need admin approval.",
+      "visibilityPublicDescription": "Discoverable — anyone eligible can join instantly.",
+      "cancel": "Cancel",
+      "create": "Create",
+      "error": "Could not create this group. Please try again."
+    },
+    "adminPanel": {
+      "title": "Group administration",
+      "pendingRequestsTitle": "Pending join requests",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveAriaLabel": "Approve join request from {{nickname}}",
+      "rejectAriaLabel": "Reject join request from {{nickname}}",
+      "notApprovableAnymore": "This request can no longer be approved.",
+      "promote": "Promote to admin",
+      "promoteAriaLabel": "Promote {{nickname}} to admin",
+      "remove": "Remove",
+      "removeAriaLabel": "Remove {{nickname}} from the group",
+      "changeVisibility": "Change visibility",
+      "deleteGroup": "Delete group",
+      "confirmRemove": "Remove {{nickname}} from this group?",
+      "confirmDelete": "Delete this group? This cannot be undone.",
+      "leaveGroup": "Leave group",
+      "confirmLeave": "Leave this group?",
+      "actionError": "This action failed. Please try again."
+    },
+    "sidebar": {
+      "sectionPeople": "People",
+      "sectionGroups": "Groups",
+      "sectionSupport": "Support",
+      "sectionArticles": "Knowledge base"
     }
   },
   "support": {
