@@ -14,6 +14,9 @@ describe('ChatHeaderComponent', () => {
     title: null,
     participantUserIds: [1, 2],
     participantNicknames: { 1: 'Alice', 2: 'Bob' },
+    visibility: 'PRIVATE',
+    archivedAt: null,
+    adminUserIds: [1],
   };
 
   beforeEach(() => {

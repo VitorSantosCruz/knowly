@@ -44,6 +44,9 @@ export function deriveViewerRelation(
   return 'LOOKING_IN';
 }
 
+/** REQ-13/18/26: a group conversation's visibility type, chosen at creation. */
+export type ChatGroupVisibility = 'PRIVATE' | 'REQUEST_TO_JOIN' | 'PUBLIC';
+
 export interface ConversationDetail {
   id: number;
   kind: ChatConversationKind;
@@ -51,6 +54,37 @@ export interface ConversationDetail {
   title: string | null;
   participantUserIds: number[];
   participantNicknames: Record<number, string>;
+  /** Additive fields matching the backend's extended `ChatConversationDetailDto`
+   * (chat-unified-ui PLAN.md, "Consumed API contracts"). */
+  visibility: ChatGroupVisibility;
+  archivedAt: string | null;
+  adminUserIds: number[];
+}
+
+/** REQ-8's Groups candidate set — `GET /api/chat/discoverable-groups`. */
+export interface ChatDiscoverableGroupDto {
+  id: number;
+  title: string;
+  tenantId: number | null;
+  visibility: ChatGroupVisibility;
+  participantCount: number;
+}
+
+/** `GET/POST .../join-requests` — the `requestedAt` field this PLAN originally guessed
+ * does not exist on the wire; only `status`/`decidedAt` do. */
+export interface ChatJoinRequestDto {
+  id: number;
+  conversationId: number;
+  requesterUserId: number;
+  requesterNickname: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  decidedAt: string | null;
+}
+
+/** `POST .../participants` — a batch add can partially succeed (200), never all-or-nothing. */
+export interface ChatAddParticipantsResultDto {
+  conversation: ConversationDetail;
+  rejected: { userId: number; reason: 'ALREADY_PARTICIPANT' | 'INELIGIBLE' }[];
 }
 
 export interface CandidateUser {
@@ -84,6 +118,8 @@ export interface CreateConversationRequest {
   kind: CreateChatConversationKind;
   tenantId?: number | null;
   title?: string;
+  /** Required when `kind === 'GROUP'` (REQ-13/18); absent/ignored for `'DIRECT'`. */
+  visibility?: ChatGroupVisibility;
   participantUserIds: number[];
 }
 
