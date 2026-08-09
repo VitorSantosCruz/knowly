@@ -2,6 +2,7 @@ package br.com.conectabyte.knowly.tenancy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.audit.AuditEvent;
@@ -21,16 +22,22 @@ import br.com.conectabyte.knowly.tenancy.exception.AccessGroupPermissionNotGrant
 import br.com.conectabyte.knowly.tenancy.exception.InvalidPaginationException;
 import br.com.conectabyte.knowly.tenancy.exception.PermissionDeniedException;
 import br.com.conectabyte.knowly.tenancy.exception.TenantAccessDeniedException;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
 import java.util.List;
+import java.util.Properties;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Unit-style coverage of {@link StaffService#createStaffUser}'s REQ-2/REQ-3/REQ-4/REQ-5 role
@@ -59,6 +66,18 @@ class StaffServiceTest {
     @Autowired private AuditEventRepository auditEventRepository;
     @Autowired private GlobalAccessGroupRepository globalAccessGroupRepository;
     @Autowired private GlobalAccessGroupPermissionRepository globalAccessGroupPermissionRepository;
+
+    // Without this mock, createStaffUser's real mail send only "worked" locally by accident (a
+    // dev's own Mailhog container happens to already be listening on localhost:1025) and fails in
+    // CI, where nothing does -- mirrors the same @MockitoBean already used for this exact reason
+    // in StaffRbacIntegrationTest.
+    @MockitoBean private JavaMailSender mailSender;
+
+    @BeforeEach
+    void stubMailSender() {
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+    }
 
     @AfterEach
     void cleanUp() {
