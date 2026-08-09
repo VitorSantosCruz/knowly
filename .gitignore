@@ -1,0 +1,12 @@
+# Claude Code worktree scratch space (created/removed per agent run, never committed)
+.claude/worktrees/
+
+# Playwright MCP scratch output (screenshots, traces from ad-hoc browser checks)
+.playwright-mcp/
+
+# Editor-local settings (not shared project config)
+.vscode/settings.json
+
+# Ad-hoc screenshots dropped at the repo root during manual QA (anchored to
+# root only -- does not affect committed assets inside subproject folders)
+/*.png
