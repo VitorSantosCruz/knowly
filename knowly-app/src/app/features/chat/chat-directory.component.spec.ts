@@ -35,6 +35,8 @@ describe('ChatDirectoryComponent', () => {
     conversations?: unknown[];
     eligible?: unknown[];
     discoverable?: unknown[];
+    activeTenantId?: number | null;
+    articles?: unknown[];
   }): void {
     httpMock.expectOne('/api/chat/conversations').flush(opts.conversations ?? []);
     httpMock
@@ -52,6 +54,18 @@ describe('ChatDirectoryComponent', () => {
     httpMock
       .expectOne('/api/users/me/profile')
       .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    const tenantId = opts.activeTenantId ?? null;
+    if (tenantId === null) {
+      httpMock
+        .expectOne('/api/tenants/active')
+        .flush(null, { status: 204, statusText: 'No Content' });
+    } else {
+      httpMock
+        .expectOne('/api/tenants/active')
+        .flush({ tenantId, tenantName: 'Acme', role: 'MEMBER' });
+      fixture.detectChanges();
+      httpMock.expectOne(`/api/tenants/${tenantId}/conversations`).flush(opts.articles ?? []);
+    }
   }
 
   function searchInput(): HTMLInputElement {
@@ -61,6 +75,24 @@ describe('ChatDirectoryComponent', () => {
   function search(query: string): void {
     searchInput().value = query;
     searchInput().dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function searchNotTalked(query: string): void {
+    const input = fixture.nativeElement.querySelector(
+      '[data-testid="chat-directory-not-talked-search"]',
+    ) as HTMLInputElement;
+    input.value = query;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function searchTalked(query: string): void {
+    const input = fixture.nativeElement.querySelector(
+      '[data-testid="chat-directory-talked-search"]',
+    ) as HTMLInputElement;
+    input.value = query;
+    input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
   }
 
@@ -201,7 +233,7 @@ describe('ChatDirectoryComponent', () => {
     expect(row.parentElement.querySelector('[role="alert"]')).toBeTruthy();
   });
 
-  it('search filters people/groups by display name case-insensitively, live per keystroke (REQ-8)', () => {
+  it('the "haven\'t talked yet" partition filters by display name case-insensitively, live per keystroke (REQ-8)', () => {
     fixture.detectChanges();
     flushInit({
       eligible: [
@@ -211,7 +243,7 @@ describe('ChatDirectoryComponent', () => {
     });
     fixture.detectChanges();
 
-    search('ali');
+    searchNotTalked('ali');
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:3"]'),
     ).toBeTruthy();
@@ -220,14 +252,65 @@ describe('ChatDirectoryComponent', () => {
     ).toBeNull();
   });
 
+  it('the "already talked to" partition has its own independent search', () => {
+    fixture.detectChanges();
+    flushInit({
+      conversations: [
+        { id: 5, kind: 'PEER_DIRECT', tenantId: null, title: null, participantUserIds: [1, 2] },
+        { id: 6, kind: 'PEER_DIRECT', tenantId: null, title: null, participantUserIds: [1, 3] },
+      ],
+      eligible: [
+        { userId: 2, nickname: 'Bob' },
+        { userId: 3, nickname: 'Alice' },
+      ],
+    });
+    fixture.detectChanges();
+
+    searchTalked('ali');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:3"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]'),
+    ).toBeNull();
+  });
+
+  it('opening a conversation does not itself reorder the "already talked to" list (bug fix: no reordering flicker on mere selection)', () => {
+    fixture.detectChanges();
+    flushInit({
+      conversations: [
+        { id: 5, kind: 'PEER_DIRECT', tenantId: null, title: null, participantUserIds: [1, 2] },
+        { id: 6, kind: 'PEER_DIRECT', tenantId: null, title: null, participantUserIds: [1, 3] },
+      ],
+      eligible: [
+        { userId: 2, nickname: 'Bob' },
+        { userId: 3, nickname: 'Alice' },
+      ],
+    });
+    fixture.detectChanges();
+
+    const keysBefore = Array.from(
+      fixture.nativeElement.querySelectorAll('[data-testid^="chat-directory-row-person"]'),
+    ).map((el) => (el as HTMLElement).getAttribute('data-testid'));
+
+    fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]').click();
+    fixture.detectChanges();
+
+    const keysAfter = Array.from(
+      fixture.nativeElement.querySelectorAll('[data-testid^="chat-directory-row-person"]'),
+    ).map((el) => (el as HTMLElement).getAttribute('data-testid'));
+
+    expect(keysAfter).toEqual(keysBefore);
+  });
+
   it('a search with no matches shows a distinct "no results" message', () => {
     fixture.detectChanges();
     flushInit({ eligible: [{ userId: 2, nickname: 'Bob' }] });
     fixture.detectChanges();
 
-    search('zzz');
+    searchNotTalked('zzz');
     expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-no-results"]'),
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-not-talked-no-results"]'),
     ).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="chat-directory-empty"]')).toBeNull();
   });
@@ -237,12 +320,12 @@ describe('ChatDirectoryComponent', () => {
     flushInit({ eligible: [{ userId: 2, nickname: 'Bob' }] });
     fixture.detectChanges();
 
-    search('zzz');
+    searchNotTalked('zzz');
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]'),
     ).toBeNull();
 
-    search('');
+    searchNotTalked('');
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]'),
     ).toBeTruthy();
@@ -261,7 +344,7 @@ describe('ChatDirectoryComponent', () => {
     ).toBeTruthy();
   });
 
-  it('the search field and "Criar grupo" trigger are keyboard-navigable with explicit aria-labels', () => {
+  it('the search field is keyboard-navigable with an explicit aria-label', () => {
     fixture.detectChanges();
     flushInit({});
     fixture.detectChanges();
@@ -277,5 +360,79 @@ describe('ChatDirectoryComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-empty"]'),
     ).toBeTruthy();
+  });
+
+  it('renders an avatar (generic fallback, since eligible-participants carries no avatarUrl yet) next to each person row', () => {
+    fixture.detectChanges();
+    flushInit({ eligible: [{ userId: 2, nickname: 'Bob' }] });
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]');
+    expect(row.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
+  });
+
+  it('always renders a Support row, unaffected by search (REQ-9)', () => {
+    fixture.detectChanges();
+    flushInit({ eligible: [{ userId: 2, nickname: 'Bob' }] });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
+    ).toBeTruthy();
+
+    search('zzz');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
+    ).toBeTruthy();
+  });
+
+  it('the Support row uses a distinct label from the sidebar\'s "Abrir chamado de suporte" action (bug fix: duplicate label)', () => {
+    fixture.detectChanges();
+    flushInit({});
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]');
+    expect(row.textContent.trim()).not.toBe('Abrir chamado de suporte');
+  });
+
+  it('clicking the Support row navigates to the support section', () => {
+    fixture.detectChanges();
+    flushInit({});
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]').click();
+    expect(router.navigate).toHaveBeenCalledWith(['/chat'], {
+      queryParams: { section: 'support' },
+    });
+  });
+
+  it('renders every existing "Base de artigos" conversation when a tenant is active, unaffected by search (REQ-9)', () => {
+    fixture.detectChanges();
+    flushInit({
+      activeTenantId: 1,
+      articles: [{ id: 7, title: 'Minha conversa' }],
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]'),
+    ).toBeTruthy();
+
+    search('zzz');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]'),
+    ).toBeTruthy();
+  });
+
+  it('clicking a "Base de artigos" row navigates to that conversation', () => {
+    fixture.detectChanges();
+    flushInit({
+      activeTenantId: 1,
+      articles: [{ id: 7, title: 'Minha conversa' }],
+    });
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]').click();
+    expect(router.navigate).toHaveBeenCalledWith(['/chat/articles', 7]);
   });
 });

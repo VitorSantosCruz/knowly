@@ -1,95 +1,157 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ActiveTenantService } from '../../core/active-tenant.service';
+import { ConversationService } from '../../core/conversation.service';
+import { SidebarStateService } from '../../core/sidebar-state.service';
 import { NoActiveTenantStateComponent } from '../../shared/no-active-tenant-state.component';
 import { ChatDirectoryComponent } from './chat-directory.component';
-import { ChatSidebarComponent, ChatSection } from './chat-sidebar.component';
+import { ChatSidebarComponent } from './chat-sidebar.component';
 import { ConversationDetailComponent } from './conversation-detail.component';
+import { CreateGroupDialogComponent } from './create-group-dialog.component';
 import { ConversationsPageComponent } from '../conversations/conversations-page.component';
 import { SupportPageComponent } from '../support/support-page.component';
 
 type ChatRouteKind = 'directory' | 'peer' | 'support' | 'articles';
+type QuerySection = 'people' | 'groups' | 'support' | 'articles';
 
 /**
  * Route: `/chat`, `/chat/:conversationId`, `/chat/support/:channelId`,
- * `/chat/articles/:conversationId` — no route guard (REQ-1/REQ-2, PLAN.md's rationale: the
- * four sections have materially different guard needs, so this shell performs its own
- * "is there an active tenant" check only for the "Base de artigos" section, mirroring
- * `SupportPageComponent`'s existing in-component dispatch pattern).
+ * `/chat/articles/:conversationId` — no route guard (REQ-1/REQ-2, PLAN.md's rationale).
  *
- * Which of the 4 always-visible sections (People/Groups/Support/Base de artigos, REQ-2) is
- * shown is resolved from two sources, matching the redirect table in PLAN.md:
+ * **Amended 2026-08-09**: this shell lays out 2 persistent columns — a directory column
+ * (`ChatSidebarComponent`'s 3 direct actions + `ChatDirectoryComponent`'s unified list, itself
+ * now partitioning People into "Already talked to"/"Haven't talked yet") and a conversation
+ * column showing whichever conversation/Support/RAG view is currently open, using the exact
+ * same unchanged components as before (`ConversationDetailComponent`/`SupportPageComponent`/
+ * `ConversationsPageComponent`) — only which column renders them changed.
+ *
+ * This replaces two earlier same-day iterations, in order: (1) the originally-shipped
+ * tab-strip design (entire main panel swapped per section); (2) a 3-column cut that added a
+ * separate `ChatContactsPanelComponent` "já falou"/"ainda não falou" column — the product owner
+ * found that 3rd column redundant with column 1's own People rows and asked for the same
+ * partitioning idea to live *inside* `ChatDirectoryComponent` instead (see that component's own
+ * doc comment), which is what's implemented now. Below the 2-column breakpoint, the shell
+ * collapses to one column at a time (REQ-2c), reusing `SidebarStateService.viewportIsDesktop()`
+ * — the same breakpoint signal `app-shell.component.ts` already uses for its own
+ * collapsible-sidebar convention.
+ *
+ * Which view opens in the conversation column is still resolved from the same two sources as
+ * before:
  * - `route.data['chatSection']` — set per route entry in `app.routes.ts` for the 3
  *   id-carrying routes (`peer`/`support`/`articles`); `'directory'` for the bare `/chat` path.
  * - When `chatSection` is `'directory'`, the `section` query param decides among
- *   people/groups/support/articles (defaulting to `'people'`) — this is what lets
- *   `/support`'s and `/conversations`' `redirectTo` targets (`/chat?section=support`,
- *   `/chat?section=articles`) land on the right section without their own dedicated route.
- *
- * `ConversationDetailComponent`/`SupportPageComponent`/`ConversationsPageComponent` are
- * rendered here as regular template children, not through a nested `<router-outlet>` — each
- * already reads its own id (`:conversationId`/`:channelId`) directly off its own injected
- * `ActivatedRoute` (the same instance Angular's router attaches to this shell for the matched
- * route), exactly as `SupportPageComponent` already does for `/support`/`/support/:channelId`
- * today — no id-forwarding wiring is needed at this level.
+ *   people/groups/support/articles (defaulting to `'people'`) — people/groups have no
+ *   dedicated conversation-column content (nothing specific is open yet), so that column shows
+ *   a neutral placeholder in that case.
  */
 @Component({
   selector: 'app-chat-shell',
   imports: [
+    TranslocoPipe,
     ChatSidebarComponent,
     ChatDirectoryComponent,
     ConversationDetailComponent,
     SupportPageComponent,
     ConversationsPageComponent,
     NoActiveTenantStateComponent,
+    CreateGroupDialogComponent,
   ],
   template: `
-    <div data-testid="chat-shell" class="page-shell grid gap-6 md:grid-cols-[240px_1fr]">
-      <app-chat-sidebar
-        [activeSection]="activeSection()"
-        (sectionChange)="onSectionChange($event)"
-      />
+    <div data-testid="chat-shell" class="page-shell grid gap-4 md:grid-cols-[280px_1fr]">
+      @if (sidebarState.viewportIsDesktop() || mobileView() === 'directory') {
+        <div
+          data-testid="chat-shell-directory-column"
+          class="flex flex-col gap-4 rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+        >
+          <app-chat-sidebar
+            [hasActiveTenant]="activeTenantService.activeTenantId() !== null"
+            (openSupport)="onOpenSupport()"
+            (openArticles)="onOpenArticles()"
+            (createGroup)="createGroupOpen.set(true)"
+          />
+          <app-chat-directory />
+        </div>
+      }
 
-      <div
-        class="rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
-      >
-        @switch (activeSection()) {
-          @case ('support') {
-            <app-support-page />
+      @if (sidebarState.viewportIsDesktop() || mobileView() === 'conversation') {
+        <div
+          data-testid="chat-shell-conversation-column"
+          class="rounded-2xl border border-ink-200/70 bg-white p-4 dark:border-ink-800/70 dark:bg-ink-900"
+        >
+          @if (!sidebarState.viewportIsDesktop()) {
+            <button
+              type="button"
+              data-testid="chat-shell-mobile-back"
+              [attr.aria-label]="'chat.shell.backToDirectory' | transloco"
+              (click)="onBackToDirectory()"
+              class="mb-3 text-sm font-medium text-signal-700 dark:text-signal-300"
+            >
+              {{ 'chat.shell.backToDirectory' | transloco }}
+            </button>
           }
-          @case ('articles') {
-            @if (activeTenantService.activeTenantId() !== null) {
-              <app-conversations-page />
-            } @else {
-              <app-no-active-tenant-state />
+
+          @switch (activeSection()) {
+            @case ('support') {
+              <app-support-page />
+            }
+            @case ('articles') {
+              @if (activeTenantService.activeTenantId() !== null) {
+                <app-conversations-page />
+              } @else {
+                <app-no-active-tenant-state />
+              }
+            }
+            @default {
+              @if (chatRouteKind() === 'peer') {
+                <app-conversation-detail />
+              } @else {
+                <p
+                  data-testid="chat-shell-conversation-placeholder"
+                  class="text-sm text-ink-500 dark:text-ink-400"
+                >
+                  {{ 'chat.shell.noConversationSelected' | transloco }}
+                </p>
+              }
             }
           }
-          @default {
-            @if (chatRouteKind() === 'peer') {
-              <app-conversation-detail />
-            } @else {
-              <app-chat-directory />
-            }
-          }
-        }
-      </div>
+        </div>
+      }
     </div>
+
+    <app-create-group-dialog [open]="createGroupOpen()" (dismissed)="createGroupOpen.set(false)" />
   `,
 })
 export class ChatShellComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
+  protected readonly sidebarState = inject(SidebarStateService);
+  private readonly conversationService = inject(ConversationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   protected readonly chatRouteKind = signal<ChatRouteKind>('directory');
-  private readonly querySection = signal<ChatSection>('people');
+  private readonly querySection = signal<QuerySection>('people');
 
-  protected readonly activeSection = computed<ChatSection>(() => {
+  protected readonly createGroupOpen = signal(false);
+
+  protected readonly activeSection = computed<QuerySection>(() => {
     const kind = this.chatRouteKind();
     if (kind === 'directory') {
       return this.querySection();
     }
     return kind === 'peer' ? 'groups' : kind;
+  });
+
+  /** REQ-2c: which single column is shown below the 2-column breakpoint — derived entirely
+   * from the current route, not a separately-tracked toggle, so it always matches what's
+   * actually open (a specific conversation/Support/RAG view means "conversation", anything
+   * else means "directory"). */
+  protected readonly mobileView = computed<'directory' | 'conversation'>(() => {
+    if (this.chatRouteKind() === 'peer') {
+      return 'conversation';
+    }
+    const section = this.activeSection();
+    return section === 'support' || section === 'articles' ? 'conversation' : 'directory';
   });
 
   ngOnInit(): void {
@@ -107,7 +169,25 @@ export class ChatShellComponent implements OnInit {
     });
   }
 
-  protected onSectionChange(section: ChatSection): void {
-    this.router.navigate(['/chat'], { queryParams: { section } });
+  protected onOpenSupport(): void {
+    this.router.navigate(['/chat'], { queryParams: { section: 'support' } });
+  }
+
+  /** REQ-2's "Falar com a base de artigos" always starts a new RAG conversation (mirrors
+   * `conversations` SPEC's own REQ-2) — unlike existing rows, which reopen an existing one. */
+  protected onOpenArticles(): void {
+    const tenantId = this.activeTenantService.activeTenantId();
+    if (tenantId === null) {
+      this.router.navigate(['/chat'], { queryParams: { section: 'articles' } });
+      return;
+    }
+    this.conversationService.create(tenantId).subscribe({
+      next: (conversation) => this.router.navigate(['/chat/articles', conversation.id]),
+      error: () => this.router.navigate(['/chat'], { queryParams: { section: 'articles' } }),
+    });
+  }
+
+  protected onBackToDirectory(): void {
+    this.router.navigate(['/chat']);
   }
 }

@@ -659,7 +659,10 @@
       "requestPending": "Request pending",
       "noResults": "No results for '{{query}}'",
       "emptyState": "No conversations yet.",
-      "actionError": "This action failed. Please try again."
+      "actionError": "This action failed. Please try again.",
+      "supportRowAriaLabel": "Open Support",
+      "supportRowLabel": "Support",
+      "articleRowAriaLabel": "Open knowledge base conversation {{title}}"
     },
     "createGroup": {
       "title": "Create group",
@@ -694,10 +697,22 @@
       "actionError": "This action failed. Please try again."
     },
     "sidebar": {
-      "sectionPeople": "People",
-      "sectionGroups": "Groups",
-      "sectionSupport": "Support",
-      "sectionArticles": "Knowledge base"
+      "actionSupport": "Open a support ticket",
+      "actionSupportAriaLabel": "Open a support ticket",
+      "actionArticles": "Talk to the knowledge base",
+      "actionArticlesAriaLabel": "Start a new knowledge base conversation"
+    },
+    "contacts": {
+      "talkedTitle": "Already talked to",
+      "notTalkedTitle": "Haven't talked yet",
+      "talkedSearchLabel": "Search people/groups you've talked to",
+      "notTalkedSearchLabel": "Search people/groups you haven't talked to"
+    },
+    "shell": {
+      "backToDirectory": "Back",
+      "noConversationSelected": "Select someone to start chatting.",
+      "toggleContacts": "Show contacts",
+      "closeContacts": "Close contacts"
     }
   },
   "support": {

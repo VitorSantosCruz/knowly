@@ -162,32 +162,81 @@ No Tier 3 item remains open in this document.
 > tab-strip design; REQ-4/REQ-8 through REQ-32 (search, group
 > creation/visibility/admin) are unaffected in behavior, only in where
    they're anchored on screen.
+>
+> **Amended (2) 2026-08-09, same day** — a first cut of the amendment
+> above shipped as **3** persistent columns (directory, conversation, and
+> a new "contacts" column with a "já falou"/"ainda não falou" partition
+> of the same person/group data). The product owner liked the
+> already-talked-to/haven't-talked-yet partitioning idea but found a
+> separate 3rd column redundant with the directory column's own People
+> rows. **Final direction: 2 columns, not 3** — the partitioning idea
+> moves *into* the directory column's People section (replacing its flat
+> list), instead of living in its own column. REQ-1/REQ-2/REQ-2a/REQ-2b/
+> REQ-2c below reflect this final, 2-column shape; there is no REQ-2b
+> "contacts column" anymore — see REQ-2 (amended) for where that
+> partitioning now lives. Groups/Support/"Base de artigos" are unaffected
+> by this second amendment, only People's own presentation.
+>
+> **Follow-up UX fixes, same day, reported by a tester on the shipped
+> 2-column cut (not requiring further re-architecture):** (a) the 3 quick
+> actions (REQ-2) — "Abrir chamado de suporte" and "Falar com a base de
+> artigos" are tenant-scoped actions and must not be offered to a staff
+> viewer with no active tenant selected (mirrors the existing "no active
+> tenant" gating `conversations`' own SPEC already applies to the RAG
+> section); "Criar grupo" stays unconditional since a staff-only group is
+> valid independent of any tenant. (b) The directory list's always-present
+> Support row and the "Abrir chamado de suporte" action must use visibly
+> distinct labels (a duplicate-looking "Abrir chamado de suporte" appeared
+> twice on screen — a labeling bug, not an intentional second entry
+> point). (c) "Criar grupo" needed a clearer button affordance (an icon,
+> not just color, since its original border-less style read as a
+> permanently-"selected" list row to at least one tester). (d) Each row
+> that opens the currently-open conversation/group/Support/RAG view shows
+> a visual "active" state, and each person row shows their avatar
+> (`UserProfile.avatarUrl`, falling back to a generic icon — see
+> `PLAN.md`'s note on `CandidateUserDto` not yet carrying `avatarUrl`,
+> a tracked backend follow-up, not implemented here). (e) The "already
+> talked to" partition sorts most-recently-active first, proxied by
+> conversation id (descending) until the backend exposes a real
+   `lastMessageAt`/activity timestamp (tracked follow-up, see PLAN.md) —
+   and, critically, this sort never reacts to which row is merely
+   selected/open, only to genuine conversation data, so opening a
+   conversation cannot itself reorder the list.
 
 - **REQ-1 [Ubiquitous]** The system shall provide a single top-level
   navigation entry ("Conversas") that replaces the previously separate
   `/chat`, `/support`, and `/conversations` entries, opening one screen
-  laid out as three persistent columns — a directory column, a
-  conversation column, and a contacts column (REQ-2a/REQ-2b/REQ-2c) —
-  instead of a sidebar that swaps the main panel's entire content per
-  section.
+  laid out as **two** persistent columns — a directory column and a
+  conversation column (REQ-2a) — instead of a sidebar that swaps the
+  main panel's entire content per section.
 - **REQ-2 [Ubiquitous]** The directory column (leftmost) shall always
   show, simultaneously and without a tab/section switch: (a) three
   direct action buttons — "Abrir chamado de suporte", "Falar com a base
-  de artigos", "Criar grupo" — and (b) a single unified, searchable list
-  combining every person, group, existing Support channel/ticket, and
-  existing "Base de artigos" conversation the viewer already has, sorted
-  most-recently-active first, exactly like an established messaging
-  app's chat list. This list is never itself hidden behind a section
-  tab; it is the directory column's permanent content.
+  de artigos", "Criar grupo" — gated per the tenant-scoping note below,
+  and (b) a unified list combining People, Groups, the existing Support
+  channel/ticket entry point, and existing "Base de artigos"
+  conversations. This list is never itself hidden behind a section tab;
+  it is the directory column's permanent content.
   - **People rows** — every user the current viewer is eligible to
     message 1:1, per `internal-team-chat`'s existing eligibility rules
     (REQ-2), each with their existing/most-recent 1:1 conversation if
-    one exists.
+    one exists. **Amended (2) 2026-08-09**: rather than one flat list,
+    People rows are partitioned into two groups, each with its own
+    independent search field: **"Already talked to"** (an existing 1:1
+    conversation exists) and **"Haven't talked yet"** (eligible, no
+    conversation yet) — sorted most-recently-active first within each
+    partition, same "established messaging app" framing as before, this
+    is purely a presentation split of the same eligibility data, not a
+    new backend concept. Clicking a row in either partition behaves
+    identically (REQ-3). Each row also shows the person's avatar
+    (falling back to a generic icon when unavailable — see PLAN.md's
+    note on the current `avatarUrl` data gap).
   - **Group rows** — every group conversation the viewer is a
     participant of, plus (see "Group visibility and discovery" below)
     discoverable groups the viewer isn't yet part of, plus
     `STAFF_ADMIN`/`MEMBER_ADMIN` look-ins per `internal-team-chat`'s
-    existing REQ-1/REQ-7/REQ-8, unchanged.
+    existing REQ-1/REQ-7/REQ-8, unchanged — kept as a single list with
+    its own single search field (REQ-8), not partitioned like People.
   - **Support row(s)** — the viewer's own existing Support channel/ticket
     (member), or the staff unclaimed-inbox/claimed-ticket entries (staff
     with the support permission), each opening the existing Support
@@ -195,6 +244,9 @@ No Tier 3 item remains open in this document.
     conversation column. The "Abrir chamado de suporte" action (REQ-2)
     is the only way to start a brand-new one; existing ones are rows
     like any other conversation, not hidden behind a separate action.
+    This row and the "Abrir chamado de suporte" action must be visibly
+    distinct entries (not the same label twice — a duplication bug found
+    and fixed the same day).
   - **"Base de artigos" rows** — every existing RAG conversation the
     viewer has (`conversations`' existing REQ-1 through REQ-8; a viewer
     may have more than one), each opening in the conversation column
@@ -203,40 +255,42 @@ No Tier 3 item remains open in this document.
     SPEC ("When the user starts a new conversation... create it... make
     it the active conversation") — existing ones are reached via their
     row, never via that action.
-- **REQ-2a [Ubiquitous]** The conversation column (center) shall show
+  - **Tenant-scoping of the 2 conversation-starting actions (bug fix,
+    2026-08-09)**: "Abrir chamado de suporte" and "Falar com a base de
+    artigos" both only mean something with an active tenant selected
+    (opening a ticket is a member action inside a tenant; the RAG
+    endpoint itself is tenant-scoped) — a staff viewer with no active
+    tenant (pure cross-tenant oversight) shall not see these two as
+    available actions. "Criar grupo" is unconditional (a staff-only
+    group is valid independent of any tenant). This does not hide the
+    Support row itself, which staff can still reach with no active
+    tenant, per `internal-team-chat`'s existing oversight model.
+  - **Currently-open row indication (2026-08-09)**: whichever row
+    (person, group, Support, or "Base de artigos") corresponds to what's
+    currently shown in the conversation column (REQ-2a) shall be
+    visually indicated as active/selected.
+- **REQ-2a [Ubiquitous]** The conversation column (right) shall show
   whichever conversation, group, Support channel, or "Base de artigos"
   conversation is currently open, using the existing unchanged
   components/behavior for each kind (`message-thread`/
   `conversation-detail`, `SupportPageComponent`,
   `ConversationsPageComponent` respectively) — this SPEC changes only
   which column renders them, not their own behavior.
-- **REQ-2b [Ubiquitous]** The contacts column (rightmost) shall show a
-  second, independent view of the same directory data (REQ-2), always
-  partitioned into two groups: people/groups the viewer has an existing
-  conversation with ("já falou"), and people/groups the viewer is
-  eligible to talk to but hasn't yet ("ainda não falou") — each with its
-  own search field filtering only its own partition. Clicking an entry
-  here behaves identically to clicking the equivalent row in the
-  directory column (REQ-3/REQ-20/REQ-21). This column is a convenience
-  view for "who have I talked to," derived entirely from data the
-  directory column already loads — it introduces no new backend
-  endpoint or state.
 - **REQ-2c [State-Driven]** While the viewport is narrower than the
   layout's two-column breakpoint, the system shall collapse to showing
   one column at a time (directory or conversation, whichever the viewer
-  last activated), with the contacts column (REQ-2b) reachable as a
-  secondary view rather than simultaneously rendered — mirroring the
-  existing collapsible-sidebar convention already used by the app shell.
-- **REQ-3 [Event-Driven]** When the user clicks a person's row in the
-  directory or contacts column, the system shall open that person's
-  existing 1:1 conversation if one exists, or create-and-open a new one
-  if it doesn't — with no separate "Nova conversa" step, dialog, or
-  route in between.
+  last activated) — mirroring the existing collapsible-sidebar
+  convention already used by the app shell.
+- **REQ-3 [Event-Driven]** When the user clicks a person's row (either
+  partition) in the directory column, the system shall open that
+  person's existing 1:1 conversation if one exists, or create-and-open a
+  new one if it doesn't — with no separate "Nova conversa" step, dialog,
+  or route in between.
 - **REQ-4 [Unwanted Behavior]** If the user clicks a person they are not
   eligible to message 1:1 (per the backend's existing eligibility rule),
-  then the system shall not offer that person as a row in either column
-  in the first place — mirrors `internal-team-chat` REQ-2's existing
-  eligibility filtering, just applied to a list instead of a picker.
+  then the system shall not offer that person as a row in the first
+  place — mirrors `internal-team-chat` REQ-2's existing eligibility
+  filtering, just applied to a list instead of a picker.
 - **REQ-5 [Event-Driven]** When the user clicks a group they already
   participate in, the system shall open that group's conversation view
   in the conversation column, identically to `internal-team-chat`'s
@@ -261,16 +315,19 @@ No Tier 3 item remains open in this document.
 ### Search (by name only — see "Out of scope / Future work" for message
 content search)
 
-- **REQ-8 [Event-Driven]** When the user types into the sidebar's search
-  field, the system shall filter the People section and the Groups
-  section concurrently to only the entries whose display name (person's
-  profile nickname, or group name) contains the typed text,
-  case-insensitively, updating as the user types. For Groups, the
-  candidate set being filtered is: every group the viewer already
-  participates in, plus every **Discoverable** or **Public** group (see
-  below) the viewer does not yet participate in — never a **Private**
-  group the viewer isn't already in (REQ-19). This search never looks
-  inside message content — see "Out of scope / Future work."
+- **REQ-8 [Event-Driven]** When the user types into a search field, the
+  system shall filter that field's own section to only the entries whose
+  display name (person's profile nickname, or group name) contains the
+  typed text, case-insensitively, updating as the user types. **Amended
+  (2) 2026-08-09**: since People is now two partitions
+  ("Already talked to"/"Haven't talked yet", see REQ-2), each partition
+  has its own independent search field — typing in one never affects the
+  other. Groups keeps a single search field over its own candidate set:
+  every group the viewer already participates in, plus every
+  **Discoverable** or **Public** group (see below) the viewer does not
+  yet participate in — never a **Private** group the viewer isn't
+  already in (REQ-19). No search here ever looks inside message content
+  — see "Out of scope / Future work."
 - **REQ-9 [Ubiquitous]** The system shall not filter the Support or
   "Base de artigos" sections by this search — search narrows People/
   Groups only; both other sections remain always reachable.

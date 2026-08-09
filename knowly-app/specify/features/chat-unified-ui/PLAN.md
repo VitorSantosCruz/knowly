@@ -672,3 +672,81 @@ all 138 TASKS.md items against the exact contract this reconciliation
 table already reflects — no further corrections needed here; this
 frontend feature can proceed against the live endpoints directly (see
 `PROJECT_STATUS.md`'s `chat-group-membership-management` entry).
+
+## Emergent decisions (implementation, 2026-08-09, "3-column then 2-column" amendment)
+
+Following this SPEC's own navigation-surface amendment (tab strip →
+3 columns → 2 columns, all same day), plus a set of tester-reported UX
+fixes on the shipped cut:
+
+- **`ChatShellComponent` went from a 4-tab dispatcher to a 3-column
+  layout, then to the final 2-column layout, in one continuous session**
+  — `ChatContactsPanelComponent` (the 3rd "já falou"/"ainda não falou"
+  column) was built, tested green, then deleted the same day once the
+  product owner found it redundant with the directory column's own
+  People rows. Its partitioning *logic* survived — moved into
+  `ChatDirectoryRowsService.talkedPeople()`/`notTalkedPeople()`, now
+  consumed directly by `ChatDirectoryComponent` — only the separate
+  column/component wrapper was discarded. `ChatDirectoryRowsService`
+  itself was kept as its own file (not re-inlined into the component)
+  since it still centralizes the click-to-open-or-create/join/
+  request-to-join logic in one place, which remains useful with a single
+  consumer.
+- **`ChatSidebarComponent` gates 2 of its 3 actions on
+  `ActiveTenantService.activeTenantId() !== null`** (a new
+  `hasActiveTenant` input, computed by `ChatShellComponent`) —
+  "Abrir chamado de suporte" and "Falar com a base de artigos" are both
+  meaningless without a tenant (one opens a member ticket inside a
+  tenant, the other calls a tenant-scoped RAG endpoint); a staff viewer
+  doing pure cross-tenant oversight with no active tenant must not see
+  them as available actions. "Criar grupo" stays unconditional. This was
+  a genuine gap in the original amendment's reasoning (which reasoned
+  about the *Support section itself* needing to work without a tenant
+  for staff oversight, correctly, but didn't separately consider the
+  *action buttons'* own tenant-scoping) — found by a tester, not
+  originally specified.
+- **The directory list's Support row uses a distinct i18n key
+  (`chat.directory.supportRowLabel`, "Suporte"/"Support") from the
+  sidebar's "Abrir chamado de suporte" action** — the first cut reused
+  the action's own label for the row, which a tester correctly read as
+  an accidental duplicate rather than two intentionally different
+  entries (one starts a new ticket, the other reopens whatever Support
+  experience already applies).
+- **`shared/avatar.component.ts` (`AvatarComponent`) is a new, small,
+  reusable image/generic-icon-fallback component**, extracted from
+  `avatar-menu.component.ts`'s existing own-avatar pattern rather than
+  reimplemented inline in `chat-directory.component.ts` — anticipating
+  reuse in a future conversation header, per the request that prompted
+  it. **Known data gap, not fixed here**: `PersonRow.avatarUrl` is
+  always `null` today because `CandidateUserDto`
+  (`GET /api/chat/eligible-participants`) only carries
+  `{ userId, nickname }` on the wire — no `avatarUrl` field exists to
+  read. `AvatarComponent` safely renders its generic fallback icon in
+  this case (never a broken image), and the plumbing (`PersonRow`'s own
+  `avatarUrl` field, `ChatDirectoryComponent`'s template) is already
+  wired end-to-end — the only remaining gap is a backend DTO change
+  (`CandidateUserDto` growing `avatarUrl`), tracked as a follow-up rather
+  than done here, since this feature's scope is explicitly "no new
+  endpoint/contract change."
+- **`talkedPeople()`/`groupRows()` sort by id descending, not a real
+  `lastMessageAt`** — same already-documented gap as `chat.model.ts`'s
+  own comment on `ConversationSummary` carrying no activity timestamp.
+  This is the closest available proxy for "most recently active" without
+  a backend change, and — the specific bug this fixes — it depends only
+  on conversation/group id, never on which row is currently open/
+  selected, so merely opening a conversation cannot reorder the list (a
+  tester reported exactly that flicker against an earlier build where,
+  it turned out, no such reordering-on-click logic actually existed —
+  the fix here is really a regression test locking in "selection never
+  drives sort" as an explicit contract, not a behavior change).
+- **Currently-open-row highlighting (`ChatDirectoryComponent`) derives
+  the active id purely from `Router.url`** (via
+  `Router.events`/`NavigationEnd`, `toSignal`), matching against
+  `/chat/:id` (peer/group), `/chat/articles/:id`, and a
+  `section=support` substring check for the Support row — no new
+  service state, since the URL is already the single source of truth
+  for "what's open" in this shell.
+- **"Criar grupo" gained a `LucidePlus` icon** alongside its existing
+  filled (`bg-signal-600`) style — the color alone wasn't enough for a
+  tester to read it as a button rather than a permanently-"selected"
+  list row (list rows have no selection styling of their own today).

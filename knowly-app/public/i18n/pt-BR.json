@@ -659,7 +659,10 @@
       "requestPending": "Pedido pendente",
       "noResults": "Nenhum resultado para '{{query}}'",
       "emptyState": "Nenhuma conversa ainda.",
-      "actionError": "Esta ação falhou. Tente novamente."
+      "actionError": "Esta ação falhou. Tente novamente.",
+      "supportRowAriaLabel": "Abrir Suporte",
+      "supportRowLabel": "Suporte",
+      "articleRowAriaLabel": "Abrir conversa da base de artigos {{title}}"
     },
     "createGroup": {
       "title": "Criar grupo",
@@ -694,10 +697,22 @@
       "actionError": "Esta ação falhou. Tente novamente."
     },
     "sidebar": {
-      "sectionPeople": "Pessoas",
-      "sectionGroups": "Grupos",
-      "sectionSupport": "Suporte",
-      "sectionArticles": "Base de artigos"
+      "actionSupport": "Abrir chamado de suporte",
+      "actionSupportAriaLabel": "Abrir chamado de suporte",
+      "actionArticles": "Falar com a base de artigos",
+      "actionArticlesAriaLabel": "Iniciar uma nova conversa com a base de artigos"
+    },
+    "contacts": {
+      "talkedTitle": "Já falou",
+      "notTalkedTitle": "Ainda não falou",
+      "talkedSearchLabel": "Buscar pessoas/grupos com quem você já falou",
+      "notTalkedSearchLabel": "Buscar pessoas/grupos com quem você ainda não falou"
+    },
+    "shell": {
+      "backToDirectory": "Voltar",
+      "noConversationSelected": "Selecione alguém para começar a conversar.",
+      "toggleContacts": "Mostrar contatos",
+      "closeContacts": "Fechar contatos"
     }
   },
   "support": {

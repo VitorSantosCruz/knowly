@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 import { provideTransloco } from '@jsverse/transloco';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
+import { mockViewportMatchMedia } from '../../testing/mock-match-media';
 import { ChatShellComponent } from './chat-shell.component';
 
 describe('ChatShellComponent', () => {
@@ -14,8 +15,9 @@ describe('ChatShellComponent', () => {
   let queryParamMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let data$: BehaviorSubject<Record<string, unknown>>;
 
-  function setup(): void {
+  function setup(opts: { viewportIsDesktop?: boolean } = {}): void {
     TestBed.resetTestingModule();
+    mockViewportMatchMedia(opts.viewportIsDesktop ?? true);
     queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
     data$ = new BehaviorSubject<Record<string, unknown>>({});
     TestBed.configureTestingModule({
@@ -60,27 +62,33 @@ describe('ChatShellComponent', () => {
     }
   }
 
+  /** More than one mounted branch can fetch the current user's own profile
+   * (`ChatDirectoryRowsService` and, independently, `SupportPageComponent`) — flush every
+   * currently-pending request identically, same reasoning as `flushActiveTenant`. */
+  function flushProfile(): void {
+    for (const req of httpMock.match('/api/users/me/profile')) {
+      req.flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    }
+  }
+
   function flushDirectory(): void {
     httpMock.expectOne('/api/chat/conversations').flush([]);
     httpMock.expectOne((r) => r.url === '/api/chat/eligible-participants').flush([]);
     httpMock
       .expectOne((r) => r.url === '/api/chat/discoverable-groups')
       .flush({ content: [], page: 0, size: 200, totalElements: 0, totalPages: 1 });
-    httpMock
-      .expectOne('/api/users/me/profile')
-      .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    flushProfile();
+    flushActiveTenant(null);
   }
 
   function flushSupportPageBootstrap(): void {
     httpMock.expectOne('/api/staff/permissions').flush({ permissions: [] });
     httpMock.expectOne('/api/tenants/permissions').flush({ permissions: [] });
-    httpMock
-      .expectOne('/api/users/me/profile')
-      .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    flushProfile();
     flushActiveTenant(null);
   }
 
-  it('defaults to people and renders ChatDirectoryComponent when section is absent', () => {
+  it('renders the directory column (sidebar actions + unified list) alongside a conversation placeholder when nothing is open', () => {
     setup();
     fixture.detectChanges();
     flushActiveTenant(null);
@@ -89,10 +97,24 @@ describe('ChatShellComponent', () => {
 
     expect(fixture.nativeElement.querySelector('app-chat-directory')).toBeTruthy();
     expect(
-      fixture.nativeElement
-        .querySelector('[data-testid="chat-sidebar-tab-people"]')
-        .getAttribute('aria-current'),
-    ).toBe('page');
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-create-group"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-conversation-placeholder"]'),
+    ).toBeTruthy();
+  });
+
+  it('collapses to one column at a time below the breakpoint (REQ-2c) — directory only, no conversation open yet', () => {
+    setup({ viewportIsDesktop: false });
+    fixture.detectChanges();
+    flushActiveTenant(null);
+    flushDirectory();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-chat-directory')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-shell-conversation-column"]'),
+    ).toBeNull();
   });
 
   it('renders SupportPageComponent for section=support', () => {
@@ -100,6 +122,7 @@ describe('ChatShellComponent', () => {
     queryParamMap$.next(convertToParamMap({ section: 'support' }));
     fixture.detectChanges();
     flushActiveTenant(null);
+    flushDirectory();
     flushSupportPageBootstrap();
     fixture.detectChanges();
 
@@ -111,9 +134,14 @@ describe('ChatShellComponent', () => {
     queryParamMap$.next(convertToParamMap({ section: 'articles' }));
     fixture.detectChanges();
     flushActiveTenant(1);
+    flushDirectory();
     fixture.detectChanges();
     flushActiveTenant(1);
-    httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
+    // Both `ConversationsPageComponent`'s own fetch and `ChatDirectoryRowsService`'s
+    // article-row fetch hit this exact same endpoint once the tenant resolves.
+    for (const req of httpMock.match((r) => r.url === '/api/tenants/1/conversations')) {
+      req.flush([]);
+    }
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-conversations-page')).toBeTruthy();
@@ -127,6 +155,7 @@ describe('ChatShellComponent', () => {
     queryParamMap$.next(convertToParamMap({ section: 'articles' }));
     fixture.detectChanges();
     flushActiveTenant(null);
+    flushDirectory();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-conversations-page')).toBeNull();
@@ -140,31 +169,88 @@ describe('ChatShellComponent', () => {
     data$.next({ chatSection: 'peer' });
     fixture.detectChanges();
     flushActiveTenant(null);
+    flushDirectory();
     httpMock
       .expectOne((r) => r.url === '/api/chat/conversations/0')
       .flush(null, { status: 404, statusText: 'Not Found' });
     httpMock
       .expectOne((r) => r.url === '/api/chat/conversations/0/messages')
       .flush(null, { status: 404, statusText: 'Not Found' });
-    httpMock
-      .expectOne('/api/users/me/profile')
-      .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+    flushProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('app-conversation-detail')).toBeTruthy();
   });
 
-  it('clicking a sidebar tab navigates via the Router with the section query param, not a full reload', () => {
+  it('clicking the "Abrir chamado de suporte" action navigates via the Router with the support section, not a full reload', () => {
+    setup();
+    fixture.detectChanges();
+    flushActiveTenant(1);
+    flushDirectory();
+    fixture.detectChanges();
+    // ChatDirectoryRowsService's own article-row fetch, triggered once activeTenantId
+    // resolves to 1 — unrelated to the action under test, just needs flushing.
+    httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
+
+    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]').click();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/chat'], {
+      queryParams: { section: 'support' },
+    });
+  });
+
+  it('hides the "Abrir chamado de suporte"/"Falar com a base de artigos" quick actions without an active tenant (bug fix: staff-without-tenant oversight view), while still reaching Support via its always-present row', () => {
     setup();
     fixture.detectChanges();
     flushActiveTenant(null);
     flushDirectory();
     fixture.detectChanges();
 
-    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-tab-support"]').click();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-support"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-create-group"]'),
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
+    ).toBeTruthy();
+  });
 
-    expect(router.navigate).toHaveBeenCalledWith(['/chat'], {
-      queryParams: { section: 'support' },
-    });
+  it('clicking "Falar com a base de artigos" with an active tenant creates a new RAG conversation and navigates straight to it', () => {
+    setup();
+    queryParamMap$.next(convertToParamMap({}));
+    fixture.detectChanges();
+    flushActiveTenant(1);
+    flushDirectory();
+    fixture.detectChanges();
+    // ChatDirectoryRowsService's own article-row fetch, triggered once activeTenantId
+    // resolves to 1 — unrelated to the action under test, just needs flushing.
+    httpMock.expectOne((r) => r.url === '/api/tenants/1/conversations').flush([]);
+
+    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-articles"]').click();
+    const req = httpMock.expectOne('/api/tenants/1/conversations');
+    expect(req.request.method).toBe('POST');
+    req.flush({ id: 42, title: null });
+
+    expect(router.navigate).toHaveBeenCalledWith(['/chat/articles', 42]);
+  });
+
+  it('clicking "Criar grupo" opens the create-group dialog', () => {
+    setup();
+    fixture.detectChanges();
+    flushActiveTenant(null);
+    flushDirectory();
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-create-group"]').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="create-group-dialog"]').open).toBe(
+      true,
+    );
   });
 });
