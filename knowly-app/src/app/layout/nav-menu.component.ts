@@ -464,14 +464,9 @@ export class NavMenuComponent implements OnInit {
         routerLink: '/articles',
       });
     }
-    if (this.permissionsService.has('CONVERSATION_USE')) {
-      knowledgeItems.push({
-        labelKey: 'nav.conversations',
-        testId: 'nav-conversations',
-        icon: 'messages-square',
-        routerLink: '/conversations',
-      });
-    }
+    // chat-unified-ui REQ-1: "Base de artigos" (RAG chat) is now reached inside the single
+    // "Conversas" screen (/chat?section=articles), not a separate top-level nav entry — the
+    // dedicated nav.conversations item pointing at the old /conversations route is retired.
     if (knowledgeItems.length > 0) {
       groups.push({ categoryKey: 'nav.category.knowledge', items: knowledgeItems });
     }

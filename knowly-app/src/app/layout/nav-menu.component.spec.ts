@@ -137,6 +137,20 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-chat"]')).toBeTruthy();
   });
 
+  it('renders exactly one "Conversas" nav entry (chat-unified-ui REQ-1), no separate nav-conversations item pointing at the old /conversations route', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+      tenantPermissions: ['ARTICLE_VIEW', 'CONVERSATION_USE'],
+    });
+    fixture.detectChanges();
+
+    const chatLinks = fixture.nativeElement.querySelectorAll('[data-testid="nav-chat"]');
+    expect(chatLinks.length).toBe(1);
+    expect(chatLinks[0].getAttribute('href')).toBe('/chat');
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeNull();
+  });
+
   it('hides the staff roles nav item while a tenant is active, even with STAFF_PERMISSION_MANAGE (staff acting as a tenant member)', () => {
     // Confirmed with the user (2026-08-08): staff roles and tenant roles must never render
     // together -- staff roles only make sense outside any tenant context, tenant roles only
@@ -167,7 +181,6 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-articles"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeFalsy();
     expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeFalsy();
-    expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeFalsy();
   });
 
   it('shows tenant-scoped links for a staff session acting as a tenant (no real membership row)', () => {
@@ -313,7 +326,7 @@ describe('NavMenuComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeFalsy();
   });
 
-  it('shows Dashboard/Articles/Conversations/Members for a MEMBER_ADMIN, whose /api/tenants/permissions response now includes the full permission set (member-admin-tenant-bypass, backend fix)', () => {
+  it('shows Dashboard/Articles/Members for a MEMBER_ADMIN, whose /api/tenants/permissions response now includes the full permission set (member-admin-tenant-bypass, backend fix)', () => {
     fixture.detectChanges();
     flush({
       memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER_ADMIN', active: true }],
@@ -323,7 +336,6 @@ describe('NavMenuComponent', () => {
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-dashboard"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="nav-articles"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="nav-members"]')).toBeTruthy();
   });
 
@@ -739,14 +751,13 @@ describe('NavMenuComponent', () => {
     fixture.detectChanges();
 
     // Entering a tenant re-triggers permissionsService.fetch() so overviewGroups() reflects
-    // ARTICLE_VIEW/CONVERSATION_USE without requiring a full page reload (bug 2 fix).
+    // ARTICLE_VIEW without requiring a full page reload (bug 2 fix).
     httpMock
       .expectOne('/api/tenants/permissions')
       .flush({ permissions: ['ARTICLE_VIEW', 'CONVERSATION_USE'] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="nav-articles"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="nav-conversations"]')).toBeTruthy();
   });
 
   describe('collapse/expand (desktop rail)', () => {

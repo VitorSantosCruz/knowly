@@ -91,6 +91,8 @@ describe('StaffSupportInboxComponent', () => {
       closedAt: null,
     });
 
-    expect(router.navigate).toHaveBeenCalledWith(['/support']);
+    expect(router.navigate).toHaveBeenCalledWith(['/chat'], {
+      queryParams: { section: 'support' },
+    });
   });
 });

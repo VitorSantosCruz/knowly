@@ -3,7 +3,6 @@ import { LoginPageComponent } from './features/login/login-page.component';
 import { WelcomePageComponent } from './features/welcome/welcome-page.component';
 import { DashboardWrapperPageComponent } from './features/dashboard/dashboard-wrapper-page.component';
 import { UserManagementPageComponent } from './features/user-management/user-management-page.component';
-import { ConversationsPageComponent } from './features/conversations/conversations-page.component';
 import { ArticlesPageComponent } from './features/articles/articles-page.component';
 import { SelectTenantPageComponent } from './features/select-tenant/select-tenant-page.component';
 import { TenantCreatePageComponent } from './features/tenant-create/tenant-create-page.component';
@@ -18,10 +17,15 @@ import { RootRedirectPlaceholderComponent } from './core/root-redirect-placehold
 import { OwnProfilePageComponent } from './features/profile/own-profile-page.component';
 import { CompleteProfilePageComponent } from './features/complete-profile/complete-profile-page.component';
 import { ProfileEditRequestsInboxPageComponent } from './features/profile-edit-requests/profile-edit-requests-inbox-page.component';
-import { ChatPageComponent } from './features/chat/chat-page.component';
-import { ConversationDetailComponent } from './features/chat/conversation-detail.component';
-import { NewConversationDialogComponent } from './features/chat/new-conversation-dialog.component';
-import { SupportPageComponent } from './features/support/support-page.component';
+import { ChatShellComponent } from './features/chat/chat-shell.component';
+
+/** Small helper for the `/support`/`/conversations` redirects below — preserves any other
+ * existing query params (e.g. a hypothetical `?debug=1`) alongside the new `section` one,
+ * rather than a bare string `redirectTo` that would drop them. */
+function buildQueryOnlyRedirect(path: string, queryParams: Record<string, string>): string {
+  const search = new URLSearchParams(queryParams).toString();
+  return search ? `${path}?${search}` : path;
+}
 
 export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
@@ -78,36 +82,49 @@ export const routes: Routes = [
     canActivate: [tenantSelectionGuard, tenantAccessGroupManagementGuard],
   },
   {
-    path: 'conversations',
-    component: ConversationsPageComponent,
-    canActivate: [tenantSelectionGuard],
-  },
-  {
     path: 'articles',
     component: ArticlesPageComponent,
     canActivate: [tenantSelectionGuard],
   },
-  // No guard: REQ-1 makes peer messaging available to "any staff or tenant member... regardless
-  // of role", and STAFF_ADMIN oversight (REQ-7) spans every tenant, which only works for a
-  // staff session with no single active tenant selected.
+  // chat-unified-ui (REQ-1/REQ-2): a single "Conversas" nav entry replaces the three previously
+  // separate /chat, /support, /conversations top-level routes — no route guard on any of these
+  // (same reasoning as before: peer messaging/STAFF_ADMIN oversight/Support's own permission
+  // dispatch all need to work with no single active tenant selected). ChatShellComponent itself
+  // decides which of the 4 sections (People/Groups/Support/Base de artigos) to render, off
+  // `data.chatSection` for the 3 id-carrying routes below and the `section` query param for the
+  // bare path — see that component's own doc comment. `support/:channelId` and
+  // `articles/:conversationId` are registered as distinct, deeper paths (not reused query
+  // params) specifically so each disambiguates which service resolves its id — a bare
+  // `/chat/:conversationId` alone would otherwise collide with the support-channel and
+  // RAG-conversation id spaces, which are independently-minted BIGSERIALs starting at 1 each.
+  { path: 'chat', component: ChatShellComponent },
   {
-    path: 'chat',
-    component: ChatPageComponent,
-    children: [
-      { path: 'new', component: NewConversationDialogComponent },
-      { path: ':conversationId', component: ConversationDetailComponent },
-    ],
+    path: 'chat/support/:channelId',
+    component: ChatShellComponent,
+    data: { chatSection: 'support' },
   },
-  // No guard: REQ-10..18 make the Support screen's own three-way dispatch (staff inbox,
-  // member-browse, own channel) a permission check inside SupportPageComponent itself
-  // (mirroring staffGuard's fixed pattern), not a route guard — see PLAN.md's rationale.
-  // Deviation from PLAN.md's routing table: `:channelId` is read directly by
-  // SupportPageComponent (via `ActivatedRoute.paramMap`) rather than through a nested
-  // `<router-outlet>` to a separate child component, since the same component already
-  // owns the three-way dispatch and there is no distinct child view to route to — a plain
-  // second route to the same component is enough.
-  { path: 'support', component: SupportPageComponent },
-  { path: 'support/:channelId', component: SupportPageComponent },
+  {
+    path: 'chat/articles/:conversationId',
+    component: ChatShellComponent,
+    data: { chatSection: 'articles' },
+  },
+  { path: 'chat/:conversationId', component: ChatShellComponent, data: { chatSection: 'peer' } },
+  // Old top-level routes become redirects into the new nested shell rather than being removed
+  // outright — a low-cost safety net for a bookmarked URL or a saved link in a support ticket,
+  // per PLAN.md ("never break a resolvable URL without a documented reason").
+  {
+    path: 'support',
+    pathMatch: 'full',
+    redirectTo: (redirectData) =>
+      buildQueryOnlyRedirect('/chat', { ...redirectData.queryParams, section: 'support' }),
+  },
+  { path: 'support/:channelId', redirectTo: '/chat/support/:channelId' },
+  {
+    path: 'conversations',
+    pathMatch: 'full',
+    redirectTo: (redirectData) =>
+      buildQueryOnlyRedirect('/chat', { ...redirectData.queryParams, section: 'articles' }),
+  },
   {
     path: '',
     pathMatch: 'full',

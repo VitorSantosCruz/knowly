@@ -76,6 +76,6 @@ export class StaffSupportInboxComponent implements OnInit {
     }
     this.supportService
       .claim(tenantId, ticketId)
-      .subscribe(() => this.router.navigate(['/support']));
+      .subscribe(() => this.router.navigate(['/chat'], { queryParams: { section: 'support' } }));
   }
 }

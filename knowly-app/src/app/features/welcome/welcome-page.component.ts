@@ -77,7 +77,9 @@ import { BrandMarkComponent } from '../../shared/brand-mark.component';
           }
           @if (showConversations()) {
             <a
-              routerLink="/conversations"
+              data-testid="welcome-conversations-link"
+              [routerLink]="['/chat']"
+              [queryParams]="{ section: 'articles' }"
               class="group enter-fluid block transition-all duration-base ease-fluid hover:-translate-y-0.5"
             >
               <div

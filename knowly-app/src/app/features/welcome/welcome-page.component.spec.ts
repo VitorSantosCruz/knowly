@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { WelcomePageComponent } from './welcome-page.component';
 import { TourService } from '../../core/tour.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 
 describe('WelcomePageComponent', () => {
@@ -145,6 +146,20 @@ describe('WelcomePageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="welcome-dashboard-link"]'),
     ).toBeTruthy();
+  });
+
+  it('the "Base de artigos" quick-link card points at /chat?section=articles, not the retired /conversations route', () => {
+    fixture.detectChanges();
+    flush({
+      memberships: [{ tenantId: 1, tenantName: 'Acme', role: 'MEMBER', active: true }],
+    });
+    TestBed.inject(PermissionsService).fetch();
+    httpMock.expectOne('/api/tenants/permissions').flush({ permissions: ['CONVERSATION_USE'] });
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('[data-testid="welcome-conversations-link"]');
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('/chat?section=articles');
   });
 
   it('starts the tour automatically when onboarding is not yet completed', () => {
