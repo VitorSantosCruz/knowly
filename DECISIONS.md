@@ -2542,6 +2542,57 @@ per-item signal and a *local*, non-page-blanking error surface instead,
 and check whether the item's own SPEC actually requires immediate calls
 before defaulting to either pattern.
 
+## `chat-unified-ui` (frontend): a previously route-guarded screen ("Base de artigos" / `/conversations`) loses its route guard when folded into a shared, guard-free shell — tenant-presence checking moves inside the component (2026-08-08)
+
+`chat-unified-ui` merges three previously separate top-level routes
+(`/chat`, `/support`, `/conversations`) into one shell route (`/chat`)
+with the four resulting sections (People/Groups/Support/Base de
+artigos) as internal state, not child routes. Three of those sections
+already ran guard-free (`/chat`, `/support` — staff cross-tenant
+oversight and Support's own permission dispatch both need to work with
+no active tenant selected). The fourth, "Base de artigos" (formerly
+`/conversations`), *did* carry `tenantSelectionGuard`, because
+`ConversationsPageComponent` assumed a route-level guard had already
+established an active tenant before it ever mounted. A single Angular
+route can only carry one `canActivate` array, so once all four sections
+share one route, either every section gets forced behind
+`tenantSelectionGuard` (breaking the staff-cross-tenant case for the
+other three — a regression of the exact bug class `member-admin-tenant-
+bypass`/`staffGuard`'s fix already closed) or the RAG section's tenant
+check has to move somewhere else.
+
+**Decision:** the shared shell route carries no guard, and the shell
+component itself checks `ActiveTenantService.activeTenant()` before
+rendering the "Base de artigos" section specifically, showing the
+existing "no active tenant" empty state instead when absent — the
+tenant-presence check moves from routing config into the same
+component-internal dispatch pattern `SupportPageComponent` already uses
+for its own three-way permission dispatch (`GET /api/staff/permissions`
+checked inside the component, not via a route guard), just applied to
+"is there an active tenant" instead of "does the viewer hold this
+permission."
+
+**Why:** this is the same principle `staffGuard`'s original bug and its
+fix already established — a route guard is the right tool when *every*
+path under that route needs the same gate, and the wrong tool the
+moment one route has to serve multiple contexts with different gating
+needs. Folding four routes into one, where only one of the four needs a
+tenant-presence check, is exactly that second case; keeping the guard
+would have meant either breaking the other three sections or
+reinventing four child routes just to preserve one guard, which
+reproduces the very route-hopping this feature exists to remove.
+
+**Applies to new decisions:** before removing or merging a route that
+currently carries a guard, check whether *every* consumer of the merged
+route actually needs that guard's condition — if not, the check moves
+inside the component that specifically needs it (mirroring whichever of
+`SupportPageComponent`'s permission dispatch or `staffGuard`'s fixed
+"check the real thing" pattern is the closer analog), it does not get
+silently dropped or silently forced onto contexts that never needed it.
+A merged route inherits the *union* of gating obligations of the routes
+it replaces, distributed to the components that actually need each one
+— never the loosest one by default.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

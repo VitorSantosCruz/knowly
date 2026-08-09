@@ -1,0 +1,463 @@
+# TASKS — chat-unified-ui (frontend)
+
+> Atomic, sequential, verifiable tasks derived from PLAN.md (reconciled
+> 2026-08-08 against `chat-group-membership-management`'s backend PLAN.md,
+> AppSec-approved without reservations). Each "Implement" task ends with
+> `npm run format` and a small Conventional Commit before moving on.
+> Section 9 (route wiring) intentionally comes *after* every section it
+> depends on, so the old `/chat`/`/support`/`/conversations` routes stay
+> live and green until the new shell is ready to replace them in one cut.
+
+## 1. Shared prerequisites (models)
+
+- [ ] 1. Extend `core/chat.model.ts`'s `ConversationDetail` with
+      `visibility: 'PRIVATE'|'REQUEST_TO_JOIN'|'PUBLIC'`,
+      `archivedAt: string | null`, `adminUserIds: number[]` — additive
+      fields matching the backend's extended `ChatConversationDetailDto`
+      verbatim. No test needed (pure type change); verify no existing
+      `ConversationDetail` literal in `chat.service.spec.ts`/
+      `support.service.spec.ts` fixtures breaks under `strict` (run
+      `npm run build` after this task specifically).
+- [ ] 2. Add `ChatGroupVisibility` type alias, `ChatDiscoverableGroupDto`
+      (`{ id, title, tenantId, visibility, participantCount }`),
+      `ChatJoinRequestDto` (`{ id, conversationId, requesterUserId,
+      requesterNickname, status: 'PENDING'|'APPROVED'|'REJECTED',
+      decidedAt: string | null }`), `ChatAddParticipantsResultDto`
+      (`{ conversation: ConversationDetail, rejected: { userId, reason:
+      'ALREADY_PARTICIPANT'|'INELIGIBLE' }[] }`) to `core/chat.model.ts`,
+      matching PLAN.md's "Consumed API contracts" verbatim.
+- [ ] 3. Confirm `PageResponseDto<T>` (already defined for
+      `tenant-pagination-search`) is imported/reused as-is for
+      `ChatDiscoverableGroupDto` pagination — no new envelope type. If
+      it lives in a tenant-specific file, extract it to a shared
+      location first (small housekeeping, no behavior change) rather
+      than duplicating the interface.
+- [ ] 4. Add `CreateConversationRequest`'s `visibility` field (required
+      when `kind: 'GROUP'`, absent/ignored for `'DIRECT'`), matching
+      REQ-13/18's create-group payload.
+
+## 2. `ChatDirectoryService` — discoverable groups (REQ-8's Groups candidate set)
+
+- [ ] 5. Test: `ChatDirectoryService.fetchDiscoverableGroups()` calls
+      `GET /api/chat/discoverable-groups?page=0&size=200` with no
+      `tenantId` param, unwraps `response.content` into
+      `discoverableGroups()` (Red).
+- [ ] 6. Implement `fetchDiscoverableGroups` (Green).
+- [ ] 7. Test: a fixture response containing only non-`PRIVATE`,
+      not-yet-joined groups round-trips into `discoverableGroups()`
+      unmodified — asserting the service applies **no** client-side
+      visibility/membership filtering (documents the "backend invariant,
+      not re-derived" decision from PLAN.md) (Red — this is really an
+      absence-of-behavior assertion, write it as "output equals input
+      array reference-wise/deep-equal, no rows dropped").
+- [ ] 8. Confirm task 7 passes with the task-6 implementation as-is
+      (Green — no additional code should be needed; if it isn't green,
+      that itself means step 6 added filtering logic that must be
+      removed).
+
+## 3. `ChatGroupService` — group governance actions
+
+- [ ] 9. Test: `ChatGroupService.join(id)` calls
+      `POST /api/chat/conversations/{id}/join` with an empty body and,
+      on `200`, patches `ChatService`'s `_details` map with the returned
+      `ConversationDetail` (Red).
+- [ ] 10. Implement `join`, injecting `ChatService` to reuse its
+      `_details` map (Green).
+- [ ] 11. Test: `join`'s three distinct failure branches — `400`
+      (`CHAT_INELIGIBLE_PARTICIPANT`), `403`
+      (`CHAT_PARTICIPANT_ALREADY_MEMBER`), `409` (wrong visibility mode
+      or deleted) — each surface a distinct, non-generic error, and none
+      mutate `ChatService`'s state (Red).
+- [ ] 12. Implement that three-way error branch (Green).
+- [ ] 13. Test: `ChatGroupService.requestToJoin(id)` calls
+      `POST /api/chat/conversations/{id}/join-requests` and returns the
+      created `ChatJoinRequestDto` (`status: 'PENDING'`) to the caller,
+      without opening the conversation view (REQ-21) (Red).
+- [ ] 14. Implement `requestToJoin` (Green).
+- [ ] 15. Test: `requestToJoin`'s `400`/`403`/`409` failures each
+      surface an inline error and leave no partial state behind (Red).
+- [ ] 16. Implement that error handling (Green).
+- [ ] 17. Test: `ChatGroupService.fetchPendingJoinRequests(id)` calls
+      `GET /api/chat/conversations/{id}/join-requests?status=PENDING`
+      and populates `pendingJoinRequests()` keyed by conversation id
+      (Red).
+- [ ] 18. Implement `fetchPendingJoinRequests` (Green).
+- [ ] 19. Test: `ChatGroupService.approveJoinRequest(id, requestId)`
+      calls `POST .../join-requests/{requestId}/approve` and, on `200`,
+      removes that request from `pendingJoinRequests()` and calls
+      `ChatService.openConversation(id)` again to refresh the
+      participant list (since the response carries no updated
+      membership) (Red).
+- [ ] 20. Implement `approveJoinRequest`'s success path (Green).
+- [ ] 21. Test: `approveJoinRequest`'s new REQ-30a `400`
+      (`CHAT_INELIGIBLE_PARTICIPANT`) case does **not** remove the
+      request from `pendingJoinRequests()` and surfaces a distinct
+      "no longer approvable" message, never the generic REQ-25/27
+      failure message (Red).
+- [ ] 22. Implement that distinct 400 branch (Green).
+- [ ] 23. Test: `approveJoinRequest`'s `403`/`409`
+      (`CHAT_JOIN_REQUEST_ALREADY_DECIDED`) both leave
+      `pendingJoinRequests()` untouched and surface the generic
+      REQ-25/27 inline error (Red).
+- [ ] 24. Implement that branch (Green).
+- [ ] 25. Test: `ChatGroupService.rejectJoinRequest(id, requestId)`
+      calls `POST .../join-requests/{requestId}/reject`, consumes the
+      returned `ChatJoinRequestDto` (`status: 'REJECTED'`), and removes
+      it from `pendingJoinRequests()` on success; a `403`/`409` leaves
+      it untouched with an inline error (Red).
+- [ ] 26. Implement `rejectJoinRequest` (Green).
+- [ ] 27. Test: `ChatGroupService.promote(id, userId)` calls
+      `POST /api/chat/conversations/{id}/admins/{userId}` and, on
+      `200`, patches `ChatService`'s `_details` map with the returned
+      `ConversationDetail` (now including `userId` in `adminUserIds`)
+      (Red).
+- [ ] 28. Implement `promote` (Green).
+- [ ] 29. Test: `promote`'s `400` (`CHAT_PARTICIPANT_ALREADY_ADMIN`,
+      no-op), `403` (caller not admin), `404` (target not a participant)
+      each surface an inline error without mutating state (Red).
+- [ ] 30. Implement that error handling (Green).
+- [ ] 31. Test: `ChatGroupService.removeParticipant(id, userId)` calls
+      `DELETE /api/chat/conversations/{id}/participants/{userId}` and,
+      on `200`, patches `ChatService`'s `_details` map directly from the
+      returned `ConversationDetail` body — asserting the service does
+      **not** manually recompute the participant list client-side (Red).
+- [ ] 32. Implement `removeParticipant` (Green).
+- [ ] 33. Test: `removeParticipant`'s `403` (not admin), `404`, `409`
+      (would empty the group) each leave the cached detail untouched
+      with an inline error (Red).
+- [ ] 34. Implement that error handling (Green).
+- [ ] 35. Test: `ChatGroupService.leave(id)` calls
+      `POST /api/chat/conversations/{id}/leave` with **no body
+      parsing** (asserting the service handles a `204` correctly, not
+      expecting JSON) and, on success, drops the conversation from
+      `ChatService`'s `_conversations` signal (Red).
+- [ ] 36. Implement `leave` (Green).
+- [ ] 37. Test: `leave`'s `403` (`CHAT_ACCESS_DENIED`, not a genuine
+      participant) leaves `_conversations` untouched with an inline
+      error (Red).
+- [ ] 38. Implement that error handling (Green).
+- [ ] 39. Test: `ChatGroupService.changeVisibility(id, visibility)`
+      calls `PUT /api/chat/conversations/{id}/visibility` (asserting
+      `PUT`, not `PATCH`) with `{ visibility }` and, on `200`, patches
+      `ChatService`'s `_details` map with the returned detail (Red).
+- [ ] 40. Implement `changeVisibility` (Green).
+- [ ] 41. Test: `changeVisibility`'s `400`
+      (`CHAT_VISIBILITY_UNCHANGED`, no-op), `403` (not admin), `409`
+      (archived/deleted) each leave cached state untouched with an
+      inline error (Red).
+- [ ] 42. Implement that error handling (Green).
+- [ ] 43. Test: `ChatGroupService.deleteGroup(id)` calls
+      `DELETE /api/chat/conversations/{id}` and, on `204`, drops the
+      conversation from `ChatService`'s `_conversations` signal and its
+      `_details` map (Red).
+- [ ] 44. Implement `deleteGroup` (Green).
+- [ ] 45. Test: `deleteGroup`'s `403` (`CHAT_ACCESS_DENIED`), `404`,
+      `409` (`CHAT_CONVERSATION_ALREADY_DELETED`) each leave state
+      untouched with an inline error (Red).
+- [ ] 46. Implement that error handling (Green).
+- [ ] 47. Test: `ChatGroupService.addParticipants(id, userIds)` calls
+      `POST /api/chat/conversations/{id}/participants` with `{
+      userIds }` and, on `200` with an **all-accepted** response
+      (`rejected: []`), patches `ChatService`'s `_details` map from
+      `result.conversation` (Red).
+- [ ] 48. Implement `addParticipants`'s all-accepted path (Green).
+- [ ] 49. Test: a `200` response with a **non-empty `rejected[]`**
+      (partial success) still patches `_details` from
+      `result.conversation` *and* returns `result.rejected` to the
+      caller for inline per-id display — asserting this is **not**
+      treated as this method's error path (no `permissionActionError`-
+      style state is set) (Red).
+- [ ] 50. Implement that partial-success surfacing (Green).
+- [ ] 51. Test: a `400` (every submitted id rejected — nothing added at
+      all), `403` (`CHAT_ACCESS_DENIED`, not admin), `404`, `409`
+      (wrong kind/archived/deleted) each leave `_details` untouched with
+      an inline error (Red).
+- [ ] 52. Implement that error handling (Green).
+
+## 4. `chat-directory.component.ts` — People + Groups list, search (REQ-3, REQ-4, REQ-8, REQ-9, REQ-10, REQ-11)
+
+- [ ] 53. Test: on init, `ChatDirectoryComponent` calls
+      `ChatService.fetchConversations()`,
+      `ChatService.fetchEligibleParticipants('direct')`, and
+      `ChatDirectoryService.fetchDiscoverableGroups()`, and renders the
+      combined, unfiltered list (own DIRECT conversations + eligible
+      non-messaged people + own GROUP conversations + discoverable
+      groups) when `searchQuery` is empty (Red).
+- [ ] 54. Implement that combined `computed()` list + initial fetches
+      (Green).
+- [ ] 55. Test: clicking a person row not yet messaged calls
+      `ChatService.createConversation({ kind: 'DIRECT', ... })` and
+      navigates to the resulting conversation; clicking a person with an
+      existing DIRECT conversation navigates straight to it without a
+      second create call (REQ-3) (Red).
+- [ ] 56. Implement that click-to-open/create dispatch (Green).
+- [ ] 57. Test: clicking a group the viewer already participates in
+      navigates to its conversation view (REQ-5), unchanged from
+      today's `conversation-list-item.component.ts` behavior (Red).
+- [ ] 58. Implement/confirm that branch, reusing
+      `conversation-list-item.component.ts` unchanged (Green).
+- [ ] 59. Test: clicking a `PUBLIC` discoverable group (not yet a
+      participant) calls `ChatGroupService.join(id)` and, on success,
+      navigates to the group's conversation view with no intermediate
+      confirmation (REQ-20) (Red).
+- [ ] 60. Implement that click dispatch (Green).
+- [ ] 61. Test: clicking a `REQUEST_TO_JOIN` discoverable group calls
+      `ChatGroupService.requestToJoin(id)` and, on success, shows that
+      request as pending inline (e.g. a disabled "pedido enviado" state
+      on that row) instead of navigating anywhere (REQ-21) (Red).
+- [ ] 62. Implement that click dispatch + pending-state rendering
+      (Green).
+- [ ] 63. Test: a failed join or join-request click (REQ-25) shows an
+      inline error on that specific row and leaves the row's clickable
+      state exactly as before the attempt (Red).
+- [ ] 64. Implement that error handling (Green).
+- [ ] 65. Test: typing into the search field filters person/group rows
+      to only those whose display name contains the typed text,
+      case-insensitively, live per keystroke (REQ-8) (Red).
+- [ ] 66. Implement the `searchQuery` signal + filtering `computed()`
+      (Green).
+- [ ] 67. Test: a search with zero matches renders a "no results for
+      '<query>'" message, distinct from the pre-existing "no
+      conversations yet" empty state (REQ-10) (Red).
+- [ ] 68. Implement that distinct empty state (Green).
+- [ ] 69. Test: clearing the search field restores the full,
+      unfiltered list (REQ-11) (Red).
+- [ ] 70. Implement that restore behavior (Green — likely free once 66
+      is correct; write the test anyway as its own regression anchor).
+- [ ] 71. Test: a fixture including a `PRIVATE`-visibility candidate
+      that would textually match the search query is still never
+      rendered — documenting that this is impossible by construction
+      (the fetched discoverable-groups list never contains one), not a
+      client-side filter this component performs (Red — assert the
+      fixture data itself excludes it, matching task 7/8's service-level
+      assertion; this is the component-level half of that same
+      invariant).
+- [ ] 72. No implementation needed for task 71 (confirm Green as-is);
+      if it fails, that means a `PRIVATE` row leaked into the fixture
+      or the component added filtering logic that shouldn't exist —
+      fix at the root cause, not by adding a client-side filter.
+- [ ] 73. Each of `create-group-dialog.component.ts`'s trigger, every
+      directory row, and the search field itself keyboard-navigable
+      with an explicit `aria-label` — write as one accessibility test
+      per control (Red), implement (Green).
+
+## 5. `create-group-dialog.component.ts` (REQ-12, REQ-13, REQ-18)
+
+- [ ] 74. Test: `CreateGroupDialogComponent` disables submit until both
+      a non-empty name and one of the three visibility options
+      (`PRIVATE`/`REQUEST_TO_JOIN`/`PUBLIC`) are selected (REQ-18) (Red).
+- [ ] 75. Implement that validation gating, template-driven signal-bound
+      state (no `ReactiveFormsModule`, per PLAN.md) (Green).
+- [ ] 76. Test: submitting calls
+      `ChatService.createConversation({ kind: 'GROUP', tenantId, title,
+      visibility, participantUserIds: [] })` and, on `201`, navigates to
+      the new group's conversation view immediately (REQ-13) (Red).
+- [ ] 77. Implement that submit wiring (Green).
+- [ ] 78. Test: a failed creation (400/403) shows an inline error and
+      keeps the dialog open with the entered name/visibility intact
+      (Red).
+- [ ] 79. Implement that error handling (Green).
+- [ ] 80. Implement `<dialog>`-based open/close wiring (native dialog
+      element, per the `deletion-confirmation-token` precedent) — no
+      separate Red, covered by tasks 74-79's rendering assertions.
+
+## 6. `group-visibility-badge.component.ts` (REQ-26)
+
+- [ ] 81. Test: renders a distinct label/style for each of
+      `PRIVATE`/`REQUEST_TO_JOIN`/`PUBLIC`, mirroring
+      `ticket-status-badge.component.ts`'s shape (Red).
+- [ ] 82. Implement the three-state badge (Green).
+- [ ] 83. Test: `ChatDirectoryComponent`'s group rows and
+      `CreateGroupDialogComponent`'s visibility selector both render
+      this badge/label consistently (not two divergent copies of the
+      same enum-to-label mapping) (Red).
+- [ ] 84. Wire the shared badge into both call sites (Green).
+
+## 7. `group-admin-panel.component.ts` (REQ-14, REQ-15, REQ-22, REQ-23, REQ-24, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32)
+
+- [ ] 85. Test: `GroupAdminPanelComponent` renders none of its actions
+      (pending requests, promote, visibility-change, remove-participant,
+      delete-group) when `currentUserId` is absent from the input
+      `ConversationDetail.adminUserIds` — asserting removal from the DOM
+      entirely, not `display:none` (Red).
+- [ ] 86. Implement that admin-gating `computed()` and conditional
+      rendering (Green).
+- [ ] 87. Test: when the viewer is an admin, it calls
+      `ChatGroupService.fetchPendingJoinRequests(id)` on init and
+      renders each pending request with approve/reject actions (REQ-22)
+      (Red).
+- [ ] 88. Implement that rendering + fetch (Green).
+- [ ] 89. Test: clicking "aprovar" calls
+      `ChatGroupService.approveJoinRequest` and removes that row from
+      the pending list on success only; the REQ-30a 400 case shows an
+      inline "não pode mais ser aprovado" message on that row and keeps
+      it in the list (Red).
+- [ ] 90. Implement that approve wiring (Green).
+- [ ] 91. Test: clicking "rejeitar" calls
+      `ChatGroupService.rejectJoinRequest` and removes that row from the
+      pending list on success only, leaving it in place on failure with
+      an inline error (Red).
+- [ ] 92. Implement that reject wiring (Green).
+- [ ] 93. Test: a "promover a admin" action next to each non-admin
+      participant calls `ChatGroupService.promote` and, on success, that
+      participant's row updates to reflect admin status without a full
+      reload (REQ-30) (Red).
+- [ ] 94. Implement that promote wiring (Green).
+- [ ] 95. Test: a "remover" action next to each other participant
+      (REQ-14) calls `ChatGroupService.removeParticipant` after a
+      confirm step and, on success, removes them from the displayed
+      participant list; on failure, the participant stays listed with an
+      inline error (REQ-15) (Red).
+- [ ] 96. Implement that remove wiring (Green).
+- [ ] 97. Test: a visibility-change control (REQ-28) calls
+      `ChatGroupService.changeVisibility` on confirm and, on success,
+      updates the displayed `group-visibility-badge.component.ts`
+      instance in place (REQ-29) (Red).
+- [ ] 98. Implement that visibility-change wiring (Green).
+- [ ] 99. Test: an "excluir grupo" action (REQ-31) calls
+      `ChatGroupService.deleteGroup` after a confirm step and, on
+      success, navigates the acting admin away from the group's view
+      (REQ-32); on failure, the view stays exactly as it was with an
+      inline error (Red).
+- [ ] 100. Implement that delete wiring (Green).
+- [ ] 101. Confirmation steps for remove-participant, delete-group, and
+       leave-group (task 103) all reuse the existing native `<dialog>`
+       `ConfirmDialogComponent` (`deletion-confirmation-token` precedent)
+       rather than three ad-hoc `window.confirm()` calls or three new
+       dialog components — no separate Red, covered by tasks 95-100's
+       assertions on the confirm flow.
+
+## 8. `conversation-detail.component.ts` extensions (REQ-16, REQ-17)
+
+- [ ] 102. Test: a "sair do grupo" action renders for any genuine
+       participant (`participantUserIds.includes(currentUserId)`), and
+       is absent for a `viewerRelation === 'LOOKING_IN'` viewer — never
+       shown to an admin present only via tenant-level look-in (REQ-16)
+       (Red).
+- [ ] 103. Implement that gating + the action itself (Green).
+- [ ] 104. Test: confirming "sair do grupo" calls
+       `ChatGroupService.leave(id)` and, on success, removes the group
+       from the viewer's own list (via `ChatService`'s signal) and
+       navigates them away from the group's view; on failure, the view
+       is unchanged with an inline error (REQ-17, REQ-27) (Red).
+- [ ] 105. Implement that leave wiring (Green).
+- [ ] 106. Wire `group-admin-panel.component.ts` into
+       `conversation-detail.component.ts` as a conditional child
+       (rendered for `kind === 'PEER_GROUP'` only, never for `DIRECT`/
+       `SUPPORT`) — no separate Red, covered by section 7's own
+       component-level tests plus one integration assertion that it
+       never renders for a `DIRECT` conversation.
+
+## 9. `ChatShellComponent` + sidebar + route migration (REQ-1, REQ-2, REQ-6, REQ-7)
+
+- [ ] 107. Test: `ChatShellComponent` reads `section` from
+       `ActivatedRoute.queryParamMap`, defaulting to `'people'` when
+       absent, and renders `ChatDirectoryComponent` for `'people'`/
+       `'groups'` (Red).
+- [ ] 108. Implement that default + People/Groups dispatch (Green — note:
+       People and Groups both render `ChatDirectoryComponent`, the
+       `section` value only changes the sidebar's active-tab styling and
+       which half of the combined list is visually emphasized/scrolled
+       to, per REQ-2's "four distinct, always-visible sections" — both
+       are always in the DOM together, per SPEC framing).
+- [ ] 109. Test: `section: 'support'` renders `SupportPageComponent`
+       unchanged (REQ-6) (Red).
+- [ ] 110. Implement that dispatch branch (Green).
+- [ ] 111. Test: `section: 'articles'` with an active tenant renders
+       `ConversationsPageComponent` unchanged (REQ-7); with **no**
+       active tenant, renders the existing "no active tenant" empty
+       state instead — this is the one behavior change from today's
+       route-guard-based gating and needs this explicit regression test
+       (Red).
+- [ ] 112. Implement that tenant-presence check + dispatch (Green).
+- [ ] 113. Test: `ChatSidebarComponent` renders the 4 section
+       tabs (People/Groups/Support/Base de artigos) and the search
+       field, each keyboard-navigable with an `aria-label`; clicking a
+       tab updates the `section` query param without a full navigation/
+       reload (Red).
+- [ ] 114. Implement `ChatSidebarComponent` (Green).
+- [ ] 115. Register `/chat` (no guard), `/chat/:conversationId` (no
+       guard), `/chat/support/:channelId` (no guard),
+       `/chat/articles/:conversationId` (no guard) in `app.routes.ts`,
+       all routing to `ChatShellComponent`, alongside the still-live old
+       routes (do not remove `/support`/`/conversations` yet — see next
+       task).
+- [ ] 116. Test: `ChatShellComponent` reads `:conversationId` (peer/
+       group), `:channelId` under `/chat/support/`, or `:conversationId`
+       under `/chat/articles/` and forwards the right id to the right
+       child component/service (Red).
+- [ ] 117. Implement that id-forwarding dispatch (Green).
+- [ ] 118. Replace `/support`, `/support/:channelId`, `/conversations`
+       in `app.routes.ts` with `redirectTo` entries into
+       `/chat?section=support`, `/chat/support/:channelId`, and
+       `/chat?section=articles` respectively.
+- [ ] 119. Test: a `Router` navigation to `/support` and to
+       `/conversations` each resolve to the expected `/chat` URL with
+       the expected `section` query param (route-migration regression,
+       per PLAN.md) (Red).
+- [ ] 120. Confirm the redirects satisfy task 119 (Green).
+- [ ] 121. Update `nav-menu.component.ts`: collapse the two existing
+       `'/chat'`/`'/conversations'` entries into one ("Conversas",
+       `routerLink: '/chat'`), per REQ-1.
+- [ ] 122. Test: `nav-menu.component.ts` renders exactly one "Conversas"
+       nav entry, not two, and no entry still points at the old
+       `/conversations`/`/support` paths directly (Red).
+- [ ] 123. Confirm task 121's change satisfies task 122 (Green).
+- [ ] 124. Update `welcome-page.component.ts`'s CTA from
+       `routerLink="/conversations"` to
+       `[routerLink]="['/chat']" [queryParams]="{ section: 'articles' }"`.
+- [ ] 125. Retire `ChatPageComponent`, `new-conversation-dialog
+       .component.ts`, and `conversation-list.component.ts` (delete
+       files + their specs), confirming nothing else in the codebase
+       still imports them (`grep` check before deleting).
+- [ ] 126. Run the full existing chat/support/conversations spec suites
+       (`chat.service.spec.ts`, `support.service.spec.ts`,
+       `conversation.service.spec.ts`, `message-thread.component.spec.ts`,
+       `conversation-list-item.component.spec.ts`,
+       `chat-header.component.spec.ts`, `participant-picker.component
+       .spec.ts`, and every `support`/`conversations` feature spec) and
+       confirm all still pass unmodified — none of their underlying
+       services/contracts changed in this feature.
+
+## 10. i18n and design
+
+- [ ] 127. Add unified-nav i18n keys to `public/i18n/en.json`/
+       `pt-BR.json`: sidebar section labels (Pessoas/Grupos/Support/Base
+       de artigos), search placeholder and "no results for '<query>'"
+       copy, "Criar grupo" dialog (name/visibility labels, three
+       visibility option labels/descriptions), visibility badge labels,
+       join/request-to-join copy, admin-panel actions (aprovar/rejeitar/
+       promover/mudar visibilidade/excluir grupo), "sair do grupo".
+- [ ] 128. Apply the established Tailwind design tokens to every new
+       component (sidebar, directory rows, badges, dialogs, admin
+       panel), reusing existing list/card/badge/dialog patterns from
+       `internal-team-chat`/`user-management`/`deletion-confirmation-
+       token` rather than introducing new visual language.
+- [ ] 129. Confirm responsive collapse/expand behavior at this app's
+       existing mobile/tablet/desktop breakpoints for the new sidebar +
+       main-panel shell, matching `internal-team-chat`'s existing
+       `/chat` screen's pattern (manual check + a viewport-width test if
+       an existing precedent for that exists in this codebase; otherwise
+       manual verification only, documented in the commit message).
+
+## 11. Final verification
+
+- [ ] 130. Run
+       `npm run format:check && npm test && npm run build && npm run lint`
+       and confirm everything is green — `npm run lint` is mandatory,
+       per this subproject's `CLAUDE.md`.
+- [ ] 131. Update `PLAN.md`'s "Reconciliation status" section (or add an
+       "Emergent decisions" section) with anything that changed during
+       implementation, following `internal-team-chat/PLAN.md`'s
+       precedent for documenting deviations discovered while executing
+       tasks.
+- [ ] 132. Update `SPEC.md`'s acceptance-criteria checkboxes to reflect
+       what's now verified by tests.
+- [ ] 133. Update `internal-team-chat/SPEC.md` and `conversations/SPEC.md`
+       in place, per this SPEC's own header instruction, to point their
+       affected lines (REQ-1/2/3's "Nova conversa" flow,
+       "unrelated, unchanged" RAG-chat boundary; REQ-1's "dedicated
+       `/conversations` route") at `chat-unified-ui/SPEC.md` as the
+       superseding document — the approval trail `constitution.md`'s
+       "Approved applies to changing an existing SPEC's scope" rule
+       requires.
