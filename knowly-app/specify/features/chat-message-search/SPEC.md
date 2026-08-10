@@ -159,34 +159,47 @@ the backend reports, never re-deriving access control client-side.
 
 ## Acceptance criteria
 
-- [ ] A distinct message-content search entry point is reachable from
+- [x] A distinct message-content search entry point is reachable from
       the unified chat screen without leaving it, and is visibly
       different from the existing name-only directory search fields.
-- [ ] Submitting a non-blank query displays matching messages in
+      (`ChatSidebarComponent`'s new "Buscar mensagens" icon button,
+      opening `chat-search-dialog.component.ts`.)
+- [x] Submitting a non-blank query displays matching messages in
       chronological order, each showing sender, conversation, timestamp,
-      and enough content to recognize the match.
-- [ ] Sender, conversation, and date-range filters each narrow results
+      and enough content to recognize the match. (Order is whatever
+      `ChatMessageSearchService.results()` returns, never re-sorted
+      client-side.)
+- [x] Sender, conversation, and date-range filters each narrow results
       when applied, individually and combined.
-- [ ] A blank-query submission attempt is blocked with a clear
+- [x] A blank-query submission attempt is blocked with a clear
       indication, no backend call made.
-- [ ] A "from" date later than "to" date is blocked with a clear
+- [x] A "from" date later than "to" date is blocked with a clear
       indication, no backend call made.
-- [ ] Scrolling to the end of results (or an equivalent "load more"
-      action) fetches and appends the next page.
-- [ ] Clicking a result opens that message's conversation in the
+- [x] Scrolling to the end of results (or an equivalent "load more"
+      action) fetches and appends the next page. (Both an
+      `IntersectionObserver` sentinel and an explicit "Load more" button
+      call `loadMore()`.)
+- [x] Clicking a result opens that message's conversation in the
       existing conversation view for its kind (1:1, group, or RAG),
-      unchanged in behavior.
-- [ ] A zero-result search shows a distinct "no results" state, not the
+      unchanged in behavior. **Scroll-to-message/highlighting the
+      matched message within that view is explicitly v1-out-of-scope**
+      (PLAN.md's "Open dependency on backend feasibility work") — the
+      conversation opens at its normal newest-message view, not
+      scrolled/highlighted to the matched message; a future increment
+      needs a new backend "fetch page containing message X" endpoint
+      that does not exist today.
+- [x] A zero-result search shows a distinct "no results" state, not the
       generic empty state.
-- [ ] A failed search shows an inline error distinct from "no results,"
+- [x] A failed search shows an inline error distinct from "no results,"
       without clearing previously displayed results.
-- [ ] A loading state is shown while a search request is in flight,
+- [x] A loading state is shown while a search request is in flight,
       distinct from both other states.
-- [ ] Switching the app's language (existing language switcher) changes
+- [x] Switching the app's language (existing language switcher) changes
       which language index subsequent searches match against
       (server-side, via the existing `Accept-Language` header already
       sent by `localeInterceptor`) with no additional UI needed for
-      this.
+      this — this feature adds no locale UI/param of its own, consistent
+      with the existing interceptor already covering every request.
 
 ## Out of scope
 
