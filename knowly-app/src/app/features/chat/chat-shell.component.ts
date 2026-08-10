@@ -80,7 +80,10 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
     ChatUnifiedSearchComponent,
   ],
   template: `
-    <header data-testid="chat-search-bar-region" class="mb-4 shrink-0">
+    <header
+      data-testid="chat-search-bar-region"
+      class="mb-4 shrink-0 rounded-2xl border border-ink-200/70 bg-white p-3 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900"
+    >
       <app-chat-unified-search />
     </header>
 
