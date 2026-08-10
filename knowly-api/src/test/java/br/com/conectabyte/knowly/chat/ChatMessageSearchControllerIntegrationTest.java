@@ -39,8 +39,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 /**
- * chat-message-search TASKS.md items 40/42/44/46-60: controller/HTTP-layer coverage, including
- * the SPEC's flagged main implementation risk (the core isolation test) and both AppSec-required
+ * chat-message-search TASKS.md items 40/42/44/46-60: controller/HTTP-layer coverage, including the
+ * SPEC's flagged main implementation risk (the core isolation test) and both AppSec-required
  * regression tests (cross-tenant, no-active-tenant fail-closed).
  */
 @Import(TestcontainersConfiguration.class)
@@ -62,7 +62,7 @@ class ChatMessageSearchControllerIntegrationTest {
     @MockitoBean private JavaMailSender mailSender;
 
     @BeforeEach
-    void resetLoginVelocityCounters() {
+    void resetLoginVelocityCounters() throws Exception {
         Set<String> keys = redisTemplate.keys("auth:login-velocity:*");
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);
@@ -84,7 +84,7 @@ class ChatMessageSearchControllerIntegrationTest {
         return result.getResponse().getCookie("SESSION");
     }
 
-    private void switchActiveTenant(Cookie session, Long tenantId) {
+    private void switchActiveTenant(Cookie session, Long tenantId) throws Exception {
         var response =
                 mockMvc.post()
                         .uri("/api/tenants/active")
@@ -113,11 +113,12 @@ class ChatMessageSearchControllerIntegrationTest {
                 new ChatConversation(kind, tenant, title, null));
     }
 
-    private void participate(ChatConversation conversation, User user) {
+    private void participate(ChatConversation conversation, User user) throws Exception {
         chatParticipantRepository.saveAndFlush(new ChatParticipant(conversation, user));
     }
 
-    private void message(ChatConversation conversation, User sender, String content) {
+    private void message(ChatConversation conversation, User sender, String content)
+            throws Exception {
         chatMessageRepository.saveAndFlush(new ChatMessage(conversation, sender, content));
     }
 
@@ -132,7 +133,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md item 40
     @Test
-    void happyPathReturnsAPageDtoShapedBody() {
+    void happyPathReturnsAPageDtoShapedBody() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Happy Path Co"));
         User caller = member("search-happy@example.com", tenant);
         ChatConversation conversation =
@@ -151,7 +152,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md item 42
     @Test
-    void blankQueryReturns400WithBlankQueryCode() {
+    void blankQueryReturns400WithBlankQueryCode() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Blank Q Co"));
         member("search-blank-q@example.com", tenant);
         Cookie session = logIn("search-blank-q@example.com");
@@ -163,7 +164,7 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void dateFromAfterDateToReturns400WithInvalidDateRangeCode() {
+    void dateFromAfterDateToReturns400WithInvalidDateRangeCode() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Bad Range Co"));
         member("search-bad-range@example.com", tenant);
         Cookie session = logIn("search-bad-range@example.com");
@@ -183,7 +184,7 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void malformedCursorReturns400WithExistingInvalidCursorCode() {
+    void malformedCursorReturns400WithExistingInvalidCursorCode() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Bad Cursor Co"));
         member("search-bad-cursor@example.com", tenant);
         Cookie session = logIn("search-bad-cursor@example.com");
@@ -202,13 +203,16 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md item 44 (REQ-3)
     @Test
-    void conversationIdFilterPointingAtInaccessibleRealNonexistentSupportOrArchivedConversationsAllReturnEmptyIndistinguishableResults() {
+    void
+            conversationIdFilterPointingAtInaccessibleRealNonexistentSupportOrArchivedConversationsAllReturnEmptyIndistinguishableResults()
+                    throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search REQ3 Co"));
         User caller = member("search-req3-caller@example.com", tenant);
         User other = member("search-req3-other@example.com", tenant);
 
         // (a) real conversation the caller isn't a participant of
-        ChatConversation notMine = conversation(ChatConversationKind.PEER_GROUP, tenant, "Not Mine");
+        ChatConversation notMine =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Not Mine");
         participate(notMine, other);
         message(notMine, other, "wizzlecraft not mine message");
 
@@ -258,7 +262,7 @@ class ChatMessageSearchControllerIntegrationTest {
     @ParameterizedTest
     @MethodSource("removalModes")
     void formerParticipantsSearchExcludesTheRemovedConversationButStillSurfacesACurrentOne(
-            String mode) {
+            String mode) throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Isolation Removal Co " + mode));
         User userA = member("isolation-a-" + mode.toLowerCase() + "@example.com", tenant);
         User userB = member("isolation-b-" + mode.toLowerCase() + "@example.com", tenant);
@@ -303,7 +307,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md items 48/49/50: AppSec-required cross-tenant and no-active-tenant fail-closed
     @Test
-    void searchWithTenantOneActiveReturnsOnlyTenantOnesMatchesNeverTenantTwos() {
+    void searchWithTenantOneActiveReturnsOnlyTenantOnesMatchesNeverTenantTwos() throws Exception {
         Tenant tenantOne = tenantRepository.saveAndFlush(new Tenant("AppSec Tenant One"));
         Tenant tenantTwo = tenantRepository.saveAndFlush(new Tenant("AppSec Tenant Two"));
         User caller = userRepository.saveAndFlush(new User("appsec-two-tenant@example.com"));
@@ -334,7 +338,7 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void noActiveTenantInSessionGetsZeroResultsNotAnUnfilteredCrossTenantScan() {
+    void noActiveTenantInSessionGetsZeroResultsNotAnUnfilteredCrossTenantScan() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("AppSec No Active Tenant Co"));
         User staffCaller = staff("appsec-staff-noactive@example.com", GlobalRole.STAFF);
         ChatConversation conversation =
@@ -351,11 +355,13 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void staffAdminWithNoActiveTenantAlsoGetsZeroResultsNoOversightBypass() {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("AppSec Staff Admin No Active Co"));
+    void staffAdminWithNoActiveTenantAlsoGetsZeroResultsNoOversightBypass() throws Exception {
+        Tenant tenant =
+                tenantRepository.saveAndFlush(new Tenant("AppSec Staff Admin No Active Co"));
         User staffAdmin = staff("appsec-staffadmin-noactive@example.com", GlobalRole.STAFF_ADMIN);
         ChatConversation conversation =
-                conversation(ChatConversationKind.PEER_GROUP, tenant, "Staff Admin No Active Group");
+                conversation(
+                        ChatConversationKind.PEER_GROUP, tenant, "Staff Admin No Active Group");
         participate(conversation, staffAdmin);
         message(conversation, staffAdmin, "ratatouillewhisk staff admin no active message");
 
@@ -370,7 +376,7 @@ class ChatMessageSearchControllerIntegrationTest {
     // TASKS.md items 51/52 (REQ-5): STAFF_ADMIN/MEMBER_ADMIN with zero participant rows get zero
     // results.
     @Test
-    void staffAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() {
+    void staffAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5 Staff Admin Co"));
         User owner = member("req5-owner@example.com", tenant);
         ChatConversation conversation =
@@ -391,7 +397,7 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void memberAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() {
+    void memberAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5 Member Admin Co"));
         User owner = member("req5ma-owner@example.com", tenant);
         ChatConversation conversation =
@@ -412,7 +418,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md items 53/54 (REQ-1)
     @Test
-    void supportConversationMessageNeverAppearsInResultsEvenForTicketOwner() {
+    void supportConversationMessageNeverAppearsInResultsEvenForTicketOwner() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ1 Support Co"));
         User owner = member("req1-owner@example.com", tenant);
         ChatConversation supportChannel =
@@ -432,7 +438,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md items 55/56 (REQ-13/14, end to end)
     @Test
-    void portugueseResolvedCallerMatchesAConjugatedFormEndToEnd() {
+    void portugueseResolvedCallerMatchesAConjugatedFormEndToEnd() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ13 Locale Pt Co"));
         User caller = member("req13-pt@example.com", tenant);
         ChatConversation conversation =
@@ -455,7 +461,7 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void englishResolvedCallerMatchesAPluralFormEndToEnd() {
+    void englishResolvedCallerMatchesAPluralFormEndToEnd() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ13 Locale En Co"));
         User caller = member("req13-en@example.com", tenant);
         ChatConversation conversation =
@@ -478,7 +484,7 @@ class ChatMessageSearchControllerIntegrationTest {
     }
 
     @Test
-    void aForgedLocaleShapedQueryParameterHasNoEffectOnWhichIndexIsQueried() {
+    void aForgedLocaleShapedQueryParameterHasNoEffectOnWhichIndexIsQueried() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ14 Forged Locale Co"));
         User caller = member("req14-forged@example.com", tenant);
         ChatConversation conversation =
@@ -505,7 +511,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md items 57/58 (REQ-10)
     @Test
-    void cursorPaginationAtTheControllerLayerHasNoOverlapOrGapsMostRecentFirst() {
+    void cursorPaginationAtTheControllerLayerHasNoOverlapOrGapsMostRecentFirst() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ10 Cursor Co"));
         User caller = member("req10-cursor@example.com", tenant);
         ChatConversation conversation =
@@ -547,7 +553,7 @@ class ChatMessageSearchControllerIntegrationTest {
 
     // TASKS.md item 59 (REQ-7/8/9)
     @Test
-    void senderConversationAndDateRangeFiltersNarrowResultsAtTheControllerLayer() {
+    void senderConversationAndDateRangeFiltersNarrowResultsAtTheControllerLayer() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ789 Co"));
         User caller = member("req789-caller@example.com", tenant);
         User other = member("req789-other@example.com", tenant);

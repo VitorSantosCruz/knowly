@@ -65,7 +65,7 @@ public class ChatController {
      */
     @GetMapping("/messages/search")
     public ResponseEntity<ChatMessageSearchPageDto> searchMessages(
-            @RequestParam String q,
+            @RequestParam(required = false) String q,
             @RequestParam(required = false) Long senderId,
             @RequestParam(required = false) Long conversationId,
             @RequestParam(required = false) Instant dateFrom,
