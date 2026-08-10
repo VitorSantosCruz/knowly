@@ -169,6 +169,56 @@ class ChatTenantIsolationIntegrationTest {
     }
 
     @Test
+    void discoverableGroupsInsideATenantNeverLeaksAStaffOnlyGroup() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Discoverable Leak Co"));
+        member("discoverable-leak-member@example.com", tenant);
+        User staff = userRepository.saveAndFlush(new User("discoverable-leak-staff@example.com"));
+        staff.setGlobalRole(GlobalRole.STAFF_ADMIN);
+        userRepository.saveAndFlush(staff);
+        User staffPeer =
+                userRepository.saveAndFlush(new User("discoverable-leak-staff-peer@example.com"));
+        staffPeer.setGlobalRole(GlobalRole.STAFF);
+        userRepository.saveAndFlush(staffPeer);
+
+        // Staff creates a staff-only (no tenant anchor) PUBLIC group while not inside any tenant.
+        Cookie staffSession = logIn("discoverable-leak-staff@example.com");
+        Cookie staffCsrf = obtainCsrfCookie();
+        var createResponse =
+                mockMvc.post()
+                        .uri("/api/chat/conversations")
+                        .cookie(staffSession)
+                        .cookie(staffCsrf)
+                        .header("X-XSRF-TOKEN", staffCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"kind\":\"GROUP\",\"title\":\"Staff Internal Group\","
+                                        + "\"visibility\":\"PUBLIC\",\"participantUserIds\":["
+                                        + staffPeer.getId()
+                                        + "]}")
+                        .exchange();
+        assertThat(createResponse).hasStatus(HttpStatus.CREATED);
+
+        // Same staff user now switches into the tenant's chat context.
+        var switchResponse =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(staffSession)
+                        .cookie(staffCsrf)
+                        .header("X-XSRF-TOKEN", staffCsrf.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenant.getId() + "}")
+                        .exchange();
+        assertThat(switchResponse).hasStatus(HttpStatus.OK);
+
+        var discoverableResponse =
+                mockMvc.get().uri("/api/chat/discoverable-groups").cookie(staffSession).exchange();
+
+        assertThat(discoverableResponse).hasStatus(HttpStatus.OK);
+        assertThat(discoverableResponse.getResponse().getContentAsString())
+                .doesNotContain("Staff Internal Group");
+    }
+
+    @Test
     void staffAdminOversightReadIsAudited() throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Audit Oversight Co"));
         member("audit-owner@example.com", tenant);
