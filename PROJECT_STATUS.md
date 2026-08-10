@@ -1436,6 +1436,21 @@ instead (valid because the member is a support channel's only formal
 smaller routing/component judgment calls made without stopping to ask.
 Verified: `npm run format:check`, `npm test` (405 passing, 74 files),
 `npm run build` all green.
+19. **Tenant-supplied AI key for RAG answers — not yet SPEC'd.** RAG chat
+    already answers without any AI configured (today's baseline is
+    presumed to be a full-text/keyword search over the knowledge base,
+    not LLM-generated answers — needs confirming against the actual
+    current RAG implementation before writing the SPEC, not assumed from
+    this note). User wants a per-tenant settings screen where a tenant
+    owner can supply their own AI provider key so RAG answers become
+    smarter/LLM-backed; without a key, the tenant keeps today's
+    non-AI behavior. Needs its own backend SPEC (key storage — almost
+    certainly encrypted at rest, never logged/returned in plaintext after
+    initial save, consistent with existing secret-handling conventions;
+    which provider(s) are supported; fallback behavior on invalid/missing
+    key; per-tenant scoping) and frontend SPEC (settings screen, key
+    entry/rotation/removal UX). AppSec review is mandatory before TASKS.md
+    given this stores a tenant-supplied external-provider credential.
 
 ## How to work in this repo
 

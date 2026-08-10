@@ -235,3 +235,38 @@ export function emptyMessageCacheEntry(): MessageCacheEntry {
     loading: false,
   };
 }
+
+/**
+ * `chat-message-search` — `GET /api/chat/messages/search`. Matches
+ * `br.com.conectabyte.knowly.chat.dto.ChatMessageSearchResultDto`/`ChatMessageSearchPageDto`
+ * verbatim (see knowly-api's PLAN.md "API contracts" section, closed/final).
+ */
+export interface ChatMessageSearchResultDto {
+  id: number;
+  conversationId: number;
+  conversationTitle: string;
+  senderUserId: number;
+  senderNickname: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ChatMessageSearchPageDto {
+  results: ChatMessageSearchResultDto[];
+  nextCursor: string | null;
+}
+
+/** `ChatMessageSearchService.search()`'s input — no `cursor`/`size` fields; `loadMore()`
+ * derives `cursor` from the service's own `_nextCursor` signal internally. */
+export interface ChatMessageSearchFilters {
+  q: string;
+  senderId?: number;
+  conversationId?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+/** `'idle'` (never searched yet) is distinct from `'no-results'` (searched, zero matches) —
+ * REQ-12's explicit distinct-state requirement, mirrors `MessageSendState`'s existing convention
+ * of an explicit status enum over booleans-that-can-contradict-each-other. */
+export type ChatMessageSearchStatus = 'idle' | 'loading' | 'results' | 'no-results' | 'error';
