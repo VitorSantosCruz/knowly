@@ -425,4 +425,87 @@ describe('ChatShellComponent', () => {
       true,
     );
   });
+
+  describe('Amended (2026-08-10): persistent search bar header region', () => {
+    it('renders a new header region containing exactly one app-chat-unified-search element (REQ-42)', () => {
+      setup();
+      fixture.detectChanges();
+      flushActiveTenant(null);
+      flushDirectory();
+      fixture.detectChanges();
+
+      const header = fixture.nativeElement.querySelector('[data-testid="chat-search-bar-region"]');
+      expect(header).toBeTruthy();
+      expect(header.querySelectorAll('app-chat-unified-search').length).toBe(1);
+    });
+
+    it('the header survives every section/narrow-viewport pane dispatch (REQ-42\'s "never disappears")', () => {
+      setup({ viewportIsDesktop: false });
+      fixture.detectChanges();
+      flushActiveTenant(null);
+      flushDirectory();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="chat-search-bar-region"]'),
+      ).toBeTruthy();
+
+      fixture.nativeElement
+        .querySelector('[data-testid="chat-shell-mobile-browse-directory"]')
+        .click();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="chat-search-bar-region"]'),
+      ).toBeTruthy();
+
+      queryParamMap$.next(convertToParamMap({ section: 'support' }));
+      fixture.detectChanges();
+      flushSupportPageBootstrap();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="chat-search-bar-region"]'),
+      ).toBeTruthy();
+    });
+
+    it('the header region and its child are reachable before the 3-column container in DOM order', () => {
+      setup();
+      fixture.detectChanges();
+      flushActiveTenant(null);
+      flushDirectory();
+      fixture.detectChanges();
+
+      const host: HTMLElement = fixture.nativeElement;
+      const header = host.querySelector('[data-testid="chat-search-bar-region"]');
+      const shell = host.querySelector('[data-testid="chat-shell"]');
+      expect(header).toBeTruthy();
+      expect(shell).toBeTruthy();
+      // DOCUMENT_POSITION_FOLLOWING (4) — header precedes the 3-column container.
+      // eslint-disable-next-line no-bitwise
+      expect(
+        header!.compareDocumentPosition(shell!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("the overlay's absolute positioning does not reflow the 3-column container's own layout classes", () => {
+      setup();
+      fixture.detectChanges();
+      flushActiveTenant(null);
+      flushDirectory();
+      fixture.detectChanges();
+
+      const shell: HTMLElement = fixture.nativeElement.querySelector('[data-testid="chat-shell"]');
+      const classesBeforeOpen = shell.className;
+
+      const searchInput = fixture.nativeElement.querySelector(
+        '[data-testid="chat-unified-search-input"]',
+      );
+      searchInput.dispatchEvent(new Event('focus'));
+      fixture.detectChanges();
+      for (const req of httpMock.match((r) => r.url === '/api/chat/search')) {
+        req.flush({ recentPlaces: [] });
+      }
+      fixture.detectChanges();
+
+      expect(shell.className).toBe(classesBeforeOpen);
+    });
+  });
 });

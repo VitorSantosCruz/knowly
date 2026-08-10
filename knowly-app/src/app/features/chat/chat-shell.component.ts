@@ -10,6 +10,7 @@ import { ChatSidebarComponent } from './chat-sidebar.component';
 import { ConversationDetailComponent } from './conversation-detail.component';
 import { CreateGroupDialogComponent } from './create-group-dialog.component';
 import { CreateConversationDialogComponent } from './create-conversation-dialog.component';
+import { ChatUnifiedSearchComponent } from './chat-unified-search.component';
 import { ConversationsPageComponent } from '../conversations/conversations-page.component';
 import { SupportPageComponent } from '../support/support-page.component';
 
@@ -76,11 +77,16 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
     NoActiveTenantStateComponent,
     CreateGroupDialogComponent,
     CreateConversationDialogComponent,
+    ChatUnifiedSearchComponent,
   ],
   template: `
+    <header data-testid="chat-search-bar-region" class="mb-4 shrink-0">
+      <app-chat-unified-search />
+    </header>
+
     <div
       data-testid="chat-shell"
-      class="page-shell grid h-full min-h-0 grid-rows-1 gap-4 overflow-hidden xl:grid-cols-[280px_1fr_280px]"
+      class="page-shell grid min-h-0 flex-1 grid-rows-1 gap-4 overflow-hidden xl:grid-cols-[280px_1fr_280px]"
     >
       @if (viewportFitsColumns() || mobileView() === 'directory') {
         <div
@@ -195,7 +201,9 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
   // definite height (it sits directly under app-shell's own h-dvh/flex-1/overflow-y-auto <main>)
   // so its grid can fill the viewport and let each column scroll internally instead of the whole
   // page scrolling as one block.
-  styles: [':host { display: block; height: 100%; min-height: 0; overflow: hidden; }'],
+  styles: [
+    ':host { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }',
+  ],
 })
 export class ChatShellComponent implements OnInit {
   protected readonly activeTenantService = inject(ActiveTenantService);
