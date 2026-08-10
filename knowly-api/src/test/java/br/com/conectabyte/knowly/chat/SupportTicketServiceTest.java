@@ -119,4 +119,70 @@ class SupportTicketServiceTest {
         assertThatThrownBy(() -> service.close(notAssignee, 1L))
                 .isInstanceOf(ChatAccessDeniedException.class);
     }
+
+    // --- Unified entity search (2026-08-10 amendment): findOwnOrClaimableChannel ---
+
+    private ChatConversation channelForTenant(
+            long id, br.com.conectabyte.knowly.tenancy.Tenant tenant) {
+        ChatConversation channel = channel(id);
+        channel.setTenant(tenant);
+        return channel;
+    }
+
+    @Test
+    void findOwnOrClaimableChannelReturnsTheMembersOwnOpenChannelWhenOneExists() {
+        User member = user(1L, "member@example.com");
+        ChatConversation ownChannel = channel(100L);
+        when(chatConversationRepository.findByTenantIdAndOwnerIdAndKind(
+                        10L, 1L, ChatConversationKind.SUPPORT))
+                .thenReturn(Optional.of(ownChannel));
+
+        var result = service.findOwnOrClaimableChannel(member, 10L);
+
+        org.assertj.core.api.Assertions.assertThat(result).contains(ownChannel);
+    }
+
+    @Test
+    void
+            findOwnOrClaimableChannelReturnsNothingForAStaffCallerWithNoSupportPermissionAndNoClaimedTicket() {
+        User staff = user(2L, "staff@example.com");
+        staff.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF);
+        when(chatConversationRepository.findByTenantIdAndOwnerIdAndKind(
+                        10L, 2L, ChatConversationKind.SUPPORT))
+                .thenReturn(Optional.empty());
+        when(globalPermissionService.hasPermission(
+                        staff,
+                        br.com.conectabyte.knowly.tenancy.GlobalPermission.STAFF_SUPPORT_HANDLE))
+                .thenReturn(false);
+
+        var result = service.findOwnOrClaimableChannel(staff, 10L);
+
+        org.assertj.core.api.Assertions.assertThat(result).isEmpty();
+    }
+
+    @Test
+    void findOwnOrClaimableChannelReturnsAStaffCallersOwnClaimedTicketChannel() {
+        User staff = user(2L, "staff@example.com");
+        staff.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF);
+        var tenant = new br.com.conectabyte.knowly.tenancy.Tenant("Tenant");
+        tenant.setId(10L);
+        when(chatConversationRepository.findByTenantIdAndOwnerIdAndKind(
+                        10L, 2L, ChatConversationKind.SUPPORT))
+                .thenReturn(Optional.empty());
+        when(globalPermissionService.hasPermission(
+                        staff,
+                        br.com.conectabyte.knowly.tenancy.GlobalPermission.STAFF_SUPPORT_HANDLE))
+                .thenReturn(true);
+
+        ChatConversation claimedChannel = channelForTenant(200L, tenant);
+        SupportTicket claimedTicket = new SupportTicket(claimedChannel);
+        claimedTicket.setStatus(SupportTicketStatus.ASSIGNED);
+        claimedTicket.setAssignedStaff(staff);
+        when(supportTicketRepository.findByStatus(SupportTicketStatus.ASSIGNED))
+                .thenReturn(java.util.List.of(claimedTicket));
+
+        var result = service.findOwnOrClaimableChannel(staff, 10L);
+
+        org.assertj.core.api.Assertions.assertThat(result).contains(claimedChannel);
+    }
 }

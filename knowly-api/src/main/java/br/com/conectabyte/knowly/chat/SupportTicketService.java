@@ -134,6 +134,61 @@ public class SupportTicketService {
                 channelId, SupportTicketStatus.CLOSED);
     }
 
+    /**
+     * Unified entity search (2026-08-10 amendment), REQ-21: the "does this caller have a reachable
+     * Support channel" check backing {@code ChatEntitySearchService}'s Support-label match.
+     * Composes two already-existing lookups -- {@link #findChannel}'s member-channel path (already
+     * used by {@code SupportChannelController#requireChannelId}) and the same
+     * unclaimed-inbox/claimed-ticket visibility already used by {@link #listUnclaimed}/{@link
+     * #claim} -- into one read-only, side-effect-free method, rather than duplicating either query.
+     * Not annotated with {@code @RequiresGlobalPermission} (unlike {@code listUnclaimed}): a plain
+     * member has no {@code STAFF_SUPPORT_HANDLE} permission at all and must still be able to reach
+     * their own channel.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<ChatConversation> findOwnOrClaimableChannel(
+            User actor, Long activeTenantId) {
+        if (activeTenantId == null) {
+            return java.util.Optional.empty();
+        }
+
+        java.util.Optional<ChatConversation> ownChannel =
+                findChannel(activeTenantId, actor.getId());
+        if (ownChannel.isPresent()) {
+            return ownChannel;
+        }
+
+        if (actor.getGlobalRole() == null
+                || !globalPermissionService.hasPermission(
+                        actor, GlobalPermission.STAFF_SUPPORT_HANDLE)) {
+            return java.util.Optional.empty();
+        }
+
+        java.util.Optional<SupportTicket> claimed =
+                supportTicketRepository.findByStatus(SupportTicketStatus.ASSIGNED).stream()
+                        .filter(
+                                ticket ->
+                                        ticket.getAssignedStaff() != null
+                                                && ticket.getAssignedStaff()
+                                                        .getId()
+                                                        .equals(actor.getId()))
+                        .filter(ticket -> belongsToTenant(ticket, activeTenantId))
+                        .findFirst();
+        if (claimed.isPresent()) {
+            return java.util.Optional.of(claimed.get().getSupportChannel());
+        }
+
+        return supportTicketRepository.findByStatus(SupportTicketStatus.OPEN).stream()
+                .filter(ticket -> belongsToTenant(ticket, activeTenantId))
+                .findFirst()
+                .map(SupportTicket::getSupportChannel);
+    }
+
+    private boolean belongsToTenant(SupportTicket ticket, Long tenantId) {
+        return ticket.getSupportChannel().getTenant() != null
+                && ticket.getSupportChannel().getTenant().getId().equals(tenantId);
+    }
+
     @Transactional(readOnly = true)
     @RequiresGlobalPermission(GlobalPermission.STAFF_SUPPORT_HANDLE)
     public List<SupportTicketDto> listUnclaimed(Long tenantId) {
