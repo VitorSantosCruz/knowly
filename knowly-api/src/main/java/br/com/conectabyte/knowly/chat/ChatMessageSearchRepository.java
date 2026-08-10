@@ -7,24 +7,24 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 /**
- * REQ-1/2/3/4/5/6-15: the native full-text search query backing {@code
- * ChatMessageSearchService}. Deliberately <b>not</b> a JPQL/HQL query -- {@code
- * websearch_to_tsquery()}, the {@code chat_participants} {@code EXISTS} subquery, and the dynamic
- * optional filters this feature needs cannot be expressed portably in HQL. Also deliberately its
- * own repository, not folded into {@link ChatMessageRepository}: this query returns a different
- * projection shape (message + resolved sender/conversation fields for {@code
- * ChatMessageSearchResultDto}) and a fundamentally different composition strategy (dynamic
- * optional-filter native SQL) than that repository's fixed-shape cursor queries.
+ * REQ-1/2/3/4/5/6-15: the native full-text search query backing {@code ChatMessageSearchService}.
+ * Deliberately <b>not</b> a JPQL/HQL query -- {@code websearch_to_tsquery()}, the {@code
+ * chat_participants} {@code EXISTS} subquery, and the dynamic optional filters this feature needs
+ * cannot be expressed portably in HQL. Also deliberately its own repository, not folded into {@link
+ * ChatMessageRepository}: this query returns a different projection shape (message + resolved
+ * sender/conversation fields for {@code ChatMessageSearchResultDto}) and a fundamentally different
+ * composition strategy (dynamic optional-filter native SQL) than that repository's fixed-shape
+ * cursor queries.
  *
  * <p><b>Critical gotcha (AppSec correction, see PLAN.md):</b> as native SQL, {@code
  * searchPt}/{@code searchEn} are <b>not</b> covered by Hibernate's {@code TenantFilter}/{@code
  * SoftDeleteFilter} {@code @Filter} mechanism -- only HQL/JPQL queries and collection fetches
- * respect it (mirrors {@link ChatConversationRepository#findByIdRespectingFilter}'s own
- * precedent Javadoc for the same class of gap). Every scoping condition (tenant, participant,
- * conversation kind, archive/delete state) is therefore hand-written into the query text itself,
- * in the same {@code WHERE} clause as every other predicate -- never a post-filter step in Java,
- * and never omittable by a future edit that adds a new filter without re-reading this Javadoc.
- * Both methods take {@code activeTenantId} as a required bind parameter; the caller ({@code
+ * respect it (mirrors {@link ChatConversationRepository#findByIdRespectingFilter}'s own precedent
+ * Javadoc for the same class of gap). Every scoping condition (tenant, participant, conversation
+ * kind, archive/delete state) is therefore hand-written into the query text itself, in the same
+ * {@code WHERE} clause as every other predicate -- never a post-filter step in Java, and never
+ * omittable by a future edit that adds a new filter without re-reading this Javadoc. Both methods
+ * take {@code activeTenantId} as a required bind parameter; the caller ({@code
  * ChatMessageSearchService}) resolves it from {@code TenantContext#getActiveTenantId()} and fails
  * closed (no query executed at all) when it is absent -- see that service's Javadoc.
  */

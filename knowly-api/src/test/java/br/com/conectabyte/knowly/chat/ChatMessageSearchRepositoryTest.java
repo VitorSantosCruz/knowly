@@ -18,9 +18,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Backs TASKS.md items 13-28: {@link ChatMessageSearchRepository}'s native-query scoping/
- * filtering behavior, exercised directly (no HTTP layer) since {@code @Filter} does not apply
- * here (see that repository's Javadoc).
+ * Backs TASKS.md items 13-28: {@link ChatMessageSearchRepository}'s native-query scoping/ filtering
+ * behavior, exercised directly (no HTTP layer) since {@code @Filter} does not apply here (see that
+ * repository's Javadoc).
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -114,7 +114,8 @@ class ChatMessageSearchRepositoryTest {
         leftParticipation.setDeletedAt(Instant.now());
         chatParticipantRepository.saveAndFlush(leftParticipation);
 
-        ChatConversation current = conversation(ChatConversationKind.PEER_GROUP, t, "Current Group");
+        ChatConversation current =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Current Group");
         participate(current, caller);
         message(current, caller, "gargantuanplinth current message");
 
@@ -145,14 +146,7 @@ class ChatMessageSearchRepositoryTest {
 
         List<ChatMessageSearchRow> results =
                 searchEn(
-                        caller.getId(),
-                        t.getId(),
-                        "flibbertigibbet",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+                        caller.getId(), t.getId(), "flibbertigibbet", null, null, null, null, null);
 
         assertThat(results).isEmpty();
     }
@@ -170,15 +164,15 @@ class ChatMessageSearchRepositoryTest {
         archived.setArchivedAt(Instant.now());
         chatConversationRepository.saveAndFlush(archived);
 
-        ChatConversation deleted = conversation(ChatConversationKind.PEER_GROUP, t, "Deleted Group");
+        ChatConversation deleted =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Deleted Group");
         participate(deleted, caller);
         message(deleted, caller, "wobblesnatch deleted message");
         deleted.setDeletedAt(Instant.now());
         chatConversationRepository.saveAndFlush(deleted);
 
         List<ChatMessageSearchRow> results =
-                searchEn(
-                        caller.getId(), t.getId(), "wobblesnatch", null, null, null, null, null);
+                searchEn(caller.getId(), t.getId(), "wobblesnatch", null, null, null, null, null);
 
         assertThat(results).isEmpty();
     }
@@ -284,8 +278,7 @@ class ChatMessageSearchRepositoryTest {
         message(staffOnly, caller, "hobnobbington staffonly message");
 
         List<ChatMessageSearchRow> results =
-                searchEn(
-                        caller.getId(), t.getId(), "hobnobbington", null, null, null, null, null);
+                searchEn(caller.getId(), t.getId(), "hobnobbington", null, null, null, null, null);
 
         assertThat(results).isEmpty();
     }
@@ -302,15 +295,7 @@ class ChatMessageSearchRepositoryTest {
 
         List<ChatMessageSearchRow> results =
                 chatMessageSearchRepository.searchPt(
-                        caller.getId(),
-                        t.getId(),
-                        "gato",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        30);
+                        caller.getId(), t.getId(), "gato", null, null, null, null, null, 30);
 
         assertThat(results).hasSize(1);
     }
@@ -346,17 +331,11 @@ class ChatMessageSearchRepositoryTest {
 
         List<ChatMessageSearchRow> page1 =
                 chatMessageSearchRepository.searchEn(
-                        caller.getId(),
-                        t.getId(),
-                        "snorklewhiff",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        3);
+                        caller.getId(), t.getId(), "snorklewhiff", null, null, null, null, null, 3);
         assertThat(page1).hasSize(3);
-        assertThat(page1).extracting(ChatMessageSearchRow::getId).isSortedAccordingTo((a, b) -> b.compareTo(a));
+        assertThat(page1)
+                .extracting(ChatMessageSearchRow::getId)
+                .isSortedAccordingTo((a, b) -> b.compareTo(a));
 
         Long cursor = page1.get(page1.size() - 1).getId();
         List<ChatMessageSearchRow> page2 =
