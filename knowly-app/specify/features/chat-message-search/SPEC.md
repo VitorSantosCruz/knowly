@@ -1,6 +1,23 @@
 # SPEC — chat-message-search (frontend)
 
 > The what and the why. No technical implementation details.
+>
+> **Amended (2026-08-10) — replaced by a unified, Slack-style search bar.
+> This is a genuine scope pivot on a shipped feature (product owner
+> feedback, not a bug), not a reinterpretation — see "Amendment
+> (2026-08-10)" below for the full context and the five Tier 3 answers
+> it depends on. `chat-search-dialog.component.ts` and its dedicated
+> Sender/Conversation/From/To filter form are retired entirely — REQ-1
+> through REQ-14 below are marked superseded inline (kept for history,
+> per this repo's own convention — see `chat-unified-ui/SPEC.md`'s
+> amendment style) and replaced by REQ-15 through REQ-31 in the new
+> "Unified search" section. This amendment is companion to
+> `knowly-app/specify/features/chat-unified-ui/SPEC.md`'s own "Amended
+> (5)" section, which owns the shell/layout side of the same change (a
+> persistent top search bar replacing the per-column search fields) —
+> this document owns the search *behavior* (query semantics, result
+> types, grouping, recent places), that one owns *where it lives on
+> screen*. Read both together; neither is a full picture alone.**
 
 ## Context and motivation
 
@@ -10,231 +27,431 @@ directory/full-directory columns (its REQ-8/REQ-9) — but explicitly
 **deferred** searching *inside* message content: "This SPEC's search
 (REQ-8) matches person/group display names only... a future SPEC should
 own [message-content search] explicitly rather than it being silently
-folded into this one's 'search' requirements." This SPEC is that
-follow-up: a Slack-style "I remember roughly what I typed, but not who I
-said it to or which group" recall search, backed by the new
+folded into this one's 'search' requirements." This SPEC was originally
+that follow-up: a Slack-style "I remember roughly what I typed, but not
+who I said it to or which group" recall search, backed by the new
 `GET /api/chat/messages/search` endpoint specified in
 `knowly-api/specify/features/chat-message-search/SPEC.md`.
 
-**This SPEC does not touch `chat-unified-ui`'s existing name-only
-directory search (REQ-8/REQ-9 there) at all** — it adds a distinct,
-separate search entry point and result surface for message *content*,
-consumed the same way this app already consumes any other backend
-capability: a new UI surface calling a new endpoint, reflecting whatever
-the backend reports, never re-deriving access control client-side.
+**Original framing (superseded — kept for history):** this SPEC does
+not touch `chat-unified-ui`'s existing name-only directory search
+(REQ-8/REQ-9 there) at all — it adds a distinct, separate search entry
+point and result surface for message *content*, consumed the same way
+this app already consumes any other backend capability.
+
+## Amendment (2026-08-10) — unified search bar
+
+**Trigger:** direct product-owner feedback after using the shipped
+feature, comparing it against two screenshots of Slack's search — a
+single top-of-screen bar that, as the user types, shows grouped results
+(channels, people with avatars, "Recent places") in one dropdown,
+versus knowly's shipped separate modal with distinct filter fields that
+only matched message content ("No results for 'conforme'" — a literal,
+content-only query with no entity matching at all). Their words: *"A
+pesquisa precisa ser como a do slack, uma barra única que encontra
+canais, pessoas e trechos de conversas."*
+
+This is a Tier 3 change (reverses this SPEC's own shipped scope, and —
+per the product owner's explicit confirmation below — also reopens
+`chat-unified-ui`'s already-approved column-search requirements) and
+was resolved by asking five direct questions before drafting any
+requirement text, per `DECISIONS.md`'s decision-making authority
+section. All five are now answered by the product owner:
+
+1. **Result types — all four kinds.** People, groups, Support, and RAG
+   ("Base de artigos") conversations are all searchable/browsable from
+   the one bar — not just message content, and not just people/groups.
+   "Canais" in the product owner's own phrasing maps to knowly's groups
+   (`PEER_GROUP`) and RAG conversations — this app has no separate
+   channel concept; nothing new is being modeled, this is a UI-level
+   unification of already-existing entity kinds.
+2. **Replace vs. layer — replace entirely.** The Sender/Conversation/
+   From/To filter fields are removed completely; there is no separate
+   "advanced search" surface. The unified bar is the *only* search
+   surface for both message content and entity (person/group/Support/
+   RAG) lookup.
+3. **Entry point — persistent top bar**, not a sidebar icon opening a
+   modal. Always visible across the chat screen, matching Slack's own
+   placement. **This is a layout change to `chat-unified-ui`'s
+   already-approved 3-column shell, not something this SPEC alone can
+   fully own** — see that document's "Amended (5)" section for the
+   shell-side requirements; this document assumes the bar exists there
+   and specifies what happens inside it.
+4. **Quick access — in scope.** Opening the bar with an empty query
+   shows a short "recent places" list (recently/frequently interacted
+   conversations), matching the Slack reference screenshot exactly.
+5. **Result presentation — grouped by type**, not a flat ranked list.
+   *(Tier 2 call, not explicitly re-asked: every reference the product
+   owner gave — the original screenshot description and the "recent
+   places" confirmation above — depicts Slack's grouped layout
+   specifically; per `DECISIONS.md`'s Tier 2 process, this is decided
+   here with the reasoning recorded, not silently assumed. If the
+   product owner intended a flat list instead, flag it at sign-off and
+   this call reverses cheaply — no code exists yet.)*
+
+**Backend dependency, not yet specified:** REQ-15 through REQ-22 below
+need the unified bar to search **entities** (people/groups by display
+name, Support's own single row, RAG conversations by title) inside the
+*same* request/response shape the content search already added
+(`GET /api/chat/messages/search`, per
+`knowly-api/specify/features/chat-message-search/SPEC.md`), or via a
+new, separate backend contract combining all four result kinds. Neither
+exists today — the current backend endpoint only ever returns message
+rows. **This frontend SPEC does not invent that contract** — see "Out
+of scope" below; a backend SPEC amendment (same feature or a new one)
+is required before PLAN can build the entity-search half of this
+document.
 
 ## Relationship to `chat-unified-ui`'s SPEC
 
-- `chat-unified-ui`'s "Out of scope / Future work" section explicitly
-  named this deferral and the reason for it (message-content search
-  "needs its own indexing strategy... a materially bigger feature," not
-  a small extension of its name-matching filter) — this SPEC is that
-  named future work, not a reinterpretation of anything already shipped.
-- `chat-unified-ui`'s three-column layout (conversations list, thread,
-  full directory) and its existing name-only search fields are
-  unaffected by this SPEC — this feature adds a new, separate entry
-  point (see REQ-1) rather than overloading either existing search
-  field with two different semantics.
-- Support conversations are excluded from this feature's results,
-  matching the backend SPEC's own scope decision (peer/group chat
-  only) — this SPEC does not add a Support-content search UI, and
-  Support's row in `chat-unified-ui`'s column 1 is unaffected.
+- **(Superseded 2026-08-10 by the amendment above)** ~~This SPEC does
+  not touch `chat-unified-ui`'s existing name-only directory search
+  (REQ-8/REQ-9 there) at all — it adds a distinct, separate search
+  entry point and result surface for message content, consumed the
+  same way this app already consumes any other backend capability: a
+  new UI surface calling a new endpoint, reflecting whatever the
+  backend reports, never re-deriving access control client-side.~~ The
+  unified bar now **does** touch and supersede `chat-unified-ui`'s
+  REQ-8/REQ-9 — see that document's "Amended (5)" section.
+- `chat-unified-ui`'s three-column layout is not otherwise restructured
+  by this amendment beyond gaining the persistent top bar (its own
+  "Amended (5)" section) — the conversation column (REQ-2a) still opens
+  whichever conversation kind is selected, unchanged.
+- Support conversations are excluded from the *content-search* half of
+  results (REQ-16, unchanged from the original REQ-9's backend scope
+  decision — peer/group chat content only), but Support's own row (the
+  entity itself, not its content) **is** now findable/openable via the
+  unified bar's entity results (REQ-15), consistent with question 1's
+  answer above. These are two different things: "search inside
+  Support's messages" (still out of scope) vs. "find/open the Support
+  row from the search bar" (now in scope).
 - Consistent with `chat-unified-ui`'s established pattern for every
-  admin/capability-gated action (join-request approval, visibility
-  change, etc.), this SPEC never re-derives "can this caller see this
-  conversation" client-side — it only reflects what the backend's
-  search response actually contains (a conversation the caller has lost
-  access to simply never appears, per the backend SPEC's REQ-2/REQ-3;
-  the frontend does not need, and must not implement, its own filtering
-  of results by conversation membership).
+  admin/capability-gated action, this SPEC never re-derives "can this
+  caller see this conversation/person/group" client-side — it only
+  reflects what the backend's response actually contains.
 
 ## User stories
 
-- As a user who remembers roughly what they typed but not who they said
-  it to or which conversation it was in, I want a dedicated way to
-  search my message history by content and see matching messages with
-  enough context to recognize them.
-- As a user narrowing a broad memory, I want to optionally filter that
-  search by sender, by a specific conversation, and/or by a date range.
-- As a user, I want to click a search result and land directly in that
-  conversation, at or near that specific message.
-- As a user, I want search results ordered chronologically, matching
-  how the backend returns them, rather than a relevance score I can't
-  predict.
-- As a user, I want clear feedback when my search has no matches, is
-  still loading, or fails, distinct from each other.
+- As a user, I want one search bar, always visible, where I can find a
+  person, a group, my Support conversation, a "Base de artigos"
+  conversation, or a remembered snippet of what someone said — without
+  needing to know in advance which of those I'm looking for.
+- As a user who remembers roughly what I typed but not who I said it to
+  or which conversation it was in, I want that same bar to also search
+  by message content and show matching messages with enough context to
+  recognize them.
+- As a user, I want results grouped by kind (e.g. Groups, People,
+  Messages), each with a way to see more if there are more than fit in
+  the dropdown — mirroring Slack's own grouped layout.
+- As a user opening the search bar with nothing typed yet, I want to see
+  a short list of conversations I've recently or frequently interacted
+  with, so I don't have to type at all for the common case of "go back
+  to where I just was."
+- As a user, I want clicking any result — person, group, Support, RAG
+  conversation, or a message — to open that conversation directly in the
+  conversation column, the same way clicking a directory row already
+  does today.
+- As a user, I want clear, distinct feedback for "still searching,"
+  "nothing matched," and "the search failed."
 
 ## Requirements (EARS/GEARS)
 
-### Entry point
+### Original entry point and query/filter requirements (Superseded 2026-08-10)
 
-- **REQ-1 [Ubiquitous]** The system shall provide a message-content
+> Kept for history, per this repo's convention of marking superseded
+> requirements in place rather than deleting them (see
+> `chat-unified-ui/SPEC.md`'s amendment style). **None of REQ-1 through
+> REQ-14 below are authoritative anymore** — see "Unified search" below
+> for their replacements. `chat-search-dialog.component.ts` (the
+> component these requirements described) is retired, not extended.
+
+- ~~**REQ-1 [Ubiquitous]** The system shall provide a message-content
   search entry point, visually and functionally distinct from
-  `chat-unified-ui`'s existing directory-name-only search fields (its
-  column 1/column 3 search inputs), reachable from within the unified
-  chat screen (`chat-unified-ui`'s REQ-1) without leaving it.
-- **REQ-2 [Ubiquitous]** The entry point shall make clear (via label or
-  placeholder text) that it searches message content, not
-  person/group names — so a user does not confuse it with
-  `chat-unified-ui`'s existing directory search fields.
-
-### Query and filters
-
-- **REQ-3 [Event-Driven]** When the user submits a non-blank free-text
+  `chat-unified-ui`'s existing directory-name-only search fields...~~
+  **Superseded by REQ-15/REQ-23 (Amended 2026-08-10)** — there is now
+  exactly one search entry point for both content and entity search,
+  the opposite of "distinct."
+- ~~**REQ-2 [Ubiquitous]** The entry point shall make clear... that it
+  searches message content, not person/group names...~~ **Superseded**
+  — the one bar now searches both, by design (question 1).
+- ~~**REQ-3 [Event-Driven]** When the user submits a non-blank free-text
   query, the system shall call the backend search endpoint with that
-  query and display the returned messages.
-- **REQ-4 [Optional Feature]** Where the user has selected a sender
-  filter, the system shall include it in the search request, restricting
-  results to messages from that sender.
-- **REQ-5 [Optional Feature]** Where the user has selected a specific
-  conversation filter, the system shall include it in the search
-  request, restricting results to that conversation.
-- **REQ-6 [Optional Feature]** Where the user has selected a date-range
-  filter (from and/or to), the system shall include it in the search
-  request, restricting results to messages sent within that range.
-- **REQ-7 [Unwanted Behavior]** If the user attempts to submit a search
-  with a blank query, then the system shall not call the backend and
-  shall indicate that a search term is required.
-- **REQ-8 [Unwanted Behavior]** If the user selects a "from" date later
-  than the selected "to" date, then the system shall indicate the
-  invalid range and not submit the search.
-
-### Results
-
-- **REQ-9 [Ubiquitous]** The system shall display search results in
-  the chronological order the backend returns them (not client-side
-  re-sorted by relevance or any other criterion), showing, per result,
-  at minimum: the message's sender, its conversation (person or group
-  name), its timestamp, and enough of its content for the user to
-  recognize the match.
-- **REQ-10 [Event-Driven]** When the user scrolls to the end of the
-  currently loaded results (or otherwise requests more), the system
-  shall fetch the next page via the backend's cursor pagination and
-  append it to the displayed results.
-- **REQ-11 [Event-Driven]** When the user clicks a search result, the
-  system shall open that message's conversation in the conversation
-  column (`chat-unified-ui`'s REQ-2a), using the existing
-  person/group/RAG conversation view for that conversation kind
-  unchanged — this feature does not introduce a new conversation-detail
-  view.
-- **REQ-12 [Unwanted Behavior]** If a search request returns zero
+  query and display the returned messages.~~ **Superseded by REQ-17
+  (Amended 2026-08-10)** — results now include entities, not only
+  messages, and firing is per-keystroke/debounced (REQ-17), not
+  submit-triggered.
+- ~~**REQ-4 [Optional Feature]** Where the user has selected a sender
+  filter...~~ **Superseded — removed entirely (question 2).** No sender
+  filter field exists in the unified bar.
+- ~~**REQ-5 [Optional Feature]** Where the user has selected a specific
+  conversation filter...~~ **Superseded — removed entirely (question
+  2).**
+- ~~**REQ-6 [Optional Feature]** Where the user has selected a
+  date-range filter...~~ **Superseded — removed entirely (question
+  2).**
+- ~~**REQ-7 [Unwanted Behavior]** If the user attempts to submit a
+  search with a blank query, then the system shall not call the backend
+  and shall indicate that a search term is required.~~ **Superseded by
+  REQ-19/REQ-20 (Amended 2026-08-10)** — a blank query is no longer an
+  error state; it shows "recent places" instead (question 4).
+- ~~**REQ-8 [Unwanted Behavior]** If the user selects a "from" date
+  later than the selected "to" date...~~ **Superseded — moot, no
+  date-range field exists anymore (question 2).**
+- ~~**REQ-9 [Ubiquitous]** The system shall display search results in
+  the chronological order the backend returns them...~~ **Superseded by
+  REQ-21 (Amended 2026-08-10)** — results are grouped by type (question
+  5), not a single chronological list.
+- ~~**REQ-10 [Event-Driven]** When the user scrolls to the end of the
+  currently loaded results..., the system shall fetch the next page...~~
+  **Superseded by REQ-22 (Amended 2026-08-10)** — per-group "see more,"
+  not one global scroll-to-load-more list.
+- ~~**REQ-11 [Event-Driven]** When the user clicks a search result, the
+  system shall open that message's conversation...~~ **Carried forward
+  unchanged in substance as REQ-24 (Amended 2026-08-10)**, extended to
+  every result kind, not just messages.
+- ~~**REQ-12 [Unwanted Behavior]** If a search request returns zero
   results, then the system shall show a distinct "no results for
-  '<query>'" state, not the generic empty/loading state.
-- **REQ-13 [Unwanted Behavior]** If a search request fails (network or
+  '<query>'" state...~~ **Carried forward unchanged in substance as
+  REQ-27 (Amended 2026-08-10).**
+- ~~**REQ-13 [Unwanted Behavior]** If a search request fails..., then
+  the system shall show an inline error...~~ **Carried forward
+  unchanged in substance as REQ-28 (Amended 2026-08-10).**
+- ~~**REQ-14 [State-Driven]** While a search request is in flight, the
+  system shall show a loading indication...~~ **Carried forward
+  unchanged in substance as REQ-29 (Amended 2026-08-10).**
+
+### Unified search (Amended 2026-08-10)
+
+> **New section — this is now the authoritative requirement set for
+> this feature.** Depends on `chat-unified-ui/SPEC.md`'s "Amended (5)"
+> section for the persistent top bar's placement/layout (REQ-42
+> onward there); depends on a not-yet-specified backend contract for
+> entity search (see "Out of scope" below) for REQ-15/REQ-16/REQ-23.
+
+#### Entry point
+
+- **REQ-15 [Ubiquitous]** The system shall provide exactly one search
+  entry point — the persistent top search bar specified by
+  `chat-unified-ui/SPEC.md`'s "Amended (5)" section — for both message
+  content and entity (person/group/Support/RAG conversation) search.
+  No other search field exists anywhere in the chat screen once this
+  amendment lands (this also supersedes `chat-unified-ui`'s own
+  column-level REQ-8/REQ-9 — see that document).
+- **REQ-16 [Ubiquitous]** The entry point's placeholder/label shall
+  reflect that it searches everything (e.g. "Buscar pessoas, grupos ou
+  mensagens"), not message content alone — since it is, by design
+  (question 1/2), no longer a content-only surface.
+
+#### Query and results
+
+- **REQ-17 [Event-Driven]** When the user types a non-blank query into
+  the bar, the system shall (debounced, exact interval a PLAN-level
+  decision) call the backend with that query and populate results
+  across every applicable group (REQ-21) as they arrive — no explicit
+  submit action is required, matching Slack's type-ahead behavior and
+  question 2's "replace entirely" direction (the old submit-triggered,
+  filter-form flow no longer exists).
+- **REQ-18 [Unwanted Behavior]** If entity search's backend dependency
+  (see "Out of scope") is not yet available at implementation time,
+  then the system shall degrade to content-only results (the prior
+  behavior) rather than showing a broken/empty entity group — this is a
+  PLAN-level sequencing note, not a permanent behavior; flag it as
+  temporary in the PLAN if used.
+- **REQ-19 [State-Driven]** While the query is blank and the bar is
+  open/focused, the system shall show a "recent places" group — a short
+  list of conversations (any kind: 1:1, group, Support, RAG) the viewer
+  has recently or frequently interacted with — instead of an empty
+  state or a "type to search" placeholder alone.
+- **REQ-20 [Ubiquitous]** "Recent places" (REQ-19) shall be capped to a
+  small, fixed number of entries (exact count a PLAN-level decision,
+  matching Slack's own short list) and shall be replaced by live search
+  groups (REQ-21) the moment the query becomes non-blank — it is not
+  merged into a mixed empty+results view.
+- **REQ-21 [Complex]** When search results are available for a non-blank
+  query, the system shall render them grouped by kind — at minimum
+  "Groups" (matching group names), "People" (matching person display
+  names), and "Messages" (matching message content) — with Support and
+  RAG conversation matches folding into "Groups"/a dedicated group at
+  PLAN's discretion, so long as every one of the four entity kinds
+  named in question 1 is represented somewhere in the grouped output;
+  a group with zero matches for the current query is omitted entirely,
+  not shown empty.
+- **REQ-22 [Optional Feature]** Where a group (REQ-21) has more matches
+  than fit in the dropdown's initial per-group cap, the system shall
+  offer a "see more"/"ver mais" action for that group specifically,
+  expanding only that group's results (mirroring Slack's "See 13
+  more") — never a single global "load more" across every group at
+  once (that shape is retired along with REQ-10/its scroll-pagination
+  behavior).
+
+#### Opening a result
+
+- **REQ-23 [Event-Driven]** When the user clicks a person, group,
+  Support, or RAG-conversation result, the system shall open that
+  conversation in the conversation column, using the existing
+  person/group/Support/RAG conversation view for that kind unchanged —
+  identical behavior to clicking the equivalent row in
+  `chat-unified-ui`'s column 1/column 3 today, just reachable from the
+  search bar as well.
+- **REQ-24 [Event-Driven]** When the user clicks a message result, the
+  system shall open that message's conversation in the conversation
+  column, using the existing conversation view for its kind unchanged
+  — carried forward from the original REQ-11 unchanged in substance.
+  **Scroll-to-message/highlighting the matched message remains
+  v1-out-of-scope**, same as before (no new backend "fetch page
+  containing message X" endpoint exists).
+- **REQ-25 [Event-Driven]** When the user clicks a "recent places"
+  entry (REQ-19), the system shall open that conversation the same way
+  REQ-23 does for its kind.
+- **REQ-26 [Ubiquitous]** Clicking any result (REQ-23/REQ-24/REQ-25)
+  shall close the search dropdown and return focus to the conversation
+  column, mirroring Slack's own behavior of dismissing the results
+  panel once a destination is chosen.
+
+#### Feedback states
+
+- **REQ-27 [Unwanted Behavior]** If a non-blank query's search returns
+  zero results across every group, then the system shall show a
+  distinct "no results for '<query>'" state, not the generic empty/
+  "recent places" state — carried forward unchanged in substance from
+  the original REQ-12.
+- **REQ-28 [Unwanted Behavior]** If a search request fails (network or
   backend error), then the system shall show an inline error distinct
   from the "no results" state and shall not clear any previously
-  displayed results.
-- **REQ-14 [State-Driven]** While a search request is in flight, the
+  displayed results — carried forward unchanged in substance from the
+  original REQ-13.
+- **REQ-29 [State-Driven]** While a search request is in flight, the
   system shall show a loading indication distinct from both the
-  "no results" and error states.
+  "no results" and error states — carried forward unchanged in
+  substance from the original REQ-14.
+- **REQ-30 [Unwanted Behavior]** If the entity-search half of a query
+  fails while the message-content half succeeds (or vice versa — two
+  independent backend calls, per the "Out of scope" note on the
+  not-yet-defined combined contract), then the system shall show the
+  groups that did succeed and an inline, group-scoped error only for
+  the group(s) that failed, never blanking the entire dropdown for a
+  partial failure. **PLAN-level note:** this requirement only applies
+  if PLAN ends up implementing entity and content search as two
+  separate backend calls rather than one combined contract; if a single
+  combined endpoint is specified instead, this requirement collapses
+  into REQ-28.
+- **REQ-31 [Ubiquitous]** Dismissing the search bar (e.g. clicking
+  away, pressing Escape) shall clear the dropdown without submitting a
+  new search on reopen — reopening starts from "recent places" (REQ-19)
+  again, not the last query's stale results.
 
 ## Non-functional requirements
 
-- Accessibility: search entry point, filters, and results list are
-  keyboard-navigable and screen-reader-labeled, consistent with this
-  app's existing accessibility conventions for other list/filter UIs
-  (e.g. `chat-unified-ui`'s own directory columns).
-- Performance: results are paginated (REQ-10), never fetched/rendered
-  as an unbounded list; filter changes debounce/avoid firing a new
-  backend request on every keystroke (exact debounce mechanism is a
-  PLAN-level decision).
-- Responsiveness: the search entry point and results surface adapt to
-  the same breakpoint behavior `chat-unified-ui`'s three-column layout
-  already established (REQ-2c) — exact placement within that responsive
-  layout (e.g. a fourth collapsible pane vs. a modal/overlay over the
-  existing columns) is a PLAN-level decision, not specified here.
+- Accessibility: the search bar, its result groups, "see more" actions,
+  and "recent places" list are keyboard-navigable and screen-reader-
+  labeled (each group announced, each result an accessible name),
+  consistent with this app's existing accessibility conventions —
+  carried forward from the original document, extended to the new
+  grouped/type-ahead shape.
+- Performance: results remain paginated per-group (REQ-22), never an
+  unbounded list; the query debounces to avoid firing a backend request
+  on every keystroke (exact debounce mechanism a PLAN-level decision,
+  unchanged framing from the original document).
+- Responsiveness: the search bar's placement and collapse behavior on
+  narrow viewports is owned by `chat-unified-ui/SPEC.md`'s "Amended
+  (5)" section, not redefined here.
 - Security: the frontend never filters or re-derives which
-  conversations/messages a search result is allowed to include — it
-  displays exactly what the backend's response contains and nothing it
-  computes independently, consistent with `chat-unified-ui`'s existing
-  posture toward every backend-authorized capability.
-- Localization: this feature does not add a language selector or expose
-  the backend's locale-driven index selection (`chat-message-search`
-  backend SPEC's REQ-13/REQ-14) to the user in any way — locale
-  continues to be driven entirely by the app's existing in-app language
-  selection (`TranslocoService`/`LanguageService`), consumed
-  automatically by the existing `localeInterceptor` on every request,
-  including this feature's search calls; no new locale UI or parameter
-  is introduced.
+  conversations/messages/people/groups a search result is allowed to
+  include — it displays exactly what the backend's response(s) contain,
+  unchanged posture from the original document.
+- Localization: unchanged from the original document — locale continues
+  to be driven entirely by the app's existing in-app language selection,
+  consumed automatically by the existing `localeInterceptor`; no new
+  locale UI is introduced by this amendment either.
 
 ## Acceptance criteria
 
-- [x] A distinct message-content search entry point is reachable from
-      the unified chat screen without leaving it, and is visibly
-      different from the existing name-only directory search fields.
-      (`ChatSidebarComponent`'s new "Buscar mensagens" icon button,
-      opening `chat-search-dialog.component.ts`.)
-- [x] Submitting a non-blank query displays matching messages in
-      chronological order, each showing sender, conversation, timestamp,
-      and enough content to recognize the match. (Order is whatever
-      `ChatMessageSearchService.results()` returns, never re-sorted
-      client-side.)
-- [x] Sender, conversation, and date-range filters each narrow results
-      when applied, individually and combined.
-- [x] A blank-query submission attempt is blocked with a clear
-      indication, no backend call made.
-- [x] A "from" date later than "to" date is blocked with a clear
-      indication, no backend call made.
-- [x] Scrolling to the end of results (or an equivalent "load more"
-      action) fetches and appends the next page. (Both an
-      `IntersectionObserver` sentinel and an explicit "Load more" button
-      call `loadMore()`.)
-- [x] Clicking a result opens that message's conversation in the
-      existing conversation view for its kind (1:1, group, or RAG),
-      unchanged in behavior. **Scroll-to-message/highlighting the
-      matched message within that view is explicitly v1-out-of-scope**
-      (PLAN.md's "Open dependency on backend feasibility work") — the
-      conversation opens at its normal newest-message view, not
-      scrolled/highlighted to the matched message; a future increment
-      needs a new backend "fetch page containing message X" endpoint
-      that does not exist today.
-- [x] A zero-result search shows a distinct "no results" state, not the
-      generic empty state.
-- [x] A failed search shows an inline error distinct from "no results,"
+> Original acceptance criteria (message-content-only, filter-form
+> shape) are retired along with `chat-search-dialog.component.ts` —
+> not reproduced here as checkable items since the surface they
+> describe no longer exists once this amendment ships; they remain
+> readable in this document's git history for anyone auditing what
+> changed. The list below is the new, authoritative set, and starts
+> unchecked — none of this amendment is implemented yet.
+
+- [ ] Exactly one search entry point exists (the persistent top bar) —
+      no sidebar icon/modal, no separate filter fields.
+- [ ] Typing a non-blank query (no explicit submit) triggers search and
+      populates grouped results as they arrive.
+- [ ] Opening the bar with a blank query shows a capped "recent places"
+      list instead of an empty/placeholder state.
+- [ ] Results render grouped by kind (at least Groups, People,
+      Messages), each group omitted entirely when it has zero matches
+      for the current query.
+- [ ] A group with more matches than its initial cap offers a "see
+      more" action that expands only that group.
+- [ ] Clicking a person/group/Support/RAG result opens that
+      conversation in the conversation column, unchanged behavior for
+      that conversation kind.
+- [ ] Clicking a message result opens its conversation the same way,
+      without scroll-to-message (still v1-out-of-scope).
+- [ ] Clicking a "recent places" entry opens that conversation.
+- [ ] Any result click closes the dropdown and returns focus to the
+      conversation column.
+- [ ] A zero-result non-blank query shows a distinct "no results for
+      '<query>'" state.
+- [ ] A failed search shows an inline error distinct from "no results,"
       without clearing previously displayed results.
-- [x] A loading state is shown while a search request is in flight,
-      distinct from both other states.
-- [x] Switching the app's language (existing language switcher) changes
-      which language index subsequent searches match against
-      (server-side, via the existing `Accept-Language` header already
-      sent by `localeInterceptor`) with no additional UI needed for
-      this — this feature adds no locale UI/param of its own, consistent
-      with the existing interceptor already covering every request.
+- [ ] A loading state is shown while a search request is in flight.
+- [ ] Dismissing the bar and reopening it shows "recent places" again,
+      not the previous query's stale results.
 
 ## Out of scope
 
-- Any change to `chat-unified-ui`'s existing directory-name-only search
-  (its REQ-8/REQ-9) — this is a separate, additional search surface, not
-  a replacement or modification of that one.
-- Relevance-ranked result ordering — matches the backend's v1
-  chronological-only ordering; a future increment, not this SPEC.
-- Searching Support-channel content — excluded by the backend SPEC's own
-  scope decision; no UI for it is specified here.
+- **The combined entity+content backend contract this amendment
+  depends on (REQ-15/REQ-16/REQ-17/REQ-21/REQ-23) does not exist yet.**
+  `GET /api/chat/messages/search` (the currently shipped backend
+  endpoint) only ever returns message rows — it has no concept of
+  matching a person/group/Support/RAG conversation by name. This
+  frontend SPEC does not invent that backend contract; a backend SPEC
+  amendment (to `knowly-api/specify/features/chat-message-search/SPEC.md`
+  or a new backend feature) is required before PLAN can build
+  REQ-15/REQ-17/REQ-21/REQ-23's entity-search half. REQ-18 documents
+  the interim fallback if PLAN needs to sequence around this gap.
+- Any change to `chat-unified-ui`'s own conversation-kind behaviors
+  (1:1, group, Support, RAG) beyond how they're opened from search
+  results — unchanged, per that document's existing "Out of scope."
+- Relevance-ranked ordering *within* a group beyond whatever the
+  backend returns — this amendment does not specify a client-side
+  re-ranking algorithm.
+- Searching Support-channel *content* — still excluded, per the
+  backend SPEC's own scope decision (unchanged from the original
+  document); only Support's own row/entity is now findable (REQ-15).
 - Any `STAFF_ADMIN`/`MEMBER_ADMIN` "search across every group" UI or
-  affordance — the backend grants no such capability (see backend
-  SPEC's REQ-5), so no frontend surface for it exists either.
-- Highlighting/snippet-generation of the exact matched term within a
-  result's content beyond showing the message content itself — a
-  possible future enhancement, not required here.
+  affordance — unchanged from the original document; no such backend
+  capability exists.
+- Highlighting/snippet-generation of the exact matched term.
 - Exporting or saving search results/queries.
-- Any manual language override for search specifically (e.g. a
-  "search in Portuguese" toggle independent of the app's own language
-  setting) — locale is derived solely from the existing in-app language
-  selection, per the backend SPEC's REQ-14.
-- Real-time/live-updating search results as new messages arrive while a
-  search is open.
-- A dedicated full-page search route — this feature is consumed from
-  within the unified chat screen; whether it's a panel, modal, or
-  overlay is a PLAN-level layout decision, but it is not a new top-level
-  navigation entry replacing or alongside "Conversas."
+- Any manual language override for search — unchanged from the
+  original document.
+- Real-time/live-updating search results as new messages arrive while
+  the dropdown is open.
+- The persistent top bar's own layout/placement/responsive collapse
+  behavior — owned entirely by `chat-unified-ui/SPEC.md`'s "Amended
+  (5)" section, not this document.
+- The exact count/algorithm behind "recent places" (REQ-19) beyond
+  "recently or frequently interacted with" — whether it's pure
+  recency, a frequency-weighted score, or reuses `chat-unified-ui`'s
+  own column-3 cross-surface-recency signal (REQ-2d there, itself
+  still PLAN-blocked on backend feasibility) is a PLAN-level decision,
+  not specified here.
 
 ## Tier 3 — status
 
-**None outstanding for this document.** The three Tier 3 product
-decisions this feature depended on (Support-channel scope, oversight
-bypass scope, locale handling) were resolved at the backend-SPEC level
-(see `knowly-api/specify/features/chat-message-search/SPEC.md`'s "Tier
-3 — resolved" section) and are consumed here without re-litigation —
-this frontend SPEC has no independent Tier 3 questions of its own
-beyond those already answered. Ready for `PLAN.md` once read back and
-approved.
+**All five questions this amendment depended on are resolved (product
+owner, 2026-08-10) — see "Amendment (2026-08-10)" above for the exact
+answers.** One open item remains before PLAN can start on the
+entity-search requirements specifically (REQ-15/REQ-17/REQ-21/REQ-23):
+the backend contract gap named in "Out of scope" above is not a Tier 3
+product question, but it is a hard PLAN blocker — flag it explicitly
+when this document is brought back for sign-off, since approving this
+SPEC does not by itself make that backend work exist. **This document
+is ready for the product owner's final read-back and sign-off**,
+together with `chat-unified-ui/SPEC.md`'s "Amended (5)" section — they
+should be approved as a pair, not independently, since neither is a
+complete, buildable picture alone.

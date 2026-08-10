@@ -29,6 +29,24 @@
 > backend-dependency gating already noted for REQ-38/REQ-39 and now also
 > REQ-40).
 >
+> **Amended (5), 2026-08-10 — persistent top search bar, replaces the
+> per-column name-only search fields, companion to a parallel amendment
+> of `knowly-app/specify/features/chat-message-search/SPEC.md`.** The
+> product owner asked for Slack-style unified search ("uma barra única
+> que encontra canais, pessoas e trechos de conversas") and explicitly
+> confirmed this touches this document's already-approved 3-column
+> shell, not just the message-search feature alone. This document owns
+> the shell/layout side (where the bar lives, what happens to REQ-1's
+> column structure, what happens to REQ-8/REQ-9's per-column search
+> fields); `chat-message-search/SPEC.md`'s own "Amended (2026-08-10)"
+> section owns the search *behavior* (query semantics, grouped results,
+> recent places). **Not yet approved for PLAN — see "Tier 3 — resolved
+> (2026-08-10, Amended (5))" below: four of five questions this
+> amendment depended on are answered directly; the fifth (result
+> grouping) was a Tier 2 call, recorded with its reasoning in the
+> companion document, not re-litigated here.** REQ-42 through REQ-47
+> below are new; REQ-8/REQ-9 gain further superseding notes.
+>
 > **This document amends two already-shipped, approved SPECs:**
 > - `knowly-app/specify/features/internal-team-chat/SPEC.md` (119/119
 >   tasks done, 2026-07-31) — specifically its REQ-1/REQ-2/REQ-3 (separate
@@ -42,6 +60,12 @@
 >   now reversed by the product owner — see
 >   `knowly-api/specify/features/conversations/SPEC.md`'s own amendment
 >   note for the backend side of that reversal.
+> - **(Amended (5))** `knowly-app/specify/features/chat-message-search/SPEC.md`
+>   — that document's original REQ-1 through REQ-14 (dedicated modal,
+>   filter-form search) are now superseded by its own "Amended
+>   (2026-08-10)" section; this document's REQ-8/REQ-9 (per-column
+>   name-only search) are correspondingly superseded here (see below),
+>   both feeding into the same single persistent search bar.
 >
 > Once PLAN.md work starts, both `internal-team-chat/SPEC.md` and
 > `conversations/SPEC.md` should have their affected lines edited in
@@ -63,10 +87,11 @@
 > the current viewer. **It does not yet cover a 1:1 conversation
 > hard-delete endpoint (REQ-33), the equivalent for a "Base de
 > artigos" conversation (REQ-36), a "Base de artigos" create-with-
-> name/icon or rename endpoint (REQ-38/REQ-39, Amended (4)), or a group
-> icon-at-creation/rename endpoint (REQ-13/REQ-40, Amended (4)) — all
-> four are new, not-yet-specified backend dependencies, see "Out of
-> scope" below.**
+> name/icon or rename endpoint (REQ-38/REQ-39, Amended (4)), a group
+> icon-at-creation/rename endpoint (REQ-13/REQ-40, Amended (4)), or a
+> combined entity+message search endpoint for the persistent search bar
+> (REQ-42/REQ-44, Amended (5)) — all five are new, not-yet-specified
+> backend dependencies, see "Out of scope" below.**
 
 ## Context and motivation
 
@@ -108,7 +133,10 @@ search over message content** (searching by a snippet of what was
 actually said, with sender/conversation/date filters) is **not** part of
 this SPEC. This feature's search (REQ-8) is limited to matching a
 person's or group's **display name**, not message contents. See
-"Out of scope / Future work" for the reasoning.
+"Out of scope / Future work" for the reasoning. **(Amended (5), see
+below): this deferral is over — message content is now findable from
+the same persistent search bar covered by this amendment, via the
+companion `chat-message-search/SPEC.md` amendment.**
 
 **Further amendment (2026-08-09), see "Amended (3)" below:** the
 product owner, after reviewing two screenshots of the 2-column cut,
@@ -134,6 +162,18 @@ full quote and the resulting REQ-38 through REQ-41. **A follow-up round
 the same day closes the one item that quote didn't cover: groups also
 get the same fixed Lucide icon picker, at creation and rename — see
 "Tier 3 — resolved (2026-08-09, Amended (4), final round)" below.**
+
+**Further amendment (2026-08-10), see "Amended (5)" below:** the
+product owner, comparing knowly's shipped `chat-message-search` feature
+against two screenshots of Slack's own search (a single persistent bar
+finding channels, people, and message snippets in one grouped dropdown),
+asked for the equivalent here. This is explicitly confirmed by the
+product owner to be a shell/layout change to *this* document, not
+something the message-search feature can own alone — see "Tier 3 —
+resolved (2026-08-10, Amended (5))" below for the four directly-answered
+questions this amendment depends on (a fifth, result grouping, was a
+Tier 2 call recorded in the companion `chat-message-search/SPEC.md`
+amendment, not re-asked here).
 
 ## Tier 3 — resolved (product owner, 2026-08-08)
 
@@ -345,6 +385,42 @@ document.**
   of scope" below and the forward-pointer note added to
   `knowly-api/specify/features/conversations/SPEC.md`.
 
+## Tier 3 — resolved (2026-08-10, Amended (5))
+
+Five questions were asked before drafting this amendment's requirement
+text, per `DECISIONS.md`'s decision-making authority section (this is a
+reversal of REQ-8/REQ-9's already-approved scope, so Tier 3 by
+definition). Four are answered directly below; the fifth (result
+grouping) was decided as a Tier 2 call and is recorded in
+`chat-message-search/SPEC.md`'s own amendment, not repeated here since
+it's a search-behavior question, not a shell/layout one.
+
+1. **Result types findable from the bar — all four kinds:** people,
+   groups, Support, and RAG conversations, plus message content. Owned
+   jointly: this document specifies that the bar exists and where
+   (REQ-42 below); `chat-message-search/SPEC.md` specifies what it
+   searches and how results are grouped.
+2. **Replace vs. layer — replace entirely.** Column 1's and column 3's
+   own per-section search fields (REQ-8/REQ-9) are removed, not kept
+   alongside the new bar as a second way to filter by name — see REQ-8/
+   REQ-9's superseding notes below.
+3. **Placement — a persistent top bar**, always visible across the
+   chat screen, not a sidebar icon/modal. The product owner explicitly
+   confirmed this reopens this document's own already-approved 3-column
+   shell (REQ-1), not just the message-search feature — seeing it
+   through required this amendment, not a companion-document-only
+   change. See REQ-42/REQ-43 below for the layout requirements.
+4. **Quick access ("recent places" on an empty query) — in scope.**
+   The exact list/ranking logic is owned by `chat-message-search/SPEC.md`
+   (REQ-19/REQ-20 there); this document only guarantees the bar has
+   room/a place to render it (REQ-45 below).
+
+**Not yet approved for PLAN — this amendment has a real, named backend
+gap** (a combined entity+message search contract, see "Out of scope"
+below) that must be resolved (either as a further amendment to
+`knowly-api/specify/features/chat-message-search/SPEC.md` or a new
+backend feature) before PLAN can be written against REQ-42/REQ-44.
+
 ## User stories
 
 - As any user, I want one place to go for "talk to someone," whether
@@ -399,6 +475,14 @@ document.**
   group, I want to pick an icon from the same fixed set RAG
   conversations use, so groups are just as distinguishable in column 1
   as "Base de artigos" conversations are.
+- **(Amended (5)):** As any user, I want one persistent, always-visible
+  search bar — not a modal I have to open, and not several separate
+  search fields scattered across columns — where typing finds a person,
+  a group, Support, a "Base de artigos" conversation, or a remembered
+  snippet of a message, all at once.
+- **(Amended (5)):** As any user opening that bar with nothing typed
+  yet, I want to see the conversations I've recently been in, so
+  getting back to where I just was doesn't require typing anything.
 
 ## Requirements (EARS/GEARS)
 
@@ -493,6 +577,16 @@ document.**
 > (REQ-7, REQ-12/REQ-13, REQ-38 through REQ-41 below), not the 3-column
 > structure itself. REQ-1/REQ-2/REQ-2a/REQ-2c/REQ-2d are unaffected by
 > this amendment.
+>
+> **Amended (5) 2026-08-10 — adds a persistent top search bar above the
+> 3-column layout; supersedes REQ-8/REQ-9's per-column search fields.**
+> The bar sits above all three columns (REQ-42), spanning the layout's
+> full width, rather than being anchored inside column 1 or column 3 the
+> way the old per-column search fields were — this is a genuinely new
+> layout element, not a relocation of an existing one. See REQ-42
+> through REQ-47 in the new "Persistent search bar" section below; REQ-1
+> gains a note pointing to it; REQ-8/REQ-9 are marked superseded in
+> place.
 
 - **REQ-1 [Ubiquitous]** The system shall provide a single top-level
   navigation entry ("Conversas") that replaces the previously separate
@@ -507,6 +601,11 @@ document.**
     (REQ-2d, final), the first and third the same width. **Approved
     for PLAN** — this 3-column version is now authoritative, replacing
     the 2-column version above.
+  - **REQ-1 (Amended (5)):** the screen additionally shows the
+    persistent search bar (REQ-42) above the three columns — the
+    column structure itself (which columns exist, their widths, their
+    content per REQ-2/REQ-2a/REQ-2d) is otherwise unchanged by this
+    amendment.
 - **REQ-2 [Ubiquitous]** The directory column (leftmost) shall always
   show, simultaneously and without a tab/section switch: (a) three
   direct action buttons — "Abrir chamado de suporte", "Falar com a base
@@ -632,6 +731,11 @@ document.**
     direct extension of the already-approved 2-column collapse
     behavior — no new UX decision beyond generalizing it to a third
     pane.
+  - **REQ-2c (Amended (5)):** the persistent search bar (REQ-42)
+    remains visible above whichever single column is shown at a narrow
+    viewport — it is not one of the collapsible panes, it never
+    disappears on narrow viewports. Exact rendering (fixed header vs.
+    scroll-with-page) is a PLAN-level decision.
 - **REQ-2d [Complex] (Amended (3), final)** The full-directory column
   (rightmost, same width as column 1) shall show, simultaneously and
   without a tab/section switch, every user the viewer is eligible to
@@ -660,6 +764,14 @@ document.**
   example, see Tier 3 resolution #2 above). It has its own independent
   search field, filtering this column's rows only (never column 1's).
   **Approved for PLAN.**
+  - **REQ-2d (Amended (5)):** superseded in part — column 3's own
+    independent search field is removed along with REQ-8/REQ-9 (see
+    below); column 3's browsable *list* (unfiltered, sorted as above)
+    and its click-to-open behavior are otherwise unchanged. Finding a
+    not-yet-messaged person/discoverable group by name now happens via
+    the persistent search bar (REQ-42), which surfaces them as ordinary
+    entity results per `chat-message-search/SPEC.md`'s "Amended
+    (2026-08-10)" REQ-15.
   - **Implementation-risk note, not blocking approval but flagged
     prominently for PLAN:** this ranking needs a "most recent
     interaction with entity X, across any group message or a
@@ -721,55 +833,49 @@ document.**
     *existing* "Base de artigos" row is unaffected — it still opens
     that conversation directly, unchanged.
 
-### Naming, renaming, and icon for "Base de artigos" and groups (Amended (4))
+### Persistent search bar (Amended (5))
 
-> **New section, 2026-08-09. Fully resolved, 2026-08-09 (same day,
-> final round) — no open questions remain.** Depends on new backend
-> endpoints that do not exist yet for RAG conversations
-> (create-with-name/icon, rename — see
-> `knowly-api/specify/features/conversations/SPEC.md`'s REQ-13 through
-> REQ-16) and for groups (creation-icon and rename-with-icon — no
-> existing backend SPEC covers either yet, see "Out of scope" below and
-> the forward-pointer note added to `conversations/SPEC.md`). REQ-38
-> through REQ-40 are all final and approved for PLAN once their
-> respective backend dependencies land — REQ-40 now mirrors REQ-38/
-> REQ-39's icon treatment exactly, no longer title-only.
+> **New section, 2026-08-10. Layout/shell requirements only — search
+> behavior (query semantics, what a query matches, result grouping,
+> "recent places" content) is entirely owned by
+> `chat-message-search/SPEC.md`'s "Amended (2026-08-10)" section.
+> REQ-42 through REQ-44 depend on that document's not-yet-specified
+> backend contract (see "Out of scope" below) — not yet approved for
+> PLAN on that basis, even though the layout intent itself is fully
+> resolved (see "Tier 3 — resolved (2026-08-10, Amended (5))" above).**
 
-- **REQ-38 [Event-Driven]** When the user activates "Falar com a base de
-  artigos" (REQ-7, Amended (4)), the system shall show a dialog
-  requiring a non-blank name before the create action is enabled
-  (mirroring "Criar grupo"'s existing disabled-until-named pattern,
-  REQ-13/REQ-18) plus an icon picker over a fixed set of Lucide icons
-  (`@lucide/angular`); submitting the dialog creates the new RAG
-  conversation with that name and icon (calling the backend's
-  create endpoint with `title`/`icon`, per `conversations`' REQ-13/
-  REQ-15) and opens it as the active conversation in the conversation
-  column, identically to today's create-and-open behavior otherwise.
-- **REQ-39 [Event-Driven]** When the user activates a rename action on
-  an existing "Base de artigos" row in column 1, the system shall let
-  them submit a new non-blank name and/or a new icon (same fixed Lucide
-  set as REQ-38), call the backend's rename endpoint (per
-  `conversations`' REQ-14), and on success update that row's displayed
-  name/icon in column 1 without a full page reload. Only the
-  conversation's own owning participant may rename it, mirroring
-  REQ-36's ownership rule for clearing.
-- **REQ-40 [Event-Driven] (final)** When a group admin (per the
-  backend-reported admin capability, same authorization model as
-  REQ-28/REQ-31) activates a rename action from inside a group's own
-  view, the system shall let them submit a new non-blank group name
-  and/or a new icon (same fixed Lucide set as REQ-38/REQ-39), call a new
-  backend rename endpoint (not yet specified — see "Out of scope"), and
-  on success update the group's displayed name/icon everywhere it
-  appears (its own header, column 1's row, search results) without a
-  full page reload. Mirrors REQ-39's shape exactly, scoped to groups.
-- **REQ-41 [Unwanted Behavior]** If a create-with-name (REQ-38), RAG
-  rename (REQ-39), or group rename (REQ-40) call fails (backend
-  rejection — e.g. a blank name, an invalid icon key, the caller isn't
-  the owning participant/group admin — or a network/server error), then
-  the system shall show an inline error and leave the dialog open (for
-  REQ-38/REQ-39/REQ-40's own dialog) or the row's displayed
-  name/icon unchanged (for REQ-39/REQ-40's success-path update), never
-  optimistically applying the change before the backend confirms it.
+- **REQ-42 [Ubiquitous]** The unified chat screen shall show a single,
+  persistent search bar positioned above the three columns (REQ-1,
+  Amended (5)), visible at all times regardless of which column/
+  conversation is currently active — not inside column 1 or column 3,
+  and not behind an icon that must be clicked to reveal it.
+- **REQ-43 [Ubiquitous]** The persistent search bar shall be the
+  screen's only search entry point — column 1's and column 3's own
+  per-section search fields (REQ-8/REQ-9, pre-Amended-(5)) are removed
+  entirely, not kept as a second, parallel way to filter by name.
+- **REQ-44 [Event-Driven]** When the user types into the persistent
+  search bar, the system shall behave exactly as specified by
+  `chat-message-search/SPEC.md`'s "Amended (2026-08-10)" REQ-17 through
+  REQ-22 (debounced query, grouped results, per-group "see more") — this
+  document does not duplicate that requirement text, only points to it.
+- **REQ-45 [State-Driven]** While the persistent search bar is open with
+  a blank query, the system shall show the "recent places" content
+  specified by `chat-message-search/SPEC.md`'s REQ-19/REQ-20 in the same
+  dropdown/panel this bar renders — this document guarantees the bar has
+  a place for that content; the content itself is that document's to
+  define.
+- **REQ-46 [Event-Driven]** When the user clicks any result from the
+  bar's dropdown (person, group, Support, RAG conversation, or message),
+  the system shall open it in the conversation column (REQ-2a),
+  identically to clicking the equivalent row directly in column 1/
+  column 3 — mirrors `chat-message-search/SPEC.md`'s REQ-23/REQ-24/
+  REQ-25, not redefined here.
+- **REQ-47 [Ubiquitous]** Column 1's and column 3's own browsable lists
+  (their rows, ordering, click-to-open behavior) are otherwise unchanged
+  by this amendment — REQ-2/REQ-2d's row content and sort order stand as
+  already specified; only their *own* search fields are removed (REQ-43).
+  A user can still scroll and browse both columns without using the
+  search bar at all.
 
 ### Clearing a conversation (Amended (3))
 
@@ -821,6 +927,8 @@ document.**
 ### Search (by name only — see "Out of scope / Future work" for message
 content search)
 
+> **Superseded 2026-08-10 (Amended (5)) — see the note directly below.**
+
 - **REQ-8 [Event-Driven]** When the user types into a search field, the
   system shall filter that field's own section to only the entries whose
   display name (person's profile nickname, or group name) contains the
@@ -842,6 +950,12 @@ content search)
     its own list (people-without-conversation, discoverable groups-
     without-conversation). The two search fields never affect each
     other's results. **Approved for PLAN.**
+  - **REQ-8 (Amended (5)):** superseded again, this time by removal —
+    column 1's and column 3's own search fields (Amended (3)'s version
+    above) are removed entirely. Finding anything by name happens only
+    through the persistent search bar (REQ-42/REQ-44) now; neither
+    column keeps a local search field of its own. Column 1/column 3
+    remain otherwise unchanged, browsable lists (REQ-47).
 - **REQ-9 [Ubiquitous]** The system shall not filter the Support or
   "Base de artigos" sections by this search — search narrows People/
   Groups only; both other sections remain always reachable.
@@ -851,15 +965,31 @@ content search)
     (2026-08-09):** Support's exemption continues unchanged — the
     pinned Support row stays visible regardless of any active,
     non-matching search query. **Approved for PLAN.**
+  - **REQ-9 (Amended (5)):** superseded again, moot — there is no
+    per-column search left to be exempt from (REQ-8, Amended (5)).
+    Support's un-findability-by-search question moves to the persistent
+    bar instead: per `chat-message-search/SPEC.md`'s question 1 answer,
+    Support **is** findable/openable from the unified bar as an entity
+    result (its own row still never disappears from column 1 regardless
+    of anything typed in the bar, consistent with REQ-2's pinning
+    behavior).
 - **REQ-10 [Unwanted Behavior]** If a search yields no matching person or
   group, then the system shall show a "no results for '<query>'" message
   distinct from the existing "no conversations yet" empty state, so a
   user can tell "I have zero conversations" apart from "my search typo
   matched nothing." Unaffected by Amended (3) beyond now applying per
   column (1 and 3 each get their own empty/no-results state).
+  - **REQ-10 (Amended (5)):** superseded — this "no results" state now
+    lives on the persistent search bar, per
+    `chat-message-search/SPEC.md`'s REQ-27, not per-column.
 - **REQ-11 [Event-Driven]** When the user clears the search field, the
   system shall restore the full, unfiltered People/Groups sections.
   Unaffected by Amended (3) beyond applying per column independently.
+  - **REQ-11 (Amended (5)):** superseded — moot, since there is no
+    per-column search field left to clear (REQ-8, Amended (5)); columns
+    are always shown unfiltered now (REQ-47). The equivalent "dismiss
+    and reset" behavior for the search bar itself is
+    `chat-message-search/SPEC.md`'s REQ-31.
 
 ### Group creation
 
@@ -902,6 +1032,11 @@ content search)
   - **Público** — the group appears in search results (REQ-8) to any
     eligible non-participant; a non-participant may join immediately
     (REQ-20), with no approval step.
+  - **(Amended (5)):** "search" in this section's REQ-19/REQ-20/REQ-21
+    now means the persistent search bar (REQ-42/REQ-44), not a
+    per-column field — the visibility rules themselves (what's
+    discoverable to whom) are entirely unchanged; only where a viewer
+    types to find a discoverable group has moved.
 - **REQ-19 [Unwanted Behavior]** If a non-participant's search matches a
   **Private** group by name, then the system shall not include that
   group in the search results shown to them — a Private group is
@@ -1022,7 +1157,11 @@ authorization specified separately)
   actions (REQ-39/REQ-40), and the Lucide icon picker (used for both RAG
   conversations and, as of the final round, groups) must also be
   keyboard-navigable and screen-reader-labeled — each icon option needs
-  an accessible name, not just a bare SVG.
+  an accessible name, not just a bare SVG. **(Amended (5)):** the
+  persistent search bar, its result groups, and its "recent places" list
+  replace the per-column search labeling requirement above — see
+  `chat-message-search/SPEC.md`'s own non-functional accessibility
+  note, not duplicated here.
 - Performance: REQ-8's search filters an already-fetched, already
   reasonably-bounded candidate list (the same eligible-participants/
   discoverable-groups data the backend already scopes down), and only
@@ -1032,14 +1171,20 @@ authorization specified separately)
   large enough that fetching the full candidate list up front becomes
   impractical, that's the trigger to introduce a server-side search
   query param, mirroring `tenant-pagination-search`'s existing pattern —
-  not something this SPEC pre-builds speculatively.
+  not something this SPEC pre-builds speculatively. **(Amended (5)):**
+  moot as written — REQ-8 is superseded and there is no client-side
+  candidate-list filtering left; the persistent bar's performance
+  characteristics (debouncing, pagination) are owned by
+  `chat-message-search/SPEC.md`'s own non-functional section.
 - Responsiveness: the unified screen must be usable at the breakpoints
   already supported elsewhere in `knowly-app` (mobile, tablet, desktop) —
   on narrow viewports, the screen follows the same collapse/expand
   pattern `internal-team-chat`'s existing `/chat` screen already uses.
   **(Amended (3), final):** with three columns, the narrow-viewport
   story shows one of the three at a time (REQ-2c, final), extending the
-  same convention.
+  same convention. **(Amended (5)):** the persistent search bar stays
+  visible above whichever single column is shown at a narrow viewport
+  (REQ-2c, Amended (5)) — it does not collapse away.
 
 ## Acceptance criteria
 
@@ -1115,6 +1260,8 @@ authorization specified separately)
       overlap against column 1's rows — and has its own independent
       search field. Verified by `chat-full-directory.component.spec.ts`
       and `chat-directory-rows.service.spec.ts` (tasks 136-137, 144-150).
+      **Note (Amended (5)): its "own independent search field" bullet is
+      superseded — see the Amended (5) checklist below.**
 - [ ] Column 3 is sorted descending by, for each entity, the timestamp
       of the most recent interaction (any shared group's most recent
       message, or any 1:1 message ever exchanged with that person,
@@ -1194,21 +1341,35 @@ prerequisites landed, and TASKS.md section 13 (13a–13h) is complete:**
       row, which keeps `icon: null` from the V32 backfill). Verified by
       `chat-directory.component.spec.ts` (tasks 216-221).
 
+**Amended (5), not yet implemented — none of the items below are
+started; blocked on the backend contract gap named in "Out of scope":**
+
+- [ ] A single persistent search bar is visible above all three columns
+      at all times, at every breakpoint (REQ-42).
+- [ ] Column 1's and column 3's own per-section search fields no longer
+      exist; both columns show their full, unfiltered lists at all
+      times, browsable without the search bar (REQ-8/REQ-9 superseded,
+      REQ-47).
+- [ ] Typing in the persistent bar behaves per
+      `chat-message-search/SPEC.md`'s REQ-17 through REQ-22 (REQ-44).
+- [ ] Opening the bar with a blank query shows "recent places," per
+      `chat-message-search/SPEC.md`'s REQ-19/REQ-20 (REQ-45).
+- [ ] Clicking any result from the bar opens it in the conversation
+      column, identically to the equivalent direct-row click (REQ-46).
+- [ ] At narrow viewports, the persistent bar remains visible above
+      whichever single column is currently shown (REQ-2c, Amended (5)).
+
 ## Out of scope / Future work
 
 - **Full-text search over message content** (searching by a snippet of
   what was actually said, with sender/conversation/date filters) —
   **deferred at the product owner's explicit instruction (2026-08-08),
-  not part of this SPEC.** This SPEC's search (REQ-8) matches person/
-  group display names only. Reason for deferral: message-content search
-  needs its own indexing strategy (e.g. full-text index or a dedicated
-  search service) that neither `internal-team-chat` nor this SPEC's
-  already-fetched-candidate-list approach supports — it is a materially
-  bigger feature (data model, indexing, likely a new backend endpoint
-  with its own pagination/relevance-ranking concerns), not a small
-  extension of REQ-8's name-matching filter. Tracked here so it isn't
-  lost; a future SPEC should own it explicitly rather than it being
-  silently folded into this one's "search" requirements.
+  not part of this SPEC.** ~~This SPEC's search (REQ-8) matches person/
+  group display names only.~~ **Superseded 2026-08-10 (Amended (5)):
+  this deferral is over.** Message content is now findable from the
+  persistent search bar (REQ-42/REQ-44), specified in full by
+  `chat-message-search/SPEC.md`'s "Amended (2026-08-10)" section — see
+  that document rather than treating this bullet as still current.
 - Everything already out of scope in `internal-team-chat`'s SPEC
   (message editing/deletion, read receipts, typing indicators, file/
   image attachments, push/email/browser notifications, real-time
@@ -1220,7 +1381,8 @@ prerequisites landed, and TASKS.md section 13 (13a–13h) is complete:**
 - Any change to Support's, Groups', People's, or RAG chat's own internal
   behavior or permission model — this SPEC only changes the shared
   navigation surface they're reached from (see Tier 3 resolution #1),
-  plus the naming/renaming/icon capability added by Amended (4).
+  plus the naming/renaming/icon capability added by Amended (4), plus
+  the search-entry-point relocation added by Amended (5).
 - Changing a group's visibility type after creation beyond the
   admin-only REQ-28/REQ-29 action already specified above — no further
   visibility-transition rules (e.g. cooldowns, notifying participants)
@@ -1240,8 +1402,13 @@ prerequisites landed, and TASKS.md section 13 (13a–13h) is complete:**
   creation — still fixed at creation time, per `internal-team-chat`'s
   existing constraint; independent of and orthogonal to the new
   visibility-type choice.
-- Server-side search — see the Performance non-functional note above;
-  this SPEC filters an already-fetched list only.
+- ~~Server-side search — see the Performance non-functional note above;
+  this SPEC filters an already-fetched list only.~~ **Superseded
+  2026-08-10 (Amended (5)):** the persistent search bar's own
+  server-side/client-side split is owned by
+  `chat-message-search/SPEC.md`, not this document — REQ-8's
+  already-fetched-candidate-list model no longer applies, since REQ-8
+  itself is superseded.
 - Changing `internal-team-chat`'s or `conversations`' underlying
   permission/eligibility rules — this SPEC only changes how those rules
   are surfaced in the UI.
@@ -1288,4 +1455,22 @@ prerequisites landed, and TASKS.md section 13 (13a–13h) is complete:**
   `knowly-api/specify/features/conversations/SPEC.md`'s "Out of scope"
   section, which now flags this explicitly for whoever picks up
   `chat-group-membership-management`'s next amendment.
-</content>
+- **(Amended (5)) Combined entity+message search backend contract** —
+  REQ-42/REQ-44's persistent bar needs to search across people, groups,
+  Support, RAG conversations, and message content in one place; **no
+  backend endpoint that returns all of that exists today.**
+  `GET /api/chat/messages/search` (the currently shipped backend
+  endpoint from `chat-message-search`, backend) only returns message
+  rows. This is the same gap named in
+  `chat-message-search/SPEC.md`'s own "Out of scope" section — recorded
+  here too since it blocks this document's REQ-42/REQ-44 just as much.
+  A backend SPEC amendment is required before PLAN can be written for
+  either document's entity-search-dependent requirements.
+- **(Amended (5)) Exact ranking/content of "recent places"** — owned by
+  `chat-message-search/SPEC.md`, not redefined here; this document only
+  guarantees the persistent bar has a place to render it (REQ-45).
+- **(Amended (5)) Result grouping presentation** (grouped-by-type vs.
+  flat list) — resolved as a Tier 2 call in
+  `chat-message-search/SPEC.md`'s own amendment, not re-decided here;
+  this document's REQ-44 points to that decision rather than
+  duplicating it.

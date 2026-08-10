@@ -877,6 +877,232 @@ repo's existing convention for cross-repo dependencies (see
 `chat-group-membership-management`'s own frontend-PLAN coordination
 precedent, now on the other side of that same relationship).
 
+## Amendment (2026-08-10) — persistent search bar (REQ-1/REQ-2c/REQ-42–REQ-47, REQ-8/REQ-9 removal)
+
+> Covers SPEC.md's "Amended (5)" section: a persistent top search bar
+> above the 3-column shell, replacing column 1's and column 3's own
+> per-section search fields entirely. **Layout/shell requirements only
+> — search behavior (query semantics, grouping, recent places) is owned
+> by `knowly-app/specify/features/chat-message-search/PLAN.md`'s own
+> "Amended (2026-08-10)" section**, which this amendment cross-references
+> rather than re-derives, per SPEC's own explicit "read both together"
+> framing. Backend contract for the new entity-search half:
+> `knowly-api/specify/features/chat-message-search/PLAN.md`'s "Amended
+> (2026-08-10)" section (closed, source of truth), consumed here only
+> insofar as `chat-message-search/PLAN.md`'s companion amendment already
+> consumes it in full — not re-copied into this document.
+
+### Architectural decisions
+
+- **`ChatShellComponent` gains a new header region, `<header
+  class="chat-search-bar-region">`, above the existing 3-column flex/
+  grid container** — not inside `chat-sidebar.component.ts`, not inside
+  column 1. Why a new top-level region rather than folding it into an
+  existing component: REQ-42 requires the bar to span the layout's full
+  width and stay visible "regardless of which column/conversation is
+  currently active," including at the narrow-viewport single-column
+  collapse (REQ-2c, Amended (5)) — `ChatSidebarComponent`/column 1 is
+  one of the panes that itself collapses away on narrow viewports
+  (REQ-2c's existing 3-pane collapse), so anchoring the bar inside it
+  would make the bar disappear exactly when REQ-2c says it must not.
+  `ChatShellComponent` is the one component that always renders
+  regardless of which pane is currently shown, making it the only
+  correct host.
+- **The header region renders `<app-chat-unified-search>`
+  (`chat-unified-search.component.ts`, owned by and defined in
+  `chat-message-search`'s own PLAN — see that document's "Components
+  and routes" section) with no inputs/outputs beyond structural CSS
+  context** — `ChatShellComponent` does not pass it `conversationId`,
+  `activeTenant`, or any other prop; the component reads
+  `ActiveTenantService`/`AuthService`/`Router` directly, the same way
+  `ChatSidebarComponent` already does for its own tenant-gated actions,
+  so `ChatShellComponent` stays a thin host and does not need to know
+  anything about search internals. This keeps the ownership boundary
+  SPEC.md itself draws (this document owns *where*, the companion
+  document owns *what*) visible in the component tree, not just in the
+  docs: one `<app-chat-unified-search>` tag is the entire footprint this
+  PLAN adds to `ChatShellComponent`'s template.
+- **Overlay positioning: `chat-unified-search.component.ts`'s dropdown
+  is `position: absolute`, anchored to the bottom of the search bar,
+  layered above the 3-column layout via a high `z-index` — it does
+  **not** push column content down or reserve permanent vertical
+  space.** Why: REQ-42/REQ-45 describe a dropdown that appears/
+  disappears over the existing screen (matching the Slack reference
+  screenshots the product owner gave), not a layout-affecting expansion
+  — a `position: static`/flow-affecting dropdown would reflow all three
+  columns open/closed on every keystroke, a visibly janky behavior none
+  of the SPEC's user stories describe and Slack's own UI doesn't do
+  either. The overlay's width matches the search bar's own width (not
+  full-viewport), consistent with every reference screenshot; on narrow
+  viewports (REQ-2c) it remains anchored to the same (now full-width)
+  bar, still absolutely positioned, still not reflowing the single
+  visible pane beneath it.
+- **Dismissal**: the overlay closes on Escape, on an outside click
+  (`document` click listener while open, same `HostListener` pattern
+  `create-group-dialog.component.ts`'s native `<dialog>` backdrop-click
+  handling already establishes conceptually, adapted for a non-`
+  <dialog>` absolutely-positioned element since a `<dialog>` element
+  itself would need to be full-viewport to get free backdrop-click
+  dismissal, which contradicts the "don't push/reserve layout" decision
+  above), and on any result click (REQ-26, handled inside
+  `chat-unified-search.component.ts` itself, not by `ChatShellComponent`).
+- **Removing column 1's and column 3's own search fields (REQ-8/REQ-9,
+  Amended (5)) without touching browsing/partition logic underneath
+  them.** Concretely, in `chat-directory.component.ts`: delete the
+  `unifiedQuery` writable signal, its `<input>` template markup, its
+  `aria-label`, and the `computed()` that filtered
+  `rowsService.conversationRows()` against it — **`rowsService
+  .conversationRows()` itself, the `ChatDirectoryRowsService` computed
+  chain feeding it (`talkedPeople`/`groupRows`/`articleRows`/
+  `supportRow` merge logic from the Amendment (3) reconciliation above),
+  and the pinned-Support-first ordering are entirely untouched.** The
+  component's template changes from rendering
+  `filteredConversationRows()` to rendering `rowsService
+  .conversationRows()` directly — a one-line template change, not a
+  service change. Symmetrically in `chat-full-directory.component.ts`:
+  delete its own `searchQuery` signal, `<input>`, `aria-label`, and the
+  `filterByQuery`-based `computed()`; render `rowsService.discoveryRows()`
+  directly. `chat-directory-search.util.ts`'s shared `filterByQuery`
+  free function (extracted by the Amendment (3) reconciliation
+  specifically so both components could share one filter
+  implementation) becomes dead code once both call sites are removed —
+  **deleted in this amendment**, not left as an orphaned unused export,
+  since nothing else in the codebase imports it (confirmed by grep
+  before deletion in TASKS.md's corresponding task).
+- **`ChatSidebarComponent` is otherwise unaffected by this amendment
+  beyond the "Buscar mensagens" icon-button removal** already noted in
+  `chat-message-search/PLAN.md`'s own amendment (that button opened the
+  now-retired `chat-search-dialog.component.ts`) — its 3 direct-action
+  buttons (Abrir chamado de suporte / Falar com a base de artigos /
+  Criar grupo) and their existing tenant-gating logic are untouched;
+  they are a different cross-cutting concern from search and REQ-47
+  doesn't ask for them to move.
+- **`ChatSidebarComponent`'s own file is not merged into
+  `chat-unified-search.component.ts`** despite both now living in
+  "cross-cutting, not scoped to one column" territory — kept separate
+  because they answer different questions (one is "start a new
+  conversation," the other is "find an existing one") and merging them
+  would recreate exactly the kind of same-file-different-concerns
+  blur this PLAN's own established precedent (`ChatGroupService` vs.
+  `ChatService`, `ChatDirectoryService` vs. `ChatService`) already
+  argues against elsewhere in this document.
+
+### Components and routes
+
+```
+features/chat/
+  chat-shell.component.ts             // CHANGED — new <header> region
+                                       //   hosting <app-chat-unified-search>,
+                                       //   above the existing 3-column
+                                       //   container; no other change
+  chat-sidebar.component.ts           // CHANGED — "Buscar mensagens" icon
+                                       //   button removed (see
+                                       //   chat-message-search/PLAN.md);
+                                       //   3 direct-action buttons unchanged
+  chat-directory.component.ts         // CHANGED — unifiedQuery signal,
+                                       //   its <input>, and its filtering
+                                       //   computed() removed; renders
+                                       //   rowsService.conversationRows()
+                                       //   directly; row markup/click
+                                       //   handling/pinned-Support-first
+                                       //   ordering unchanged
+  chat-full-directory.component.ts    // CHANGED — searchQuery signal, its
+                                       //   <input>, and its filtering
+                                       //   computed() removed; renders
+                                       //   rowsService.discoveryRows()
+                                       //   directly; row markup/click
+                                       //   handling/sort order unchanged
+  chat-directory-search.util.ts       // REMOVED — dead code once both
+                                       //   call sites stop filtering
+  chat-directory-rows.service.ts      // unchanged — see decision above
+  chat-unified-search.component.ts    // owned/defined by
+                                       //   chat-message-search's own PLAN,
+                                       //   only *consumed* here
+```
+
+No new routes. No change to `app.routes.ts` — the search bar is a
+shell-level UI element, not a resource, and REQ-42 explicitly frames it
+as always-visible chrome, not a navigable destination of its own.
+
+### Consumed API contracts
+
+None new in this document — the entity-search (`GET /api/chat/search`)
+and message-content-search (`GET /api/chat/messages/search`) contracts
+are both consumed entirely inside `chat-unified-search.component.ts`,
+owned by `chat-message-search/PLAN.md`'s own amendment. This document's
+only "contract" is the internal component boundary described above
+(`<app-chat-unified-search>` takes no inputs).
+
+### State and data
+
+No new service in this document. `ChatDirectoryRowsService`'s existing
+computed chain (`conversationRows`, `discoveryRows`, and every
+per-kind computed feeding them, per the Amendment (3) reconciliation
+above) is consumed as-is by the now-search-free `chat-directory
+.component.ts`/`chat-full-directory.component.ts`. No signal is added,
+removed, or renamed on `ChatDirectoryRowsService` by this amendment.
+
+### Dependencies
+
+None. No new npm package — the overlay reuses existing Tailwind
+utilities for absolute positioning/`z-index`, and `@lucide/angular` for
+any icon inside the bar (search icon, clear button), both already
+dependencies.
+
+### Testing strategy (Vitest)
+
+- `chat-shell.component.spec.ts` (extended): the new header region
+  renders exactly one `<app-chat-unified-search>` instance, present
+  regardless of which `section`/narrow-viewport pane is currently
+  active (a parametrized test over the existing section-dispatch cases
+  already covered, asserting the search bar survives every one of
+  them) — direct regression coverage for "it never disappears," REQ-42's
+  core claim.
+- `chat-directory.component.spec.ts` (extended — **regression that the
+  retired search input is actually gone**): asserts no `<input>`
+  matching the old `unifiedQuery` `data-testid`/`aria-label` exists in
+  the rendered DOM; asserts `rowsService.conversationRows()`'s full,
+  unfiltered row set renders (including a fixture row that would
+  previously have been filtered out by a stale query, proving there is
+  no leftover client-side filtering); asserts Support's pinned-first
+  ordering and every existing REQ-2/REQ-2d row-click/active-state
+  behavior from the Amendment (3) suite still passes unmodified —
+  explicit proof that removing the search field didn't regress
+  browsing/partitioning.
+- `chat-full-directory.component.spec.ts` (extended, same shape):
+  asserts no search `<input>` exists; asserts the full `discoveryRows()`
+  set renders unfiltered; asserts REQ-2d's sort order (or its documented
+  interim alphabetical fallback, per the "Cross-surface recency sort"
+  section above, unchanged by this amendment) still passes unmodified.
+- Regression: `chat-directory-search.util.spec.ts` (if one exists for
+  the extracted `filterByQuery` function) is deleted alongside the
+  util file; a grep-based check in the corresponding TASKS.md task
+  confirms no remaining import of `chat-directory-search.util` anywhere
+  in the codebase before deletion.
+- Overlay behavior (owned by `chat-unified-search.component.spec.ts` in
+  `chat-message-search`'s own PLAN, not duplicated here): Escape/
+  outside-click/result-click dismissal, absolute positioning not
+  reflowing column content (a CSS-class assertion, e.g. asserting the
+  columns' container element's computed layout classes are unchanged
+  whether the dropdown is open or closed).
+- Accessibility: `chat-shell.component.spec.ts` asserts the new header
+  region and its child are reachable in DOM/tab order before the
+  3-column container (matching visual top-to-bottom order), consistent
+  with this feature area's existing keyboard-navigation conventions.
+
+### Migration note — REQ-9's Support exemption
+
+Support's "never filtered by search, always visible" property (REQ-9,
+already re-confirmed moot in SPEC.md's own Amended (5) note, "there is
+no per-column search left to be exempt from") requires **no code
+change** beyond the search-field removal above — Support was already
+rendered unconditionally by `ChatDirectoryRowsService`'s
+`conversationRows` computed (pinned first, per Amendment (3)), a
+property that has nothing to do with the now-removed `unifiedQuery`
+filter in the first place. This amendment doesn't touch how Support is
+findable/reachable from the *bar* — that's `chat-message-search
+/PLAN.md`'s own REQ-15/entity-search concern.
+
 ### Reconciling in-progress uncommitted files against this amendment
 
 - **`knowly-app/src/app/core/chat-directory-rows.service.ts`

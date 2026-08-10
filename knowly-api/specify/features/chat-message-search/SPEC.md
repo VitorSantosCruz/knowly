@@ -1,8 +1,54 @@
 # SPEC — chat-message-search (backend)
 
 > The what and the why. No technical implementation details.
+>
+> **Amended (2026-08-10) — unified search backend contract, companion
+> to `knowly-app/specify/features/chat-message-search/SPEC.md`'s own
+> "Amended (2026-08-10)" section and
+> `knowly-app/specify/features/chat-unified-ui/SPEC.md`'s "Amended (5)"
+> section.** Both frontend documents were amended to replace the shipped
+> message-content-only search dialog with a Slack-style unified search
+> bar that also finds people, groups, Support, and RAG ("Base de
+> artigos") conversations, plus a "recent places" list on an empty
+> query — and both explicitly flagged that no backend contract exists
+> for any of that beyond message content. This amendment is that
+> contract. **REQ-1 through REQ-15 below are unchanged and remain fully
+> authoritative** — the shipped `GET /api/chat/messages/search` endpoint
+> is not being replaced, only supplemented by a new, separate endpoint
+> for entity search (REQ-16 onward). Nothing about message-content
+> search's own access-control posture (REQ-2/REQ-5: re-derived per
+> request, no oversight bypass) is relaxed anywhere in this amendment —
+> see "Unified entity search" below, which applies the identical rule to
+> every new result kind.
+>
+> **Same-file amendment, not a new feature — the call, and why.** This
+> extends an already-shipped, already-scoped feature's own capability
+> (searching from the same product surface, described as one thing by
+> the product owner: "uma barra única que encontra canais, pessoas e
+> trechos de conversas") rather than being a conceptually separate
+> capability. It follows the exact precedent the frontend side already
+> established for the same reason (`chat-message-search`/`chat-unified-ui`
+> frontend SPECs amended in place, not forked into new documents). A new
+> top-level feature would also incorrectly imply the shipped message-
+> search endpoint and access-control model are being reconsidered from
+> scratch, when in fact REQ-1 through REQ-15 are being reused and
+> extended, not revisited.
+>
+> **Status: both Tier 3 product/access-control questions this amendment
+> depended on are now resolved by the product owner (see "Tier 3 —
+> status" at the end of this document) — REQ-19/REQ-20 below are final.
+> This document, in full, is ready for read-back and sign-off**,
+> together with the two frontend amendments
+> (`knowly-app/specify/features/chat-message-search/SPEC.md`'s "Amended
+> (2026-08-10)" and `knowly-app/specify/features/chat-unified-ui/SPEC.md`'s
+> "Amended (5)") — all three should be approved together before any
+> PLAN work starts, since none is a complete, buildable picture alone.
 
 ## Context and motivation
+
+(Unchanged from the original document — see below. This amendment adds
+a new "Context and motivation" note specific to the unified-search
+extension.)
 
 `internal-team-chat` and `chat-group-membership-management` shipped
 peer-to-peer 1:1 and group chat, but there is no way to search *inside*
@@ -30,6 +76,14 @@ would require a sync/dual-write pipeline and re-implementing
 **Status: Tier 3 decisions resolved by the product owner (see below).
 Ready for PLAN.md once this document is read back and approved.**
 
+**Amendment context (2026-08-10):** the frontend redesign that consumed
+this endpoint (`chat-message-search`/`chat-unified-ui`, both frontend)
+was itself amended to unify search into one Slack-style bar that also
+finds people, groups, Support, and RAG conversations, not just message
+content — see both documents' "Amended (2026-08-10)"/"Amended (5)"
+sections. Neither frontend document invents the backend contract this
+requires; both explicitly defer it here. This amendment supplies it.
+
 ## Relationship to existing SPECs (read before implementing)
 
 - This is a **net-new capability**, not a reversal of any existing "Out
@@ -42,6 +96,11 @@ Ready for PLAN.md once this document is read back and approved.**
 - **Support channels are explicitly out of scope for this SPEC**
   (product-owner decision, see "Tier 3 — resolved" below) — this SPEC
   covers `PEER_DIRECT` and `PEER_GROUP` conversations only.
+  **(Amended 2026-08-10): this exclusion is unchanged for message
+  *content* — searching inside Support's messages is still out of
+  scope. It does not extend to Support's own row/entity, which the
+  unified entity-search amendment below makes findable by design (REQ-19)
+  — these are two different things, see that requirement's note.**
 - **No oversight/look-in bypass of any kind applies to this endpoint**
   (product-owner decision, see "Tier 3 — resolved" below) — every
   caller, including `STAFF_ADMIN`/`MEMBER_ADMIN`, is scoped strictly to
@@ -52,7 +111,13 @@ Ready for PLAN.md once this document is read back and approved.**
   (REQ-44/REQ-45), are **not** reused here — reusing either for a
   keyword-search endpoint would let staff search across every
   group/tenant in one request, a materially broader capability the
-  product owner explicitly declined to grant.
+  product owner explicitly declined to grant. **(Amended 2026-08-10):
+  this same "no oversight bypass, re-derived per request" rule governs
+  every new entity-search result kind below (REQ-16 through REQ-23) —
+  it is not relaxed for people/groups/Support/RAG results just because
+  they are a new capability. This is the exact class of constraint an
+  AppSec review previously blocked on for this same feature area; it is
+  not being reopened here.**
 - Must respect `chat-group-membership-management`'s archive (REQ-43) and
   soft-delete (REQ-49) semantics: a conversation the caller is no longer
   a current participant of — because they left, were removed, or the
@@ -62,6 +127,29 @@ Ready for PLAN.md once this document is read back and approved.**
 - Reuses `chat_messages`/`chat_participants` unchanged in shape apart
   from the new indexed column(s) this SPEC adds (see Non-functional
   requirements) — no new entity beyond the search index itself.
+- **(Amended 2026-08-10) reuses, unchanged, the exact access-control
+  precedents already established elsewhere in this codebase for each new
+  result kind**, rather than inventing new scoping logic per kind:
+  - Group name matches reuse `ChatConversationService#listDiscoverableGroups`'s
+    existing rule (participant groups, plus non-participant `PUBLIC`/
+    `REQUEST_TO_JOIN` groups the caller is `ChatEligibilityService`-
+    eligible for; `PRIVATE` groups the caller isn't already in are never
+    matched) — **confirmed by the product owner, see Tier 3 item A
+    below; REQ-19 is final.**
+  - Person name matches reuse `ChatEligibilityService`'s existing
+    "who can I start a conversation with" rule (the same rule
+    `listCandidates(actor, "direct", ...)` already applies) —
+    **confirmed by the product owner, see Tier 3 item B below; REQ-20
+    is final.**
+  - Support row matching reuses the same claim/transfer/close visibility
+    rule `SupportChannelController`/`internal-team-chat` REQ-10–REQ-18
+    already establish (member sees their own channel; staff with the
+    support permission sees the unclaimed inbox/their claimed ticket) —
+    not redefined here.
+  - RAG ("Base de artigos") conversation title matches reuse
+    `conversations`' existing REQ-1 rule (a viewer only ever sees their
+    own RAG conversations) — not redefined here, and not extended to
+    any cross-user visibility.
 
 ## Tier 3 — resolved (product owner, confirmed this conversation)
 
@@ -119,6 +207,14 @@ Ready for PLAN.md once this document is read back and approved.**
   Portuguese search tool; as an English-speaking user, I want the same
   for English — without either of us being able to force the other's
   language behavior via a request parameter.
+- **(Amended 2026-08-10):** As a user, I want the same search bar that
+  finds message content to also find a person, a group, my Support
+  conversation, or a "Base de artigos" conversation by name/title, so I
+  don't need to know in advance which of those I'm looking for before I
+  start typing.
+- **(Amended 2026-08-10):** As a user opening the search bar with
+  nothing typed yet, I want to see a short list of conversations I've
+  recently interacted with, without needing to type anything.
 
 ## Requirements (EARS/GEARS)
 
@@ -126,8 +222,8 @@ Ready for PLAN.md once this document is read back and approved.**
 
 - **REQ-1 [Ubiquitous]** The system shall provide a message-content
   search capability limited to `PEER_DIRECT` and `PEER_GROUP`
-  conversations; `SUPPORT` conversations are never included in search
-  results or search indexing scope for this capability.
+  conversations; `SUPPORT` conversations are never included in results
+  or search indexing scope for this capability.
 - **REQ-2 [Ubiquitous]** The system shall scope every search request to
   conversations for which the calling user currently holds a
   non-removed, non-soft-deleted `chat_participants` row — re-derived at
@@ -204,6 +300,120 @@ Ready for PLAN.md once this document is read back and approved.**
   fail-safe-default posture as `DeletionConfirmationLocaleResolver`'s
   existing resolution rule) rather than rejecting the request.
 
+### Unified entity search (Amended 2026-08-10)
+
+> **New section. Fully resolved — REQ-16 through REQ-26 below are all
+> final and ready for PLAN.** Backs the frontend's unified search bar's
+> non-content result kinds (people, groups, Support, RAG conversations)
+> and its "recent places" empty-query state. Message-content search
+> (REQ-1 through REQ-15) is unchanged and continues to be served by the
+> existing `GET /api/chat/messages/search` endpoint — this section adds
+> a **separate, new** endpoint rather than folding entity matching into
+> that one (see the architectural rationale in Non-functional
+> requirements below); the two are combined client-side by the
+> consuming frontend, not server-side.
+
+- **REQ-16 [Ubiquitous]** The system shall provide a unified entity
+  search capability, separate from message-content search (REQ-1
+  through REQ-15), that matches the caller's query against: (a) people
+  the caller could message, by display name; (b) groups, by name; (c)
+  the caller's own Support channel/ticket, if the query matches a
+  fixed, always-available "Suporte"/"Support" label; (d) the caller's
+  own RAG ("Base de artigos") conversations, by title.
+- **REQ-17 [Ubiquitous]** The system shall scope every entity-search
+  result to what the calling user is actually authorized to see or
+  reach, re-derived at request time from the caller's current state
+  (tenant membership, group participation/discoverability, Support
+  role, RAG conversation ownership) — never from a cached or
+  client-supplied access assertion. This mirrors REQ-2/REQ-5's existing
+  posture for message content, extended to every new result kind, with
+  no exception.
+- **REQ-18 [Ubiquitous]** The system shall apply no special-cased
+  oversight or "look-in" bypass to any entity-search result kind — a
+  `STAFF_ADMIN`/`MEMBER_ADMIN` caller's people/group/RAG results are
+  scoped exactly as any other caller's would be; only Support's own
+  existing staff-role visibility (unclaimed inbox, claimed ticket —
+  `internal-team-chat` REQ-10–REQ-18, unchanged) governs whether a
+  Support result appears for a staff caller, which is not a new
+  oversight bypass but that feature's own pre-existing, approved access
+  model.
+- **REQ-19 [Ubiquitous] (final — confirmed by the product owner, see
+  Tier 3 item A)** The system shall match group names against groups
+  the caller currently participates in, **plus** non-participant
+  `PUBLIC`/`REQUEST_TO_JOIN` groups the caller is
+  `ChatEligibilityService`-eligible for — the identical rule
+  `ChatConversationService#listDiscoverableGroups` already applies for
+  column 3's browse list, reused unchanged rather than redefined for
+  search. `PRIVATE` groups the caller is not already a participant of
+  are never matched. A matched non-participant group opens exactly as
+  it already does from column 3 today (join/request-to-join per its
+  visibility, `chat-group-membership-management`'s existing flow) — this
+  amendment does not change that behavior, only adds a second way to
+  reach the same discoverable group by name.
+- **REQ-20 [Ubiquitous] (final — confirmed by the product owner, see
+  Tier 3 item B)** The system shall match person display names against
+  only users the caller is `ChatEligibilityService`-eligible to
+  message — the identical rule `listCandidates(actor, "direct", ...)`
+  already applies for the existing candidate list, reused unchanged
+  rather than redefined for search. A person the caller is not eligible
+  to message (no shared tenant/staff-capability anchor) is never
+  matched, regardless of how closely their name matches the query — no
+  dead-end result is ever returned, and this endpoint reveals no wider a
+  set of people than the existing candidate-list endpoint already does.
+- **REQ-21 [Ubiquitous]** Support-row matching shall reuse the caller's
+  existing, unchanged Support visibility exactly as
+  `internal-team-chat` REQ-10 through REQ-18 already establish (a
+  member matches their own channel; staff with the support permission
+  matches the unclaimed inbox and/or their own claimed ticket; a viewer
+  with no Support role/channel gets no Support result) — not redefined
+  by this amendment.
+- **REQ-22 [Ubiquitous]** RAG conversation title matching shall be
+  scoped strictly to the caller's own RAG conversations — a viewer never
+  matches another user's "Base de artigos" conversation by title,
+  mirroring `conversations`' existing REQ-1 ownership rule unchanged.
+- **REQ-23 [Unwanted Behavior]** If a caller's query would otherwise
+  match an entity (person, group, Support row, RAG conversation) they
+  are not authorized to see or reach per REQ-17 through REQ-22, then the
+  system shall omit that entity from the results without revealing that
+  a matching-but-inaccessible entity exists — same non-revealing
+  posture as REQ-3 already establishes for an inaccessible
+  `conversationId` filter.
+- **REQ-24 [Event-Driven]** When an authenticated user submits an
+  entity-search request with a non-blank free-text query, the system
+  shall return matching people, groups, Support row (if any), and RAG
+  conversations, each result carrying enough identifying/display data
+  (id, display name/title, kind, and — for people — avatar URL, mirroring
+  `CandidateUserDto`'s existing shape) for the frontend to render and
+  open it directly, without a further lookup round-trip per result.
+- **REQ-25 [Optional Feature]** Where the caller's query is blank, the
+  system shall return a "recent places" list — conversations (any kind:
+  1:1, group, Support, RAG) the caller has recently interacted with —
+  scoped by the exact same access rules as REQ-17 (a recent conversation
+  the caller is no longer a current participant of, e.g. left/removed/
+  archived/soft-deleted, is never included, mirroring REQ-4's existing
+  posture for message search).
+- **REQ-26 [Ubiquitous]** "Recent places" (REQ-25) shall be served from
+  data the caller's existing conversation-listing capability
+  (`ChatConversationService#listConversations`) already exposes,
+  ordered by that capability's existing recency signal, rather than
+  introducing a new backend query or a new persisted "last interaction"
+  timestamp for this purpose specifically. **Rationale (Tier 2 call, not
+  Tier 3):** `ChatConversationDetailDto` carries no `lastMessageAt`
+  field today, and `chat-unified-ui/SPEC.md`'s own REQ-2d already
+  documents this as a known, currently-accepted gap — column 1's
+  "already talked to" ordering is itself only ever a conversation-id-
+  descending proxy for true recency, not real timestamp ordering, until
+  a future backend enhancement adds one. Building a new, more-accurate
+  "recent places" signal here — while the feature this data is *also*
+  used for (column 1) still uses the coarser proxy — would produce two
+  inconsistent notions of "recent" on the same screen for no material
+  gain to this feature specifically; "recent places" therefore uses the
+  identical proxy already accepted for column 1, and a real recency
+  signal (if/when built) benefits both at once rather than needing to be
+  duplicated per consumer. This is not a scope expansion of that
+  already-tracked, already-accepted gap — it is deliberately not
+  fixed by this SPEC.
+
 ## Non-functional requirements
 
 - Data model: message content search is backed by native Postgres
@@ -239,7 +449,12 @@ Ready for PLAN.md once this document is read back and approved.**
   `chat-group-membership-management`'s own non-functional requirements
   already establish for its own authorization checks ("re-derived from
   the caller's actual current state at request time — never cached,
-  never trusted from client input").
+  never trusted from client input"). **(Amended 2026-08-10): the
+  identical "before any other criterion, re-derived per request" posture
+  applies to every entity-search result kind's own access check
+  (REQ-17/REQ-23) — a group/person/RAG-conversation match must never be
+  returned and then filtered client-side; the filtering happens
+  server-side, before the result is ever serialized.**
 - Locale resolution: follows the same narrow, non-global-`LocaleResolver`
   shape as `DeletionConfirmationLocaleResolver` (see Tier 3 item 3) —
   whether this feature reuses that exact class or introduces its own
@@ -264,6 +479,47 @@ Ready for PLAN.md once this document is read back and approved.**
   scoped them into), consistent with how `internal-team-chat`/
   `chat-group-membership-management` already reason about this
   boundary.
+- **(Amended 2026-08-10) Architectural call: entity search (REQ-16
+  through REQ-26) is a new, separate endpoint, not a parameter added to
+  `GET /api/chat/messages/search`.** Message search already has its own
+  cursor-based pagination, locale-resolved full-text matching, and
+  strict single-result-kind (message) DTO shape; entity search returns
+  four structurally different, independently-capped result groups (per
+  the frontend's own "grouped by kind, per-group 'see more'"
+  requirement) with no natural single cursor across them. Combining both
+  into one response would either force entity results to share message
+  search's pagination contract (wrong shape for a capped preview list)
+  or make message search's contract conditionally different depending
+  on which other parameters were sent (implicit, harder-to-audit
+  behavior). Two independent endpoints, each with the shape its own
+  result type actually needs, is more consistent with this codebase's
+  existing pattern of one endpoint per well-defined read shape (e.g.
+  `listConversations` vs. `listDiscoverableGroups` are already separate
+  endpoints over overlapping data, for the same reason). **This
+  directly satisfies the frontend SPEC's own anticipated fallback**
+  (`chat-message-search/SPEC.md`'s REQ-30: "if PLAN implements... two
+  separate backend calls... show the groups that did succeed[...] a
+  partial failure never blank[s] the entire dropdown") — the frontend
+  amendment already designed for this exact shape as one of its two
+  anticipated outcomes, so this is not introducing a surprise
+  incompatibility.
+- **(Amended 2026-08-10) Entity-search response shape is grouped and
+  per-group-capped, not cursor-paginated like message search.** Each of
+  the four result kinds (people, groups, Support, RAG conversations) is
+  capped at a small fixed count in the initial response (exact number a
+  PLAN-level decision, matching the frontend's own "matches Slack's
+  short dropdown" framing); a group with more matches than its cap
+  exposes a `hasMore`/count signal the frontend's "see more" action
+  (its REQ-22) can act on — the exact "see more" fetch mechanism (a
+  `type`+`offset` parameter on the same endpoint vs. a distinct
+  expand-one-group endpoint) is a PLAN-level decision, not pinned here.
+- **(Amended 2026-08-10) "Recent places" is served by the same new
+  entity-search endpoint, triggered by an empty query, not a distinct
+  endpoint** — REQ-25/REQ-26 above. This keeps "what does the search bar
+  show" as one request shape (present vs. absent query), matching the
+  frontend's own REQ-19/REQ-20 framing of "recent places" as what
+  appears in the same dropdown before a query exists, not a separate
+  screen/surface.
 
 ## Acceptance criteria
 
@@ -298,17 +554,53 @@ Ready for PLAN.md once this document is read back and approved.**
 - [ ] A `STAFF_ADMIN`/`MEMBER_ADMIN` caller with no participant row on a
       given conversation gets zero results from that conversation via
       this endpoint, confirming no oversight bypass applies here.
+- [ ] **(Amended 2026-08-10)** A unified entity-search query returns
+      matching people, groups, Support row, and RAG conversations, each
+      scoped by that result kind's own access rule (REQ-19 through
+      REQ-22), never including an entity the caller is not authorized to
+      see or reach.
+- [ ] **(Amended 2026-08-10)** A group-name query matches both a group
+      the caller already participates in and a `PUBLIC`/
+      `REQUEST_TO_JOIN` group the caller isn't in yet but is eligible
+      to discover, exactly matching `listDiscoverableGroups`'s existing
+      visibility set; a `PRIVATE` group the caller isn't in is never
+      matched (REQ-19).
+- [ ] **(Amended 2026-08-10)** A person-name query never matches a user
+      the caller is not `ChatEligibilityService`-eligible to message —
+      confirmed with a fixture where a matching-by-name user shares no
+      tenant/staff-capability anchor with the caller and is asserted
+      absent from results (REQ-20).
+- [ ] **(Amended 2026-08-10)** A `STAFF_ADMIN`/`MEMBER_ADMIN` caller's
+      entity-search results for people/groups/RAG conversations are
+      scoped exactly as any other caller's — no oversight bypass for any
+      new result kind, confirming REQ-18.
+- [ ] **(Amended 2026-08-10)** An entity-search query for an entity the
+      caller cannot see/reach (an ineligible person, a `PRIVATE` group
+      they're not in, another user's RAG conversation) returns that
+      result omitted, not a distinguishable "found but denied" signal.
+- [ ] **(Amended 2026-08-10)** A blank entity-search query returns a
+      "recent places" list scoped by the same access rule, excluding a
+      conversation the caller has since left/been removed from/that's
+      archived or soft-deleted.
 
 ## Out of scope
 
 - `SUPPORT` conversation content search of any kind — a possible future
   feature with its own access-model analysis, not defined here.
+  **(Amended 2026-08-10): still out of scope, unchanged — this refers
+  to searching inside Support's messages. Finding/opening the Support
+  row itself via unified entity search (REQ-21) is a different thing
+  and is now in scope.**
 - Any `STAFF_ADMIN`/`MEMBER_ADMIN` oversight/look-in bypass for this
   endpoint — every caller, staff included, is scoped strictly to their
-  own current participant conversations.
+  own current participant conversations. **(Amended 2026-08-10):
+  unchanged, and explicitly extended to every entity-search result kind
+  — see REQ-18.**
 - Relevance-ranked (`ts_rank`) result ordering — v1 is chronological
   only; relevance ordering is a valid future increment, not specified
-  here.
+  here. **(Amended 2026-08-10): entity-search results are also
+  unranked beyond whatever natural ordering PLAN chooses (e.g. name
+  order, recency) — no relevance scoring for entity matches either.**
 - Any language other than English and Portuguese (`pt-BR`) for full-text
   matching.
 - Per-message language auto-detection (e.g. a Portuguese message inside
@@ -322,17 +614,67 @@ Ready for PLAN.md once this document is read back and approved.**
 - Indexing/searching message attachments, if any exist elsewhere in the
   system — this SPEC covers `chat_messages.content` (text) only.
 - A UI for this capability — specified separately in
-  `knowly-app/specify/features/chat-message-search/SPEC.md`.
+  `knowly-app/specify/features/chat-message-search/SPEC.md` and
+  `knowly-app/specify/features/chat-unified-ui/SPEC.md`.
 - Real-time/live-updating search results as new messages arrive while a
   search is open — each search request reflects a point-in-time
-  snapshot.
+  snapshot. **(Amended 2026-08-10): applies to entity search and
+  "recent places" too.**
 - Search analytics/metrics (e.g. "most searched terms") — not requested
   and not defined here.
+- **(Amended 2026-08-10) Fuzzy/typo-tolerant matching for entity names**
+  (people/group/RAG titles) — matching is exact-substring/prefix
+  semantics at PLAN's discretion, not fuzzy/edit-distance matching; not
+  requested by either frontend document.
+- **(Amended 2026-08-10) A persisted, dedicated "last interaction"
+  timestamp for "recent places" ordering** — REQ-26 deliberately reuses
+  the existing, coarser id-descending recency proxy rather than adding
+  new schema for this feature specifically; see REQ-26's own rationale.
+- **(Amended 2026-08-10) Cross-tenant entity search of any kind** — a
+  person/group/RAG conversation in a tenant the caller has no
+  membership/eligibility in (and, per REQ-18, no staff oversight bypass
+  either) is never matched, mirroring the message-search endpoint's own
+  existing tenant boundary.
+- **(Amended 2026-08-10) A person or group result the caller can find
+  by name but cannot actually reach** — explicitly rejected by REQ-20's
+  resolution (Tier 3 item B): unlike some directory-search products,
+  this endpoint never returns a "dead-end" match deferred to a
+  click-time failure; eligibility is enforced at match time, not at
+  open time.
 
 ## Tier 3 — status
 
-**None outstanding.** All three items flagged by the prior
-investigation (`PROJECT_STATUS.md` item 16) — Support-channel scope,
-oversight-bypass scope, and locale/language handling — are resolved
-above with the product owner's explicit decisions. This SPEC is ready
-for `PLAN.md` once read back and approved.
+**REQ-1 through REQ-15 (original document): none outstanding — resolved
+and shipped, unchanged by this amendment.**
+
+**Amendment (2026-08-10): both items now resolved by the product owner.
+Neither was inferred from what was already decided — both were asked
+directly, per `DECISIONS.md`'s Tier 3 rules, since each is a genuine
+product/access-control decision (who is discoverable via a text query),
+not a technical one. REQ-19/REQ-20 above reflect the resolved answers
+directly; the conditional phrasing this document originally carried has
+been removed.**
+
+- **Item A — group-name match scope (REQ-19). Resolved: include
+  joinable-but-not-yet-joined groups.** The product owner confirmed
+  unified search matches `PUBLIC`/`REQUEST_TO_JOIN` groups the caller
+  isn't a participant of yet, in addition to groups already
+  participated in — mirroring the existing `listDiscoverableGroups`
+  endpoint's visibility rule exactly, not a narrower participant-only
+  scope. REQ-19 above states this directly.
+- **Item B — person match scope (REQ-20). Resolved: eligibility-scoped,
+  no dead-end results.** The product owner confirmed unified search
+  only matches people the caller is `ChatEligibilityService`-eligible
+  to message — the same rule already enforced for the candidate list —
+  so a found person is always someone the caller can actually open a
+  conversation with; there is no "find someone by name but can't
+  message them" outcome anywhere in this feature. REQ-20 above states
+  this directly.
+
+**This document, in full, is now ready for read-back and sign-off** —
+every requirement (REQ-1 through REQ-26), acceptance criterion, and
+"Out of scope" line is final, with no remaining open Tier 3 item. Ready
+to be approved alongside the two frontend amendments
+(`knowly-app/specify/features/chat-message-search/SPEC.md`'s "Amended
+(2026-08-10)" and `knowly-app/specify/features/chat-unified-ui/SPEC.md`'s
+"Amended (5)") before PLAN.md work starts for any of the three.

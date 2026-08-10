@@ -280,3 +280,377 @@ tests it calls out below.
       columns/GIN indexes and the native-query tenant-scoping gotcha
       this feature's repository documents, so a future conversation
       doesn't have to rediscover it from the diff.
+
+---
+
+# Amendment (2026-08-10) — unified entity search (REQ-16–REQ-26)
+
+> Continues numbering from task 62 above. Everything above this heading
+> is already shipped and untouched. Derived from PLAN.md's "Amended
+> (2026-08-10)" section plus its "AppSec re-review (2026-08-10)" fix
+> section — the final, approved design, including both AppSec-mandated
+> corrections (Gap 1: `isVisibleUnderActiveTenant` reuse for the
+> participant-groups union; Gap 2: explicit tenant predicates on
+> `findDiscoverableByTitle`/`searchByOwnerAndTitle`) and the non-blocking
+> `deletedAt IS NULL` restatement.
+
+## `ChatEligibilityService.searchEligibleDirectCandidates` (people)
+
+- [ ] 63. Write a `ChatEligibilityServiceTest`: `searchEligibleDirectCandidates(actor, nameQuery, limit)`
+      returns only name-matching candidates that also satisfy the same
+      anchor-intersection rule as `listCandidates`'s `"direct"` branch,
+      via a shared private helper (assert both methods produce the same
+      eligibility verdict for the same actor/candidate pair) (Red —
+      method doesn't exist yet).
+- [ ] 64. Implement `searchEligibleDirectCandidates`, extracting the
+      `"direct"`-branch anchor-intersection logic from `listCandidates`
+      into a shared private helper both methods call, and pushing the
+      name filter into a new `UserProfileRepository` query (Green for
+      task 63).
+- [ ] 65. Write a `ChatEligibilityServiceTest`/`UserProfileRepositoryTest`:
+      the new name-prefilter JPQL query includes an explicit
+      `deletedAt IS NULL` guard — a soft-deleted user matching the name
+      query never appears, mirroring the 2026-08-04 fix for
+      `listCandidates` (Red).
+- [ ] 66. Add the `deletedAt IS NULL` predicate to the new
+      `UserProfileRepository` query if task 65 exposes a gap (Green), or
+      confirm none needed.
+
+## `isVisibleUnderActiveTenant` promotion (shared groups tenant check)
+
+- [ ] 67. Write a `ChatConversationServiceTest`: `isVisibleUnderActiveTenant`
+      is reachable (package-private or extracted helper) from a test in
+      the same package and returns identical results to
+      `listConversations`'s existing use of it for the same
+      actor/conversation pair (Red — method is currently `private`).
+- [ ] 68. Promote `isVisibleUnderActiveTenant` from `private` to
+      package-private (or extract a small shared `ChatTenantVisibility`
+      helper, per PLAN's stated preference at implementation time),
+      updating `listConversations` to keep using the same implementation
+      (Green for task 67; must not change `listConversations`'s existing
+      passing tests).
+
+## `ChatConversationRepository.findDiscoverableByTitle`
+
+- [ ] 69. Write a `ChatConversationRepositoryTest` (Testcontainers):
+      `findDiscoverableByTitle(pattern, activeTenantId, pageable)`
+      matches `PUBLIC`/`REQUEST_TO_JOIN` groups by `title ILIKE :pattern`
+      within the given tenant only — a same-titled group in a different
+      tenant is excluded even when passed no other filter (Red — method
+      doesn't exist yet).
+- [ ] 70. Implement `findDiscoverableByTitle` as an explicit-`@Query`
+      JPQL method with `tenant_id = :activeTenantId` written directly
+      into the query text (not left to `@Filter` alone), plus
+      class-level Javadoc documenting the `TenantFilterAspect`
+      staff-no-active-tenant gotcha, mirroring
+      `ChatMessageSearchRepository`'s precedent (Green for task 69).
+
+## `ConversationRepository.searchByOwnerAndTitle`
+
+- [ ] 71. Write a `ConversationRepositoryTest` (Testcontainers):
+      `searchByOwnerAndTitle(ownerId, tenantId, pattern, pageable)`
+      matches only the given owner's title-matching `Conversation` rows
+      within the given tenant — a same-titled `Conversation` owned by
+      the same user in a different tenant is excluded (Red — method
+      doesn't exist yet).
+- [ ] 72. Implement `searchByOwnerAndTitle` as an explicit-`@Query` JPQL
+      method (`SELECT c FROM Conversation c WHERE c.owner.id = :ownerId
+      AND c.tenant.id = :tenantId AND LOWER(c.title) LIKE
+      LOWER(:pattern) ORDER BY c.createdAt DESC`), with class-level
+      Javadoc documenting the same `TenantFilterAspect` gotcha (Green
+      for task 71).
+
+## `ChatConversationService.searchDiscoverableGroups`
+
+- [ ] 73. Write a `ChatConversationServiceTest`: with no active tenant
+      in `TenantContext`, `searchDiscoverableGroups(actor, nameQuery,
+      limit)` returns an empty discoverable-groups result with **zero
+      repository interaction** — no query executed at all (fail-closed,
+      no staff bypass) (Red).
+- [ ] 74. Implement `searchDiscoverableGroups`'s
+      `TenantContext.getActiveTenantId()` resolve-and-short-circuit step,
+      called before any repository invocation (Green for task 73).
+- [ ] 75. Write a `ChatConversationServiceTest`: with an active tenant
+      present, `searchDiscoverableGroups` composes
+      `listDiscoverableGroups`'s existing `isEligible`/`!isParticipant`
+      filters with the new title predicate via
+      `findDiscoverableByTitle`, correctly bound with `activeTenantId`
+      (Red).
+- [ ] 76. Implement the `findDiscoverableByTitle`-backed discoverable-set
+      branch of `searchDiscoverableGroups` (Green for task 75).
+- [ ] 77. Write a `ChatConversationServiceTest`: a title-matching group
+      the caller already participates in (via
+      `chatParticipantRepository.findByUserId`) is included in results
+      alongside non-participant discoverable matches, de-duplicated by
+      conversation id, with `isParticipant` correctly set on each (REQ-19)
+      (Red).
+- [ ] 78. Implement the participant-groups union branch, applying the
+      title filter and unioning with the discoverable-set results,
+      de-duplicated by conversation id (Green for task 77).
+- [ ] 79. **AppSec-required regression (Gap 1)**: write a
+      `ChatConversationServiceTest`: a caller who is a current
+      participant of same-titled groups in two different tenants (Tenant
+      1 active in session, Tenant 2 not) searching for that title gets
+      back only the Tenant 1 group from the participant-groups union
+      branch, never the Tenant 2 one — asserts `findByUserId`'s
+      unfiltered cross-tenant rows are narrowed by
+      `isVisibleUnderActiveTenant` **before** the title filter and
+      **before** unioning with the discoverable-set query (Red — this is
+      the exact gap AppSec's first-pass review caught).
+- [ ] 80. Apply `isVisibleUnderActiveTenant` to every `findByUserId` row
+      before the title filter and before unioning, if task 79 exposes a
+      gap (Green) — must not be left red; this is the AppSec-mandated
+      fix, not an optional hardening.
+
+## `ChatEntitySearchService` — Support section
+
+- [ ] 81. Write a `SupportTicketServiceTest`:
+      `findOwnOrClaimableChannel(actor, activeTenantId)` returns the
+      member's own open channel when one exists, composing the existing
+      member-channel lookup used by `requireChannelId` (Red — method
+      doesn't exist yet).
+- [ ] 82. Implement `findOwnOrClaimableChannel`'s member-channel branch
+      (Green for task 81).
+- [ ] 83. Write a `SupportTicketServiceTest`: for a staff caller,
+      `findOwnOrClaimableChannel` composes the existing unclaimed-inbox/
+      claimed-ticket visibility already used by
+      `listUnclaimed`/`claim`, returning no result for a staff caller
+      with no support permission and no claimed ticket (REQ-18) (Red).
+- [ ] 84. Implement the staff-visibility branch of
+      `findOwnOrClaimableChannel` (Green for task 83).
+- [ ] 85. Write a `ChatEntitySearchServiceTest`: the Support section
+      matches the fixed "Suporte"/"Support" label case-insensitively
+      against `q`, locale-aware via the reused
+      `ChatMessageSearchLocaleResolver`/`ChatSearchLocale`, for both
+      `en` and `pt-BR` `Accept-Language` (Red).
+- [ ] 86. Implement the Support-label match + `findOwnOrClaimableChannel`
+      call in `ChatEntitySearchService`, requiring
+      `TenantContext.getActiveTenantId()` fail-closed the same way
+      message search does (no active tenant means no Support result)
+      (Green for task 85).
+
+## `ConversationService.searchOwn` (RAG)
+
+- [ ] 87. Write a `ConversationServiceTest`: with no active tenant in
+      `TenantContext`, `searchOwn(owner, tenantId, titleQuery, limit)`
+      returns an empty result with **zero repository interaction**
+      (fail-closed, no staff bypass) (Red).
+- [ ] 88. Implement `searchOwn`'s `TenantContext.getActiveTenantId()`
+      resolve-and-short-circuit step (Green for task 87).
+- [ ] 89. Write a `ConversationServiceTest`: `searchOwn` returns only the
+      given owner's title-matching conversations within the resolved
+      tenant, via `searchByOwnerAndTitle`, correctly bound with both
+      `ownerId` and `tenantId` (Red).
+- [ ] 90. Implement the `searchByOwnerAndTitle`-backed query call in
+      `searchOwn` (Green for task 89).
+- [ ] 91. **AppSec-required regression (Gap 2, RAG half)**: write a
+      `ConversationServiceTest`/`ConversationRepositoryTest`: a
+      `STAFF`/`STAFF_ADMIN` caller with **no active tenant selected**
+      and title-matching RAG conversations they own in two different
+      tenants gets zero results via `searchOwn`, not a merged
+      cross-tenant list — must be run with `tenantContext.isStaff()`
+      true and no active tenant in session specifically, confirming
+      `searchByOwnerAndTitle`'s explicit `tenant.id = :tenantId`
+      predicate (not the session-level `@Filter`, which
+      `TenantFilterAspect` disables in exactly this state) is doing the
+      scoping (Red — this is the exact gap AppSec's first-pass review
+      caught).
+- [ ] 92. Fix `searchOwn`/`searchByOwnerAndTitle` if task 91 exposes a
+      gap (Green) — must not be left red; this is the AppSec-mandated
+      fix, not an optional hardening.
+
+## `ChatEntitySearchService` — groups/RAG staff-no-active-tenant regressions (Gap 2, groups half)
+
+- [ ] 93. **AppSec-required regression (Gap 2, groups half)**: write a
+      `ChatConversationServiceTest`: a `STAFF`/`STAFF_ADMIN` caller with
+      **no active tenant selected**, searching by a group title that
+      matches `PUBLIC`/`REQUEST_TO_JOIN` groups in two different
+      tenants, gets zero group results via `searchDiscoverableGroups` —
+      must be run with `tenantContext.isStaff()` true and no active
+      tenant in session specifically, confirming
+      `findDiscoverableByTitle`'s explicit `tenant_id = :activeTenantId`
+      predicate is doing the scoping (Red — already covered structurally
+      by task 73's general fail-closed test, but this task asserts the
+      specific staff-no-active-tenant state AppSec flagged, not just
+      "any caller with no active tenant").
+- [ ] 94. Confirm task 73/74's fail-closed implementation already
+      satisfies task 93 (Green), or fix if a staff-specific bypass path
+      is found — must not be left red.
+
+## `ChatEntitySearchService` — people/groups/Support/RAG orchestration and DTOs
+
+- [ ] 95. Write a test asserting the new DTOs
+      (`ChatPersonSearchResultDto`, `ChatGroupSearchResultDto`,
+      `ChatSupportSearchResultDto`, `ChatRagConversationSearchResultDto`,
+      `ChatEntitySearchSectionDto`, `ChatEntitySearchResponseDto`,
+      `ChatRecentPlaceDto`, `ChatEntitySearchResultDto`) exist with
+      exactly the fields from PLAN's "Amended" API contracts section
+      (Red).
+- [ ] 96. Implement all eight DTOs as records in
+      `br.com.conectabyte.knowly.chat.dto` (Green for task 95).
+- [ ] 97. Write a test asserting `ChatInvalidSearchExpandParamException`
+      exists as a `RuntimeException` subclass matching the existing
+      exception classes' shape (Red).
+- [ ] 98. Implement `ChatInvalidSearchExpandParamException.java` (Green
+      for task 97).
+- [ ] 99. Write a `ChatEntitySearchServiceTest`: each of the four
+      matched-`q` sections (people/groups/Support/RAG) is computed by
+      calling its underlying service/repository method with the
+      caller's actual identity/tenant, never a client-supplied value
+      (mocked, verified per section) (Red).
+- [ ] 100. Implement `ChatEntitySearchService`'s non-blank-`q` orchestration,
+      calling `ChatEligibilityService.searchEligibleDirectCandidates`,
+      `ChatConversationService.searchDiscoverableGroups`,
+      `SupportTicketService.findOwnOrClaimableChannel`,
+      `ConversationService.searchOwn`, each resolving
+      `TenantContext.getActiveTenantId()` independently per section
+      (Green for task 99).
+- [ ] 101. Write a `ChatEntitySearchServiceTest`: one section's mocked
+      dependency throws a `RuntimeException`; assert the other three
+      sections still populate and the thrown section degrades to
+      `hasMore: false`/empty (Support: absent), not a 500, logged at
+      `WARN` with no query text (Red).
+- [ ] 102. Implement the per-section `try`/`catch (RuntimeException)`
+      wrapping + `WARN` logging in `ChatEntitySearchService` (Green for
+      task 101).
+- [ ] 103. Write a `ChatEntitySearchServiceTest`: `type`+`offset`
+      validation — missing one of the pair, or an out-of-enum `type`,
+      throws `ChatInvalidSearchExpandParamException` before any
+      repository call (Red).
+- [ ] 104. Implement the `type`/`offset` expand-param validation in
+      `ChatEntitySearchService`, short-circuiting to a single-section
+      query when both are present and valid (skipping the other three
+      sections' queries entirely) (Green for task 103).
+- [ ] 105. Write a `ChatEntitySearchServiceTest`: with `q` blank/missing,
+      the service returns a `ChatEntitySearchResultDto` merging
+      `ChatConversationService.listConversations(actor)` (chat kinds)
+      and `ConversationService.list(owner, activeTenantId)` (RAG kind)
+      via a k-way merge on `createdAt`/`lastMessageAt`, capped at the
+      fixed per-section count, falling back to id order for
+      no-messages-yet chat conversations (REQ-25/26) (Red).
+- [ ] 106. Implement the blank-`q` "recent places" merge in
+      `ChatEntitySearchService` (Green for task 105).
+
+## `ChatController` — `GET /api/chat/search` and error handling
+
+- [ ] 107. Write a `ChatControllerIntegrationTest` (Testcontainers, CSRF
+      token via `obtainCsrfCookie()`): `GET /api/chat/search?q=...`
+      happy path returns `200` with a `ChatEntitySearchResponseDto`-shaped
+      body; `GET /api/chat/search` with no `q` returns `200` with a
+      `ChatEntitySearchResultDto`-shaped body (Red — endpoint doesn't
+      exist yet).
+- [ ] 108. Implement the new `searchEntities` method on `ChatController`,
+      wiring `q`/`type`/`offset`/`Accept-Language` to
+      `ChatEntitySearchService` (Green for task 107).
+- [ ] 109. Write a `ChatControllerIntegrationTest`: `type` supplied
+      without `offset` (and vice versa), or an out-of-enum `type`,
+      returns `400` with `CHAT_SEARCH_INVALID_EXPAND_PARAM` (Red).
+- [ ] 110. Implement the new `@ExceptionHandler` method in
+      `ChatExceptionHandler` for `ChatInvalidSearchExpandParamException`,
+      same `ChatErrorResponseDto` shape as every existing handler (Green
+      for task 109).
+- [ ] 111. Write a `ChatControllerIntegrationTest`: valid `type`+`offset`
+      returns only that section's results, offset-paginated, and does
+      not invoke the other three sections' underlying calls (assert via
+      a spied/mocked service layer or a fixture where the other three
+      sections would otherwise be non-empty) (Red).
+- [ ] 112. Fix `ChatController`/`ChatEntitySearchService` if task 111
+      exposes a gap (Green), or confirm none needed.
+
+## Integration tests — AppSec-required regressions and REQ coverage (full stack)
+
+- [ ] 113. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-19,
+      groups): a query matches (a) a group the caller already
+      participates in, (b) a `PUBLIC` group not yet joined, (c) a
+      `REQUEST_TO_JOIN` group not yet joined — all three present with
+      correct `isParticipant`; a matching `PRIVATE` group the caller
+      isn't in is absent; a same-titled `PUBLIC` group in a different
+      tenant than the caller's active tenant is absent (Red).
+- [ ] 114. Fix any gap task 113 exposes (Green), or confirm none needed.
+- [ ] 115. **AppSec-required regression (Gap 1, full stack)**: write a
+      `ChatEntitySearchControllerIntegrationTest`: a caller who is a
+      current participant of same-titled groups in two different
+      tenants (Tenant 1 active in session, Tenant 2 not) searching for
+      that title via `GET /api/chat/search` gets back only the Tenant 1
+      group, never the Tenant 2 one (Red — end-to-end confirmation of
+      task 79/80's service-level fix, must not be left red).
+- [ ] 116. Fix any gap task 115 exposes (Green), or confirm none needed.
+- [ ] 117. **AppSec-required regression (Gap 2, full stack, groups)**:
+      write a `ChatEntitySearchControllerIntegrationTest`: a
+      `STAFF`/`STAFF_ADMIN` caller with no active tenant selected
+      searching by a group title matching `PUBLIC`/`REQUEST_TO_JOIN`
+      groups in two different tenants gets zero group results via `GET
+      /api/chat/search`, asserting exactly zero results, not a merged
+      cross-tenant set (Red — end-to-end confirmation of task 93/94's
+      fix, must not be left red).
+- [ ] 118. **AppSec-required regression (Gap 2, full stack, RAG)**: write
+      a `ChatEntitySearchControllerIntegrationTest`, same test class as
+      task 117: a `STAFF`/`STAFF_ADMIN` caller with no active tenant
+      selected and title-matching RAG conversations in two different
+      tenants gets zero RAG results via `GET /api/chat/search`,
+      asserting exactly zero results, not a merged cross-tenant set (Red
+      — end-to-end confirmation of task 91/92's fix, must not be left
+      red).
+- [ ] 119. Fix any gap tasks 117-118 expose (Green), or confirm none
+      needed.
+- [ ] 120. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-20,
+      people): a name-matching user who shares no tenant/staff anchor
+      with the caller is absent from results, same fixture shape as the
+      existing `listCandidates` test (Red).
+- [ ] 121. Fix any gap task 120 exposes (Green), or confirm none needed.
+- [ ] 122. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-21,
+      Support): a member with an open channel gets it back for a
+      "Suporte"/"Support" query in both `en` and `pt-BR`
+      `Accept-Language`; a caller with no channel and no support
+      permission gets no Support result; a `STAFF_ADMIN` with no support
+      permission and no claimed ticket also gets no Support result
+      (REQ-18) (Red).
+- [ ] 123. Fix any gap task 122 exposes (Green), or confirm none needed.
+- [ ] 124. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-22,
+      RAG): a title-matching RAG conversation owned by another user in
+      the same tenant is absent; the caller's own is present;
+      cross-tenant companion identical in shape to message search's own
+      (Red).
+- [ ] 125. Fix any gap task 124 exposes (Green), or confirm none needed.
+- [ ] 126. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-18/
+      AppSec, no oversight bypass, all four kinds): a `STAFF_ADMIN`/
+      `MEMBER_ADMIN` caller with no participant row, no membership, and
+      no Support permission gets zero people/group/RAG results beyond
+      what their own real anchors would allow — parameterized across all
+      four kinds in one test class, mirroring the shipped message-search
+      REQ-5 test (Red).
+- [ ] 127. Fix any gap task 126 exposes (Green), or confirm none needed.
+- [ ] 128. Write a `ChatEntitySearchControllerIntegrationTest`
+      (no-active-tenant fail-closed, all sections): a caller with no
+      active tenant in session gets empty groups/Support/RAG sections
+      (and a people section scoped to only their staff-only anchor, if
+      any) — not a `500`, not an unfiltered scan (Red).
+- [ ] 129. Fix any gap task 128 exposes (Green), or confirm none needed.
+- [ ] 130. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-25/26,
+      recent places): a caller with a mix of chat and RAG conversations
+      gets a merged, correctly-ordered list; a chat conversation
+      they've since left/been removed from/that's archived or
+      soft-deleted is absent (reuses the shipped feature's fixture
+      helpers); a RAG conversation belonging to another user is absent
+      even if it would otherwise sort into the caller's recent-places
+      window (Red).
+- [ ] 131. Fix any gap task 130 exposes (Green), or confirm none needed.
+- [ ] 132. Write a `ChatEntitySearchControllerIntegrationTest` (REQ-23,
+      non-revealing omission): for each of the four kinds, an
+      inaccessible match returns the same shape as "no match at all"
+      (empty section / absent Support), asserted indistinguishable,
+      mirroring REQ-3's already-shipped precedent (Red).
+- [ ] 133. Fix any gap task 132 exposes (Green), or confirm none needed.
+
+## Wrap-up (amendment)
+
+- [ ] 134. Run `./mvnw spotless:apply` then `./mvnw verify` and confirm
+      the whole suite (existing chat/tenancy/staff-RBAC tests plus every
+      task above) is green.
+- [ ] 135. Update `PROJECT_STATUS.md` to reflect this amendment's
+      completion, noting the new `GET /api/chat/search` endpoint, the two
+      AppSec-fixed cross-tenant scoping gaps (participant-groups union,
+      JPQL staff-no-active-tenant exposure) and where their regression
+      tests live, and the REQ-26 "recent places merges two sources"
+      design correction, so a future conversation doesn't have to
+      rediscover any of it from the diff.

@@ -370,3 +370,509 @@ capability (a "fetch a message page centered on id X" endpoint) that
 does not exist today per the closed backend PLAN; that is a new
 cross-repo feature, not a gap in this PLAN's scope, and is flagged here
 rather than silently omitted.
+
+## Amended (2026-08-10) — unified Slack-style search bar
+
+> Everything above this heading describes the retired filter-dialog
+> design (REQ-1 through REQ-14, now superseded per SPEC.md's own
+> amendment) and is kept for history/context, not deleted, per this
+> repo's convention. This section is the authoritative PLAN for
+> REQ-15 through REQ-31. **Backend contract consumed verbatim from
+> `knowly-api/specify/features/chat-message-search/PLAN.md`'s own
+> "Amended (2026-08-10)" section (closed, source of truth) for the new
+> `GET /api/chat/search` endpoint; `GET /api/chat/messages/search`'s
+> contract (copied above, unchanged) is still consumed as-is for the
+> "Messages" result group.** Companion to
+> `knowly-app/specify/features/chat-unified-ui/PLAN.md`'s own amendment
+> for this same date — that document owns where the bar lives in the
+> 3-column shell; this section owns what happens inside it.
+
+### Confirming the "does unified search still cover message content?" question
+
+**Yes — re-read directly from SPEC.md, not assumed.** REQ-21 lists
+"Messages" (matching message content) as one of the at-minimum three
+result groups; REQ-17's "populate results across every applicable
+group (REQ-21)" includes it; REQ-24 (click a message result) and REQ-30
+(partial-failure note, "two independent backend calls... per the
+not-yet-defined combined contract") both explicitly anticipate message
+content staying a live, separately-sourced result kind, not folded into
+the new `GET /api/chat/search` entity endpoint (which the backend PLAN
+confirms has no message-content section at all — only
+people/groups/Support/RAG/recent-places). **Conclusion: the unified bar
+fires two backend calls per non-blank query** — `GET /api/chat/search`
+(entities) and `GET /api/chat/messages/search` (message content, exact
+same contract this feature already shipped) — never one. REQ-30
+therefore does **not** collapse into REQ-28 (the "single combined
+endpoint" branch of its own PLAN-level note) — it stays the two-call,
+per-group-error-isolation case, since that is what the finalized
+backend contract actually delivered.
+
+### Architectural decisions
+
+- **Retiring `chat-search-dialog.component.ts` entirely, not just its
+  filter form.** SPEC's question 3 answer (persistent top bar, not a
+  modal opened from a sidebar icon) removes the entry point this
+  component existed to host, not only the Sender/Conversation/From/To
+  fields inside it — REQ-15's "exactly one search entry point... no
+  other search field exists anywhere" leaves no place for a
+  dialog-triggered-by-icon-button pattern to survive alongside the bar.
+  The file and its spec are deleted; `chat-sidebar.component.ts`'s
+  "Buscar mensagens" icon button (added by the original PLAN) is
+  removed in the same change, since the bar it opened no longer exists
+  — `chat-unified-ui/PLAN.md`'s companion amendment tracks that removal
+  on its side (`ChatSidebarComponent` itself is being restructured
+  there for other reasons too).
+- **New component, `chat-unified-search.component.ts`, replaces it —
+  extends this feature's ownership of "search behavior" rather than
+  becoming a `chat-unified-ui`-owned component**, even though it
+  physically renders inside `ChatShellComponent`'s new header region.
+  Why this split: SPEC.md's own framing draws the line at "this
+  document owns search behavior (query semantics, result types,
+  grouping, recent places)... that one owns where it lives on screen" —
+  a component boundary that puts the *type-ahead/dropdown* logic here
+  and only the *host slot* in `chat-unified-ui` keeps that same
+  ownership line in the code, not just the docs. `chat-unified-ui/PLAN.md`
+  places a `<app-chat-unified-search>` selector inside its new header
+  region and passes it nothing beyond structural CSS context (no inputs
+  needed — the component is self-contained, reading `ActiveTenantService`/
+  `AuthService` directly the way `ChatSidebarComponent` already does for
+  its own tenant-gating). File lives in `features/chat/` (this feature's
+  established location for chat-search-area components), not a new
+  folder.
+- **Two services, not one, mirroring the backend's own service split**
+  (`ChatEntitySearchService` kept separate from `ChatMessageSearchService`
+  on the backend, "materially different authorization shape"):
+  - **`ChatMessageSearchService` is kept, not renamed, with its
+    Sender/Conversation/From/To filter-building removed** — its
+    `search(filters)` signature narrows to `search(q: string)` (no more
+    `senderId`/`conversationId`/`dateFrom`/`dateTo`), everything else
+    (cursor pagination, `status` signal, `reset()`) is unchanged, since
+    it still calls the exact same `GET /api/chat/messages/search`
+    contract, just always with only `q` set. Kept as the same service
+    (not retired and rebuilt) because REQ-15/REQ-17 don't change what
+    message-content search *is* — they change how many other kinds of
+    result appear alongside it and how it's triggered (type-ahead vs.
+    submit). This is "the same feature being redesigned, not a parallel
+    one," per the task's own framing — extending in place, not
+    introducing a new parallel service for the exact same backend call.
+  - **New `ChatEntitySearchService`** (signals, new file
+    `chat-entity-search.service.ts`), owning `GET /api/chat/search`:
+    `search(q: string)` (non-blank query → grouped entity sections),
+    `recentPlaces()` (blank query → REQ-19/20), `expandSection(type:
+    'people'|'groups'|'rag', offset: number)` (REQ-22's "see more").
+    Kept separate from `ChatMessageSearchService` rather than merged
+    into one "unified search service," mirroring the backend's own
+    stated reasoning (four independent sub-queries against different
+    tables, no shared query shape) — plus a frontend-specific reason:
+    the two services have genuinely different trigger conditions
+    (`ChatEntitySearchService.recentPlaces()` fires *only* on blank
+    query, `ChatMessageSearchService.search()` never fires on a blank
+    query at all, REQ-17's "non-blank query" precondition), so merging
+    them would need an internal blank/non-blank branch duplicating what
+    the orchestrating component already has to do anyway.
+  - **`chat-unified-search.component.ts` orchestrates both**: one
+    debounced `Subject` (see below) feeds both services' `search(q)` in
+    parallel on every non-blank keystroke-settle, and
+    `ChatEntitySearchService.recentPlaces()` alone on blank/open. This
+    is the seam where REQ-21's grouping and REQ-30's per-group partial
+    failure actually get composed into one dropdown — neither service
+    knows about the other's status, only the component merges their
+    `status`/`results` signals into the five rendered groups (People,
+    Groups, Support, RAG, Messages) plus the "recent places" state.
+- **Debounce: reuse the shipped 400ms RxJS `Subject` +
+  `debounceTime`/`distinctUntilChanged` pattern from
+  `chat-search-dialog.component.ts`, moved into
+  `chat-unified-search.component.ts` unchanged in mechanism** — REQ-17
+  explicitly leaves the interval a PLAN-level decision and gives no
+  reason to deviate from the already-established, already-tested
+  constant; the pattern fires **both** services' `search(q)` calls off
+  the same debounced emission (one shared `Subject`, two `subscribe`-side
+  calls), not two independently-debounced pipelines, so the two result
+  sets settle together rather than flickering in at different times for
+  the same keystroke.
+- **Result grouping (REQ-21): five sections, not the SPEC's stated
+  minimum of three, since Support and RAG get their own groups rather
+  than folding into "Groups"** — SPEC explicitly leaves this choice to
+  "PLAN's discretion" as long as all four entity kinds are represented
+  somewhere. Decision: Support renders as its own single-row group
+  (mirrors the backend DTO's own shape — `support` is a nullable single
+  object, not a list, so treating it as a list-of-zero-or-one inside
+  "Groups" would need an artificial cast) and RAG conversations get
+  their own "Base de artigos" group rather than folding into "Groups" —
+  folding RAG into Groups would conflate two conceptually distinct
+  kinds the product owner explicitly named as separate in SPEC's
+  question 1 ("channels" maps to *both* groups and RAG, not one
+  combined bucket), and REQ-2 of `chat-unified-ui` already reserves
+  "Base de artigos" as its own kind of row everywhere else in this app
+  — consistency with that existing mental model outweighs the minor
+  extra group. Order: People, Groups, Base de artigos, Support,
+  Messages — entity kinds first (mirroring the backend response's own
+  people/groups/support/rag field order), Messages last since it's the
+  "recall, not browse" kind of result, matching Slack's own convention
+  of content matches trailing entity matches.
+- **"See more" (REQ-22) is per-group, calling
+  `ChatEntitySearchService.expandSection(type, offset)` for
+  People/Groups/RAG only** — Support never gets a "see more" (backend
+  DTO caps it at one-or-none, no `hasMore` concept exists for it) and
+  Messages' own "see more" reuses `ChatMessageSearchService.loadMore()`
+  unchanged (cursor-based, already shipped, no change needed — REQ-22's
+  "never a single global load more" is satisfied by each group calling
+  its own independent expand mechanism, cursor for Messages, offset for
+  the other three, exactly matching each backend contract's own
+  pagination style rather than forcing one shape onto both). Expanding
+  one group's results appends to only that group's own signal, the
+  other four groups' state is untouched.
+- **"Recent places" (REQ-19/20): capped at 8 entries client-side**
+  (SPEC leaves the exact count to PLAN; 8 matches this app's other
+  "short list" precedents — e.g. `tenant-pagination-search`'s own
+  default page size floor — and comfortably fits one screen's dropdown
+  height without scrolling on the smallest supported viewport). The
+  backend already returns a capped, merged, ordered list (backend
+  PLAN's k-way merge of `listConversations` + RAG `list`) — the
+  frontend does not re-sort or re-slice beyond trusting that cap, it
+  only renders `ChatEntitySearchService.recentPlaces()`'s `recentPlaces`
+  array as-is.
+- **Partial failure (REQ-30, two-call case, confirmed above): each of
+  the (up to) five groups tracks its own `status` independently** —
+  `ChatEntitySearchService` exposes one `status` **per section**
+  (`peopleStatus`, `groupsStatus`, `supportStatus`, `ragStatus`, all
+  `'loading' | 'ok' | 'error'`, derived from the backend's own
+  per-section try/catch degrade-to-empty behavior plus a frontend-level
+  distinction: the backend PLAN degrades a failed section to an *empty*
+  result with no error signal at the HTTP layer, so `status` here is
+  actually driven by **HTTP-request-level** failure only — a 5xx/network
+  failure on the whole `GET /api/chat/search` call marks all four entity
+  sections `'error'` simultaneously (there's no way to fail one section
+  without the others at the transport level, since it's one response),
+  while `ChatMessageSearchService`'s own `status` fails independently
+  since it's a wholly separate HTTP call. **This narrows REQ-30's
+  "group-scoped error" to two failure domains, not five** — "entities
+  (all four)" vs. "messages" — which is the actual granularity the
+  finalized one-endpoint-for-entities design allows; a true per-entity-
+  kind partial failure (e.g. only Groups failing while People succeeds)
+  cannot be distinguished by the frontend under this contract, since the
+  backend already silently degrades that case to an empty section with
+  no error flag rather than surfacing it. This is flagged here as a
+  known granularity gap versus REQ-30's literal five-way reading, not
+  silently narrowed — if the product owner wants true five-way partial
+  failure visibility, the backend DTO needs a per-section
+  `error: boolean` flag added, which is not in the finalized contract
+  and would be a further backend PLAN amendment, not something this
+  frontend PLAN can invent.
+- **Loading/error/no-results/idle states**: `chat-unified-search
+  .component.ts` derives one top-level `status: 'idle' | 'loading' |
+  'results' | 'no-results' | 'error'` (REQ-27/28/29) as a `computed()`
+  over the two services' combined section statuses — `'loading'` while
+  any in-flight section is loading, `'error'` only when **every**
+  section that was queried failed (a true global failure, matching
+  REQ-28's "distinct from no results" framing), `'no-results'` when
+  every queried section succeeded with zero rows, `'results'` otherwise
+  — mirrors the shipped dialog's existing explicit-status-enum
+  convention (not an implicit `results.length === 0` check) rather than
+  inventing a new pattern.
+- **Dismiss/reopen (REQ-31)**: closing the dropdown (click-away,
+  Escape, or a result click per REQ-26) calls `reset()` on **both**
+  services — `ChatMessageSearchService.reset()` (already shipped,
+  unchanged) and a new `ChatEntitySearchService.reset()` (clears all
+  four section signals and `recentPlaces`) — so reopening always starts
+  from a fresh `recentPlaces()` fetch (REQ-19), never stale results from
+  the prior session, matching REQ-31 exactly.
+- **Opening a result (REQ-23/24/25/26)**: `chat-unified-search
+  .component.ts` reuses `ChatShellComponent`'s existing
+  `/chat/:conversationId` / `/chat/support/:channelId` /
+  `/chat/articles/:conversationId` navigation (the same three-path-space
+  routing `chat-unified-ui/PLAN.md` already establishes) — a person or
+  group result navigates to `/chat/:conversationId` (backend's
+  `ChatGroupSearchResultDto.id`/derived direct-conversation id, same as
+  today's directory-row click), a Support result to
+  `/chat/support/:channelId` (`ChatSupportSearchResultDto.channelId`), a
+  RAG result to `/chat/articles/:conversationId`
+  (`ChatRagConversationSearchResultDto.id`), a message result to
+  `/chat/:conversationId` for `ChatMessageSearchResultDto.conversationId`
+  (the already-shipped v1 "no scroll-to-message" decision above, carried
+  forward unchanged), and a "recent places" entry (REQ-25) dispatches on
+  `ChatRecentPlaceDto.kind` (`PEER_DIRECT`/`PEER_GROUP` →
+  `/chat/:conversationId`, `SUPPORT` → `/chat/support/:conversationId`
+  — the backend's `ChatRecentPlaceDto` reuses `conversationId` as the
+  field name for all four kinds, the frontend maps it to whichever path
+  segment that kind needs — `RAG` → `/chat/articles/:conversationId`).
+  Every click also calls both services' `reset()` (REQ-26's "closes the
+  dropdown") before navigating.
+- **A "person" search result opening a 1:1 with no existing
+  conversation yet** (a name match with no `chat_participants` row)
+  reuses REQ-3's existing create-and-open behavior from
+  `chat-unified-ui` (`ChatDirectoryComponent`'s row click already does
+  this) — `chat-unified-search.component.ts` calls the same
+  `ChatService`/`ChatDirectoryRowsService`-backed click handler
+  `chat-unified-ui`'s column 1/3 rows already use (extracted to a small
+  shared `openPersonConversation(userId)` helper on `ChatService`, if
+  not already one, rather than duplicating the create-or-open logic a
+  third time), not a new code path.
+
+### Components and routes
+
+```
+core/
+  chat-message-search.service.ts      // CHANGED — search(q) only, filter
+                                       //   params removed; cursor/status/
+                                       //   reset unchanged
+  chat-entity-search.service.ts       // NEW — search(q)/recentPlaces()/
+                                       //   expandSection(type, offset)/
+                                       //   reset(); per-section status
+  chat.model.ts                       // + ChatPersonSearchResultDto,
+                                       //   ChatGroupSearchResultDto,
+                                       //   ChatSupportSearchResultDto,
+                                       //   ChatRagConversationSearchResultDto,
+                                       //   ChatRecentPlaceDto,
+                                       //   ChatEntitySearchSectionStatus
+                                       //   types (mirroring backend DTOs
+                                       //   verbatim); ChatMessageSearchFilters
+                                       //   narrowed to `{ q: string }`
+
+features/chat/
+  chat-unified-search.component.ts    // NEW — replaces chat-search-dialog:
+                                       //   the bar's dropdown content
+                                       //   (debounced input owned by
+                                       //   chat-unified-ui's header slot,
+                                       //   or owned here — see
+                                       //   chat-unified-ui/PLAN.md's
+                                       //   amendment for the exact split),
+                                       //   5-group results, recent places,
+                                       //   see-more, 5-state status
+  chat-search-result-row.component.ts // CHANGED — gains a `kind: 'person'|
+                                       //   'group'|'support'|'rag'|
+                                       //   'message'` discriminator input
+                                       //   (was message-only), renders the
+                                       //   right icon/avatar/subtitle per
+                                       //   kind
+  chat-search-dialog.component.ts     // REMOVED
+  chat-sidebar.component.ts           // CHANGED (in chat-unified-ui's own
+                                       //   restructuring) — "Buscar
+                                       //   mensagens" icon button removed
+```
+
+### Consumed API contracts
+
+Copied verbatim from `knowly-api/specify/features/chat-message-search/PLAN.md`'s
+"Amended (2026-08-10)" section ("API contracts" table, closed/final) —
+not re-derived:
+
+| Method | Path | Request | Response | Status |
+|---|---|---|---|---|
+| GET | `/api/chat/search` | `q` (optional — blank triggers recent places), `type` (optional, `people`\|`groups`\|`rag`, "see more" expand), `offset` (optional, int, paired with `type`) | `ChatEntitySearchResultDto` (blank `q`) or `ChatEntitySearchResponseDto` (non-blank `q`), or `ChatEntitySearchSectionDto<T>` (expand form) | 200 |
+| GET | `/api/chat/messages/search` | `q` (required, non-blank) only — `senderId`/`conversationId`/`dateFrom`/`dateTo` never sent by the unified bar | `ChatMessageSearchPageDto` (unchanged from the original PLAN) | 200 |
+
+```ts
+interface ChatPersonSearchResultDto {
+  userId: number;
+  nickname: string;
+  avatarUrl: string | null;
+}
+interface ChatGroupSearchResultDto {
+  id: number;
+  title: string;
+  isParticipant: boolean;
+  visibility: 'PRIVATE' | 'REQUEST_TO_JOIN' | 'PUBLIC';
+}
+interface ChatSupportSearchResultDto {
+  channelId: number;
+}
+interface ChatRagConversationSearchResultDto {
+  id: number;
+  title: string;
+}
+interface ChatEntitySearchSectionDto<T> {
+  results: T[];
+  hasMore: boolean;
+}
+interface ChatEntitySearchResponseDto {
+  people: ChatEntitySearchSectionDto<ChatPersonSearchResultDto>;
+  groups: ChatEntitySearchSectionDto<ChatGroupSearchResultDto>;
+  support: ChatSupportSearchResultDto | null;
+  rag: ChatEntitySearchSectionDto<ChatRagConversationSearchResultDto>;
+}
+interface ChatRecentPlaceDto {
+  conversationId: number;
+  kind: 'PEER_DIRECT' | 'PEER_GROUP' | 'SUPPORT' | 'RAG';
+  title: string;
+  orderingTimestamp: string; // ISO-8601 instant
+}
+interface ChatEntitySearchResultDto {
+  recentPlaces: ChatRecentPlaceDto[];
+}
+```
+
+**Error cases** (`ChatEntitySearchService`):
+
+| Condition | Status | Code | Frontend handling |
+|---|---|---|---|
+| `type` without `offset` or vice versa, invalid `type` | 400 | `CHAT_SEARCH_INVALID_EXPAND_PARAM` | Only reachable via an internal bug (params are never user-typed) — treated as that section's generic `'error'`, same as a network failure. |
+| network/5xx on `GET /api/chat/search` | — | — | All four entity sections marked `'error'` simultaneously (see "Partial failure" decision above); Messages section unaffected (separate call). |
+| network/5xx on `GET /api/chat/messages/search` | — | — | `ChatMessageSearchService.status → 'error'` (unchanged from shipped behavior); entity sections unaffected. |
+
+No `403`/`404` for any inaccessible match of any kind (backend's
+"omit, never reveal" posture) — the frontend never attempts to detect
+or special-case this, same as the shipped feature's existing
+`conversationId` filter precedent.
+
+### State and data
+
+- **`ChatMessageSearchService`** (changed): `search(q: string)`
+  replaces `search(filters: ChatMessageSearchFilters)`;
+  `ChatMessageSearchFilters` narrows to `{ q: string }`. `_results`,
+  `_status`, `_nextCursor`, `_lastQuery`, `loadMore()`, `reset()` are
+  otherwise byte-for-byte unchanged from the shipped implementation.
+- **`ChatEntitySearchService`** (new):
+  - `_people: Signal<ChatPersonSearchResultDto[]>`,
+    `_peopleHasMore: Signal<boolean>`, `_peopleStatus: Signal<'idle' |
+    'loading' | 'ok' | 'error'>` — and the same trio for `groups`/`rag`.
+  - `_support: Signal<ChatSupportSearchResultDto | null>`,
+    `_supportStatus` (no `hasMore` — REQ-22 exempts Support).
+  - `_recentPlaces: Signal<ChatRecentPlaceDto[]>`, `_recentPlacesStatus`.
+  - `search(q: string): void` — calls `GET /api/chat/search?q=...`,
+    fans the one response out into all four section signals + statuses
+    in one write (matches the backend's single-HTTP-call design — there
+    is genuinely one response to unpack, not four independent
+    sub-requests).
+  - `recentPlaces(): void` — calls `GET /api/chat/search` with no `q`
+    (or `q=''`), populates `_recentPlaces`/`_recentPlacesStatus` only;
+    leaves the four entity sections untouched (REQ-20's "replaced by
+    live search groups the moment the query becomes non-blank... not
+    merged into a mixed empty+results view" — the component, not this
+    service, decides which signal set to render based on whether the
+    query is blank, so both can coexist in the service without
+    conflicting).
+  - `expandSection(type: 'people' | 'groups' | 'rag', currentQuery:
+    string): void` — calls `GET /api/chat/search?q=...&type=...
+    &offset=<current section's results.length>`, **appends** to that
+    section's own results array and updates only that section's
+    `hasMore`, leaving the other three untouched.
+  - `reset(): void` — clears every section back to `idle`/empty (REQ-31).
+- **`chat-unified-search.component.ts`** owns: the debounced `Subject`
+  (400ms), the raw (not-yet-debounced) query input value, the derived
+  top-level `status` computed described above, and the merge of both
+  services' data into the five rendered `<section>` blocks + the
+  "recent places" block. No new shared state is promoted onto either
+  service beyond what's listed above — this mirrors the shipped
+  dialog's own "form/orchestration state local to the component,
+  request/result state in the service(s)" split.
+
+### Dependencies
+
+None. Same RxJS operators already in use by the shipped feature; no new
+`package.json` entry.
+
+### i18n keys
+
+New/changed keys under `chat.search.*`, both `en` and `pt-BR` (content
+sketch, not final copy):
+
+- `chat.search.barPlaceholder` — REQ-16 ("Buscar pessoas, grupos ou
+  mensagens" / "Search people, groups, or messages") — **replaces**
+  the retired `chat.search.entryPointLabel`/`queryPlaceholder` (those
+  described a content-only surface, no longer accurate).
+- `chat.search.groupLabelPeople` / `.groupLabelGroups` /
+  `.groupLabelSupport` / `.groupLabelRag` / `.groupLabelMessages` —
+  REQ-21's five section headers.
+- `chat.search.recentPlacesLabel` — REQ-19's section header.
+- `chat.search.seeMore` — REQ-22, per-group (interpolates a group-name
+  param so screen readers announce which group is expanding, e.g. "Ver
+  mais em Grupos").
+- `chat.search.noResults` — REQ-27 (interpolates `{{ query }}`,
+  retained unchanged from shipped).
+- `chat.search.error` — REQ-28 (retained unchanged).
+- `chat.search.loading` — REQ-29 (retained unchanged).
+- `chat.search.resultA11yLabelPerson` / `.resultA11yLabelGroup` /
+  `.resultA11yLabelSupport` / `.resultA11yLabelRag` /
+  `.resultA11yLabelMessage` — replace the single, message-only
+  `chat.search.resultA11yLabel`, one per kind since each composes
+  different fields into its accessible name.
+- **Removed**: `chat.search.dialogTitle`, `.filterSenderLabel`,
+  `.filterConversationLabel`, `.filterDateFromLabel`,
+  `.filterDateToLabel`, `.blankQueryError`, `.invalidDateRangeError`,
+  `.loadMore` (Messages now reuses the manual scroll trigger without a
+  distinct label — folded into `.seeMore` with a `messages`
+  group-name param) — all described the retired filter-form/dialog
+  surface.
+
+### Testing strategy (Vitest)
+
+- `chat-message-search.service.spec.ts` (extended, mostly unchanged):
+  removes the filter-param assertions (senderId/conversationId/date
+  range no longer exist to test); keeps the `q`-only request shape,
+  `'no-results'`/`'error'`/`loadMore()`/`reset()` cases verbatim.
+- `chat-entity-search.service.spec.ts` (new, `HttpTestingController`):
+  - `search(q)` populates all four sections from one response; a
+    `support: null` response leaves `_support` `null`, not an error.
+  - `recentPlaces()` calls with blank `q` and populates only
+    `_recentPlaces`, leaving entity sections at their prior state.
+  - `expandSection('groups', ...)` sends the correct `type`/`offset`
+    pair and **appends** to `_groups`, not replaces; a second call
+    right after asserts cumulative growth (regression against an
+    accidental "replace" bug).
+  - A simulated network failure on `search(q)` marks all four entity
+    section statuses `'error'` simultaneously — direct regression test
+    for the "two failure domains, not five" decision above, so this
+    known granularity gap is pinned by a test rather than left
+    implicit.
+  - `reset()` returns every section to `idle`/empty.
+- `chat-unified-search.component.spec.ts` (new, replaces
+  `chat-search-dialog.component.spec.ts`):
+  - REQ-17: typing a non-blank query debounces 400ms then fires **both**
+    `ChatMessageSearchService.search()` and
+    `ChatEntitySearchService.search()` exactly once per settled
+    keystroke burst (fake timers), not per-keystroke, not one service
+    without the other.
+  - REQ-19/20: opening with a blank query shows `recentPlaces()`'s
+    result, capped at 8, replaced entirely (not merged) the instant a
+    non-blank query is typed.
+  - REQ-21: results render in the five-group order decided above; a
+    group with zero matches for the current query is entirely absent
+    from the DOM (not rendered empty).
+  - REQ-22: a group's "see more" action calls only that group's
+    `expandSection`/`loadMore`, verified via spies that the other four
+    groups' fetch methods are not called.
+  - REQ-23/24/25: clicking a person/group/Support/RAG/message/recent-
+    place result navigates to the correct path per the routing table
+    above (table-driven test, one row per kind) and calls `reset()` on
+    both services (REQ-26).
+  - REQ-27/28/29: the five-state `status` computed renders the right
+    exclusive block per combination of section statuses, including the
+    "all entity sections error, Messages still succeeds" case (asserts
+    the top-level status is **not** `'error'` in that case, since REQ-28
+    requires "distinct from no results," and a mixed success/failure
+    state is neither pure error nor pure success — resolves to
+    `'results'` showing Messages plus an inline error badge on the
+    failed entity groups, per REQ-30).
+  - REQ-31: Escape/click-away calls `reset()` on both services; a
+    reopen re-fetches `recentPlaces()`, not the last query's results.
+  - Accessibility: each group has its own `role="group"`/labelled
+    heading, each result row is keyboard-reachable and has the correct
+    per-kind `aria-label` (table-driven against the i18n keys above).
+- `chat-search-result-row.component.spec.ts` (extended): one test per
+  `kind` value asserting the right icon/subtitle/`aria-label`
+  combination renders; keyboard activation (`Enter`/`Space`) unchanged
+  from shipped.
+- Regression: `chat-search-dialog.component.spec.ts` deleted alongside
+  its component; no dangling spec against a removed file.
+- Regression: `chat-directory.component.spec.ts`/
+  `chat-full-directory.component.spec.ts` — their own search-field
+  removal is `chat-unified-ui/PLAN.md`'s amendment's test surface, not
+  this feature's; not duplicated here.
+
+### Open items carried forward
+
+- Scroll-to-message-on-open remains v1-out-of-scope, unchanged from the
+  original PLAN's decision (still needs a "fetch page centered on
+  message id X" backend endpoint that does not exist).
+- **REQ-30's "five-way partial failure" granularity gap** (see
+  "Partial failure" decision above) — the finalized single-endpoint
+  backend contract can only report failure at "all four entity
+  sections" or "Messages" granularity, not per-entity-kind. This should
+  be read back to the product owner/PO agent alongside the backend
+  PLAN's own REQ-26 Tier-2 flag before TASKS.md, since it's a real,
+  user-visible narrowing of what REQ-30 literally describes (a group
+  that individually failed inside the backend's per-section try/catch
+  is indistinguishable, from the frontend's vantage point, from a group
+  that simply had zero matches) — not a blocker, but worth an explicit
+  sign-off alongside the backend's own already-flagged Tier-2 item.
