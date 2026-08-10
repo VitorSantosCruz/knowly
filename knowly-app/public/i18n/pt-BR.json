@@ -772,20 +772,22 @@
       "error": "Não foi possível renomear esta conversa. Tente novamente."
     },
     "search": {
-      "entryPointLabel": "Buscar mensagens",
-      "dialogTitle": "Buscar no conteúdo das mensagens",
-      "queryPlaceholder": "Buscar no conteúdo das mensagens…",
-      "filterSenderLabel": "Remetente",
-      "filterConversationLabel": "Conversa",
-      "filterDateFromLabel": "De",
-      "filterDateToLabel": "Até",
-      "blankQueryError": "Digite um termo de busca.",
-      "invalidDateRangeError": "A data \"de\" não pode ser posterior à data \"até\".",
       "loading": "Buscando…",
       "noResults": "Nenhum resultado para '{{query}}'",
       "error": "Ocorreu um erro ao buscar. Tente novamente.",
-      "loadMore": "Carregar mais resultados",
-      "resultA11yLabel": "Mensagem de {{sender}} em {{conversation}} às {{timestamp}}"
+      "barPlaceholder": "Buscar pessoas, grupos ou mensagens",
+      "groupLabelPeople": "Pessoas",
+      "groupLabelGroups": "Grupos",
+      "groupLabelSupport": "Suporte",
+      "groupLabelRag": "Base de artigos",
+      "groupLabelMessages": "Mensagens",
+      "recentPlacesLabel": "Lugares recentes",
+      "seeMore": "Ver mais em {{group}}",
+      "resultA11yLabelPerson": "Pessoa {{nickname}}",
+      "resultA11yLabelGroup": "Grupo {{title}}",
+      "resultA11yLabelSupport": "Suporte",
+      "resultA11yLabelRag": "Conversa da base de artigos {{title}}",
+      "resultA11yLabelMessage": "Mensagem de {{sender}} em {{conversation}} às {{timestamp}}"
     }
   },
   "support": {

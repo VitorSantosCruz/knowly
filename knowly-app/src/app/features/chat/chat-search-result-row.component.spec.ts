@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTransloco } from '@jsverse/transloco';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
-import { ChatSearchResultRowComponent } from './chat-search-result-row.component';
-import { ChatMessageSearchResultDto } from '../../core/chat.model';
+import { ChatSearchResultRowComponent, ChatSearchRowResult } from './chat-search-result-row.component';
 
-const RESULT: ChatMessageSearchResultDto = {
+const MESSAGE_RESULT: ChatSearchRowResult = {
+  kind: 'message',
   id: 1,
   conversationId: 10,
   conversationTitle: 'Grupo A',
@@ -17,7 +17,8 @@ const RESULT: ChatMessageSearchResultDto = {
 describe('ChatSearchResultRowComponent', () => {
   let fixture: ComponentFixture<ChatSearchResultRowComponent>;
 
-  beforeEach(async () => {
+  async function createWith(result: ChatSearchRowResult): Promise<void> {
+    TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ChatSearchResultRowComponent],
       providers: [
@@ -28,11 +29,15 @@ describe('ChatSearchResultRowComponent', () => {
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ChatSearchResultRowComponent);
-    fixture.componentRef.setInput('result', RESULT);
+    fixture.componentRef.setInput('result', result);
     fixture.detectChanges();
+  }
+
+  beforeEach(async () => {
+    await createWith(MESSAGE_RESULT);
   });
 
-  it('renders sender nickname, conversation title, and content snippet', () => {
+  it('renders sender nickname, conversation title, and content snippet (kind: message)', () => {
     const el: HTMLElement = fixture.nativeElement;
     expect(el.textContent).toContain('Ana');
     expect(el.textContent).toContain('Grupo A');
@@ -80,5 +85,46 @@ describe('ChatSearchResultRowComponent', () => {
     const label = row.getAttribute('aria-label') ?? '';
     expect(label).toContain('Ana');
     expect(label).toContain('Grupo A');
+  });
+
+  describe('per-kind rendering (Amended 2026-08-10)', () => {
+    it('kind: person — renders nickname, emits userId, distinct aria-label', async () => {
+      await createWith({ kind: 'person', userId: 7, nickname: 'Beltrano', avatarUrl: null });
+      expect(fixture.nativeElement.textContent).toContain('Beltrano');
+      const spy = vi.fn();
+      fixture.componentInstance.rowSelected.subscribe(spy);
+      fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+      expect(spy).toHaveBeenCalledWith(7);
+      const row: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="chat-search-result-row"]',
+      );
+      expect(row.getAttribute('aria-label')).toContain('Beltrano');
+    });
+
+    it('kind: group — renders title, emits id', async () => {
+      await createWith({ kind: 'group', id: 3, title: 'Grupo X', isParticipant: true, visibility: 'PUBLIC' });
+      expect(fixture.nativeElement.textContent).toContain('Grupo X');
+      const spy = vi.fn();
+      fixture.componentInstance.rowSelected.subscribe(spy);
+      fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+      expect(spy).toHaveBeenCalledWith(3);
+    });
+
+    it('kind: support — renders label, emits channelId', async () => {
+      await createWith({ kind: 'support', channelId: 9 });
+      const spy = vi.fn();
+      fixture.componentInstance.rowSelected.subscribe(spy);
+      fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+      expect(spy).toHaveBeenCalledWith(9);
+    });
+
+    it('kind: rag — renders title, emits id', async () => {
+      await createWith({ kind: 'rag', id: 5, title: 'Base X' });
+      expect(fixture.nativeElement.textContent).toContain('Base X');
+      const spy = vi.fn();
+      fixture.componentInstance.rowSelected.subscribe(spy);
+      fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+      expect(spy).toHaveBeenCalledWith(5);
+    });
   });
 });
