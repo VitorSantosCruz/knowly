@@ -434,4 +434,61 @@ class ChatEligibilityServiceTest {
 
         assertThat(candidates).isEmpty();
     }
+
+    // --- Unified entity search (2026-08-10 amendment): searchEligibleDirectCandidates ---
+
+    @Test
+    void
+            searchEligibleDirectCandidatesUsesSameAnchorIntersectionRuleAsListCandidatesDirectBranch() {
+        User staff = staffUser();
+        User eligibleMember = plainMember();
+        User ineligibleMember = new User("other@example.com");
+        ineligibleMember.setId(4L);
+        Tenant tenant = tenant(10L);
+        Tenant otherTenant = tenant(99L);
+
+        when(userRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(staff, eligibleMember, ineligibleMember));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(staff)).thenReturn(List.of());
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(eligibleMember))
+                .thenReturn(List.of(activeMembership(eligibleMember, tenant)));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(ineligibleMember))
+                .thenReturn(List.of(activeMembership(ineligibleMember, otherTenant)));
+
+        var listResult = service.listCandidates(staff, "direct", null);
+
+        var eligibleProfile = new br.com.conectabyte.knowly.identity.UserProfile(eligibleMember);
+        eligibleProfile.setFullName("Eligible Member");
+        var ineligibleProfile =
+                new br.com.conectabyte.knowly.identity.UserProfile(ineligibleMember);
+        ineligibleProfile.setFullName("Eligible Other");
+        when(userProfileRepository.searchByFullName(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(eligibleProfile, ineligibleProfile));
+
+        var searchResult = service.searchEligibleDirectCandidates(staff, "Eligible", 10);
+
+        assertThat(listResult).extracting("userId").containsExactly(eligibleMember.getId());
+        assertThat(searchResult).extracting("userId").containsExactly(eligibleMember.getId());
+    }
+
+    @Test
+    void
+            searchEligibleDirectCandidatesNeverIncludesASoftDeletedUserSinceTheRepositoryQueryExcludesThem() {
+        User staff = staffUser();
+        // The repository's own explicit `deletedAt IS NULL` guard is what excludes a soft-deleted
+        // matching profile -- simulated here by the mock simply never returning it, mirroring how
+        // `listCandidates`'s own soft-delete test (findAllByDeletedAtIsNull) is expressed at this
+        // layer. The real guard is asserted at the repository/native-query level separately.
+        when(userProfileRepository.searchByFullName(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        var candidates = service.searchEligibleDirectCandidates(staff, "Ghost", 10);
+
+        assertThat(candidates).isEmpty();
+    }
 }

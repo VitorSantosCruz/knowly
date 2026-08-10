@@ -12,9 +12,11 @@ import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
 import br.com.conectabyte.knowly.tenancy.TenantMembership;
 import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 /**
@@ -193,9 +195,7 @@ public class ChatEligibilityService {
                                     // anchor (tenant membership or staff-capability) with the
                                     // caller -- never the full user directory (PII exposure /
                                     // enumeration risk otherwise).
-                                    Set<Long> candidateAnchors = eligibleAnchorsFor(user);
-                                    return !java.util.Collections.disjoint(
-                                            actorAnchors, candidateAnchors);
+                                    return isDirectEligible(actorAnchors, user);
                                 case "group":
                                     return isEligible(user, tenantId);
                                 case "group-staff-only":
@@ -210,6 +210,46 @@ public class ChatEligibilityService {
                                     return false;
                             }
                         })
+                .map(
+                        user ->
+                                new CandidateUserDto(
+                                        user.getId(), nicknameOf(user), avatarUrlOf(user)))
+                .toList();
+    }
+
+    /**
+     * The shared "direct"-branch anchor-intersection rule, extracted (2026-08-10, unified entity
+     * search amendment) so {@link #listCandidates}'s {@code "direct"} scope and {@link
+     * #searchEligibleDirectCandidates} always agree on the exact same eligibility verdict for the
+     * same actor/candidate pair, rather than risking two parallel, potentially-drifting copies.
+     */
+    private boolean isDirectEligible(Set<Long> actorAnchors, User candidate) {
+        Set<Long> candidateAnchors = eligibleAnchorsFor(candidate);
+        return !Collections.disjoint(actorAnchors, candidateAnchors);
+    }
+
+    /**
+     * Unified entity search (2026-08-10 amendment), REQ-20: people-search backing for {@code
+     * ChatEntitySearchService}. Same anchor-intersection rule as {@link #listCandidates}'s {@code
+     * "direct"} branch (reused via {@link #isDirectEligible}, not duplicated), but pushes the name
+     * filter into {@link UserProfileRepository#searchByFullName} so the eligibility check only runs
+     * over already-name-matched rows instead of the whole user table on every keystroke.
+     */
+    public List<CandidateUserDto> searchEligibleDirectCandidates(
+            User actor, String nameQuery, int limit) {
+        Set<Long> actorAnchors = directScopeAnchorsForActor(actor);
+        String pattern = "%" + nameQuery + "%";
+        // Over-fetches relative to `limit` since not every name match will pass the eligibility
+        // check -- a small, bounded multiplier, not an unbounded scan.
+        List<UserProfile> matches =
+                userProfileRepository.searchByFullName(
+                        pattern, PageRequest.of(0, Math.max(limit, 1) * 5));
+
+        return matches.stream()
+                .map(UserProfile::getUser)
+                .filter(user -> user != null && !user.getId().equals(actor.getId()))
+                .filter(user -> isDirectEligible(actorAnchors, user))
+                .limit(limit)
                 .map(
                         user ->
                                 new CandidateUserDto(
