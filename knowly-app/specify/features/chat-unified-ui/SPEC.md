@@ -31,7 +31,13 @@
 >
 > **Amended (5), 2026-08-10 — persistent top search bar, replaces the
 > per-column name-only search fields, companion to a parallel amendment
-> of `knowly-app/specify/features/chat-message-search/SPEC.md`.** The
+> of `knowly-app/specify/features/chat-message-search/SPEC.md`.**
+> **Shipped (2026-08-10)** — the backend contract gap named below is
+> now closed (see `chat-message-search/PLAN.md`'s own "Amended
+> (2026-08-10)" section, closed), and both this document's shell/
+> layout half and the companion behavior half are implemented and
+> tested — see the "Amended (5)" acceptance-criteria checklist further
+> below for what's verified. The
 > product owner asked for Slack-style unified search ("uma barra única
 > que encontra canais, pessoas e trechos de conversas") and explicitly
 > confirmed this touches this document's already-approved 3-column
@@ -1341,22 +1347,29 @@ prerequisites landed, and TASKS.md section 13 (13a–13h) is complete:**
       row, which keeps `icon: null` from the V32 backfill). Verified by
       `chat-directory.component.spec.ts` (tasks 216-221).
 
-**Amended (5), not yet implemented — none of the items below are
-started; blocked on the backend contract gap named in "Out of scope":**
+**Amended (5), shipped 2026-08-10 — verified by `chat-shell.component.spec.ts`'s
+"Amended (2026-08-10): persistent search bar header region" suite and
+`chat-directory.component.spec.ts`/`chat-full-directory.component.spec.ts`'s
+own search-field-removal regressions on this side; `chat-unified-search
+.component.spec.ts` (the companion `chat-message-search` feature) for
+the bar's own internal behavior — not duplicated here:**
 
-- [ ] A single persistent search bar is visible above all three columns
+- [x] A single persistent search bar is visible above all three columns
       at all times, at every breakpoint (REQ-42).
-- [ ] Column 1's and column 3's own per-section search fields no longer
+- [x] Column 1's and column 3's own per-section search fields no longer
       exist; both columns show their full, unfiltered lists at all
       times, browsable without the search bar (REQ-8/REQ-9 superseded,
       REQ-47).
-- [ ] Typing in the persistent bar behaves per
-      `chat-message-search/SPEC.md`'s REQ-17 through REQ-22 (REQ-44).
-- [ ] Opening the bar with a blank query shows "recent places," per
-      `chat-message-search/SPEC.md`'s REQ-19/REQ-20 (REQ-45).
-- [ ] Clicking any result from the bar opens it in the conversation
+- [x] Typing in the persistent bar behaves per
+      `chat-message-search/SPEC.md`'s REQ-17 through REQ-22 (REQ-44) —
+      verified by that feature's own `chat-unified-search
+      .component.spec.ts`, not duplicated here.
+- [x] Opening the bar with a blank query shows "recent places," per
+      `chat-message-search/SPEC.md`'s REQ-19/REQ-20 (REQ-45) — same
+      note as above.
+- [x] Clicking any result from the bar opens it in the conversation
       column, identically to the equivalent direct-row click (REQ-46).
-- [ ] At narrow viewports, the persistent bar remains visible above
+- [x] At narrow viewports, the persistent bar remains visible above
       whichever single column is currently shown (REQ-2c, Amended (5)).
 
 ## Out of scope / Future work

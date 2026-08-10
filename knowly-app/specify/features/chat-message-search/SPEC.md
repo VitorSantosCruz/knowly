@@ -371,34 +371,42 @@ document.
 > not reproduced here as checkable items since the surface they
 > describe no longer exists once this amendment ships; they remain
 > readable in this document's git history for anyone auditing what
-> changed. The list below is the new, authoritative set, and starts
-> unchecked — none of this amendment is implemented yet.
+> changed. The list below is the new, authoritative set — verified by
+> `chat-unified-search.component.spec.ts` and companion specs
+> (2026-08-10), except where noted.
 
-- [ ] Exactly one search entry point exists (the persistent top bar) —
+- [x] Exactly one search entry point exists (the persistent top bar) —
       no sidebar icon/modal, no separate filter fields.
-- [ ] Typing a non-blank query (no explicit submit) triggers search and
+- [x] Typing a non-blank query (no explicit submit) triggers search and
       populates grouped results as they arrive.
-- [ ] Opening the bar with a blank query shows a capped "recent places"
+- [x] Opening the bar with a blank query shows a capped "recent places"
       list instead of an empty/placeholder state.
-- [ ] Results render grouped by kind (at least Groups, People,
+- [x] Results render grouped by kind (at least Groups, People,
       Messages), each group omitted entirely when it has zero matches
       for the current query.
-- [ ] A group with more matches than its initial cap offers a "see
+- [x] A group with more matches than its initial cap offers a "see
       more" action that expands only that group.
-- [ ] Clicking a person/group/Support/RAG result opens that
+- [x] Clicking a person/group/Support/RAG result opens that
       conversation in the conversation column, unchanged behavior for
       that conversation kind.
-- [ ] Clicking a message result opens its conversation the same way,
-      without scroll-to-message (still v1-out-of-scope).
-- [ ] Clicking a "recent places" entry opens that conversation.
-- [ ] Any result click closes the dropdown and returns focus to the
+- [x] Clicking a message result opens its conversation the same way,
+      without scroll-to-message (still v1-out-of-scope, carried
+      forward from the original PLAN's decision).
+- [x] Clicking a "recent places" entry opens that conversation.
+- [x] Any result click closes the dropdown and returns focus to the
       conversation column.
-- [ ] A zero-result non-blank query shows a distinct "no results for
+- [x] A zero-result non-blank query shows a distinct "no results for
       '<query>'" state.
-- [ ] A failed search shows an inline error distinct from "no results,"
-      without clearing previously displayed results.
-- [ ] A loading state is shown while a search request is in flight.
-- [ ] Dismissing the bar and reopening it shows "recent places" again,
+- [x] A failed search shows an inline error distinct from "no results,"
+      without clearing previously displayed results — **known gap,
+      REQ-30**: this is verified only at the PLAN's documented
+      two-domain granularity (entities vs. messages); a true per-
+      entity-kind partial failure is indistinguishable from zero
+      matches under the finalized backend contract (see PLAN.md's
+      "Partial failure" decision) — not a bug, an accepted narrowing
+      pending a possible backend DTO amendment.
+- [x] A loading state is shown while a search request is in flight.
+- [x] Dismissing the bar and reopening it shows "recent places" again,
       not the previous query's stale results.
 
 ## Out of scope
