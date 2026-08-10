@@ -43,13 +43,20 @@ import org.springframework.data.repository.query.Param;
  *       chat_participants} {@code EXISTS} clause, OR'd with {@code cc.id = ANY(
  *       :additionalVisibleConversationIds)} (public/request-to-join discoverable groups the caller
  *       is eligible for but hasn't joined, resolved in Java -- see {@code
- *       ChatMessageSearchService}), both inside the same {@code (:activeTenantId IS NULL OR
- *       cc.tenant_id = :activeTenantId)} guard. This nullable-aware guard is what lets REQ-5f's
- *       staff-no-active-tenant case (a {@code null} {@code activeTenantId}) apply no tenant
- *       restriction at all, while REQ-5h's tenant-{@code MEMBER} case (a non-null {@code
- *       activeTenantId}) stays bound to that tenant -- {@code ChatMessageSearchService} asserts,
- *       via an {@code IllegalStateException} invariant, that {@code activeTenantId} is only ever
- *       {@code null} for the staff-no-tenant branch, never silently for the tenant-bound branch.
+ *       ChatMessageSearchService}), both inside the same {@code ((:activeTenantId IS NULL AND
+ *       cc.tenant_id IS NULL) OR cc.tenant_id = :activeTenantId)} guard. This nullable-aware guard
+ *       is what strictly isolates REQ-5f's staff-no-active-tenant case (a {@code null} {@code
+ *       activeTenantId}) to staff-scope conversations only ({@code cc.tenant_id IS NULL}) --
+ *       <b>never</b> a tenant-owned conversation the caller happens to also be a participant of via
+ *       an unrelated tenant membership -- while REQ-5h's tenant-{@code MEMBER} case (a non-null
+ *       {@code activeTenantId}) stays bound to that one tenant. (AppSec correction, 2026-08-10: an
+ *       earlier version of this guard used a bare {@code (:activeTenantId IS NULL OR cc.tenant_id =
+ *       :activeTenantId)}, which is trivially true for every row once {@code activeTenantId} is
+ *       {@code null} -- collapsing REQ-5f's "staff, no active tenant" case into an unrestricted
+ *       cross-tenant participant scan instead of a staff-scope-only one. Fixed by requiring {@code
+ *       cc.tenant_id IS NULL} in that branch too.) {@code ChatMessageSearchService} asserts, via an
+ *       {@code IllegalStateException} invariant, that {@code activeTenantId} is only ever {@code
+ *       null} for the staff-no-tenant branch, never silently for the tenant-bound branch.
  * </ul>
  */
 public interface ChatMessageSearchRepository extends Repository<ChatMessage, Long> {
@@ -73,9 +80,10 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
     String SCOPE_TENANT_UNRESTRICTED = "AND cc.tenant_id = :activeTenantId ";
 
     String SCOPE_PARTICIPANT_AND_DISCOVERABLE =
-            "AND (CAST(:activeTenantId AS bigint) IS NULL OR cc.tenant_id = :activeTenantId) AND"
-                    + " (EXISTS (SELECT 1 FROM chat_participants cp WHERE cp.conversation_id ="
-                    + " cc.id AND cp.user_id = :callerId AND cp.deleted_at IS NULL) OR cc.id ="
+            "AND ((CAST(:activeTenantId AS bigint) IS NULL AND cc.tenant_id IS NULL) OR"
+                    + " cc.tenant_id = :activeTenantId) AND (EXISTS (SELECT 1 FROM"
+                    + " chat_participants cp WHERE cp.conversation_id = cc.id AND cp.user_id ="
+                    + " :callerId AND cp.deleted_at IS NULL) OR cc.id ="
                     + " ANY(:additionalVisibleConversationIds)) ";
 
     String ORDER_AND_LIMIT = "ORDER BY m.id DESC LIMIT :limit";

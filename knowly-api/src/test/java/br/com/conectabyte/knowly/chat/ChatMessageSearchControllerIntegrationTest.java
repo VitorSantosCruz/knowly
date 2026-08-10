@@ -7,6 +7,9 @@ import br.com.conectabyte.knowly.TestcontainersConfiguration;
 import br.com.conectabyte.knowly.auth.LoginCodeService;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrant;
+import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrantRepository;
+import br.com.conectabyte.knowly.tenancy.GlobalPermission;
 import br.com.conectabyte.knowly.tenancy.GlobalRole;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
 import br.com.conectabyte.knowly.tenancy.Tenant;
@@ -59,6 +62,7 @@ class ChatMessageSearchControllerIntegrationTest {
     @Autowired private ChatParticipantRepository chatParticipantRepository;
     @Autowired private ChatMessageRepository chatMessageRepository;
     @Autowired private SupportTicketRepository supportTicketRepository;
+    @Autowired private DirectGlobalPermissionGrantRepository directGlobalPermissionGrantRepository;
     @MockitoBean private JavaMailSender mailSender;
 
     @BeforeEach
@@ -91,6 +95,28 @@ class ChatMessageSearchControllerIntegrationTest {
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tenantId\":" + tenantId + "}")
+                        .exchange();
+        assertThat(response).hasStatus(HttpStatus.OK);
+    }
+
+    // /api/tenants/active/clear is not CSRF-exempt (only /api/tenants/active is) -- same convention
+    // as TenantSessionIntegrationTest#obtainCsrfCookie()/staffClearingTheirActiveTenant...
+    private Cookie obtainCsrfCookie() {
+        return mockMvc.get()
+                .uri("/actuator/health")
+                .exchange()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+    }
+
+    private void clearActiveTenant(Cookie session) throws Exception {
+        Cookie csrf = obtainCsrfCookie();
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/active/clear")
+                        .cookie(session)
+                        .cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
                         .exchange();
         assertThat(response).hasStatus(HttpStatus.OK);
     }
@@ -337,25 +363,108 @@ class ChatMessageSearchControllerIntegrationTest {
         assertThat(body).doesNotContain("tenant two message");
     }
 
+    // AppSec follow-up (2026-08-10): the PO's isolation requirement applies to PEER_DIRECT (1:1)
+    // conversations exactly as it does to PEER_GROUP -- BASE_PREDICATE/the scope fragments in
+    // ChatMessageSearchRepository never branch on conversation kind, so this is a regression test
+    // proving that structural guarantee end-to-end, not a gap that needed a code fix. A caller who
+    // is a MEMBER of tenant X and also has a staff-scope (tenant-less) 1:1, and a 1:1 in tenant Y,
+    // must see none of the staff-scope/tenant-Y content while active-tenant=X, and none of tenant
+    // X's content while in staff scope (no active tenant).
+    @Test
+    void peerDirectConversationsAreIsolatedByActiveTenantAndStaffScopeJustLikeGroups()
+            throws Exception {
+        Tenant tenantX = tenantRepository.saveAndFlush(new Tenant("REQ5-PeerDirect Tenant X"));
+        Tenant tenantY = tenantRepository.saveAndFlush(new Tenant("REQ5-PeerDirect Tenant Y"));
+
+        // The caller is simultaneously a plain MEMBER of tenant X, a MEMBER of tenant Y, and a
+        // (non-admin) STAFF user with a staff-scope (tenant-less) 1:1 -- exactly the PO's "one
+        // person, three overlapping scopes" scenario. Deliberately plain STAFF, not STAFF_ADMIN:
+        // STAFF_ADMIN always hits ChatMessageSearchService's REQ-5e PLATFORM_UNRESTRICTED branch
+        // first, regardless of active tenant, which would make this test vacuous. Plain STAFF with
+        // an active tenant hits the ordinary PARTICIPANT_AND_DISCOVERABLE branch bound to that
+        // tenant (same as any MEMBER), and with no active tenant hits REQ-5f's staff-scope branch
+        // --
+        // exactly the two branches the PO's isolation requirement is about. The TENANT_ACT_AS_ANY
+        // grant is only needed so this plain-STAFF session can use the session-switch endpoint
+        // despite also holding a real membership in tenant X (see
+        // TenantController#switchActiveTenant's staff path) -- it plays no role in the chat search
+        // scoping under test.
+        User caller = staff("peerdirect-caller@example.com", GlobalRole.STAFF);
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(caller, tenantX, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(caller, tenantY, MembershipRole.MEMBER));
+        directGlobalPermissionGrantRepository.saveAndFlush(
+                new DirectGlobalPermissionGrant(caller, GlobalPermission.TENANT_ACT_AS_ANY));
+
+        ChatConversation directInTenantX =
+                conversation(ChatConversationKind.PEER_DIRECT, tenantX, null);
+        participate(directInTenantX, caller);
+        message(directInTenantX, caller, "hummingbirdlatch tenant x direct message");
+
+        ChatConversation directInTenantY =
+                conversation(ChatConversationKind.PEER_DIRECT, tenantY, null);
+        participate(directInTenantY, caller);
+        message(directInTenantY, caller, "hummingbirdlatch tenant y direct message");
+
+        ChatConversation staffScopeDirect =
+                conversation(ChatConversationKind.PEER_DIRECT, null, null);
+        participate(staffScopeDirect, caller);
+        message(staffScopeDirect, caller, "hummingbirdlatch staff scope direct message");
+
+        Cookie session = logIn("peerdirect-caller@example.com");
+        switchActiveTenant(session, tenantX.getId());
+
+        var tenantXResponse = search(session, "hummingbirdlatch");
+        assertThat(tenantXResponse).hasStatus(HttpStatus.OK);
+        String tenantXBody = tenantXResponse.getResponse().getContentAsString();
+        assertThat(tenantXBody).contains("tenant x direct message");
+        assertThat(tenantXBody).doesNotContain("tenant y direct message");
+        assertThat(tenantXBody).doesNotContain("staff scope direct message");
+
+        clearActiveTenant(session);
+
+        var staffScopeResponse = search(session, "hummingbirdlatch");
+        assertThat(staffScopeResponse).hasStatus(HttpStatus.OK);
+        String staffScopeBody = staffScopeResponse.getResponse().getContentAsString();
+        assertThat(staffScopeBody).contains("staff scope direct message");
+        assertThat(staffScopeBody).doesNotContain("tenant x direct message");
+        assertThat(staffScopeBody).doesNotContain("tenant y direct message");
+    }
+
     // REQ-5f: staff with no active tenant now gets scoped (participant) results, not an
     // unconditional empty result -- superseded by the role-based ruleset, still never a
     // cross-tenant scan.
     @Test
     void staffWithNoActiveTenantGetsResultsFromTheirOwnDirectParticipantConversation()
             throws Exception {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5f No Active Tenant Co"));
         User staffCaller = staff("req5f-staff-noactive@example.com", GlobalRole.STAFF);
-        ChatConversation conversation =
-                conversation(ChatConversationKind.PEER_GROUP, tenant, "No Active Tenant Group");
-        participate(conversation, staffCaller);
-        message(conversation, staffCaller, "quibblesnort no active tenant message");
+        // Staff-scope (tenant-less) conversation -- must be visible with no active tenant.
+        ChatConversation staffScopeConversation =
+                conversation(ChatConversationKind.PEER_GROUP, null, "No Active Tenant Group");
+        participate(staffScopeConversation, staffCaller);
+        message(staffScopeConversation, staffCaller, "quibblesnort no active tenant message");
+
+        // AppSec correction (2026-08-10): a tenant-owned conversation the same staff user
+        // participates in (e.g. via an unrelated tenant membership) must NOT leak into the
+        // staff-scope (no active tenant) result set -- staff-scope search is scoped to
+        // cc.tenant_id IS NULL, not "any tenant the caller happens to be a participant of".
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5f Tenant-Owned Co"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(staffCaller, tenant, MembershipRole.MEMBER));
+        ChatConversation tenantOwnedConversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Tenant-Owned Group");
+        participate(tenantOwnedConversation, staffCaller);
+        message(tenantOwnedConversation, staffCaller, "quibblesnort tenant-owned message");
 
         Cookie session = logIn("req5f-staff-noactive@example.com");
 
         var response = search(session, "quibblesnort");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("quibblesnort");
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("no active tenant message");
+        assertThat(body).doesNotContain("tenant-owned message");
     }
 
     // REQ-5e: STAFF_ADMIN gets platform-wide unrestricted search, including a conversation they
