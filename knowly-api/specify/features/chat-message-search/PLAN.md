@@ -428,3 +428,631 @@ flagged main implementation risk gets the most coverage here):
   `chat-group-membership-management`'s archived/soft-deleted fixtures
   where practical (same helper builders) rather than re-deriving
   conversation/participant test fixtures from scratch.
+
+## Amended (2026-08-10) — unified entity search (REQ-16 through REQ-26)
+
+> Companion to SPEC.md's "Amended (2026-08-10)" section. Everything
+> above this heading (REQ-1 through REQ-15's design) is unchanged and
+> shipped — this section only adds the new entity-search capability.
+> Nothing here modifies `ChatMessageSearchService`/`ChatMessageSearch
+> Repository`/`GET /api/chat/messages/search` in any way.
+
+### Architectural decisions
+
+- **One new, separate endpoint, `GET /api/chat/search`, not four
+  parallel endpoints and not a parameter on `GET /api/chat/messages/
+  search`.** SPEC's non-functional requirements already pin the
+  "separate from message search" half of this call (see the SPEC's own
+  rationale, not re-litigated here). The remaining call this PLAN makes
+  is single-endpoint-with-four-sections vs. four independent endpoints:
+  a single endpoint wins because (a) every result kind shares the exact
+  same "recent places on blank query" trigger (REQ-25/26) and the exact
+  same request shape (`q`, nothing else required) — four endpoints
+  would mean four copies of blank-query handling instead of one; (b)
+  `chat-unified-ui`'s own frontend SPEC already models this as one
+  dropdown backed by one request-in-flight per keystroke (debounced),
+  not four independently-racing requests; (c) `PageResponseDto`-style
+  per-kind pagination (see "see more" below) composes cleanly as
+  same-response sub-lists with independent `hasMore` flags, so there is
+  no structural reason (unlike message-search's cursor, which had no
+  natural per-kind meaning) to split the response. Per-kind partial
+  failure (frontend SPEC REQ-30) is still possible with one endpoint: a
+  transient failure inside one section's query is caught per-section in
+  the service (see "Partial-failure handling" below) rather than
+  failing the whole request, so this doesn't reintroduce the
+  all-or-nothing risk the SPEC's rationale for message-search's own
+  endpoint split was guarding against.
+- **Route: `GET /api/chat/search`, distinct from `GET /api/chat/
+  messages/search`.** No collision — `search` vs. `messages/search`
+  are different path segments under `/api/chat`, both already live on
+  `ChatController`; confirmed by listing `ChatController`'s existing
+  `@GetMapping`s (no existing `/api/chat/search` mapping).
+- **New `ChatEntitySearchService`, not folded into `ChatMessageSearch
+  Service` or `ChatConversationService`.** Same reasoning the shipped
+  PLAN already gave for keeping message search out of
+  `ChatConversationService` (materially different authorization shape,
+  see that section above) — entity search's shape is different again
+  (four independent sub-queries against four different tables/services,
+  no single `chat_participants` join can express it), so it gets its
+  own service rather than further bloating either existing one.
+- **No new repository query for people/Support/RAG matching — each
+  reuses an existing service method's own query, called directly, not
+  re-implemented:**
+  - **People**: `ChatEntitySearchService` calls `UserRepository` for a
+    name-prefix/substring match (new, small JPQL query — see below —
+    `UserRepository` is a plain `@Filter`-free entity with no tenant
+    column of its own, so this is safe to express as ordinary JPQL),
+    then filters the candidate set through `ChatEligibilityService
+    .eligibleAnchorsFor(candidate)` intersected with the caller's own
+    `directScopeAnchorsForActor`-equivalent anchors — **this requires a
+    small, additive change to `ChatEligibilityService`**: its existing
+    `listCandidates(actor, "direct", tenantId)` method already computes
+    exactly this anchor-intersection per candidate but does it over
+    *every* non-deleted user in the system with no name filter, which
+    is correct for a "browse everyone I could message" list but wasteful
+    for a search-as-you-type endpoint hitting the same full-table scan
+    on every keystroke. **New method: `ChatEligibilityService
+    .searchEligibleDirectCandidates(User actor, String nameQuery, int
+    limit)`** — same anchor-intersection logic as `listCandidates`'s
+    `"direct"` branch (reused, not duplicated, via a shared private
+    helper both methods now call), but pushes the name filter into the
+    `UserProfileRepository` query itself (`WHERE LOWER(full_name) LIKE
+    LOWER(:pattern) AND u.deletedAt IS NULL`, JPQL, no `@Filter`
+    concerns since `UserProfile` carries no tenant column) so the
+    eligibility check only runs over already-name-matched rows, not the
+    whole user table. **The explicit `deletedAt IS NULL` guard is
+    required here, not optional** — `listCandidates`'s existing
+    "direct" path only ever sees non-deleted users to begin with,
+    because it starts from `userRepository.findAllByDeletedAtIsNull()`;
+    this new query starts from `UserProfile` directly instead (to push
+    the name filter down), so it must restate the same guard explicitly
+    or it silently re-opens the already-fixed 2026-08-04 "a soft-deleted
+    user must never surface as a chat candidate" bug for this one new
+    code path. This is a **within-precedent extension of an existing,
+    already-approved method** (same rule REQ-20 already established,
+    only now with a query-side prefilter for cost reasons, plus the
+    restated soft-delete guard above), not a new access rule — no
+    DECISIONS.md entry needed, this is Tier 1.
+  - **Groups**: `ChatEntitySearchService` calls a new
+    `ChatConversationService.searchDiscoverableGroups(User actor, String
+    nameQuery, int limit)`, which is `listDiscoverableGroups`'s exact
+    body (`findDiscoverable` + the same `isEligible`/`!isParticipant`
+    filters) plus (a) a name predicate pushed into a new
+    `ChatConversationRepository.findDiscoverableByTitle(String
+    pattern, Long activeTenantId, Pageable)` query (JPQL, `title ILIKE
+    :pattern`), and (b) participant groups the caller is *already in*
+    whose title
+    matches, which `listDiscoverableGroups` deliberately excludes today
+    (its `!isParticipant` filter) but REQ-19 requires for search
+    ("groups the caller currently participates in, **plus**
+    non-participant discoverable groups") — added as a second query
+    (`chatParticipantRepository.findByUserId` filtered by title) whose
+    results are unioned with the discoverable-set query, de-duplicated
+    by conversation id.
+    **AppSec correction: `findByUserId` is NOT tenant-scoped and must
+    not be treated as `@Filter`-trusted for this branch.**
+    `ChatParticipant.java` carries `@Filter(SoftDeleteFilter)` only — no
+    `@Filter(TenantFilter)`, no tenant column on the entity at all — so
+    `findByUserId(actor.getId())` returns every conversation the caller
+    participates in *across every tenant they belong to*, exactly the
+    same class of gap the original message-search PLAN was corrected on
+    (`chat_participants` alone never implies a tenant boundary). This is
+    the identical situation `ChatConversationService#listConversations`
+    already had to solve, and it already solves it correctly: after
+    `findByUserId(actor.getId()).stream().map(ChatParticipant
+    ::getConversation)`, it applies `isVisibleUnderActiveTenant(actor,
+    conversation)` — a private method comparing `conversation.getTenant()`
+    against `TenantContext.getActiveTenantId()` in Java — **before**
+    returning anything. The new participant-groups branch reuses this
+    exact check, not a re-derived one: `isVisibleUnderActiveTenant` is
+    promoted from `private` to package-private (or a small shared
+    `ChatTenantVisibility` helper extracted if a cleaner seam is
+    preferred at implementation time) so `ChatConversationService
+    .searchDiscoverableGroups` can call the identical logic
+    `listConversations` already uses, rather than duplicating a
+    second, potentially-drifting copy of the same comparison. Applied
+    to every row from `findByUserId` **before** the title filter and
+    **before** unioning with the discoverable-groups query result, same
+    "tenant check first, structurally inseparable from the rest of the
+    predicate" discipline this PLAN already established for the shipped
+    native message-search query — only expressed in Java here since
+    `findByUserId` is a fixed-shape existing method, not a query this
+    PLAN is free to add a bind parameter to.
+  - **AppSec correction (post-review): both new JPQL queries
+    (`findDiscoverableByTitle` for groups and the RAG title query below)
+    need their own explicit `tenantId`/`activeTenantId` bind parameter in
+    the query text itself — relying on Hibernate's `@Filter` alone is not
+    sufficient for either, even though both are ordinary JPQL (not
+    native SQL like the shipped message-search query).** The reasoning
+    "JPQL is safe to trust to `@Filter`" holds for an ordinary tenant-
+    scoped caller, but not for the specific state `TenantFilterAspect`
+    itself special-cases: it is a global `@Around` advice applied to
+    *every* `@Transactional` service method, and it disables
+    `TenantFilter` session-wide whenever `bypassForOversight ||
+    (tenantContext.isStaff() && activeTenantId.isEmpty())` — a
+    `STAFF`/`STAFF_ADMIN` caller with no active tenant selected is an
+    easily-reachable state, not a hypothetical edge case, and it applies
+    regardless of whether `ChatEntitySearchService`/`ChatConversation
+    Service`/`ConversationService` themselves ever call
+    `isStaff()`/`isStaffAdmin()` — the filter can be disabled by the
+    aspect out from under a query that never looked at staff status at
+    all. Absence of an `isStaff()` call in the new service code (this
+    PLAN's original self-audit) is therefore not evidence the query is
+    safe; the filter's *disabled* state is a property of the current
+    Hibernate session, not of the calling code. **Fix, mirroring the
+    shipped native message-search query's own already-approved pattern
+    exactly, just for JPQL instead of native SQL:**
+    - `findDiscoverableByTitle(String pattern, Long activeTenantId,
+      Pageable pageable)` gets `tenant_id = :activeTenantId` written
+      directly into its JPQL `WHERE` clause, in the same predicate as
+      `title ILIKE :pattern` and `visibility IN ('PUBLIC',
+      'REQUEST_TO_JOIN')` — not left to the session-level filter alone.
+    - `ChatConversationService.searchDiscoverableGroups` resolves
+      `TenantContext.getActiveTenantId()` itself, **before** calling the
+      repository, and fails closed (empty result for the discoverable-
+      groups branch, no query executed) when absent — same "no query
+      run at all," not a sentinel value, discipline
+      `ChatMessageSearchService` already uses. This governs every
+      caller identically, including staff with no active tenant — no
+      staff-only anchor exception here, since `listDiscoverableGroups`'s
+      own existing rule (which this reuses) has no concept of a
+      staff-only/null-tenant discoverable group to begin with.
+    - The RAG query (see below) gets the identical treatment: an
+      explicit `tenantId = :tenantId` predicate in its own JPQL, plus
+      `ConversationService.searchOwn` resolving and fail-closing on
+      `TenantContext.getActiveTenantId()` the same way, before calling
+      the repository.
+    - Both new repository methods' Javadoc explicitly documents *why*
+      the explicit predicate is required despite being JPQL (the
+      `TenantFilterAspect` staff-no-active-tenant case above) — mirroring
+      `ChatMessageSearchRepository`'s own precedent Javadoc for the
+      native-SQL case, so a future contributor doesn't assume "it's
+      JPQL, `@Filter` handles it" is a safe generalization anywhere a
+      caller can plausibly be staff.
+  - **Support**: `ChatEntitySearchService` matches the fixed "Suporte"/
+    "Support" label (locale-aware: matches the same string in whichever
+    of the caller's `Accept-Language`-resolved locale's translations —
+    reuses this PLAN's own `ChatSearchLocale`/`ChatMessageSearchLocale
+    Resolver`, see below) against `q` via simple case-insensitive
+    substring match in Java (no query at all — REQ-21 says the *label*
+    is fixed and always-available; the actual visibility is entirely
+    determined by an existing call, not a new query): if the label
+    matches, calls the existing `SupportTicketService`/`ChatConversation
+    Service.getConversation`-reachable "does this caller have a Support
+    channel" check. Concretely: a new **read-only, side-effect-free**
+    `SupportTicketService.findOwnOrClaimableChannel(User actor, Long
+    activeTenantId)` that composes two already-existing lookups
+    (`SupportTicketRepository`'s member-channel lookup used by
+    `requireChannelId`'s member path, and staff's unclaimed-inbox/
+    claimed-ticket visibility already used by `listUnclaimed`/`claim`)
+    into one Optional-returning method, rather than duplicating either
+    lookup's query. Requires `TenantContext.getActiveTenantId()` the
+    same fail-closed way message search does (see below) — a caller
+    with no active tenant gets no Support result, since Support is
+    always tenant-anchored.
+  - **RAG conversations**: `ChatEntitySearchService` calls a new
+    `ConversationService.searchOwn(User owner, Long tenantId, String
+    titleQuery, int limit)`, mirroring `ConversationService.list`'s
+    existing `requireActiveTenant` + owner-scoping exactly, plus a new
+    **explicit-`@Query` JPQL method** (not a Spring Data derived query,
+    per the AppSec correction above) — `ConversationRepository
+    .searchByOwnerAndTitle(@Param("ownerId") Long ownerId, @Param
+    ("tenantId") Long tenantId, @Param("pattern") String
+    titlePattern, Pageable pageable)`, `@Query("SELECT c FROM
+    Conversation c WHERE c.owner.id = :ownerId AND c.tenant.id =
+    :tenantId AND LOWER(c.title) LIKE LOWER(:pattern) ORDER BY
+    c.createdAt DESC")`. The explicit `c.tenant.id = :tenantId`
+    predicate is written into the query text itself, not left to
+    `Conversation`'s own `@Filter(TenantFilter)` alone — same reasoning
+    as `findDiscoverableByTitle` above: `@Filter` is session-scoped and
+    `TenantFilterAspect` disables it for a staff caller with no active
+    tenant, a state this query must not silently widen into "every
+    tenant's RAG conversations this owner has ever created" for. Owner-
+    scoping (`c.owner.id = :ownerId`) stays as an additional, independent
+    predicate in the same clause, consistent with REQ-22's ownership
+    rule — the tenant predicate narrows *which* tenant's conversations
+    are visible, the owner predicate narrows *whose*; neither substitutes
+    for the other.
+- **"Recent places" (REQ-25/26) — SPEC's REQ-26 premise does not hold as
+  literally stated for the RAG result kind, and this PLAN corrects it
+  rather than silently reinterpreting the SPEC.** REQ-26 says "recent
+  places" is served entirely from `ChatConversationService#listConversations`'s
+  existing data — but `listConversations` only ever returns `chat`-
+  package conversations (`PEER_DIRECT`/`PEER_GROUP`/`SUPPORT`, all
+  backed by `ChatConversation`); it has no path to RAG conversations at
+  all, because those live in the structurally separate `conversation`
+  package/table (`Conversation`, owned by `ConversationService`, no
+  relationship to `ChatConversation` whatsoever — confirmed by reading
+  both services/entities directly). REQ-25 explicitly requires "recent
+  places" to cover "any kind: 1:1, group, Support, RAG" — so taken
+  literally, REQ-26 as written cannot deliver REQ-25's own scope for the
+  RAG kind; `listConversations` alone structurally cannot include it.
+  **Resolution (Tier 2, not Tier 3 — this doesn't touch scope or add a
+  new query, it corrects which *existing* queries satisfy an already-
+  approved requirement):** "recent places" merges the output of **two**
+  already-existing, zero-new-query capabilities — `ChatConversationService
+  .listConversations(actor)` (chat-kinds) and `ConversationService.list
+  (owner, activeTenantId)` (RAG-kind, already `@Filter`-tenant-scoped,
+  already ordered `findByOwnerIdOrderByCreatedAtDesc`) — rather than one.
+  Both are already-shipped, already-tested read paths; nothing new is
+  queried, and REQ-26's own stated rationale ("no new backend query, no
+  new persisted recency signal, reuse the existing id-descending proxy")
+  is honored exactly, just across two existing sources instead of one.
+  The two lists are interleaved using each source's own existing
+  ordering (`listConversations`'s natural order — itself already the
+  accepted id-descending-via-participant-row proxy per REQ-26's own
+  rationale — for chat kinds; `createdAt desc` for RAG, already ordered
+  by the repository query) via a simple k-way merge on each item's own
+  `createdAt`/`lastMessageAt` where present, falling back to id order
+  where a chat conversation has no messages yet (mirrors `Chat
+  ConversationSummaryDto.from`'s existing null-lastMessageAt handling)
+  — capped at the same small fixed count as every other result group
+  (see below). **This does not require a DECISIONS.md entry**: it's a
+  design correction inside an already-approved requirement's own stated
+  intent (REQ-26's rationale is about avoiding new schema/queries, which
+  this still avoids), not a scope change — but it is flagged here
+  explicitly, in writing, exactly as Tier 2 requires, and should be
+  read back to the product owner/PO agent alongside this PLAN amendment
+  before TASKS.md, since it changes REQ-26's literal implementation
+  detail (though not its intent) and REQ-25/26 were both marked "final."
+- **Access-control posture: every one of the five sub-queries
+  (people/groups/Support/RAG/recent) resolves `TenantContext
+  .getActiveTenantId()` itself, independently, and fails closed (empty
+  result for that section, not for the whole response) when absent —
+  no shared "resolve once, trust for all five" helper that could let one
+  section's tenant resolution silently leak into another's.** This
+  mirrors the shipped message-search service's own fail-closed pattern
+  exactly (see "AppSec correction" above) and is deliberately
+  per-section rather than once-per-request: Support and RAG are
+  strictly tenant-anchored (no result without an active tenant), while
+  people/groups already have their own anchor-resolution logic
+  (`ChatEligibilityService`'s anchor sets, which can include the
+  staff-only `null` anchor) that must not be short-circuited by an
+  earlier all-or-nothing tenant check. **No `STAFF_ADMIN`/`MEMBER_ADMIN`
+  bypass is read anywhere in `ChatEntitySearchService`** — no method in
+  this service ever calls `tenantContext.isStaff()`/`isStaffAdmin()` to
+  branch into a wider result set; this is the same explicit absence the
+  shipped PLAN already calls out for message search (REQ-5/REQ-18), and
+  is the single most important line-item for the AppSec re-review this
+  amendment is gated on.
+- **Per-group cap and "see more": fixed cap of 5 per result kind in the
+  initial response, `hasMore: boolean` per section (not an exact
+  overflow count, to avoid a cheap extra `COUNT(*)` query per section on
+  every keystroke), expand-one-group via the same endpoint with two
+  additional optional params, `type` (`people`|`groups`|`rag`, Support
+  has no "more" — it is at most one result) and `offset`.** Reuses the
+  same endpoint rather than a distinct expand endpoint: `type`+`offset`
+  present means "return only that section, offset-paginated, skip the
+  other three sections' queries entirely" — cheaper than a dedicated
+  endpoint duplicating the section's query, and consistent with this
+  endpoint already being "one request shape, blank-query-dependent
+  behavior" per the "recent places" design above. `offset`-based (not
+  cursor) pagination for the expand case only, since these are small,
+  already-capped, non-real-time lists (SPEC's own "Out of scope: real-
+  time/live-updating" line) where `OFFSET` cost is negligible at this
+  corpus size — unlike message search's cursor requirement (REQ-10 is
+  explicit "cursor rather than unbounded/offset"), REQ-16-26 impose no
+  such requirement on entity search, so this PLAN doesn't invent one.
+- **Locale resolution reuses `ChatMessageSearchLocaleResolver`/
+  `ChatSearchLocale` unchanged, only for the Support label match** — no
+  new locale resolver. People/group/RAG name matching is plain
+  case-insensitive substring/prefix match (SPEC's own "Out of scope:
+  fuzzy/typo-tolerant matching" — exact-substring semantics, no
+  language-specific stemming needed for a proper-noun/title match the
+  way free-text message content needed `tsvector`).
+- **Exception handling**: no new exception types needed beyond what the
+  service methods it composes already throw (`ChatAccessDeniedException`
+  is never thrown here — REQ-23's "omit, don't reveal" rule means an
+  inaccessible match is filtered out inside each section's own query/
+  filter, not surfaced and then caught). Malformed `type`/`offset` on
+  the "see more" expand path reuses `ChatInvalidCursorException`'s
+  sibling pattern: a new `ChatInvalidSearchExpandParamException`
+  (`400`, `CHAT_SEARCH_INVALID_EXPAND_PARAM`), added to the same
+  `ChatExceptionHandler`.
+- **Partial-failure handling**: each of the five sections is computed
+  inside its own `try`/`catch (RuntimeException)` block in
+  `ChatEntitySearchService`, logged at `WARN` (actor id, section name,
+  no query text — same logging discipline as message search), and
+  degrades to an empty section with `hasMore: false` rather than
+  failing the whole request — this is what makes the single-endpoint
+  design (see above) still satisfy the frontend SPEC's REQ-30 "partial
+  failure never blanks the entire dropdown" expectation despite being
+  one HTTP call, not four.
+
+### API contracts
+
+| Method | Path | Request | Response | Status |
+|---|---|---|---|---|
+| `GET` | `/api/chat/search` | Query params: `q` (optional — blank/missing triggers "recent places", REQ-25), `type` (optional, `people`\|`groups`\|`rag`, only meaningful with `offset`, "see more" expand), `offset` (optional, int, only meaningful with `type`). `Accept-Language` header (optional, Support-label locale only). | `ChatEntitySearchResultDto` (blank `q`) or `ChatEntitySearchResponseDto` (non-blank `q`) — see DTOs below; the "see more" expand form (`type`+`offset` present) returns `ChatEntitySearchSectionDto` for just that one section. | `200` |
+
+**Error cases** (same `ChatErrorResponseDto` shape, `ChatExceptionHandler`):
+
+| Condition | Exception | Status | Code |
+|---|---|---|---|
+| `type` supplied without `offset` or vice versa, or `type` not one of `people`/`groups`/`rag` | `ChatInvalidSearchExpandParamException` (new) | `400` | `CHAT_SEARCH_INVALID_EXPAND_PARAM` |
+
+No `403`/`404` for any inaccessible match of any kind — REQ-23's
+"omit, never reveal" rule, same posture as REQ-3's already-shipped
+precedent for message search.
+
+**New DTOs** (`br.com.conectabyte.knowly.chat.dto`):
+
+```java
+public record ChatPersonSearchResultDto(
+        Long userId, String nickname, String avatarUrl) {}
+// Deliberately identical shape to CandidateUserDto (REQ-24's own
+// wording: "mirroring CandidateUserDto's existing shape") -- kept as a
+// distinct type rather than reusing CandidateUserDto directly, since
+// the two DTOs' meaning differs (a "could I start a conversation"
+// candidate vs. a "found via search" result) even though today's field
+// set happens to match; a future field added to one for its own reason
+// (e.g. CandidateUserDto growing an "already have a conversation"
+// flag) should not silently leak onto the other's response shape.
+
+public record ChatGroupSearchResultDto(
+        Long id, String title, boolean isParticipant,
+        br.com.conectabyte.knowly.chat.ChatGroupVisibility visibility) {}
+// isParticipant lets the frontend distinguish "open directly" (REQ-19's
+// "opens exactly as it already does from column 3 today") from
+// "join/request-to-join" without a second round-trip.
+
+public record ChatSupportSearchResultDto(Long channelId) {}
+// No richer shape needed -- REQ-21 defers entirely to Support's own
+// existing detail endpoints once opened; this result kind only needs
+// to say "yes, you have a reachable Support channel, here's its id."
+
+public record ChatRagConversationSearchResultDto(Long id, String title) {}
+
+public record ChatEntitySearchSectionDto<T>(
+        List<T> results, boolean hasMore) {}
+
+public record ChatEntitySearchResponseDto(
+        ChatEntitySearchSectionDto<ChatPersonSearchResultDto> people,
+        ChatEntitySearchSectionDto<ChatGroupSearchResultDto> groups,
+        ChatSupportSearchResultDto support, // null if no Support result
+        ChatEntitySearchSectionDto<ChatRagConversationSearchResultDto> rag) {}
+
+public record ChatRecentPlaceDto(
+        Long conversationId, String kind, // "PEER_DIRECT"|"PEER_GROUP"|"SUPPORT"|"RAG"
+        String title, java.time.Instant orderingTimestamp) {}
+
+public record ChatEntitySearchResultDto(List<ChatRecentPlaceDto> recentPlaces) {}
+// Returned only for the blank-query ("recent places") case; kept as a
+// distinct top-level type from ChatEntitySearchResponseDto rather than
+// a fifth optional field on it, since the two are mutually exclusive
+// response shapes for the same endpoint (present q vs. blank q), not a
+// gradually-filled-in single shape.
+```
+
+### Dependencies
+
+None. Every new query is either a Spring Data derived-query method or a
+plain JPQL `@Query`, all already `@Filter`-trusted patterns this
+codebase uses throughout; no native SQL, no new library, no new
+`pom.xml` entry.
+
+### Package/file structure
+
+New files, same `br.com.conectabyte.knowly.chat`/`.dto`/`.exception`
+packages as the shipped message-search feature, plus one new method
+each on two existing services outside `chat` (`ChatEligibilityService`
+already lives in `chat`; `ConversationService`/`ConversationRepository`
+live in the sibling `conversation` package and gain one new method/query
+each, additive only):
+
+- `ChatEntitySearchService.java` — orchestrates the five sections,
+  per-section try/catch (see above), locale resolution for the Support
+  label only, builds the response DTOs.
+- `ChatEntitySearchController` method — **added to the existing
+  `ChatController`**, not a new controller (same reasoning the shipped
+  PLAN already gives for keeping message search on `ChatController`).
+- `dto/ChatPersonSearchResultDto.java`, `dto/ChatGroupSearchResultDto.java`,
+  `dto/ChatSupportSearchResultDto.java`,
+  `dto/ChatRagConversationSearchResultDto.java`,
+  `dto/ChatEntitySearchSectionDto.java`,
+  `dto/ChatEntitySearchResponseDto.java`, `dto/ChatRecentPlaceDto.java`,
+  `dto/ChatEntitySearchResultDto.java` — new DTOs (see API contracts).
+- `exception/ChatInvalidSearchExpandParamException.java` — new.
+- `ChatEligibilityService.java` — new
+  `searchEligibleDirectCandidates(User actor, String nameQuery, int
+  limit)` method (additive; existing `listCandidates` refactored to
+  share its `"direct"`-branch anchor-intersection logic via a new
+  private helper, behavior-preserving).
+- `ChatConversationService.java` — new `searchDiscoverableGroups(User
+  actor, String nameQuery, int limit)` method (additive, composes
+  `listDiscoverableGroups`'s existing filters with a new title
+  predicate plus the participant-groups union described above); resolves
+  `TenantContext.getActiveTenantId()` itself and fails closed (empty
+  discoverable-groups branch, no query run) when absent, per the AppSec
+  correction above. `isVisibleUnderActiveTenant` promoted from `private`
+  to package-private so this method and `listConversations` share one
+  implementation.
+- `ChatConversationRepository.java` — new `findDiscoverableByTitle(String
+  pattern, Long activeTenantId, Pageable pageable)` **explicit-`@Query`
+  JPQL** method (additive), `tenant_id = :activeTenantId` written into
+  the query text itself (AppSec correction above) — not a Spring Data
+  derived query and not left to `@Filter` alone. Class-level Javadoc
+  documents the `TenantFilterAspect` staff-no-active-tenant gotcha
+  explicitly.
+- `ChatParticipantRepository.java` — reuses existing `findByUserId`, no
+  change; the caller (`ChatConversationService.searchDiscoverableGroups`)
+  applies the shared `isVisibleUnderActiveTenant` tenant check to its
+  results in Java, **before** the title filter and **before** unioning
+  with the discoverable-groups query result (AppSec correction above) —
+  title-filtering itself still happens in the service, not the
+  repository, since that list is typically small per user.
+- `SupportTicketService.java` — new `findOwnOrClaimableChannel(User
+  actor, Long activeTenantId)` method (additive, read-only, composes
+  two existing lookups).
+- `conversation/ConversationService.java` — new `searchOwn(User owner,
+  Long tenantId, String titleQuery, int limit)` method (additive);
+  resolves and fails closed on `TenantContext.getActiveTenantId()`
+  itself, same pattern as `searchDiscoverableGroups` above.
+- `conversation/ConversationRepository.java` — new
+  `searchByOwnerAndTitle(Long ownerId, Long tenantId, String pattern,
+  Pageable pageable)` **explicit-`@Query` JPQL** method (additive,
+  replaces the originally-proposed derived-query method per the AppSec
+  correction above), `c.tenant.id = :tenantId` written into the query
+  text itself alongside `c.owner.id = :ownerId` and the title predicate
+  — not left to `@Filter` alone. Class-level Javadoc documents the same
+  `TenantFilterAspect` gotcha as `ChatConversationRepository`'s new
+  method above.
+- `UserProfileRepository.java` — new name-prefilter JPQL query for
+  people search (`WHERE LOWER(full_name) LIKE LOWER(:pattern) AND
+  deletedAt IS NULL`), explicit `deletedAt IS NULL` guard restated per
+  the non-blocking correction above.
+- `ChatExceptionHandler.java` — one new `@ExceptionHandler` method.
+
+### Testing strategy
+
+Same AppSec-mandated regression class as the shipped message-search
+feature (see above), applied once per new result kind, plus the
+cross-cutting "recent places" merge and partial-failure cases:
+
+**Unit** (`ChatEntitySearchServiceTest`, Mockito):
+
+- Each of the five sections independently mocked-and-verified to call
+  its underlying service/repository method with the caller's actual
+  identity/tenant, never a client-supplied value.
+- Partial-failure: one section's mocked dependency throws, assert the
+  other four sections still populate and the thrown section degrades to
+  `hasMore: false` / empty, not a 500.
+- `type`+`offset` validation: missing one of the pair, or an
+  out-of-enum `type`, throws `ChatInvalidSearchExpandParamException`
+  before any repository call.
+
+**Integration** (`ChatEntitySearchControllerIntegrationTest`,
+Testcontainers Postgres):
+
+- **REQ-19 (groups)**: a query matches (a) a group the caller already
+  participates in, (b) a `PUBLIC` group not yet joined, (c) a
+  `REQUEST_TO_JOIN` group not yet joined — all three present in results
+  with correct `isParticipant`; a matching `PRIVATE` group the caller
+  isn't in is absent. Cross-tenant companion: a same-titled `PUBLIC`
+  group in a different tenant than the caller's active tenant is absent.
+- **AppSec-required regression — participant-groups union cross-tenant
+  isolation (Gap 1 fix)**: a caller who is a current participant of
+  same-titled groups in two different tenants (Tenant 1 active in
+  session, Tenant 2 not) searching for that title gets back only the
+  Tenant 1 group, never the Tenant 2 one — this is the exact gap flagged
+  in AppSec re-review; the parameterized REQ-19 case above (different
+  visibility states) is not sufficient to catch this specifically since
+  it doesn't exercise the participant-groups union branch across two
+  tenants for the *same* caller.
+- **AppSec-required regression — JPQL exposure under
+  `TenantFilterAspect`'s staff-no-active-tenant bypass (Gap 2 fix)**: a
+  `STAFF`/`STAFF_ADMIN` caller with **no active tenant selected**
+  searching by a group title that matches `PUBLIC`/`REQUEST_TO_JOIN`
+  groups in two different tenants gets zero group results (not both
+  tenants' matches) — asserts `findDiscoverableByTitle`'s explicit
+  `tenant_id = :activeTenantId` predicate (not the session-level
+  `@Filter`, which `TenantFilterAspect` disables in exactly this state)
+  is what's actually doing the scoping. Companion, identical shape, for
+  RAG: a `STAFF`/`STAFF_ADMIN` caller with no active tenant and their own
+  title-matching RAG conversations in two different tenants gets zero
+  RAG results via this endpoint, not a merged cross-tenant list —
+  confirms `ConversationRepository.searchByOwnerAndTitle`'s explicit
+  `tenant.id = :tenantId` predicate is doing the same job. Both cases
+  must be run with `tenantContext.isStaff()` true and no active tenant
+  in session specifically (not just "no active tenant" generically),
+  since that's the precise state `TenantFilterAspect` special-cases and
+  the state the original PLAN's self-audit incorrectly assumed was safe.
+- **REQ-20 (people)**: a name-matching user who shares no tenant/staff
+  anchor with the caller is absent from results (dedicated fixture, same
+  shape as the shipped `listCandidates` test already uses).
+- **REQ-21 (Support)**: a member with an open channel gets it back for
+  a "Suporte"/"Support" query in both `en` and `pt-BR` `Accept-Language`;
+  a caller with no channel and no support permission gets no Support
+  result; a `STAFF_ADMIN` with no support permission and no claimed
+  ticket also gets no Support result (confirms REQ-18's "only Support's
+  own existing role-based visibility governs this, no blanket staff
+  grant").
+- **REQ-22 (RAG)**: a title-matching RAG conversation owned by another
+  user in the same tenant is absent; the caller's own is present;
+  cross-tenant companion identical in shape to message search's own.
+- **REQ-18/AppSec (no oversight bypass, all four kinds)**: a
+  `STAFF_ADMIN`/`MEMBER_ADMIN` caller with no participant row, no
+  membership, and no Support permission gets zero people/group/RAG
+  results beyond what their own real anchors would allow — explicit
+  regression test mirroring the shipped message-search REQ-5 test,
+  covering every new result kind in the same parameterized shape.
+- **No-active-tenant fail-closed (all sections)**: a caller with no
+  active tenant in session gets empty groups/Support/RAG sections (and
+  a people section scoped to only their staff-only anchor, if any, per
+  `ChatEligibilityService`'s existing anchor rules) — not a 500, not an
+  unfiltered scan.
+- **REQ-25/26 (recent places)**: a caller with a mix of chat and RAG
+  conversations gets a merged, correctly-ordered list; a chat
+  conversation they've since left/been removed from/that's archived or
+  soft-deleted is absent (reuses the shipped feature's own fixture
+  helpers); a RAG conversation belonging to another user is absent even
+  if it would otherwise sort into the caller's recent-places window.
+- **REQ-23 (non-revealing omission)**: for each kind, an inaccessible
+  match returns the same shape as "no match at all" (empty section /
+  absent Support), asserted indistinguishable, mirroring REQ-3's already-
+  shipped precedent.
+- Pre-existing regression companions: reuses the same Testcontainers
+  Postgres setup and fixture builders as
+  `ChatMessageSearchControllerIntegrationTest` and
+  `chat-group-membership-management`'s helpers.
+
+### AppSec re-review (2026-08-10) — two blocking gaps found and fixed
+
+First-pass AppSec review of this amendment found two blocking
+cross-tenant scoping gaps, both now fixed in place above (not left as
+open items — this section records what was found and fixed, for the
+re-review):
+
+- **Gap 1 (fixed)**: the participant-groups union branch (Groups,
+  above) originally cited `chatParticipantRepository.findByUserId` as
+  "already an existing, `@Filter`-trusted repository method" — wrong,
+  `ChatParticipant` carries no `@Filter(TenantFilter)`/tenant column at
+  all, so a same-titled group in a second tenant the caller also
+  participates in would have matched. Fixed by reusing
+  `ChatConversationService`'s own existing `isVisibleUnderActiveTenant`
+  check (the same one `listConversations` already applies), promoted to
+  package-private, applied to every `findByUserId` row before the title
+  filter and before unioning with the discoverable-groups results. See
+  the "Groups" bullet's "AppSec correction" and the new dedicated
+  regression test above.
+- **Gap 2 (fixed)**: the two new JPQL queries (`findDiscoverableByTitle`
+  for groups, the RAG title query) originally relied on Hibernate's
+  `@Filter` alone for tenant scoping — insufficient because
+  `TenantFilterAspect` is a global `@Around` advice that disables
+  `TenantFilter` session-wide for any `STAFF`/`STAFF_ADMIN` caller with
+  no active tenant selected, regardless of whether the calling code ever
+  reads `isStaff()` itself. Fixed by giving both queries their own
+  explicit `tenant_id`/`tenant.id = :tenantId` bind parameter in the
+  query text (same discipline the shipped native message-search query
+  already uses, just applied to JPQL here), with the calling service
+  resolving `TenantContext.getActiveTenantId()` and failing closed
+  (empty result, no query run) when absent — see the "Groups"/"RAG
+  conversations" bullets' "AppSec correction" and the two new dedicated
+  regression tests above.
+- **Non-blocking, also fixed**: the people-search name-prefilter JPQL
+  query didn't restate `deletedAt IS NULL` the way `listCandidates`'s
+  existing path implicitly gets it from `findAllByDeletedAtIsNull()` —
+  re-introduction risk for the 2026-08-04 "soft-deleted user must never
+  surface as a chat candidate" fix. Guard added explicitly to the new
+  query.
+- **Confirmed clean by AppSec, unchanged**: people-search eligibility
+  re-derivation, Support scoping, the RAG recent-places merge design
+  (the REQ-26 correction above), parameterized binding throughout, and
+  the frontend rendering/CSRF posture this PLAN assumes.
+- **Both remaining gates are now closed (2026-08-10):**
+  - The REQ-26 correction (recent places merges two existing sources
+    instead of one) was confirmed against SPEC intent by the orchestrator
+    on the user's behalf — a Tier 2 technical correction, not a product-
+    scope change (it still avoids any new backend query/persisted
+    recency signal, REQ-26's own stated rationale), so it did not require
+    looping back to the user a second time.
+  - The re-review of Gap 1, Gap 2, and the non-blocking guard was
+    performed by a fresh AppSec pass (2026-08-10) and returned a clean
+    **PASS** — all three fixes verified structurally sound (the
+    participant-groups tenant check is inseparable from the query
+    pipeline, both JPQL queries carry explicit tenant bind parameters
+    immune to `TenantFilterAspect`'s staff-no-active-tenant bypass, and
+    the `deletedAt IS NULL` guard was confirmed present), with no
+    regression in the previously-passing pieces. **TASKS.md generation
+    for all three amended documents (this one, and both frontend PLANs)
+    was cleared to proceed on this basis**, and has since happened.
