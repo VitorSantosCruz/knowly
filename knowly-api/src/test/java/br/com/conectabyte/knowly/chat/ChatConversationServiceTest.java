@@ -198,6 +198,42 @@ class ChatConversationServiceTest {
         assertThat(summaries).extracting("id").containsExactly(100L);
     }
 
+    // --- Unified entity search (2026-08-10 amendment): isVisibleUnderActiveTenant promotion ---
+
+    @Test
+    void isVisibleUnderActiveTenantIsReachableFromThisPackageAndMatchesListConversationsOwnUse() {
+        User staff = user(1L);
+        staff.setGlobalRole(br.com.conectabyte.knowly.tenancy.GlobalRole.STAFF);
+        Tenant activeTenant = tenant(20L);
+        Tenant otherTenant = tenant(30L);
+
+        ChatConversation visible =
+                new ChatConversation(ChatConversationKind.PEER_GROUP, activeTenant, "g", null);
+        visible.setId(100L);
+        ChatConversation notVisible =
+                new ChatConversation(ChatConversationKind.PEER_GROUP, otherTenant, "g2", null);
+        notVisible.setId(200L);
+
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(20L));
+
+        assertThat(service.isVisibleUnderActiveTenant(staff, visible)).isTrue();
+        assertThat(service.isVisibleUnderActiveTenant(staff, notVisible)).isFalse();
+
+        // Same verdict listConversations itself would reach for the same actor/conversation pair.
+        ChatParticipant visibleParticipant = new ChatParticipant(visible, staff);
+        ChatParticipant notVisibleParticipant = new ChatParticipant(notVisible, staff);
+        when(chatParticipantRepository.findByUserId(1L))
+                .thenReturn(java.util.List.of(visibleParticipant, notVisibleParticipant));
+        when(chatMessageRepository.findLastMessageAtByConversationIdIn(java.util.List.of(100L)))
+                .thenReturn(java.util.List.of());
+        when(chatParticipantRepository.findByConversationId(100L))
+                .thenReturn(java.util.List.of(visibleParticipant));
+
+        var summaries = service.listConversations(staff);
+
+        assertThat(summaries).extracting("id").containsExactly(100L);
+    }
+
     @Test
     void memberAdminIsRejectedFromAGroupOfATenantTheyDoNotAdminister() {
         User memberAdmin = user(1L);

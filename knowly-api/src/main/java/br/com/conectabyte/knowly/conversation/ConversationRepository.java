@@ -4,6 +4,8 @@ import br.com.conectabyte.knowly.metrics.DailyCountProjection;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -55,4 +57,29 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
             nativeQuery = true)
     List<DailyCountProjection> countByDayForTenantSince(
             @Param("tenantId") Long tenantId, @Param("from") Instant from);
+
+    /**
+     * Unified entity search (2026-08-10 amendment), REQ-22: RAG conversation title match backing
+     * {@code ConversationService#searchOwn}.
+     *
+     * <p><b>AppSec correction:</b> same reasoning as {@code
+     * ChatConversationRepository#findDiscoverableByTitle} -- an explicit-{@code @Query} JPQL method
+     * (not a Spring Data derived query) with {@code c.tenant.id = :tenantId} written into the query
+     * text itself, not left to {@code Conversation}'s own {@code @Filter(TenantFilter)} alone.
+     * {@code TenantFilterAspect} disables that session-level filter for any staff caller with no
+     * active tenant selected, a state this query must not silently widen into "every tenant's RAG
+     * conversations this owner has ever created" for. {@code c.owner.id = :ownerId} is an
+     * independent predicate in the same clause (REQ-22's ownership rule) -- the tenant predicate
+     * narrows *which* tenant is visible, the owner predicate narrows *whose*; neither substitutes
+     * for the other. The caller ({@code ConversationService.searchOwn}) resolves {@code
+     * TenantContext#getActiveTenantId()} itself and fails closed (no query executed) when absent.
+     */
+    @Query(
+            "SELECT c FROM Conversation c WHERE c.owner.id = :ownerId AND c.tenant.id = :tenantId"
+                    + " AND LOWER(c.title) LIKE LOWER(:pattern) ORDER BY c.createdAt DESC")
+    Page<Conversation> searchByOwnerAndTitle(
+            @Param("ownerId") Long ownerId,
+            @Param("tenantId") Long tenantId,
+            @Param("pattern") String pattern,
+            Pageable pageable);
 }

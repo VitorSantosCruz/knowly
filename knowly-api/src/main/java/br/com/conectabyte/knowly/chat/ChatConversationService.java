@@ -245,8 +245,15 @@ public class ChatConversationService {
      * anchor logic {@link ChatEligibilityService#eligibleAnchorsForActor} already applies to the
      * "Haven't talked yet" list. A non-staff actor's conversations are never filtered here -- they
      * can never hold a staff-only anchor in the first place.
+     *
+     * <p>Promoted from {@code private} to package-private (2026-08-10, unified entity search
+     * amendment / AppSec Gap 1 fix): {@code searchDiscoverableGroups}'s participant-groups union
+     * branch reuses this exact check on every {@code chatParticipantRepository.findByUserId} row --
+     * {@code ChatParticipant} carries no tenant column/{@code @Filter} of its own, so this is the
+     * only thing standing between that branch and a cross-tenant title match. Reusing the identical
+     * implementation here (rather than a second, potentially-drifting copy) is deliberate.
      */
-    private boolean isVisibleUnderActiveTenant(User actor, ChatConversation conversation) {
+    boolean isVisibleUnderActiveTenant(User actor, ChatConversation conversation) {
         if (actor.getGlobalRole() != GlobalRole.STAFF
                 && actor.getGlobalRole() != GlobalRole.STAFF_ADMIN) {
             return true;

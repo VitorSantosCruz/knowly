@@ -69,6 +69,31 @@ class ConversationRepositoryTest {
         assertThat(conversationQueryService.findAll()).hasSize(1);
     }
 
+    // --- Unified entity search (2026-08-10 amendment), REQ-22: searchByOwnerAndTitle ---
+
+    @Test
+    void searchByOwnerAndTitleOnlyMatchesTheGivenOwnersConversationsWithinTheGivenTenant() {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Tenant B"));
+        User owner = userRepository.saveAndFlush(new User("rag-owner@example.com"));
+
+        Conversation ownTenantA =
+                conversationRepository.saveAndFlush(
+                        new Conversation(tenantA, owner, "Base de artigos"));
+        conversationRepository.saveAndFlush(new Conversation(tenantB, owner, "Base de artigos"));
+
+        var page =
+                conversationRepository.searchByOwnerAndTitle(
+                        owner.getId(),
+                        tenantA.getId(),
+                        "%base%",
+                        org.springframework.data.domain.PageRequest.of(0, 10));
+
+        assertThat(page.getContent())
+                .extracting(Conversation::getId)
+                .containsExactly(ownTenantA.getId());
+    }
+
     @Test
     void anOwnerNeverSeesAnotherUsersConversationEvenInTheSameTenant() {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Tenant"));

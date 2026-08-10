@@ -38,4 +38,30 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
     Page<ChatConversation> findDiscoverable(Pageable pageable);
 
     List<ChatConversation> findByIdIn(List<Long> ids);
+
+    /**
+     * Unified entity search (2026-08-10 amendment), REQ-19: discoverable-group title match backing
+     * {@code ChatConversationService#searchDiscoverableGroups}.
+     *
+     * <p><b>AppSec correction:</b> despite being ordinary JPQL (not native SQL like {@code
+     * ChatMessageSearchRepository}), this query still needs its own explicit {@code tenant_id =
+     * :activeTenantId} predicate written into the query text -- relying on Hibernate's
+     * {@code @Filter} alone is not sufficient. {@code TenantFilterAspect} is a global
+     * {@code @Around} advice that disables {@code TenantFilter} session-wide whenever a caller is
+     * staff-capable with no active tenant selected, regardless of whether the calling code itself
+     * ever reads {@code isStaff()}/{@code isStaffAdmin()} -- the filter's disabled state is a
+     * property of the current Hibernate session, not of the calling code. The caller ({@code
+     * ChatConversationService.searchDiscoverableGroups}) resolves {@code
+     * TenantContext#getActiveTenantId()} itself and fails closed (no query executed) when absent.
+     */
+    @Query(
+            "select c from ChatConversation c where c.kind = br.com.conectabyte.knowly.chat"
+                    + ".ChatConversationKind.PEER_GROUP and c.archivedAt is null and c.visibility"
+                    + " in (br.com.conectabyte.knowly.chat.ChatGroupVisibility.REQUEST_TO_JOIN,"
+                    + " br.com.conectabyte.knowly.chat.ChatGroupVisibility.PUBLIC) and c.title ilike"
+                    + " :pattern and c.tenant.id = :activeTenantId")
+    Page<ChatConversation> findDiscoverableByTitle(
+            @Param("pattern") String pattern,
+            @Param("activeTenantId") Long activeTenantId,
+            Pageable pageable);
 }
