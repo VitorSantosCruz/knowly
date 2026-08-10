@@ -10,6 +10,7 @@ import br.com.conectabyte.knowly.chat.dto.ChatAddParticipantsResultDto;
 import br.com.conectabyte.knowly.chat.dto.ChatConversationDetailDto;
 import br.com.conectabyte.knowly.chat.dto.ChatConversationSummaryDto;
 import br.com.conectabyte.knowly.chat.dto.ChatDiscoverableGroupDto;
+import br.com.conectabyte.knowly.chat.dto.ChatGroupSearchResultDto;
 import br.com.conectabyte.knowly.chat.dto.ChatJoinRequestDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessageDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessagePageDto;
@@ -46,9 +47,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -819,6 +823,92 @@ public class ChatConversationService {
         chatConversationRepository.save(conversation);
 
         return buildDetailDto(conversation);
+    }
+
+    /**
+     * Unified entity search (2026-08-10 amendment), REQ-19: group-name match backing {@code
+     * ChatEntitySearchService}. Composes {@link #listDiscoverableGroups}'s existing {@code
+     * isEligible}/{@code !isParticipant} filters with a title predicate, plus (per REQ-19) groups
+     * the caller already participates in whose title matches -- which {@code
+     * listDiscoverableGroups} deliberately excludes today.
+     *
+     * <p><b>AppSec correction (Gap 1):</b> {@code chatParticipantRepository.findByUserId} carries
+     * no tenant column/{@code @Filter} of its own, so every row it returns is narrowed via {@link
+     * #isVisibleUnderActiveTenant} -- the exact check {@link #listConversations} already uses --
+     * <b>before</b> the title filter and <b>before</b> unioning with the discoverable-set query
+     * result.
+     *
+     * <p><b>AppSec correction (Gap 2):</b> resolves {@link TenantContext#getActiveTenantId()}
+     * itself, before any repository invocation, and fails closed (empty discoverable-groups branch,
+     * no query run at all) when absent -- governs every caller identically, including staff with no
+     * active tenant; no oversight bypass of any kind (REQ-18).
+     */
+    @Transactional(readOnly = true)
+    public List<ChatGroupSearchResultDto> searchDiscoverableGroups(
+            User actor, String nameQuery, int limit) {
+        Optional<Long> activeTenantId = tenantContext.getActiveTenantId();
+
+        List<ChatConversation> participantMatches;
+        if (activeTenantId.isPresent()) {
+            String lowerQuery = nameQuery == null ? "" : nameQuery.toLowerCase(Locale.ROOT);
+            participantMatches =
+                    chatParticipantRepository.findByUserId(actor.getId()).stream()
+                            .map(ChatParticipant::getConversation)
+                            .filter(conversation -> isVisibleUnderActiveTenant(actor, conversation))
+                            .filter(
+                                    conversation ->
+                                            conversation.getKind()
+                                                    == ChatConversationKind.PEER_GROUP)
+                            .filter(
+                                    conversation ->
+                                            conversation.getTitle() != null
+                                                    && conversation
+                                                            .getTitle()
+                                                            .toLowerCase(Locale.ROOT)
+                                                            .contains(lowerQuery))
+                            .toList();
+        } else {
+            participantMatches = List.of();
+        }
+
+        List<ChatConversation> discoverableMatches;
+        if (activeTenantId.isPresent()) {
+            String pattern = "%" + nameQuery + "%";
+            discoverableMatches =
+                    chatConversationRepository
+                            .findDiscoverableByTitle(
+                                    pattern, activeTenantId.get(), PageRequest.of(0, limit + 20))
+                            .getContent()
+                            .stream()
+                            .filter(
+                                    conversation ->
+                                            chatEligibilityService.isEligible(
+                                                    actor, tenantAnchorOf(conversation)))
+                            .filter(conversation -> !isParticipant(actor, conversation))
+                            .toList();
+        } else {
+            discoverableMatches = List.of();
+        }
+
+        Set<Long> seen = new LinkedHashSet<>();
+        List<ChatGroupSearchResultDto> result = new ArrayList<>();
+        for (ChatConversation conversation :
+                Stream.concat(participantMatches.stream(), discoverableMatches.stream()).toList()) {
+            if (!seen.add(conversation.getId())) {
+                continue;
+            }
+            result.add(
+                    new ChatGroupSearchResultDto(
+                            conversation.getId(),
+                            conversation.getTitle(),
+                            isParticipant(actor, conversation),
+                            conversation.getVisibility()));
+            if (result.size() >= limit) {
+                break;
+            }
+        }
+
+        return result;
     }
 
     @Transactional(readOnly = true)

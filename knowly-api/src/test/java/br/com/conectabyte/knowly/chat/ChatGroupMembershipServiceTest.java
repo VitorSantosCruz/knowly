@@ -578,6 +578,128 @@ class ChatGroupMembershipServiceTest {
         assertThat(result.content().get(0).id()).isEqualTo(100L);
     }
 
+    // --- Unified entity search (2026-08-10 amendment): searchDiscoverableGroups (REQ-19) ---
+
+    @Test
+    void searchDiscoverableGroupsWithNoActiveTenantReturnsEmptyWithNoRepositoryInteraction() {
+        User actor = user(1L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
+
+        var result = service.searchDiscoverableGroups(actor, "book", 5);
+
+        assertThat(result).isEmpty();
+        verify(chatConversationRepository, never()).findDiscoverableByTitle(any(), any(), any());
+        verify(chatParticipantRepository, never()).findByUserId(anyLong());
+    }
+
+    @Test
+    void searchDiscoverableGroupsComposesDiscoverableSetWithTitleFilterBoundToActiveTenant() {
+        User actor = user(1L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+        when(chatParticipantRepository.findByUserId(1L)).thenReturn(List.of());
+
+        ChatConversation match = group(100L, tenant(10L), ChatGroupVisibility.PUBLIC);
+        match.setTitle("Book Club");
+        var page = new org.springframework.data.domain.PageImpl<>(List.of(match));
+        when(chatConversationRepository.findDiscoverableByTitle(
+                        any(), org.mockito.ArgumentMatchers.eq(10L), any()))
+                .thenReturn(page);
+        when(chatEligibilityService.isEligible(actor, 10L)).thenReturn(true);
+        when(chatParticipantRepository.existsByConversationIdAndUserId(100L, 1L)).thenReturn(false);
+
+        var result = service.searchDiscoverableGroups(actor, "book", 5);
+
+        assertThat(result).extracting("id").containsExactly(100L);
+        assertThat(result.get(0).isParticipant()).isFalse();
+    }
+
+    @Test
+    void searchDiscoverableGroupsIncludesAlreadyParticipatingGroupsAlongsideDiscoverableMatches() {
+        User actor = user(1L);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        ChatConversation participating = group(200L, tenant(10L), ChatGroupVisibility.PRIVATE);
+        participating.setTitle("Book Club Insiders");
+        ChatParticipant ownParticipant = participant(participating, actor, false);
+        when(chatParticipantRepository.findByUserId(1L)).thenReturn(List.of(ownParticipant));
+
+        ChatConversation discoverable = group(100L, tenant(10L), ChatGroupVisibility.PUBLIC);
+        discoverable.setTitle("Book Club");
+        var page = new org.springframework.data.domain.PageImpl<>(List.of(discoverable));
+        when(chatConversationRepository.findDiscoverableByTitle(
+                        any(), org.mockito.ArgumentMatchers.eq(10L), any()))
+                .thenReturn(page);
+        when(chatEligibilityService.isEligible(actor, 10L)).thenReturn(true);
+        when(chatParticipantRepository.existsByConversationIdAndUserId(100L, 1L)).thenReturn(false);
+        when(chatParticipantRepository.existsByConversationIdAndUserId(200L, 1L)).thenReturn(true);
+
+        var result = service.searchDiscoverableGroups(actor, "book", 5);
+
+        assertThat(result).extracting("id").containsExactlyInAnyOrder(200L, 100L);
+        assertThat(
+                        result.stream()
+                                .filter(r -> r.id().equals(200L))
+                                .findFirst()
+                                .orElseThrow()
+                                .isParticipant())
+                .isTrue();
+        assertThat(
+                        result.stream()
+                                .filter(r -> r.id().equals(100L))
+                                .findFirst()
+                                .orElseThrow()
+                                .isParticipant())
+                .isFalse();
+    }
+
+    // --- AppSec-required regression (Gap 1): participant-groups union must apply
+    // isVisibleUnderActiveTenant before the title filter and before unioning ---
+
+    @Test
+    void searchDiscoverableGroupsNeverIncludesASameTitledParticipantGroupFromAnInactiveTenant() {
+        User actor = user(1L);
+        actor.setGlobalRole(GlobalRole.STAFF);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(10L));
+
+        Tenant tenant1 = tenant(10L);
+        Tenant tenant2 = tenant(20L);
+
+        ChatConversation groupTenant1 = group(200L, tenant1, ChatGroupVisibility.PRIVATE);
+        groupTenant1.setTitle("Book Club");
+        ChatConversation groupTenant2 = group(201L, tenant2, ChatGroupVisibility.PRIVATE);
+        groupTenant2.setTitle("Book Club");
+
+        when(chatParticipantRepository.findByUserId(1L))
+                .thenReturn(
+                        List.of(
+                                participant(groupTenant1, actor, false),
+                                participant(groupTenant2, actor, false)));
+
+        var emptyPage = new org.springframework.data.domain.PageImpl<ChatConversation>(List.of());
+        when(chatConversationRepository.findDiscoverableByTitle(
+                        any(), org.mockito.ArgumentMatchers.eq(10L), any()))
+                .thenReturn(emptyPage);
+        when(chatParticipantRepository.existsByConversationIdAndUserId(200L, 1L)).thenReturn(true);
+
+        var result = service.searchDiscoverableGroups(actor, "book", 5);
+
+        assertThat(result).extracting("id").containsExactly(200L);
+    }
+
+    // --- AppSec-required regression (Gap 2, groups half): staff with no active tenant ---
+
+    @Test
+    void searchDiscoverableGroupsForStaffWithNoActiveTenantReturnsZeroResultsAcrossTenants() {
+        User staff = user(1L);
+        staff.setGlobalRole(GlobalRole.STAFF);
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
+
+        var result = service.searchDiscoverableGroups(staff, "book", 5);
+
+        assertThat(result).isEmpty();
+        verify(chatConversationRepository, never()).findDiscoverableByTitle(any(), any(), any());
+    }
+
     // --- Join requests (REQ-29..REQ-37, REQ-30a) --------------------------------------------
 
     @Test
