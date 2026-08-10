@@ -15,7 +15,7 @@ import { MessageComposerComponent } from './message-composer.component';
     <div data-testid="message-thread" class="flex h-full min-h-0 flex-col gap-3">
       <div
         data-testid="message-thread-list"
-        class="flex min-h-32 flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border border-ink-200/70 bg-white p-4 shadow-lg shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900 dark:shadow-none"
+        class="flex min-h-32 flex-1 flex-col gap-2 overflow-y-auto rounded-2xl bg-ink-50/60 p-4 dark:bg-ink-950/40"
       >
         @if (hasMore()) {
           <button
@@ -65,8 +65,8 @@ import { MessageComposerComponent } from './message-composer.component';
               "
               [class]="
                 message.fromViewer
-                  ? 'max-w-[80%] self-end rounded-2xl rounded-br-sm bg-ink-800 px-3 py-2 text-sm text-white shadow-sm dark:bg-ink-700'
-                  : 'max-w-[80%] self-start rounded-2xl rounded-bl-sm bg-ink-100 px-3 py-2 text-sm text-ink-900 shadow-sm dark:bg-ink-800 dark:text-ink-100'
+                  ? 'max-w-[80%] self-end rounded-2xl rounded-br-sm bg-signal-600 px-3 py-2 text-sm text-white shadow-sm dark:bg-signal-700'
+                  : 'max-w-[80%] self-start rounded-2xl rounded-bl-sm bg-ink-100 px-3 py-2 text-sm text-ink-900 shadow-sm dark:bg-ink-800/80 dark:text-ink-100'
               "
             >
               @if (!message.fromViewer) {

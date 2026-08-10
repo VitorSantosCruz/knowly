@@ -82,14 +82,14 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
   template: `
     <header
       data-testid="chat-search-bar-region"
-      class="mb-4 shrink-0 rounded-2xl border border-ink-200/70 bg-white p-3 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900"
+      class="mb-6 shrink-0 rounded-full border border-ink-200/70 bg-white p-3 shadow-sm shadow-ink-900/5 dark:border-ink-800/70 dark:bg-ink-900"
     >
       <app-chat-unified-search />
     </header>
 
     <div
       data-testid="chat-shell"
-      class="page-shell grid min-h-0 flex-1 grid-rows-1 gap-4 overflow-hidden xl:grid-cols-[280px_1fr_280px]"
+      class="page-shell grid min-h-0 flex-1 grid-rows-1 gap-5 overflow-hidden xl:grid-cols-[280px_1fr_280px]"
     >
       @if (viewportFitsColumns() || mobileView() === 'directory') {
         <div

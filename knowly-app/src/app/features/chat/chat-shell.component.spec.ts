@@ -502,9 +502,14 @@ describe('ChatShellComponent', () => {
 
     // Bug fix (2026-08-10, reported by the product owner): the search bar looked visually
     // disconnected from the 3-column panel below it — no card treatment of its own. Gives the
-    // header the same rounded-2xl/border/bg-white/dark:bg-ink-900 panel treatment the three
-    // columns already use, so it reads as one cohesive chat panel.
-    it('the header region carries the same card treatment (border/rounded/background) as the 3-column panels below it', () => {
+    // header its own card treatment (border/bg-white/dark:bg-ink-900) plus real margin-bottom
+    // so it reads as its own pill, clearly separated from the 3-column panel below it.
+    //
+    // **Redesign (2026-08-10, product-owner visual review against a reference screenshot)**:
+    // the header is now a full pill (`rounded-full`, matching the search input's own
+    // `rounded-full` shape) rather than `rounded-2xl` — a search bar reads more like a search
+    // pill than a generic card, and `rounded-full` was the shape in the reference image.
+    it('the header region carries its own card treatment (border/rounded/background), separated from the 3-column panels below it', () => {
       setup();
       fixture.detectChanges();
       flushActiveTenant(null);
@@ -514,10 +519,11 @@ describe('ChatShellComponent', () => {
       const header: HTMLElement = fixture.nativeElement.querySelector(
         '[data-testid="chat-search-bar-region"]',
       );
-      expect(header.className).toContain('rounded-2xl');
+      expect(header.className).toContain('rounded-full');
       expect(header.className).toContain('border');
       expect(header.className).toContain('bg-white');
       expect(header.className).toContain('dark:bg-ink-900');
+      expect(header.className).toContain('mb-6');
     });
 
     it("the overlay's absolute positioning does not reflow the 3-column container's own layout classes", () => {

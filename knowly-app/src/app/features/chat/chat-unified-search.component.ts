@@ -40,7 +40,7 @@ type UnifiedStatus = 'idle' | 'loading' | 'results' | 'no-results' | 'error';
         (input)="onQueryInput($any($event.target).value)"
         (focus)="onFocus()"
         placeholder="{{ 'chat.search.barPlaceholder' | transloco }}"
-        class="w-full rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
+        class="w-full rounded-full border border-ink-200/70 bg-ink-50/60 px-4 py-2 text-sm dark:border-ink-800/70 dark:bg-ink-950/40"
       />
 
       @if (open()) {
