@@ -85,4 +85,18 @@ public class ChatExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ChatErrorResponseDto("CHAT_PARTICIPANT_ALREADY_ADMIN"));
     }
+
+    @ExceptionHandler(ChatBlankSearchQueryException.class)
+    public ResponseEntity<ChatErrorResponseDto> handleBlankSearchQuery(
+            ChatBlankSearchQueryException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ChatErrorResponseDto("CHAT_SEARCH_QUERY_BLANK"));
+    }
+
+    @ExceptionHandler(ChatInvalidSearchDateRangeException.class)
+    public ResponseEntity<ChatErrorResponseDto> handleInvalidSearchDateRange(
+            ChatInvalidSearchDateRangeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ChatErrorResponseDto("CHAT_SEARCH_INVALID_DATE_RANGE"));
+    }
 }

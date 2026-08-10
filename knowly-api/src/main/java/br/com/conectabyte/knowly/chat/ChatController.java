@@ -14,11 +14,13 @@ import br.com.conectabyte.knowly.chat.dto.ChatDiscoverableGroupDto;
 import br.com.conectabyte.knowly.chat.dto.ChatJoinRequestDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessageDto;
 import br.com.conectabyte.knowly.chat.dto.ChatMessagePageDto;
+import br.com.conectabyte.knowly.chat.dto.ChatMessageSearchPageDto;
 import br.com.conectabyte.knowly.chat.dto.CreateChatConversationRequestDto;
 import br.com.conectabyte.knowly.chat.dto.RenameChatConversationRequestDto;
 import br.com.conectabyte.knowly.chat.dto.SendChatMessageRequestDto;
 import br.com.conectabyte.knowly.tenancy.dto.PageResponseDto;
 import jakarta.validation.Valid;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,15 +43,47 @@ public class ChatController {
 
     private final ChatConversationService chatConversationService;
     private final ChatEligibilityService chatEligibilityService;
+    private final ChatMessageSearchService chatMessageSearchService;
     private final UserRepository userRepository;
 
     public ChatController(
             ChatConversationService chatConversationService,
             ChatEligibilityService chatEligibilityService,
+            ChatMessageSearchService chatMessageSearchService,
             UserRepository userRepository) {
         this.chatConversationService = chatConversationService;
         this.chatEligibilityService = chatEligibilityService;
+        this.chatMessageSearchService = chatMessageSearchService;
         this.userRepository = userRepository;
+    }
+
+    /**
+     * REQ-1 through REQ-15: no {@code @AuditLog} -- search is a read, not a state change, per
+     * PLAN.md's "Architectural decisions" (structured logging happens inside {@link
+     * ChatMessageSearchService} instead). No 403/404 for an inaccessible {@code conversationId}
+     * filter (REQ-3) -- that path returns a normal 200 with an empty/short page.
+     */
+    @GetMapping("/messages/search")
+    public ResponseEntity<ChatMessageSearchPageDto> searchMessages(
+            @RequestParam String q,
+            @RequestParam(required = false) Long senderId,
+            @RequestParam(required = false) Long conversationId,
+            @RequestParam(required = false) Instant dateFrom,
+            @RequestParam(required = false) Instant dateTo,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(
+                chatMessageSearchService.search(
+                        currentUser(),
+                        q,
+                        senderId,
+                        conversationId,
+                        dateFrom,
+                        dateTo,
+                        cursor,
+                        size,
+                        acceptLanguage));
     }
 
     @PostMapping("/conversations")

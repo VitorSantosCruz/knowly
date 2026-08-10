@@ -1,6 +1,6 @@
 import { Component, input, output } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { LucidePlus } from '@lucide/angular';
+import { LucidePlus, LucideSearch } from '@lucide/angular';
 
 /**
  * Directory column's (column 1) header — direct action buttons, never a tab strip
@@ -39,9 +39,21 @@ import { LucidePlus } from '@lucide/angular';
  */
 @Component({
   selector: 'app-chat-sidebar',
-  imports: [TranslocoPipe, LucidePlus],
+  imports: [TranslocoPipe, LucidePlus, LucideSearch],
   template: `
     <div data-testid="chat-sidebar" class="flex flex-col gap-2">
+      <button
+        type="button"
+        data-testid="chat-sidebar-action-search"
+        [attr.aria-label]="'chat.search.entryPointLabel' | transloco"
+        [title]="'chat.search.entryPointLabel' | transloco"
+        (click)="openSearch.emit()"
+        class="flex items-center gap-2 rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm font-medium hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
+      >
+        <svg lucideSearch class="h-4 w-4 shrink-0" aria-hidden="true"></svg>
+        {{ 'chat.search.entryPointLabel' | transloco }}
+      </button>
+
       @if (hasActiveTenant()) {
         <button
           type="button"
@@ -71,4 +83,5 @@ export class ChatSidebarComponent {
   readonly hasActiveTenant = input<boolean>(false);
   readonly openArticles = output<void>();
   readonly createGroup = output<void>();
+  readonly openSearch = output<void>();
 }

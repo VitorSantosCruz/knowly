@@ -58,4 +58,22 @@ describe('ChatSidebarComponent', () => {
     fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-create-group"]').click();
     expect(emitted).toBe(true);
   });
+
+  it('renders a search-messages action button, keyboard-reachable, with an aria-label (REQ-1/REQ-2)', () => {
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector(
+      '[data-testid="chat-sidebar-action-search"]',
+    );
+    expect(button).toBeTruthy();
+    expect(button.tagName).toBe('BUTTON');
+    expect(button.getAttribute('aria-label')).toBeTruthy();
+  });
+
+  it('emits openSearch when the search action is clicked', () => {
+    fixture.detectChanges();
+    let emitted = false;
+    fixture.componentInstance.openSearch.subscribe(() => (emitted = true));
+    fixture.nativeElement.querySelector('[data-testid="chat-sidebar-action-search"]').click();
+    expect(emitted).toBe(true);
+  });
 });

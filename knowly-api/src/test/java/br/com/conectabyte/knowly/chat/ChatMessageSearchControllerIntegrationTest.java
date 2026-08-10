@@ -1,0 +1,602 @@
+package br.com.conectabyte.knowly.chat;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+
+import br.com.conectabyte.knowly.TestcontainersConfiguration;
+import br.com.conectabyte.knowly.auth.LoginCodeService;
+import br.com.conectabyte.knowly.auth.User;
+import br.com.conectabyte.knowly.auth.UserRepository;
+import br.com.conectabyte.knowly.tenancy.GlobalRole;
+import br.com.conectabyte.knowly.tenancy.MembershipRole;
+import br.com.conectabyte.knowly.tenancy.Tenant;
+import br.com.conectabyte.knowly.tenancy.TenantMembership;
+import br.com.conectabyte.knowly.tenancy.TenantMembershipRepository;
+import br.com.conectabyte.knowly.tenancy.TenantRepository;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.servlet.http.Cookie;
+import java.time.Instant;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+
+/**
+ * chat-message-search TASKS.md items 40/42/44/46-60: controller/HTTP-layer coverage, including
+ * the SPEC's flagged main implementation risk (the core isolation test) and both AppSec-required
+ * regression tests (cross-tenant, no-active-tenant fail-closed).
+ */
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ChatMessageSearchControllerIntegrationTest {
+
+    @Autowired private MockMvcTester mockMvc;
+    @Autowired private UserRepository userRepository;
+    @Autowired private TenantRepository tenantRepository;
+    @Autowired private TenantMembershipRepository tenantMembershipRepository;
+    @Autowired private LoginCodeService loginCodeService;
+    @Autowired private StringRedisTemplate redisTemplate;
+    @Autowired private ChatConversationRepository chatConversationRepository;
+    @Autowired private ChatParticipantRepository chatParticipantRepository;
+    @Autowired private ChatMessageRepository chatMessageRepository;
+    @Autowired private SupportTicketRepository supportTicketRepository;
+    @MockitoBean private JavaMailSender mailSender;
+
+    @BeforeEach
+    void resetLoginVelocityCounters() {
+        Set<String> keys = redisTemplate.keys("auth:login-velocity:*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
+    private Cookie logIn(String email) {
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())));
+        String code = loginCodeService.generate(email);
+        var result =
+                mockMvc.post()
+                        .uri("/api/auth/login-code/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}")
+                        .exchange();
+
+        assertThat(result).hasStatus(HttpStatus.OK);
+        return result.getResponse().getCookie("SESSION");
+    }
+
+    private void switchActiveTenant(Cookie session, Long tenantId) {
+        var response =
+                mockMvc.post()
+                        .uri("/api/tenants/active")
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantId\":" + tenantId + "}")
+                        .exchange();
+        assertThat(response).hasStatus(HttpStatus.OK);
+    }
+
+    private User member(String email, Tenant tenant) {
+        User user = userRepository.saveAndFlush(new User(email));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(user, tenant, MembershipRole.MEMBER));
+        return user;
+    }
+
+    private User staff(String email, GlobalRole role) {
+        User user = userRepository.saveAndFlush(new User(email));
+        user.setGlobalRole(role);
+        return userRepository.saveAndFlush(user);
+    }
+
+    private ChatConversation conversation(ChatConversationKind kind, Tenant tenant, String title) {
+        return chatConversationRepository.saveAndFlush(
+                new ChatConversation(kind, tenant, title, null));
+    }
+
+    private void participate(ChatConversation conversation, User user) {
+        chatParticipantRepository.saveAndFlush(new ChatParticipant(conversation, user));
+    }
+
+    private void message(ChatConversation conversation, User sender, String content) {
+        chatMessageRepository.saveAndFlush(new ChatMessage(conversation, sender, content));
+    }
+
+    private org.springframework.test.web.servlet.assertj.MvcTestResult search(
+            Cookie session, String query) {
+        return mockMvc.get()
+                .uri("/api/chat/messages/search")
+                .param("q", query)
+                .cookie(session)
+                .exchange();
+    }
+
+    // TASKS.md item 40
+    @Test
+    void happyPathReturnsAPageDtoShapedBody() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Happy Path Co"));
+        User caller = member("search-happy@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Happy Path Group");
+        participate(conversation, caller);
+        message(conversation, caller, "flumberjack happy path message");
+
+        Cookie session = logIn("search-happy@example.com");
+
+        var response = search(session, "flumberjack");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"results\"");
+        assertThat(response.getResponse().getContentAsString()).contains("flumberjack happy path");
+    }
+
+    // TASKS.md item 42
+    @Test
+    void blankQueryReturns400WithBlankQueryCode() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Blank Q Co"));
+        member("search-blank-q@example.com", tenant);
+        Cookie session = logIn("search-blank-q@example.com");
+
+        var response = mockMvc.get().uri("/api/chat/messages/search").cookie(session).exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("CHAT_SEARCH_QUERY_BLANK");
+    }
+
+    @Test
+    void dateFromAfterDateToReturns400WithInvalidDateRangeCode() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Bad Range Co"));
+        member("search-bad-range@example.com", tenant);
+        Cookie session = logIn("search-bad-range@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "hello")
+                        .param("dateFrom", "2026-08-09T00:00:00Z")
+                        .param("dateTo", "2026-08-01T00:00:00Z")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString())
+                .contains("CHAT_SEARCH_INVALID_DATE_RANGE");
+    }
+
+    @Test
+    void malformedCursorReturns400WithExistingInvalidCursorCode() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search Bad Cursor Co"));
+        member("search-bad-cursor@example.com", tenant);
+        Cookie session = logIn("search-bad-cursor@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "hello")
+                        .param("cursor", "not-base64-!!")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(response.getResponse().getContentAsString()).contains("CHAT_INVALID_CURSOR");
+    }
+
+    // TASKS.md item 44 (REQ-3)
+    @Test
+    void conversationIdFilterPointingAtInaccessibleRealNonexistentSupportOrArchivedConversationsAllReturnEmptyIndistinguishableResults() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Search REQ3 Co"));
+        User caller = member("search-req3-caller@example.com", tenant);
+        User other = member("search-req3-other@example.com", tenant);
+
+        // (a) real conversation the caller isn't a participant of
+        ChatConversation notMine = conversation(ChatConversationKind.PEER_GROUP, tenant, "Not Mine");
+        participate(notMine, other);
+        message(notMine, other, "wizzlecraft not mine message");
+
+        // (b) nonexistent id
+        Long nonexistentId = 9_999_999L;
+
+        // (c) SUPPORT conversation
+        ChatConversation support = conversation(ChatConversationKind.SUPPORT, tenant, "Support");
+        participate(support, caller);
+        message(support, caller, "wizzlecraft support message");
+
+        // (d) archived former conversation of the caller's
+        ChatConversation archived =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Archived Former");
+        participate(archived, caller);
+        message(archived, caller, "wizzlecraft archived message");
+        archived.setArchivedAt(Instant.now());
+        chatConversationRepository.saveAndFlush(archived);
+
+        Cookie session = logIn("search-req3-caller@example.com");
+
+        List<Long> conversationIds =
+                List.of(notMine.getId(), nonexistentId, support.getId(), archived.getId());
+        for (Long conversationId : conversationIds) {
+            var response =
+                    mockMvc.get()
+                            .uri("/api/chat/messages/search")
+                            .param("q", "wizzlecraft")
+                            .param("conversationId", String.valueOf(conversationId))
+                            .cookie(session)
+                            .exchange();
+
+            assertThat(response).hasStatus(HttpStatus.OK);
+            assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+        }
+    }
+
+    // TASKS.md item 46: core isolation test, parameterized across removal modes
+    private static Stream<Arguments> removalModes() {
+        return Stream.of(
+                Arguments.of("LEFT"),
+                Arguments.of("REMOVED"),
+                Arguments.of("ARCHIVED"),
+                Arguments.of("SOFT_DELETED"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("removalModes")
+    void formerParticipantsSearchExcludesTheRemovedConversationButStillSurfacesACurrentOne(
+            String mode) {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("Isolation Removal Co " + mode));
+        User userA = member("isolation-a-" + mode.toLowerCase() + "@example.com", tenant);
+        User userB = member("isolation-b-" + mode.toLowerCase() + "@example.com", tenant);
+
+        ChatConversation shared =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Shared " + mode);
+        ChatParticipant participationA = new ChatParticipant(shared, userA);
+        participationA = chatParticipantRepository.saveAndFlush(participationA);
+        participate(shared, userB);
+        message(shared, userB, "kerfuffleoxide shared message " + mode);
+
+        ChatConversation still =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Still Mine " + mode);
+        participate(still, userA);
+        message(still, userA, "kerfuffleoxide still mine message " + mode);
+
+        switch (mode) {
+            case "LEFT", "REMOVED" -> {
+                participationA.setDeletedAt(Instant.now());
+                chatParticipantRepository.saveAndFlush(participationA);
+            }
+            case "ARCHIVED" -> {
+                shared.setArchivedAt(Instant.now());
+                chatConversationRepository.saveAndFlush(shared);
+            }
+            case "SOFT_DELETED" -> {
+                shared.setDeletedAt(Instant.now());
+                chatConversationRepository.saveAndFlush(shared);
+            }
+            default -> throw new IllegalStateException("Unknown mode " + mode);
+        }
+
+        Cookie session = logIn("isolation-a-" + mode.toLowerCase() + "@example.com");
+
+        var response = search(session, "kerfuffleoxide");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("still mine message " + mode);
+        assertThat(body).doesNotContain("shared message " + mode);
+    }
+
+    // TASKS.md items 48/49/50: AppSec-required cross-tenant and no-active-tenant fail-closed
+    @Test
+    void searchWithTenantOneActiveReturnsOnlyTenantOnesMatchesNeverTenantTwos() {
+        Tenant tenantOne = tenantRepository.saveAndFlush(new Tenant("AppSec Tenant One"));
+        Tenant tenantTwo = tenantRepository.saveAndFlush(new Tenant("AppSec Tenant Two"));
+        User caller = userRepository.saveAndFlush(new User("appsec-two-tenant@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(caller, tenantOne, MembershipRole.MEMBER));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(caller, tenantTwo, MembershipRole.MEMBER));
+
+        ChatConversation conversationOne =
+                conversation(ChatConversationKind.PEER_GROUP, tenantOne, "Tenant One Group");
+        participate(conversationOne, caller);
+        message(conversationOne, caller, "brontosaurustweak tenant one message");
+
+        ChatConversation conversationTwo =
+                conversation(ChatConversationKind.PEER_GROUP, tenantTwo, "Tenant Two Group");
+        participate(conversationTwo, caller);
+        message(conversationTwo, caller, "brontosaurustweak tenant two message");
+
+        Cookie session = logIn("appsec-two-tenant@example.com");
+        switchActiveTenant(session, tenantOne.getId());
+
+        var response = search(session, "brontosaurustweak");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("tenant one message");
+        assertThat(body).doesNotContain("tenant two message");
+    }
+
+    @Test
+    void noActiveTenantInSessionGetsZeroResultsNotAnUnfilteredCrossTenantScan() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("AppSec No Active Tenant Co"));
+        User staffCaller = staff("appsec-staff-noactive@example.com", GlobalRole.STAFF);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "No Active Tenant Group");
+        participate(conversation, staffCaller);
+        message(conversation, staffCaller, "quibblesnort no active tenant message");
+
+        Cookie session = logIn("appsec-staff-noactive@example.com");
+
+        var response = search(session, "quibblesnort");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+    }
+
+    @Test
+    void staffAdminWithNoActiveTenantAlsoGetsZeroResultsNoOversightBypass() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("AppSec Staff Admin No Active Co"));
+        User staffAdmin = staff("appsec-staffadmin-noactive@example.com", GlobalRole.STAFF_ADMIN);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "Staff Admin No Active Group");
+        participate(conversation, staffAdmin);
+        message(conversation, staffAdmin, "ratatouillewhisk staff admin no active message");
+
+        Cookie session = logIn("appsec-staffadmin-noactive@example.com");
+
+        var response = search(session, "ratatouillewhisk");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+    }
+
+    // TASKS.md items 51/52 (REQ-5): STAFF_ADMIN/MEMBER_ADMIN with zero participant rows get zero
+    // results.
+    @Test
+    void staffAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5 Staff Admin Co"));
+        User owner = member("req5-owner@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5 Group");
+        participate(conversation, owner);
+        message(conversation, owner, "splendifantastic req5 message");
+
+        User staffAdmin = staff("req5-staffadmin@example.com", GlobalRole.STAFF_ADMIN);
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(staffAdmin, tenant, MembershipRole.MEMBER));
+        Cookie session = logIn("req5-staffadmin@example.com");
+        switchActiveTenant(session, tenant.getId());
+
+        var response = search(session, "splendifantastic");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+    }
+
+    @Test
+    void memberAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5 Member Admin Co"));
+        User owner = member("req5ma-owner@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5MA Group");
+        participate(conversation, owner);
+        message(conversation, owner, "cantankerousfizzle req5ma message");
+
+        User memberAdmin = userRepository.saveAndFlush(new User("req5ma-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdmin, tenant, MembershipRole.MEMBER_ADMIN));
+        Cookie session = logIn("req5ma-admin@example.com");
+
+        var response = search(session, "cantankerousfizzle");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+    }
+
+    // TASKS.md items 53/54 (REQ-1)
+    @Test
+    void supportConversationMessageNeverAppearsInResultsEvenForTicketOwner() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ1 Support Co"));
+        User owner = member("req1-owner@example.com", tenant);
+        ChatConversation supportChannel =
+                conversation(ChatConversationKind.SUPPORT, tenant, "Support Channel REQ1");
+        supportChannel.setOwner(owner);
+        chatConversationRepository.saveAndFlush(supportChannel);
+        message(supportChannel, owner, "moonquillspatter support ticket message");
+        supportTicketRepository.saveAndFlush(new SupportTicket(supportChannel));
+
+        Cookie session = logIn("req1-owner@example.com");
+
+        var response = search(session, "moonquillspatter");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+    }
+
+    // TASKS.md items 55/56 (REQ-13/14, end to end)
+    @Test
+    void portugueseResolvedCallerMatchesAConjugatedFormEndToEnd() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ13 Locale Pt Co"));
+        User caller = member("req13-pt@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ13 Pt Group");
+        participate(conversation, caller);
+        message(conversation, caller, "os gatos correm rapido no jardim");
+
+        Cookie session = logIn("req13-pt@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "gato")
+                        .header("Accept-Language", "pt-BR")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("gatos correm");
+    }
+
+    @Test
+    void englishResolvedCallerMatchesAPluralFormEndToEnd() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ13 Locale En Co"));
+        User caller = member("req13-en@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ13 En Group");
+        participate(conversation, caller);
+        message(conversation, caller, "we have several meetings scheduled");
+
+        Cookie session = logIn("req13-en@example.com");
+
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "meeting")
+                        .header("Accept-Language", "en-US")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("meetings scheduled");
+    }
+
+    @Test
+    void aForgedLocaleShapedQueryParameterHasNoEffectOnWhichIndexIsQueried() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ14 Forged Locale Co"));
+        User caller = member("req14-forged@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ14 Forged Group");
+        participate(conversation, caller);
+        message(conversation, caller, "we have several meetings scheduled");
+
+        Cookie session = logIn("req14-forged@example.com");
+
+        // No Accept-Language header set (defaults to English per REQ-15) -- a forged "locale"
+        // query param must have zero effect, since the endpoint never reads such a parameter at
+        // all.
+        var response =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "meeting")
+                        .param("locale", "pt-BR")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        assertThat(response.getResponse().getContentAsString()).contains("meetings scheduled");
+    }
+
+    // TASKS.md items 57/58 (REQ-10)
+    @Test
+    void cursorPaginationAtTheControllerLayerHasNoOverlapOrGapsMostRecentFirst() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ10 Cursor Co"));
+        User caller = member("req10-cursor@example.com", tenant);
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ10 Group");
+        participate(conversation, caller);
+        for (int i = 0; i < 35; i++) {
+            message(conversation, caller, "dandelionwarble message " + i);
+        }
+
+        Cookie session = logIn("req10-cursor@example.com");
+
+        var page1 = search(session, "dandelionwarble");
+        assertThat(page1).hasStatus(HttpStatus.OK);
+        String nextCursor =
+                com.jayway.jsonpath.JsonPath.read(
+                        page1.getResponse().getContentAsString(), "$.nextCursor");
+        assertThat(nextCursor).isNotNull();
+
+        var page2 =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "dandelionwarble")
+                        .param("cursor", nextCursor)
+                        .cookie(session)
+                        .exchange();
+        assertThat(page2).hasStatus(HttpStatus.OK);
+
+        List<Integer> page1Ids =
+                com.jayway.jsonpath.JsonPath.read(
+                        page1.getResponse().getContentAsString(), "$.results[*].id");
+        List<Integer> page2Ids =
+                com.jayway.jsonpath.JsonPath.read(
+                        page2.getResponse().getContentAsString(), "$.results[*].id");
+
+        assertThat(page1Ids).hasSize(30);
+        assertThat(page2Ids).hasSize(5);
+        assertThat(page1Ids).doesNotContainAnyElementsOf(page2Ids);
+    }
+
+    // TASKS.md item 59 (REQ-7/8/9)
+    @Test
+    void senderConversationAndDateRangeFiltersNarrowResultsAtTheControllerLayer() {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ789 Co"));
+        User caller = member("req789-caller@example.com", tenant);
+        User other = member("req789-other@example.com", tenant);
+        ChatConversation conversationOne =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ789 Group One");
+        participate(conversationOne, caller);
+        participate(conversationOne, other);
+        ChatConversation conversationTwo =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ789 Group Two");
+        participate(conversationTwo, caller);
+
+        message(conversationOne, caller, "twizzlefunk from caller in one");
+        message(conversationOne, other, "twizzlefunk from other in one");
+        message(conversationTwo, caller, "twizzlefunk from caller in two");
+
+        Cookie session = logIn("req789-caller@example.com");
+
+        var bySender =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "twizzlefunk")
+                        .param("senderId", String.valueOf(other.getId()))
+                        .cookie(session)
+                        .exchange();
+        assertThat(bySender).hasStatus(HttpStatus.OK);
+        assertThat(bySender.getResponse().getContentAsString()).contains("from other in one");
+        assertThat(bySender.getResponse().getContentAsString()).doesNotContain("from caller");
+
+        var byConversation =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "twizzlefunk")
+                        .param("conversationId", String.valueOf(conversationTwo.getId()))
+                        .cookie(session)
+                        .exchange();
+        assertThat(byConversation).hasStatus(HttpStatus.OK);
+        assertThat(byConversation.getResponse().getContentAsString())
+                .contains("from caller in two");
+        assertThat(byConversation.getResponse().getContentAsString())
+                .doesNotContain("from other in one");
+
+        var futureRange =
+                mockMvc.get()
+                        .uri("/api/chat/messages/search")
+                        .param("q", "twizzlefunk")
+                        .param("dateFrom", Instant.now().plusSeconds(86400).toString())
+                        .cookie(session)
+                        .exchange();
+        assertThat(futureRange).hasStatus(HttpStatus.OK);
+        assertThat(futureRange.getResponse().getContentAsString()).contains("\"results\":[]");
+    }
+}
