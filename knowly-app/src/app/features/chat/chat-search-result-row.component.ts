@@ -46,10 +46,10 @@ import { ChatMessageSearchResultDto } from '../../core/chat.model';
 })
 export class ChatSearchResultRowComponent {
   readonly result = input.required<ChatMessageSearchResultDto>();
-  readonly select = output<number>();
+  readonly rowSelected = output<number>();
 
   protected onSelect(): void {
-    this.select.emit(this.result().conversationId);
+    this.rowSelected.emit(this.result().conversationId);
   }
 
   protected onKeydown(event: KeyboardEvent): void {

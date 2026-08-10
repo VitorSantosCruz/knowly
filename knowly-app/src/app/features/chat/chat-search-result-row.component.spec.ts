@@ -47,7 +47,7 @@ describe('ChatSearchResultRowComponent', () => {
 
   it('emits its conversationId on click', () => {
     const spy = vi.fn();
-    fixture.componentInstance.select.subscribe(spy);
+    fixture.componentInstance.rowSelected.subscribe(spy);
     const row = fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]');
     row.click();
     expect(spy).toHaveBeenCalledWith(10);
@@ -55,7 +55,7 @@ describe('ChatSearchResultRowComponent', () => {
 
   it('emits its conversationId on Enter and Space keydown', () => {
     const spy = vi.fn();
-    fixture.componentInstance.select.subscribe(spy);
+    fixture.componentInstance.rowSelected.subscribe(spy);
     const row: HTMLElement = fixture.nativeElement.querySelector(
       '[data-testid="chat-search-result-row"]',
     );
