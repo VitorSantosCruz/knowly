@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { Observable } from 'rxjs';
 import { IconKey } from './chat.model';
 
@@ -32,6 +33,7 @@ export type ChatStreamEvent =
 @Injectable({ providedIn: 'root' })
 export class ConversationService {
   private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
 
   list(tenantId: number): Observable<ConversationSummary[]> {
     return this.http.get<ConversationSummary[]>(`/api/tenants/${tenantId}/conversations`);
@@ -99,6 +101,16 @@ export class ConversationService {
     },
   ): Promise<void> {
     if (!response.ok) {
+      if (response.status === 401) {
+        // Bug fix (2026-08-10, reported by the product owner): this SSE call uses raw `fetch()`
+        // (see `sendMessage()` above) rather than `HttpClient`, so it never passes through
+        // `auth.interceptor.ts`'s global 401 -> `/login` redirect — an expired session mid-chat
+        // used to silently render as a generic "assistant unavailable" error instead of kicking
+        // the user back to login, unlike every other screen's HttpClient-backed calls.
+        this.router.navigateByUrl('/login');
+        subscriber.complete();
+        return;
+      }
       if (response.status === 403) {
         subscriber.next({ type: 'permission-denied' });
       } else {

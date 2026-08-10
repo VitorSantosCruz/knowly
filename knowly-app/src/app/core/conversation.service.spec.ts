@@ -1,6 +1,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { toArray } from 'rxjs/operators';
 import { ConversationService } from './conversation.service';
@@ -8,6 +9,7 @@ import { ConversationService } from './conversation.service';
 describe('ConversationService', () => {
   let service: ConversationService;
   let httpMock: HttpTestingController;
+  let router: Router;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -15,6 +17,7 @@ describe('ConversationService', () => {
     });
     service = TestBed.inject(ConversationService);
     httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
   });
 
   afterEach(() => {
@@ -124,6 +127,16 @@ describe('ConversationService', () => {
       const events = await firstValueFrom(service.sendMessage(1, 5, 'question').pipe(toArray()));
 
       expect(events).toEqual([{ type: 'permission-denied' }]);
+    });
+
+    it('bug fix (2026-08-10): a 401 (expired session) mid-stream redirects to /login instead of showing a generic "assistant unavailable" error', async () => {
+      const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(fakeFetchResponse([], false, 401));
+
+      const events = await firstValueFrom(service.sendMessage(1, 5, 'question').pipe(toArray()));
+
+      expect(navigateSpy).toHaveBeenCalledWith('/login');
+      expect(events).not.toEqual([{ type: 'error', data: 'The assistant is unavailable.' }]);
     });
 
     it('emits an error event on a non-403 failure response', async () => {
