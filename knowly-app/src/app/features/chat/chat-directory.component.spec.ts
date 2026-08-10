@@ -73,6 +73,19 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
             r.params.get('tenantId') === String(tenantId),
         )
         .flush(opts.eligibleForTenant ?? opts.eligible ?? []);
+      // Bug fix (2026-08-10): ChatDirectoryRowsService now also re-fetches conversations/
+      // discoverable-groups once the active tenant resolves to a real (non-null) tenant, same
+      // shape as the eligible-participants re-fetch above.
+      httpMock.expectOne('/api/chat/conversations').flush(opts.conversations ?? []);
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/discoverable-groups')
+        .flush({
+          content: opts.discoverable ?? [],
+          page: 0,
+          size: 200,
+          totalElements: (opts.discoverable ?? []).length,
+          totalPages: 1,
+        });
     }
   }
 

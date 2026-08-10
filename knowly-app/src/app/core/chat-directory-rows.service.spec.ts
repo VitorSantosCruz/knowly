@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
+import { ActiveTenantService } from './active-tenant.service';
 import { ChatDirectoryRowsService } from './chat-directory-rows.service';
 
 describe('ChatDirectoryRowsService — Amendment (3) unified rows', () => {
@@ -118,5 +119,48 @@ describe('ChatDirectoryRowsService — Amendment (3) unified rows', () => {
 
     const names = service.discoveryRows().map((r) => r.displayName);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  });
+
+  // Bug fix (2026-08-10): switching the active tenant used to leave `conversations()`/
+  // `discoverableGroups()` stale — a staff-only group (or a previous tenant's groups) loaded
+  // before the switch kept showing after entering/leaving/switching a tenant, until a full page
+  // reload. `maybeRefetchConversations()` now re-fetches both whenever `activeTenantId()`
+  // changes, mirroring the already-correct `eligibleParticipants`/`articles` re-fetch pattern.
+  it('re-fetches conversations and discoverable-groups when the active tenant changes', () => {
+    flushInit({
+      conversations: [
+        {
+          id: 6,
+          kind: 'PEER_GROUP',
+          tenantId: null,
+          title: 'Staff Internal Group',
+          participantUserIds: [1, 3],
+        },
+      ],
+    });
+
+    expect(service.conversationRows().some((r) => r.kind === 'group' && r.id === 6)).toBe(true);
+
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(10, 'Tenant A').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush(null, { status: 200, statusText: 'OK' });
+    TestBed.tick();
+
+    // Switching tenants must trigger a fresh fetch of both conversations and discoverable
+    // groups, scoped to the new tenant context — this is the assertion that was previously red.
+    httpMock.expectOne('/api/chat/conversations').flush([]);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/discoverable-groups')
+      .flush({ content: [], page: 0, size: 200, totalElements: 0, totalPages: 1 });
+    // Unrelated to this fix, but the active tenant change also re-fires these two already-correct
+    // effects (eligible-participants/articles) — drained here so httpMock.verify() stays clean.
+    httpMock
+      .expectOne(
+        (r) => r.url === '/api/chat/eligible-participants' && r.params.get('tenantId') === '10',
+      )
+      .flush([]);
+    httpMock.expectOne('/api/tenants/10/conversations').flush([]);
+
+    expect(service.conversationRows().some((r) => r.kind === 'group' && r.id === 6)).toBe(false);
   });
 });

@@ -118,12 +118,28 @@ export class ChatDirectoryRowsService {
   private eligibleParticipantsFetchedForTenant: number | undefined | typeof NOT_FETCHED_YET =
     NOT_FETCHED_YET;
 
+  /**
+   * Bug fix (2026-08-10, reported by the product owner): unlike
+   * `eligibleParticipantsFetchedForTenant`/`articlesFetchedForTenant` above, `ensureLoaded()`
+   * used to fetch `chatService.conversations()` (own 1:1s + groups, including staff-only ones)
+   * and `chatDirectoryService.discoverableGroups()` **exactly once**, gated only by `loaded` —
+   * never re-fetched when `ActiveTenantService.activeTenantId()` later changed (entering a
+   * tenant, switching tenants, or leaving back to staff scope). A staff viewer who loaded chat
+   * while in staff scope (or in a different tenant) then switched tenants kept seeing the stale,
+   * previously-fetched list — including staff-only groups inside a tenant's chat view, or a
+   * previous tenant's groups after switching to another one — until a full page reload. Mirrors
+   * `eligibleParticipantsFetchedForTenant`'s NOT_FETCHED_YET-sentinel/re-fire-on-resolve shape.
+   */
+  private conversationsFetchedForTenant: number | undefined | typeof NOT_FETCHED_YET =
+    NOT_FETCHED_YET;
+
   constructor() {
     // Reacts to ActiveTenantService.activeTenantId() resolving asynchronously (its own fetch()
     // call, triggered by ensureLoaded()) — a plain post-fetch call wouldn't see the resolved
     // value yet at that point since fetch() subscribes internally and doesn't block.
     effect(() => this.maybeFetchArticles());
     effect(() => this.maybeRefetchEligibleParticipants());
+    effect(() => this.maybeRefetchConversations());
   }
 
   private readonly ownDirectConversations = computed(() =>
@@ -288,14 +304,38 @@ export class ChatDirectoryRowsService {
       return;
     }
     this.loaded = true;
-    this.chatService.fetchConversations();
-    this.chatDirectoryService.fetchDiscoverableGroups();
     this.profileService
       .getOwnProfile()
       .subscribe((profile) => this.currentUserId.set(profile.userId));
     this.activeTenantService.fetch();
     this.maybeRefetchEligibleParticipants();
     this.maybeFetchArticles();
+    this.maybeRefetchConversations();
+  }
+
+  /**
+   * See `conversationsFetchedForTenant`'s doc comment above. Fires once immediately (from
+   * `ensureLoaded()`, before `ActiveTenantService` has resolved) and again exactly once more
+   * when `activeTenantResolved()` flips `true`, then every time `activeTenantId()` itself
+   * changes afterwards (entering/switching/leaving a tenant) — never a redundant re-fetch for
+   * the same resolved tenant identity.
+   */
+  private maybeRefetchConversations(): void {
+    // Both signals must be read unconditionally, before the `loaded` early-return below, so
+    // Angular's effect keeps tracking them as dependencies even on a run that skips.
+    const resolved = this.activeTenantService.activeTenantResolved();
+    const tenantId = resolved
+      ? (this.activeTenantService.activeTenantId() ?? undefined)
+      : undefined;
+    if (!this.loaded) {
+      return;
+    }
+    if (this.conversationsFetchedForTenant === tenantId) {
+      return;
+    }
+    this.conversationsFetchedForTenant = tenantId;
+    this.chatService.fetchConversations();
+    this.chatDirectoryService.fetchDiscoverableGroups();
   }
 
   /**
