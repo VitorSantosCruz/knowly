@@ -647,6 +647,52 @@ tests it calls out below.
 - [x] 134. Run `./mvnw spotless:apply` then `./mvnw verify` and confirm
       the whole suite (existing chat/tenancy/staff-RBAC tests plus every
       task above) is green.
+## Amendment (2026-08-10, role-based scoping) — REQ-5e–REQ-5j
+
+> Continues numbering from task 135 above. Derived from PLAN.md's "Amended
+> (2026-08-10, role-based scoping) — REQ-5e–REQ-5j implementation"
+> section (AppSec-approved, GO-WITH-CHANGES, both required changes
+> applied: the branch-3 `IllegalStateException` invariant and the
+> `LIMIT 100` cap on `findDiscoverableIds`/`findDiscoverableIdsPlatformWide`).
+
+- [x] 136. Add `ChatConversationRepository.findDiscoverableIds(tenantId)`/
+      `findDiscoverableIdsPlatformWide()` (native `@Query`, explicit
+      `LIMIT 100`), with tests confirming `PUBLIC`/`REQUEST_TO_JOIN`-only
+      matching, tenant scoping, and that `PRIVATE` groups are never
+      returned.
+- [x] 137. Restructure `ChatMessageSearchRepository` into `BASE_PREDICATE`
+      plus three scope fragments (`searchUnrestrictedPt`/`En`,
+      `searchTenantUnrestrictedPt`/`En`, `searchScopedPt`/`En` with the
+      new `additionalVisibleConversationIds` bind parameter), updating
+      the existing repository tests to the renamed `searchScoped*`
+      methods.
+- [x] 138. Implement `ChatMessageSearchService.search()`'s role-based
+      branching (REQ-5e-REQ-5j precedence order: `STAFF_ADMIN` ->
+      tenant-active `MEMBER_ADMIN` -> tenant `MEMBER` (with the
+      AppSec-required `IllegalStateException` invariant on a null
+      `activeTenantId`) -> staff-no-tenant -> fail closed), computing
+      `additionalVisibleConversationIds` via `ChatEligibilityService`,
+      and rewriting the class Javadoc that claimed the service "never
+      reads `isStaff()`/`isStaffAdmin()`" (now false).
+- [x] 139. Update `ChatMessageSearchServiceTest` for the new constructor
+      dependencies (`TenantMembershipRepository`, `ChatConversationRepository`,
+      `ChatEligibilityService`) and all five branches, including REQ-5j's
+      stale-membership-in-a-different-tenant case.
+- [x] 140. Update/add `ChatMessageSearchControllerIntegrationTest` cases:
+      REQ-5e (`STAFF_ADMIN` unrestricted, with/without active tenant),
+      REQ-5f (staff-no-tenant now gets scoped results, not empty),
+      REQ-5g (active-tenant `MEMBER_ADMIN` unrestricted-in-tenant),
+      REQ-5j (a `MEMBER_ADMIN`'s stale membership/participant row in a
+      different tenant never crosses tenant boundaries), and REQ-5i (a
+      non-admin's search never matches an unjoined `PRIVATE` group but
+      does match a discoverable `PUBLIC` group).
+- [x] 141. Run `./mvnw spotless:apply` then the scoped chat-message-search
+      test suite and confirm green.
+- [ ] 142. Update `PROJECT_STATUS.md` to reflect this amendment's
+      completion.
+
+## Wrap-up (original)
+
 - [x] 135. Update `PROJECT_STATUS.md` to reflect this amendment's
       completion, noting the new `GET /api/chat/search` endpoint, the two
       AppSec-fixed cross-tenant scoping gaps (participant-groups union,

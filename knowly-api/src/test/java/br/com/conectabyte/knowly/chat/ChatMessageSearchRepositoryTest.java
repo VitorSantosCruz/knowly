@@ -64,8 +64,17 @@ class ChatMessageSearchRepositoryTest {
             Instant dateFrom,
             Instant dateTo,
             Long cursor) {
-        return chatMessageSearchRepository.searchEn(
-                callerId, tenantId, q, senderId, conversationId, dateFrom, dateTo, cursor, 30);
+        return chatMessageSearchRepository.searchScopedEn(
+                callerId,
+                tenantId,
+                new Long[0],
+                q,
+                senderId,
+                conversationId,
+                dateFrom,
+                dateTo,
+                cursor,
+                30);
     }
 
     // --- task 13/14: tenant scoping ---
@@ -294,8 +303,17 @@ class ChatMessageSearchRepositoryTest {
         message(conversation, caller, "os gatos correm rapido no jardim");
 
         List<ChatMessageSearchRow> results =
-                chatMessageSearchRepository.searchPt(
-                        caller.getId(), t.getId(), "gato", null, null, null, null, null, 30);
+                chatMessageSearchRepository.searchScopedPt(
+                        caller.getId(),
+                        t.getId(),
+                        new Long[0],
+                        "gato",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        30);
 
         assertThat(results).hasSize(1);
     }
@@ -330,8 +348,17 @@ class ChatMessageSearchRepositoryTest {
         }
 
         List<ChatMessageSearchRow> page1 =
-                chatMessageSearchRepository.searchEn(
-                        caller.getId(), t.getId(), "snorklewhiff", null, null, null, null, null, 3);
+                chatMessageSearchRepository.searchScopedEn(
+                        caller.getId(),
+                        t.getId(),
+                        new Long[0],
+                        "snorklewhiff",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        3);
         assertThat(page1).hasSize(3);
         assertThat(page1)
                 .extracting(ChatMessageSearchRow::getId)
@@ -339,9 +366,10 @@ class ChatMessageSearchRepositoryTest {
 
         Long cursor = page1.get(page1.size() - 1).getId();
         List<ChatMessageSearchRow> page2 =
-                chatMessageSearchRepository.searchEn(
+                chatMessageSearchRepository.searchScopedEn(
                         caller.getId(),
                         t.getId(),
+                        new Long[0],
                         "snorklewhiff",
                         null,
                         null,

@@ -337,83 +337,163 @@ class ChatMessageSearchControllerIntegrationTest {
         assertThat(body).doesNotContain("tenant two message");
     }
 
+    // REQ-5f: staff with no active tenant now gets scoped (participant) results, not an
+    // unconditional empty result -- superseded by the role-based ruleset, still never a
+    // cross-tenant scan.
     @Test
-    void noActiveTenantInSessionGetsZeroResultsNotAnUnfilteredCrossTenantScan() throws Exception {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("AppSec No Active Tenant Co"));
-        User staffCaller = staff("appsec-staff-noactive@example.com", GlobalRole.STAFF);
+    void staffWithNoActiveTenantGetsResultsFromTheirOwnDirectParticipantConversation()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5f No Active Tenant Co"));
+        User staffCaller = staff("req5f-staff-noactive@example.com", GlobalRole.STAFF);
         ChatConversation conversation =
                 conversation(ChatConversationKind.PEER_GROUP, tenant, "No Active Tenant Group");
         participate(conversation, staffCaller);
         message(conversation, staffCaller, "quibblesnort no active tenant message");
 
-        Cookie session = logIn("appsec-staff-noactive@example.com");
+        Cookie session = logIn("req5f-staff-noactive@example.com");
 
         var response = search(session, "quibblesnort");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+        assertThat(response.getResponse().getContentAsString()).contains("quibblesnort");
     }
 
+    // REQ-5e: STAFF_ADMIN gets platform-wide unrestricted search, including a conversation they
+    // hold no participant row on, with or without an active tenant.
     @Test
-    void staffAdminWithNoActiveTenantAlsoGetsZeroResultsNoOversightBypass() throws Exception {
-        Tenant tenant =
-                tenantRepository.saveAndFlush(new Tenant("AppSec Staff Admin No Active Co"));
-        User staffAdmin = staff("appsec-staffadmin-noactive@example.com", GlobalRole.STAFF_ADMIN);
+    void staffAdminWithNoActiveTenantGetsUnrestrictedResultsRegardlessOfParticipation()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5e Staff Admin No Active Co"));
+        User owner = member("req5e-owner@example.com", tenant);
         ChatConversation conversation =
                 conversation(
                         ChatConversationKind.PEER_GROUP, tenant, "Staff Admin No Active Group");
-        participate(conversation, staffAdmin);
-        message(conversation, staffAdmin, "ratatouillewhisk staff admin no active message");
+        participate(conversation, owner);
+        message(conversation, owner, "ratatouillewhisk staff admin no active message");
 
-        Cookie session = logIn("appsec-staffadmin-noactive@example.com");
+        staff("req5e-staffadmin-noactive@example.com", GlobalRole.STAFF_ADMIN);
+
+        Cookie session = logIn("req5e-staffadmin-noactive@example.com");
 
         var response = search(session, "ratatouillewhisk");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+        assertThat(response.getResponse().getContentAsString()).contains("ratatouillewhisk");
     }
 
-    // TASKS.md items 51/52 (REQ-5): STAFF_ADMIN/MEMBER_ADMIN with zero participant rows get zero
-    // results.
+    // TASKS.md items 51/52, superseded by REQ-5e/REQ-5g: STAFF_ADMIN/MEMBER_ADMIN now DO get
+    // results from a conversation with zero participant rows, since their admin grant is an
+    // explicit, bounded, unrestricted-within-scope privilege, not a REQ-2-style participancy
+    // check.
     @Test
-    void staffAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() throws Exception {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5 Staff Admin Co"));
-        User owner = member("req5-owner@example.com", tenant);
+    void staffAdminWithZeroParticipantRowsStillGetsResultsUnrestricted() throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5e Staff Admin Co"));
+        User owner = member("req5e-owner2@example.com", tenant);
         ChatConversation conversation =
-                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5 Group");
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5e Group");
         participate(conversation, owner);
-        message(conversation, owner, "splendifantastic req5 message");
+        message(conversation, owner, "splendifantastic req5e message");
 
-        User staffAdmin = staff("req5-staffadmin@example.com", GlobalRole.STAFF_ADMIN);
+        User staffAdmin = staff("req5e-staffadmin@example.com", GlobalRole.STAFF_ADMIN);
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(staffAdmin, tenant, MembershipRole.MEMBER));
-        Cookie session = logIn("req5-staffadmin@example.com");
+        Cookie session = logIn("req5e-staffadmin@example.com");
         switchActiveTenant(session, tenant.getId());
 
         var response = search(session, "splendifantastic");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+        assertThat(response.getResponse().getContentAsString()).contains("splendifantastic");
     }
 
     @Test
-    void memberAdminWithZeroParticipantRowsGetsZeroResultsFromThatConversation() throws Exception {
-        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5 Member Admin Co"));
-        User owner = member("req5ma-owner@example.com", tenant);
+    void memberAdminWithZeroParticipantRowsStillGetsResultsWithinTheirOwnActiveTenant()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5g Member Admin Co"));
+        User owner = member("req5g-owner@example.com", tenant);
         ChatConversation conversation =
-                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5MA Group");
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5g Group");
         participate(conversation, owner);
-        message(conversation, owner, "cantankerousfizzle req5ma message");
+        message(conversation, owner, "cantankerousfizzle req5g message");
 
-        User memberAdmin = userRepository.saveAndFlush(new User("req5ma-admin@example.com"));
+        User memberAdmin = userRepository.saveAndFlush(new User("req5g-admin@example.com"));
         tenantMembershipRepository.saveAndFlush(
                 new TenantMembership(memberAdmin, tenant, MembershipRole.MEMBER_ADMIN));
-        Cookie session = logIn("req5ma-admin@example.com");
+        Cookie session = logIn("req5g-admin@example.com");
 
         var response = search(session, "cantankerousfizzle");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("\"results\":[]");
+        assertThat(response.getResponse().getContentAsString()).contains("cantankerousfizzle");
+    }
+
+    // REQ-5j: a MEMBER_ADMIN's unrestricted grant is bounded to their own active tenant -- a
+    // stale/unrelated participant row in a different tenant never becomes reachable, and a
+    // conversation belonging to a different tenant is never returned.
+    @Test
+    void memberAdminUnrestrictedGrantNeverCrossesTenantBoundaries() throws Exception {
+        Tenant tenantOne = tenantRepository.saveAndFlush(new Tenant("REQ5j Tenant One"));
+        Tenant tenantTwo = tenantRepository.saveAndFlush(new Tenant("REQ5j Tenant Two"));
+
+        User memberAdmin = userRepository.saveAndFlush(new User("req5j-admin@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdmin, tenantOne, MembershipRole.MEMBER_ADMIN));
+        // Stale, unrelated participant row in tenant two -- must never widen the tenant-one
+        // unrestricted grant into a cross-tenant scan.
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdmin, tenantTwo, MembershipRole.MEMBER));
+
+        ChatConversation conversationOne =
+                conversation(ChatConversationKind.PEER_GROUP, tenantOne, "REQ5j Tenant One Group");
+        message(conversationOne, memberAdmin, "wafflequartz tenant one message");
+
+        ChatConversation conversationTwo =
+                conversation(ChatConversationKind.PEER_GROUP, tenantTwo, "REQ5j Tenant Two Group");
+        participate(conversationTwo, memberAdmin);
+        message(conversationTwo, memberAdmin, "wafflequartz tenant two message");
+
+        Cookie session = logIn("req5j-admin@example.com");
+        switchActiveTenant(session, tenantOne.getId());
+
+        var response = search(session, "wafflequartz");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("tenant one message");
+        assertThat(body).doesNotContain("tenant two message");
+    }
+
+    // REQ-5i: a non-admin's message search never matches a PRIVATE group they haven't joined,
+    // even though it would surface for a PUBLIC/REQUEST_TO_JOIN group they haven't joined.
+    @Test
+    void nonAdminMemberNeverMatchesAnUnjoinedPrivateGroupButDoesMatchDiscoverableGroups()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5i Discoverable Co"));
+        member("req5i-caller@example.com", tenant);
+        User other = member("req5i-other@example.com", tenant);
+
+        ChatConversation privateGroup =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5i Private Group");
+        privateGroup.setVisibility(ChatGroupVisibility.PRIVATE);
+        chatConversationRepository.saveAndFlush(privateGroup);
+        participate(privateGroup, other);
+        message(privateGroup, other, "puzzlewrenchgloam private group message");
+
+        ChatConversation publicGroup =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ5i Public Group");
+        publicGroup.setVisibility(ChatGroupVisibility.PUBLIC);
+        chatConversationRepository.saveAndFlush(publicGroup);
+        participate(publicGroup, other);
+        message(publicGroup, other, "puzzlewrenchgloam public group message");
+
+        Cookie session = logIn("req5i-caller@example.com");
+
+        var response = search(session, "puzzlewrenchgloam");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("public group message");
+        assertThat(body).doesNotContain("private group message");
     }
 
     // TASKS.md items 53/54 (REQ-1)

@@ -64,4 +64,41 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
             @Param("pattern") String pattern,
             @Param("activeTenantId") Long activeTenantId,
             Pageable pageable);
+
+    /**
+     * Message-search role-based scoping (2026-08-10 amendment), REQ-5f/REQ-5h/REQ-5i/REQ-19:
+     * id-only sibling of {@link #findDiscoverable(Pageable)}, backing {@code
+     * ChatMessageSearchService}'s {@code additionalVisibleConversationIds} computation for a
+     * tenant-bound non-admin caller. Ids only (not full pagination) because the caller needs the
+     * complete eligible-candidate set to fold into a single SQL {@code ANY(...)} bind parameter,
+     * not a UI page.
+     *
+     * <p><b>AppSec-required cap:</b> explicit {@code LIMIT 100} in the query itself (same ceiling
+     * as {@code ChatCursor.MAX_PAGE_SIZE}/{@code TenantService}/{@code StaffService}'s {@code
+     * MAX_PAGE_SIZE}), not a Java-side truncation after fetch -- a tenant with an unusually large
+     * discoverable-group count cannot turn this into an unbounded-query DoS vector.
+     */
+    @Query(
+            value =
+                    "select c.id from chat_conversations c where c.kind = 'PEER_GROUP' and"
+                            + " c.archived_at is null and c.deleted_at is null and c.visibility in"
+                            + " ('PUBLIC','REQUEST_TO_JOIN') and c.tenant_id = :tenantId order by"
+                            + " c.id LIMIT 100",
+            nativeQuery = true)
+    List<Long> findDiscoverableIds(@Param("tenantId") Long tenantId);
+
+    /**
+     * Platform-wide sibling of {@link #findDiscoverableIds(Long)}, backing the REQ-5f staff-
+     * no-active-tenant branch of {@code ChatMessageSearchService} (no {@code tenant_id} predicate
+     * at all -- deliberate, mirrors that branch's own no-tenant-restriction posture for its
+     * participant/discoverability scope). Same {@code LIMIT 100} cap and rationale as {@link
+     * #findDiscoverableIds(Long)}.
+     */
+    @Query(
+            value =
+                    "select c.id from chat_conversations c where c.kind = 'PEER_GROUP' and"
+                            + " c.archived_at is null and c.deleted_at is null and c.visibility in"
+                            + " ('PUBLIC','REQUEST_TO_JOIN') order by c.id LIMIT 100",
+            nativeQuery = true)
+    List<Long> findDiscoverableIdsPlatformWide();
 }

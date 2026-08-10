@@ -55,4 +55,70 @@ class ChatConversationRepositoryTest {
                 .extracting(ChatConversation::getId)
                 .containsExactly(groupA.getId());
     }
+
+    // Message-search role-based scoping (2026-08-10 amendment), REQ-5f/REQ-5h/REQ-5i.
+    @Test
+    void findDiscoverableIdsOnlyReturnsPublicAndRequestToJoinGroupsWithinTheGivenTenant() {
+        Tenant tenantA = tenantRepository.saveAndFlush(new Tenant("Discoverable Ids Tenant A"));
+        Tenant tenantB = tenantRepository.saveAndFlush(new Tenant("Discoverable Ids Tenant B"));
+
+        ChatConversation publicGroup =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantA, "Public Group", null);
+        publicGroup.setVisibility(ChatGroupVisibility.PUBLIC);
+        chatConversationRepository.saveAndFlush(publicGroup);
+
+        ChatConversation requestToJoinGroup =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantA, "Request Group", null);
+        requestToJoinGroup.setVisibility(ChatGroupVisibility.REQUEST_TO_JOIN);
+        chatConversationRepository.saveAndFlush(requestToJoinGroup);
+
+        ChatConversation privateGroup =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantA, "Private Group", null);
+        privateGroup.setVisibility(ChatGroupVisibility.PRIVATE);
+        chatConversationRepository.saveAndFlush(privateGroup);
+
+        ChatConversation otherTenantGroup =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantB, "Other Tenant Group", null);
+        otherTenantGroup.setVisibility(ChatGroupVisibility.PUBLIC);
+        chatConversationRepository.saveAndFlush(otherTenantGroup);
+
+        var ids = chatConversationRepository.findDiscoverableIds(tenantA.getId());
+
+        assertThat(ids).containsExactlyInAnyOrder(publicGroup.getId(), requestToJoinGroup.getId());
+    }
+
+    @Test
+    void findDiscoverableIdsPlatformWideReturnsAcrossTenantsButNeverPrivateGroups() {
+        Tenant tenantA =
+                tenantRepository.saveAndFlush(new Tenant("Discoverable Ids Platform Tenant A"));
+        Tenant tenantB =
+                tenantRepository.saveAndFlush(new Tenant("Discoverable Ids Platform Tenant B"));
+
+        ChatConversation publicGroupA =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantA, "Platform Public A", null);
+        publicGroupA.setVisibility(ChatGroupVisibility.PUBLIC);
+        chatConversationRepository.saveAndFlush(publicGroupA);
+
+        ChatConversation publicGroupB =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantB, "Platform Public B", null);
+        publicGroupB.setVisibility(ChatGroupVisibility.PUBLIC);
+        chatConversationRepository.saveAndFlush(publicGroupB);
+
+        ChatConversation privateGroup =
+                new ChatConversation(
+                        ChatConversationKind.PEER_GROUP, tenantA, "Platform Private", null);
+        privateGroup.setVisibility(ChatGroupVisibility.PRIVATE);
+        chatConversationRepository.saveAndFlush(privateGroup);
+
+        var ids = chatConversationRepository.findDiscoverableIdsPlatformWide();
+
+        assertThat(ids).contains(publicGroupA.getId(), publicGroupB.getId());
+        assertThat(ids).doesNotContain(privateGroup.getId());
+    }
 }
