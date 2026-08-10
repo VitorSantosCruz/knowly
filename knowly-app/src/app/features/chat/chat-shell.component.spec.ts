@@ -476,7 +476,6 @@ describe('ChatShellComponent', () => {
       expect(header).toBeTruthy();
       expect(shell).toBeTruthy();
       // DOCUMENT_POSITION_FOLLOWING (4) — header precedes the 3-column container.
-      // eslint-disable-next-line no-bitwise
       expect(
         header!.compareDocumentPosition(shell!) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
