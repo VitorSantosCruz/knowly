@@ -857,16 +857,16 @@
 
 ### 14a. `ChatShellComponent` header region
 
-- [ ] 226. Test: `ChatShellComponent` renders a new `<header>` region
+- [x] 226. Test: `ChatShellComponent` renders a new `<header>` region
        (`chat-search-bar-region`) above the existing 3-column container,
        containing exactly one `<app-chat-unified-search>` element — use a
        stub/fake component for `ChatUnifiedSearchComponent` in this spec
        (the real component's internals belong to
        `chat-message-search/TASKS.md`) (Red).
-- [ ] 227. Implement the new header region + mounting
+- [x] 227. Implement the new header region + mounting
        `ChatUnifiedSearchComponent` with no inputs/outputs, above the
        existing 3-column flex/grid container (Green).
-- [ ] 228. Test: the header region and its `<app-chat-unified-search>`
+- [x] 228. Test: the header region and its `<app-chat-unified-search>`
        child render identically regardless of which `section`/narrow-
        viewport pane is currently active — parametrize over every
        existing section-dispatch case already covered by
@@ -874,84 +874,84 @@
        and the 3-way narrow-viewport collapse from Amendment (3)),
        asserting the header survives every one of them (Red — this is
        REQ-42's core "never disappears" claim).
-- [ ] 229. Confirm task 228 passes given task 227's implementation
+- [x] 229. Confirm task 228 passes given task 227's implementation
        (Green — the header sits outside the pane-dispatch conditional by
        construction; if it doesn't pass, the header was accidentally
        nested inside a conditionally-rendered pane and must move up).
-- [ ] 230. Test: the header region and its child are reachable in DOM/tab
+- [x] 230. Test: the header region and its child are reachable in DOM/tab
        order before the 3-column container (matching visual top-to-bottom
        order) (Red).
-- [ ] 231. Implement/confirm that DOM ordering (Green).
+- [x] 231. Implement/confirm that DOM ordering (Green).
 
 ### 14b. Remove column 1's own search input, preserve browsing/partition logic
 
-- [ ] 232. Test: `chat-directory.component.ts` renders
+- [x] 232. Test: `chat-directory.component.ts` renders
        `rowsService.conversationRows()`'s full, unfiltered row set
        directly — including a fixture row that would previously have
        been excluded by a stale `unifiedQuery` value — with no `<input>`
        matching the old search `data-testid`/`aria-label` anywhere in the
        rendered DOM (Red).
-- [ ] 233. Implement: delete the `unifiedQuery` writable signal, its
+- [x] 233. Implement: delete the `unifiedQuery` writable signal, its
        `<input>` template markup, its `aria-label`, and the `computed()`
        that filtered `rowsService.conversationRows()`; change the
        template to render `rowsService.conversationRows()` directly.
        `ChatDirectoryRowsService`'s own computed chain
        (`talkedPeople`/`groupRows`/`articleRows`/`supportRow` merge,
        pinned-Support-first ordering) is untouched by this task (Green).
-- [ ] 234. Test: Support's pinned-first ordering and every existing
+- [x] 234. Test: Support's pinned-first ordering and every existing
        REQ-2/REQ-2d row-click/active-state/create-or-open/join/
        request-to-join behavior from the Amendment (3) suite still passes
        unmodified after the search-field removal (Red — extends the
        existing suite rather than adding new behavior).
-- [ ] 235. Confirm task 234 passes as-is (Green — no new implementation
+- [x] 235. Confirm task 234 passes as-is (Green — no new implementation
        expected; if it fails, the removal in task 233 touched something
        beyond the search field/filtering computed and must be scoped
        back down).
 
 ### 14c. Remove column 3's own directory search input, preserve its logic
 
-- [ ] 236. Test: `chat-full-directory.component.ts` renders
+- [x] 236. Test: `chat-full-directory.component.ts` renders
        `rowsService.discoveryRows()`'s full, unfiltered set directly —
        including a fixture row that would previously have been excluded
        by a stale `searchQuery` value — with no search `<input>` anywhere
        in the rendered DOM (Red).
-- [ ] 237. Implement: delete the `searchQuery` signal, its `<input>`, its
+- [x] 237. Implement: delete the `searchQuery` signal, its `<input>`, its
        `aria-label`, and the `filterByQuery`-based `computed()`; render
        `rowsService.discoveryRows()` directly. `discoveryRows()`'s own
        sort order (or its documented interim alphabetical fallback, per
        the "Cross-surface recency sort" decision, unchanged by this
        amendment) is untouched (Green).
-- [ ] 238. Test: REQ-2d's sort order (or its documented interim
+- [x] 238. Test: REQ-2d's sort order (or its documented interim
        alphabetical fallback), and every existing click-to-open-or-create/
        join/request-to-join behavior in column 3, still pass unmodified
        after the search-field removal (Red).
-- [ ] 239. Confirm task 238 passes as-is (Green — same "removal-only,
+- [x] 239. Confirm task 238 passes as-is (Green — same "removal-only,
        no logic change" expectation as task 235).
 
 ### 14d. Delete `chat-directory-search.util.ts`
 
-- [ ] 240. Grep the codebase for any remaining import of
+- [x] 240. Grep the codebase for any remaining import of
        `chat-directory-search.util` (beyond the two call sites removed in
        14b/14c) — confirm none remain before deleting.
-- [ ] 241. Delete `chat-directory-search.util.ts` and its spec (if one
+- [x] 241. Delete `chat-directory-search.util.ts` and its spec (if one
        exists) now that both call sites (`chat-directory.component.ts`,
        `chat-full-directory.component.ts`) no longer import it (Green —
        no separate Red; task 240's grep is the pre-condition check).
 
 ### 14e. Layout regression — REQ-42's "never disappear" requirement
 
-- [ ] 242. Test: at each of this app's existing mobile/tablet/desktop
+- [x] 242. Test: at each of this app's existing mobile/tablet/desktop
        breakpoints (reusing the same breakpoint set already exercised by
        Amendment (3)'s 3-way collapse test, task 159/160), the search bar
        header region remains present and visible in the DOM regardless of
        which single pane is currently shown at the narrow-viewport
        collapse (Red).
-- [ ] 243. Confirm/implement whatever CSS is needed so the header region
+- [x] 243. Confirm/implement whatever CSS is needed so the header region
        is never included in the pane-collapse logic — it sits outside the
        collapsing 3-column container by construction (per 14a), so this
        should already be satisfied; only add CSS if the test in 242
        reveals a gap (Green).
-- [ ] 244. Test: the overlay dropdown's absolute positioning does not
+- [x] 244. Test: the overlay dropdown's absolute positioning does not
        reflow or resize the 3-column container's own layout — assert the
        columns' container element's computed layout classes are
        unchanged whether the (stubbed) `<app-chat-unified-search>` is
@@ -960,32 +960,32 @@
        stub/fake for the inner overlay-open state, since the overlay's
        own open/close mechanics are owned by `chat-message-search`'s own
        component and tests).
-- [ ] 245. Implement/confirm the header region's own container uses
+- [x] 245. Implement/confirm the header region's own container uses
        fixed-height, non-flow-affecting CSS (e.g. the header itself does
        not grow/shrink based on the dropdown's open state) so task 244
        passes (Green).
 
 ### 14f. Verification and documentation
 
-- [ ] 246. Run
+- [x] 246. Run
        `npm run format:check && npm test && npm run build && npm run lint`
        for section 14 (this section's tasks only — `chat-unified-search
        .component.ts`'s own tests are verified as part of
        `chat-message-search/TASKS.md`'s own verification task) and commit
        incrementally per this repo's atomic-commit convention — do not
        batch the whole amendment into one commit.
-- [ ] 247. Update `PLAN.md`'s "Amendment (2026-08-10)" section (or add a
+- [x] 247. Update `PLAN.md`'s "Amendment (2026-08-10)" section (or add a
        new "Emergent decisions, Amendment (2026-08-10)" section) with
        anything discovered while executing 14a-14e, following this PLAN's
        own established precedent for documenting deviations.
-- [ ] 248. Update `SPEC.md`'s Amended-(5) acceptance-criteria checkboxes
+- [x] 248. Update `SPEC.md`'s Amended-(5) acceptance-criteria checkboxes
        for REQ-1/REQ-2c/REQ-42–REQ-47/REQ-8/REQ-9-removal to reflect
        what's now verified by this section's tests — leave any criterion
        that depends on `chat-unified-search.component.ts`'s own internal
        behavior (owned by the companion feature) unchecked with a note
        pointing at `chat-message-search/TASKS.md` instead of duplicating
        that feature's own verification here.
-- [ ] 249. Update `../../../../PROJECT_STATUS.md` with an entry
+- [x] 249. Update `../../../../PROJECT_STATUS.md` with an entry
        documenting the persistent-search-bar shell/layout landing (new
        header region on `ChatShellComponent`, retirement of column 1/3's
        own search inputs and `chat-directory-search.util.ts`, cross-
