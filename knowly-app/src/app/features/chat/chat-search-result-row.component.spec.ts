@@ -1,7 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTransloco } from '@jsverse/transloco';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
-import { ChatSearchResultRowComponent, ChatSearchRowResult } from './chat-search-result-row.component';
+import {
+  ChatSearchResultRowComponent,
+  ChatSearchRowResult,
+} from './chat-search-result-row.component';
 
 const MESSAGE_RESULT: ChatSearchRowResult = {
   kind: 'message',
@@ -102,7 +105,13 @@ describe('ChatSearchResultRowComponent', () => {
     });
 
     it('kind: group — renders title, emits id', async () => {
-      await createWith({ kind: 'group', id: 3, title: 'Grupo X', isParticipant: true, visibility: 'PUBLIC' });
+      await createWith({
+        kind: 'group',
+        id: 3,
+        title: 'Grupo X',
+        isParticipant: true,
+        visibility: 'PUBLIC',
+      });
       expect(fixture.nativeElement.textContent).toContain('Grupo X');
       const spy = vi.fn();
       fixture.componentInstance.rowSelected.subscribe(spy);

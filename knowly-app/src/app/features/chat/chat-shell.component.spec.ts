@@ -156,23 +156,20 @@ describe('ChatShellComponent', () => {
     ]);
   });
 
-  it("column 1's and column 3's search fields each have their own, never-equal aria-label (SPEC.md's a11y NFR, Amended (3), final)", () => {
+  it("Amended (2026-08-10): column 1's and column 3's own per-column search fields are gone — the persistent search bar is the only search entry point (REQ-43)", () => {
     setup();
     fixture.detectChanges();
     flushActiveTenant(null);
     flushDirectory();
     fixture.detectChanges();
 
-    const column1Label = fixture.nativeElement
-      .querySelector('[data-testid="chat-directory-search"]')
-      .getAttribute('aria-label');
-    const column3Label = fixture.nativeElement
-      .querySelector('[data-testid="chat-full-directory-search"]')
-      .getAttribute('aria-label');
-
-    expect(column1Label).toBeTruthy();
-    expect(column3Label).toBeTruthy();
-    expect(column1Label).not.toEqual(column3Label);
+    expect(fixture.nativeElement.querySelector('[data-testid="chat-directory-search"]')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-full-directory-search"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-unified-search-input"]'),
+    ).toBeTruthy();
   });
 
   it('collapses to one column at a time below the breakpoint (REQ-2c) — directory only, no conversation open yet', () => {

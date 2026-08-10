@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -10,16 +10,20 @@ import {
   PersonRow,
 } from '../../core/chat-directory-rows.service';
 import { AvatarComponent } from '../../shared/avatar.component';
-import { filterByQuery } from './chat-directory-search.util';
 import { GroupVisibilityBadgeComponent } from './group-visibility-badge.component';
 
 /**
  * Directory column's (column 1 of the 3-column layout — REQ-1/REQ-2, Amended (3), final)
- * permanent content — one unified, searchable "CONVERSAS" list: the always-pinned Support row
- * first, then every person already messaged, every group already joined, and every existing
- * "Base de artigos" conversation, mixed together (not partitioned into sections). A single
- * `unifiedQuery` search field filters everything **except** the pinned Support row, which stays
- * visible under any query (REQ-2/REQ-9's continued Support exemption).
+ * permanent content — one unified "CONVERSAS" list: the always-pinned Support row first, then
+ * every person already messaged, every group already joined, and every existing "Base de
+ * artigos" conversation, mixed together (not partitioned into sections).
+ *
+ * **Amended (2026-08-10)**: this column's own `unifiedQuery` search field is removed —
+ * `rowsService.conversationRows()` renders directly, unfiltered. Finding anything by name now
+ * happens exclusively through the persistent search bar (`chat-unified-search.component.ts`,
+ * mounted by `ChatShellComponent`'s own header region) — see that feature's PLAN.md. This
+ * column's browsing/click-to-open-or-create/join/request-to-join logic and Support's pinned-
+ * first ordering are entirely unchanged by this amendment.
  *
  * **Amendment (3), 2026-08-09 (same day as the previous 2-column cut this supersedes)**: the
  * product owner's earlier "já falou"/"ainda não falou" partition (People) and the separate
@@ -37,21 +41,8 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
   imports: [TranslocoPipe, GroupVisibilityBadgeComponent, AvatarComponent],
   template: `
     <div data-testid="chat-directory" class="flex flex-col gap-4">
-      <label class="mb-1 flex flex-col gap-1 text-sm">
-        <span class="sr-only">{{ 'chat.directory.unifiedSearchLabel' | transloco }}</span>
-        <input
-          type="search"
-          data-testid="chat-directory-search"
-          [attr.aria-label]="'chat.directory.unifiedSearchLabel' | transloco"
-          [value]="unifiedQuery()"
-          (input)="unifiedQuery.set($any($event.target).value)"
-          placeholder="{{ 'chat.directory.searchPlaceholder' | transloco }}"
-          class="rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
-        />
-      </label>
-
       <ul data-testid="chat-directory-list" class="flex flex-col gap-1">
-        @for (row of filteredRows(); track row.key) {
+        @for (row of rowsService.conversationRows(); track row.key) {
           <li>
             @switch (row.kind) {
               @case ('support') {
@@ -149,11 +140,6 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
           </li>
         }
       </ul>
-      @if (noResults()) {
-        <p data-testid="chat-directory-no-results" class="text-sm text-ink-500 dark:text-ink-400">
-          {{ 'chat.directory.noResults' | transloco: { query: unifiedQuery() } }}
-        </p>
-      }
     </div>
   `,
 })
@@ -194,33 +180,7 @@ export class ChatDirectoryComponent implements OnInit {
     return row.conversationId !== null && row.conversationId === this.activePeerId();
   }
 
-  /** REQ-2/REQ-9's single unified search field — filters every row except the pinned Support
-   * row, which is structurally excluded from filtering below rather than special-cased in the
-   * template. */
-  protected readonly unifiedQuery = signal('');
-
   protected readonly rowErrors = this.rowsService.rowErrors;
-
-  private readonly filteredNonSupportRows = computed(() =>
-    filterByQuery(
-      this.rowsService
-        .conversationRows()
-        .filter((row): row is Exclude<DirectoryRow, { kind: 'support' }> => row.kind !== 'support'),
-      this.unifiedQuery(),
-    ),
-  );
-
-  protected readonly filteredRows = computed<DirectoryRow[]>(() => [
-    this.rowsService.supportRow,
-    ...this.filteredNonSupportRows(),
-  ]);
-
-  /** REQ-10: "no results" only means "the unified search matched nothing among the *filterable*
-   * rows" — the always-pinned, never-filtered Support row keeps the list from ever reading as
-   * literally empty, so this can't key off `filteredRows().length === 0`. */
-  protected readonly noResults = computed(
-    () => this.unifiedQuery() !== '' && this.filteredNonSupportRows().length === 0,
-  );
 
   ngOnInit(): void {
     this.rowsService.ensureLoaded();

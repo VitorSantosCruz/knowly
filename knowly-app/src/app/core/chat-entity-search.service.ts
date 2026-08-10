@@ -74,7 +74,9 @@ export class ChatEntitySearchService {
     this._ragStatus.set('loading');
 
     this.http
-      .get<ChatEntitySearchResponseDto>('/api/chat/search', { params: new HttpParams().set('q', q) })
+      .get<ChatEntitySearchResponseDto>('/api/chat/search', {
+        params: new HttpParams().set('q', q),
+      })
       .pipe(catchError(() => of(null)))
       .subscribe((response) => {
         if (response === null) {

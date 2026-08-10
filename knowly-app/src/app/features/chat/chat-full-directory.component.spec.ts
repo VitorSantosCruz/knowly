@@ -57,17 +57,7 @@ describe('ChatFullDirectoryComponent — Amendment (3): column 3', () => {
       .flush(null, { status: 204, statusText: 'No Content' });
   }
 
-  function searchInput(): HTMLInputElement {
-    return fixture.nativeElement.querySelector('[data-testid="chat-full-directory-search"]');
-  }
-
-  function search(query: string): void {
-    searchInput().value = query;
-    searchInput().dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-  }
-
-  it('renders discoveryRows() — not-yet-messaged people and discoverable groups, filtered by its own independent searchQuery', () => {
+  it('renders discoveryRows() — not-yet-messaged people and discoverable groups', () => {
     fixture.detectChanges();
     flushInit({
       eligible: [{ userId: 2, nickname: 'Bob' }],
@@ -100,7 +90,7 @@ describe('ChatFullDirectoryComponent — Amendment (3): column 3', () => {
     ).toBeNull();
   });
 
-  it('has its own searchQuery, never affecting or affected by column 1 (distinct data-testid/aria-label from column 1)', () => {
+  it('Amended (2026-08-10): renders the full, unfiltered discoveryRows() set with no search <input> anywhere in the DOM', () => {
     fixture.detectChanges();
     flushInit({
       eligible: [
@@ -110,26 +100,15 @@ describe('ChatFullDirectoryComponent — Amendment (3): column 3', () => {
     });
     fixture.detectChanges();
 
-    search('ali');
-
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-full-directory-search"]'),
+    ).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[type="search"]')).toBeNull();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-full-directory-row-person:3"]'),
     ).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-full-directory-row-person:2"]'),
-    ).toBeNull();
-
-    expect(searchInput().getAttribute('aria-label')).toBeTruthy();
-  });
-
-  it('a search with zero matches shows its own distinct "no results" message', () => {
-    fixture.detectChanges();
-    flushInit({ eligible: [{ userId: 2, nickname: 'Bob' }] });
-    fixture.detectChanges();
-
-    search('zzz');
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-full-directory-no-results"]'),
     ).toBeTruthy();
   });
 
@@ -218,12 +197,11 @@ describe('ChatFullDirectoryComponent — Amendment (3): column 3', () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it("the search field is keyboard-navigable with a distinct aria-label from column 1's", () => {
+  it('Amended (2026-08-10): renders no search field at all — no search input anywhere in the DOM', () => {
     fixture.detectChanges();
     flushInit({});
     fixture.detectChanges();
 
-    const label = searchInput().getAttribute('aria-label');
-    expect(label).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('input[type="search"]')).toBeNull();
   });
 });

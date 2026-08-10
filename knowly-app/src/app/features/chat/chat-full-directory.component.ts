@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import {
   ChatDirectoryRowsService,
@@ -6,16 +6,18 @@ import {
   PersonRow,
 } from '../../core/chat-directory-rows.service';
 import { AvatarComponent } from '../../shared/avatar.component';
-import { filterByQuery } from './chat-directory-search.util';
 import { GroupVisibilityBadgeComponent } from './group-visibility-badge.component';
 
 /**
  * Full-directory column (column 3 of the 3-column layout — REQ-2d, Amended (3), final), same
  * width as column 1: everyone/every group NOT already in column 1's unified list —
  * not-yet-messaged people and discoverable groups the viewer isn't a participant of, per
- * `ChatDirectoryRowsService.discoveryRows()`'s disjoint-complement rule. Has its own
- * independent `searchQuery` signal, `data-testid`/`aria-label` set, and empty/no-results copy —
- * never affecting or affected by column 1's own search (REQ-2d/REQ-8, Amended (3)).
+ * `ChatDirectoryRowsService.discoveryRows()`'s disjoint-complement rule.
+ *
+ * **Amended (2026-08-10)**: this column's own `searchQuery` field is removed —
+ * `rowsService.discoveryRows()` renders directly, unfiltered. Finding anything by name now
+ * happens exclusively through the persistent search bar. This column's sort order and
+ * click-to-open-or-create/join/request-to-join logic are entirely unchanged by this amendment.
  *
  * Why a separate component rather than extending `ChatDirectoryComponent`: column 1 and column
  * 3 render disjoint row sets with different empty-state copy, different a11y labels, and (per
@@ -33,35 +35,13 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
   imports: [TranslocoPipe, GroupVisibilityBadgeComponent, AvatarComponent],
   template: `
     <div data-testid="chat-full-directory" class="flex flex-col gap-4">
-      <label class="mb-1 flex flex-col gap-1 text-sm">
-        <span class="sr-only">{{ 'chat.fullDirectory.searchLabel' | transloco }}</span>
-        <input
-          type="search"
-          data-testid="chat-full-directory-search"
-          [attr.aria-label]="'chat.fullDirectory.searchLabel' | transloco"
-          [value]="searchQuery()"
-          (input)="searchQuery.set($any($event.target).value)"
-          placeholder="{{ 'chat.fullDirectory.searchPlaceholder' | transloco }}"
-          class="rounded-lg border border-ink-200/70 px-3 py-2 text-sm dark:border-ink-800/70"
-        />
-      </label>
-
-      @if (filteredRows().length === 0) {
-        @if (searchQuery() === '') {
-          <p data-testid="chat-full-directory-empty" class="text-sm text-ink-500 dark:text-ink-400">
-            {{ 'chat.fullDirectory.emptyState' | transloco }}
-          </p>
-        } @else {
-          <p
-            data-testid="chat-full-directory-no-results"
-            class="text-sm text-ink-500 dark:text-ink-400"
-          >
-            {{ 'chat.fullDirectory.noResults' | transloco: { query: searchQuery() } }}
-          </p>
-        }
+      @if (rowsService.discoveryRows().length === 0) {
+        <p data-testid="chat-full-directory-empty" class="text-sm text-ink-500 dark:text-ink-400">
+          {{ 'chat.fullDirectory.emptyState' | transloco }}
+        </p>
       } @else {
         <ul data-testid="chat-full-directory-list" class="flex flex-col gap-1">
-          @for (row of filteredRows(); track row.key) {
+          @for (row of rowsService.discoveryRows(); track row.key) {
             <li>
               @if (row.kind === 'person') {
                 <button
@@ -122,15 +102,8 @@ import { GroupVisibilityBadgeComponent } from './group-visibility-badge.componen
 export class ChatFullDirectoryComponent implements OnInit {
   protected readonly rowsService = inject(ChatDirectoryRowsService);
 
-  /** REQ-2d's "own independent search field" — never column 1's `unifiedQuery`. */
-  protected readonly searchQuery = signal('');
-
   protected readonly rowErrors = this.rowsService.rowErrors;
   protected readonly pendingGroupIds = this.rowsService.pendingGroupIds;
-
-  protected readonly filteredRows = computed(() =>
-    filterByQuery(this.rowsService.discoveryRows(), this.searchQuery()),
-  );
 
   ngOnInit(): void {
     this.rowsService.ensureLoaded();

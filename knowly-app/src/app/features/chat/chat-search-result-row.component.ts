@@ -41,7 +41,9 @@ export type ChatSearchRowResult =
       @switch (result().kind) {
         @case ('message') {
           <div class="flex items-center justify-between gap-2">
-            <span class="font-medium text-ink-900 dark:text-white">{{ messageResult().senderNickname }}</span>
+            <span class="font-medium text-ink-900 dark:text-white">{{
+              messageResult().senderNickname
+            }}</span>
             <span
               data-testid="chat-search-result-timestamp"
               class="shrink-0 text-xs text-ink-500 dark:text-ink-400"
@@ -55,7 +57,9 @@ export type ChatSearchRowResult =
           <p class="text-ink-700 dark:text-ink-300">{{ messageResult().content }}</p>
         }
         @case ('person') {
-          <span class="font-medium text-ink-900 dark:text-white">{{ personResult().nickname }}</span>
+          <span class="font-medium text-ink-900 dark:text-white">{{
+            personResult().nickname
+          }}</span>
         }
         @case ('group') {
           <span class="font-medium text-ink-900 dark:text-white">{{ groupResult().title }}</span>
@@ -111,7 +115,11 @@ export class ChatSearchResultRowComponent {
     const r = this.result();
     switch (r.kind) {
       case 'message':
-        return { sender: r.senderNickname, conversation: r.conversationTitle, timestamp: r.createdAt };
+        return {
+          sender: r.senderNickname,
+          conversation: r.conversationTitle,
+          timestamp: r.createdAt,
+        };
       case 'person':
         return { nickname: r.nickname };
       case 'group':

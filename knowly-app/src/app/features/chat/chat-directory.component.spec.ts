@@ -76,16 +76,6 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     }
   }
 
-  function searchInput(): HTMLInputElement {
-    return fixture.nativeElement.querySelector('[data-testid="chat-directory-search"]');
-  }
-
-  function search(query: string): void {
-    searchInput().value = query;
-    searchInput().dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-  }
-
   it('renders one <ul> over conversationRows() with Support always the first row in the DOM', () => {
     fixture.detectChanges();
     flushInit({
@@ -147,7 +137,7 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     ).toBeTruthy();
   });
 
-  it('one unifiedQuery search field filters every row except the pinned Support row (REQ-2/REQ-9)', () => {
+  it('Amended (2026-08-10): renders the full, unfiltered row set with no search <input> anywhere in the DOM — finding by name now happens via the persistent search bar', () => {
     fixture.detectChanges();
     flushInit({
       conversations: [
@@ -157,34 +147,13 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     });
     fixture.detectChanges();
 
-    search('zzz');
-
+    expect(fixture.nativeElement.querySelector('[data-testid="chat-directory-search"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[type="search"]')).toBeNull();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]'),
-    ).toBeNull();
+    ).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
-    ).toBeTruthy();
-  });
-
-  it('a search with zero matches shows the distinct "no results" message; clearing restores the full list (REQ-10/REQ-11)', () => {
-    fixture.detectChanges();
-    flushInit({
-      conversations: [
-        { id: 5, kind: 'PEER_DIRECT', tenantId: null, title: null, participantUserIds: [1, 2] },
-      ],
-      eligible: [{ userId: 2, nickname: 'Bob' }],
-    });
-    fixture.detectChanges();
-
-    search('zzz');
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-no-results"]'),
-    ).toBeTruthy();
-
-    search('');
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-person:2"]'),
     ).toBeTruthy();
   });
 
@@ -260,27 +229,14 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     expect(keysAfter).toEqual(keysBefore);
   });
 
-  it('never renders a PRIVATE group even if it would textually match — impossible by construction, not client-filtered', () => {
+  it('never renders a PRIVATE group even if a discoverable-groups fixture were to smuggle one in — impossible by construction, not client-filtered', () => {
     fixture.detectChanges();
     flushInit({ discoverable: [] });
     fixture.detectChanges();
 
-    search('anything');
     expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-no-results"]'),
-    ).toBeTruthy();
-    // Support stays exempt from the search filter even while "no results" is showing.
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
-    ).toBeTruthy();
-  });
-
-  it('the search field is keyboard-navigable with an explicit aria-label', () => {
-    fixture.detectChanges();
-    flushInit({});
-    fixture.detectChanges();
-
-    expect(searchInput().getAttribute('aria-label')).toBeTruthy();
+      fixture.nativeElement.querySelectorAll('[data-testid^="chat-directory-row-group:"]').length,
+    ).toBe(0);
   });
 
   it('renders an avatar (generic fallback, since eligible-participants carries no avatarUrl yet) next to each person row', () => {
@@ -297,16 +253,11 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     expect(row.querySelector('[data-testid="avatar-fallback"]')).toBeTruthy();
   });
 
-  it('always renders a Support row, unaffected by search (REQ-9)', () => {
+  it('always renders a Support row (REQ-9)', () => {
     fixture.detectChanges();
     flushInit({});
     fixture.detectChanges();
 
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
-    ).toBeTruthy();
-
-    search('zzz');
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-support"]'),
     ).toBeTruthy();
@@ -336,7 +287,7 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     });
   });
 
-  it('renders every existing "Base de artigos" conversation when a tenant is active, unaffected by search until Amendment (3)\'s unified filter applies', () => {
+  it('renders every existing "Base de artigos" conversation when a tenant is active', () => {
     fixture.detectChanges();
     flushInit({
       activeTenantId: 1,
@@ -347,11 +298,6 @@ describe('ChatDirectoryComponent — Amendment (3): unified column 1', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]'),
     ).toBeTruthy();
-
-    search('zzz');
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="chat-directory-row-article:7"]'),
-    ).toBeNull();
   });
 
   it("renders an article row's own icon (Amendment (4)) instead of the generic fallback when set", () => {

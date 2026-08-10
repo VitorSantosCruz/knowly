@@ -1,7 +1,11 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { catchError, of } from 'rxjs';
-import { ChatMessageSearchPageDto, ChatMessageSearchResultDto, ChatMessageSearchStatus } from './chat.model';
+import {
+  ChatMessageSearchPageDto,
+  ChatMessageSearchResultDto,
+  ChatMessageSearchStatus,
+} from './chat.model';
 
 /**
  * `chat-message-search` PLAN.md — signals-based, mirrors `ChatDirectoryService`'s shape, kept

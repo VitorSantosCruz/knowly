@@ -23,7 +23,9 @@ describe('ChatEntitySearchService', () => {
 
   afterEach(() => httpMock.verify());
 
-  const person = (overrides: Partial<ChatPersonSearchResultDto> = {}): ChatPersonSearchResultDto => ({
+  const person = (
+    overrides: Partial<ChatPersonSearchResultDto> = {},
+  ): ChatPersonSearchResultDto => ({
     userId: 1,
     nickname: 'Ana',
     avatarUrl: null,
@@ -99,7 +101,12 @@ describe('ChatEntitySearchService', () => {
     expect(req.request.params.has('q')).toBe(false);
     req.flush({
       recentPlaces: [
-        { conversationId: 1, kind: 'PEER_DIRECT', title: 'Ana', orderingTimestamp: '2026-08-09T00:00:00Z' },
+        {
+          conversationId: 1,
+          kind: 'PEER_DIRECT',
+          title: 'Ana',
+          orderingTimestamp: '2026-08-09T00:00:00Z',
+        },
       ],
     });
 
