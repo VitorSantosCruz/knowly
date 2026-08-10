@@ -211,21 +211,36 @@ export class ConversationsPageComponent implements OnInit {
     }));
   });
 
-  private hasLoaded = false;
+  private conversationsFetchedForTenant: number | null = null;
   private pendingConversationId: number | null = null;
 
   constructor() {
+    // Mirrors ChatDirectoryRowsService.maybeRefetchConversations(): tracks the tenant this
+    // component last fetched for and reacts on every effect run (not just the first), so leaving
+    // a tenant (tenantId -> null) or switching tenants clears/reloads instead of leaving the
+    // previous tenant's conversations on screen.
     effect(() => {
       const tenantId = this.activeTenantService.activeTenantId();
 
-      if (tenantId !== null && !this.hasLoaded) {
-        this.hasLoaded = true;
-        this.loadConversations(tenantId);
+      if (tenantId === this.conversationsFetchedForTenant) {
+        return;
+      }
+      this.conversationsFetchedForTenant = tenantId;
 
-        if (this.pendingConversationId !== null) {
-          this.onSelectConversation(this.pendingConversationId);
-          this.pendingConversationId = null;
-        }
+      if (tenantId === null) {
+        this.conversations.set([]);
+        this.activeConversationId.set(null);
+        this.messages.set([]);
+        this.loading.set(false);
+        this.error.set(null);
+        return;
+      }
+
+      this.loadConversations(tenantId);
+
+      if (this.pendingConversationId !== null) {
+        this.onSelectConversation(this.pendingConversationId);
+        this.pendingConversationId = null;
       }
     });
   }

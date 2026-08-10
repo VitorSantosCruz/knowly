@@ -6,12 +6,14 @@ import { provideTransloco } from '@jsverse/transloco';
 import { Subject } from 'rxjs';
 import { ConversationsPageComponent } from './conversations-page.component';
 import { ChatStreamEvent, ConversationService } from '../../core/conversation.service';
+import { ActiveTenantService } from '../../core/active-tenant.service';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 
 describe('ConversationsPageComponent', () => {
   let fixture: ComponentFixture<ConversationsPageComponent>;
   let httpMock: HttpTestingController;
   let conversationService: ConversationService;
+  let activeTenantService: ActiveTenantService;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -30,6 +32,7 @@ describe('ConversationsPageComponent', () => {
     fixture = TestBed.createComponent(ConversationsPageComponent);
     httpMock = TestBed.inject(HttpTestingController);
     conversationService = TestBed.inject(ConversationService);
+    activeTenantService = TestBed.inject(ActiveTenantService);
   });
 
   afterEach(() => {
@@ -275,6 +278,22 @@ describe('ConversationsPageComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-testid="loading-state"]')).toBeFalsy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="no-active-tenant-state"]'),
+    ).toBeTruthy();
+  });
+
+  it('clears the conversation list once staff leaves the tenant, so it does not leak into the staff view', () => {
+    fixture.detectChanges();
+    flushActiveTenantAndList([{ id: 1, title: 'First chat' }]);
+
+    expect(fixture.nativeElement.textContent).toContain('First chat');
+
+    activeTenantService.leaveTenant().subscribe();
+    httpMock.expectOne('/api/tenants/active/clear').flush({});
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('First chat');
     expect(
       fixture.nativeElement.querySelector('[data-testid="no-active-tenant-state"]'),
     ).toBeTruthy();
