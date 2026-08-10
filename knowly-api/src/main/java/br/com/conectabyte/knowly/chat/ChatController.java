@@ -44,17 +44,39 @@ public class ChatController {
     private final ChatConversationService chatConversationService;
     private final ChatEligibilityService chatEligibilityService;
     private final ChatMessageSearchService chatMessageSearchService;
+    private final ChatEntitySearchService chatEntitySearchService;
     private final UserRepository userRepository;
 
     public ChatController(
             ChatConversationService chatConversationService,
             ChatEligibilityService chatEligibilityService,
             ChatMessageSearchService chatMessageSearchService,
+            ChatEntitySearchService chatEntitySearchService,
             UserRepository userRepository) {
         this.chatConversationService = chatConversationService;
         this.chatEligibilityService = chatEligibilityService;
         this.chatMessageSearchService = chatMessageSearchService;
+        this.chatEntitySearchService = chatEntitySearchService;
         this.userRepository = userRepository;
+    }
+
+    /**
+     * Unified entity search (2026-08-10 amendment), REQ-16 through REQ-26: separate from {@link
+     * #searchMessages}, matches people/groups/Support/RAG conversations by name/title, or (blank
+     * {@code q}) returns "recent places". No {@code @AuditLog} -- same reasoning as {@code
+     * searchMessages}. Response shape is polymorphic by design (see PLAN's API contracts): {@code
+     * ChatEntitySearchResponseDto} for a non-blank {@code q}, {@code ChatEntitySearchResultDto} for
+     * a blank one, or a single {@code ChatEntitySearchSectionDto} for the {@code type}+{@code
+     * offset} "see more" expand form.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<Object> searchEntities(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Integer offset,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return ResponseEntity.ok(
+                chatEntitySearchService.search(currentUser(), q, type, offset, acceptLanguage));
     }
 
     /**

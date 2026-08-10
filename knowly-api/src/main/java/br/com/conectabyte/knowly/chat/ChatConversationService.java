@@ -855,6 +855,19 @@ public class ChatConversationService {
                     chatParticipantRepository.findByUserId(actor.getId()).stream()
                             .map(ChatParticipant::getConversation)
                             .filter(conversation -> isVisibleUnderActiveTenant(actor, conversation))
+                            // isVisibleUnderActiveTenant alone only restricts STAFF/STAFF_ADMIN
+                            // actors (see its own Javadoc: "a non-staff actor's conversations are
+                            // never filtered here"), which does not hold for this branch -- a
+                            // plain, non-staff user CAN hold TenantMembership rows (and therefore
+                            // chat_participants rows) in more than one tenant. Explicit
+                            // equals-tenant check closes that gap for every caller, not just staff.
+                            .filter(
+                                    conversation ->
+                                            conversation.getTenant() != null
+                                                    && conversation
+                                                            .getTenant()
+                                                            .getId()
+                                                            .equals(activeTenantId.get()))
                             .filter(
                                     conversation ->
                                             conversation.getKind()

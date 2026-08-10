@@ -99,4 +99,11 @@ public class ChatExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ChatErrorResponseDto("CHAT_SEARCH_INVALID_DATE_RANGE"));
     }
+
+    @ExceptionHandler(ChatInvalidSearchExpandParamException.class)
+    public ResponseEntity<ChatErrorResponseDto> handleInvalidSearchExpandParam(
+            ChatInvalidSearchExpandParamException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ChatErrorResponseDto("CHAT_SEARCH_INVALID_EXPAND_PARAM"));
+    }
 }
