@@ -15,4 +15,10 @@ class ChatSearchExceptionsTest {
     void invalidSearchDateRangeExceptionIsARuntimeException() {
         assertThat(new ChatInvalidSearchDateRangeException()).isInstanceOf(RuntimeException.class);
     }
+
+    @Test
+    void invalidSearchExpandParamExceptionIsARuntimeException() {
+        assertThat(new ChatInvalidSearchExpandParamException())
+                .isInstanceOf(RuntimeException.class);
+    }
 }
