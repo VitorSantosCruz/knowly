@@ -56,18 +56,25 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-08): `role-permission-revoke` backend feature
-done** (see its row in "Feature status — backend" below for the full
-writeup) — tenant and staff/global-scope access-group permission revoke
-endpoints, symmetric with the existing grant endpoints; both list
-endpoints now also expose each role's currently-granted permissions
-(`AccessGroupDto`/`GlobalAccessGroupDto.permissions`), closing the gap
-the frontend's `role-permission-management-ui` SPEC needs. The
-companion frontend feature is not started yet — **next step for whoever
-picks this up**: read `knowly-app/specify/features/
-role-permission-management-ui/SPEC.md` (if not yet written, write it
-first) and build the UI that calls these new endpoints. Full-suite
-`./mvnw verify` green.
+**Current state (2026-08-09): stale note below corrected — a lot shipped
+since this section was last updated.** `role-permission-management-ui`
+(the frontend companion this section used to point to as "not started")
+is actually fully done and merged (`b64fbaa` onward, see its row in
+"Feature status — frontend" below). Since then, `chat-unified-ui` +
+`chat-group-membership-management` (item 18 further below) also shipped
+end-to-end on both sides, including a post-ship Playwright QA pass that
+found and fixed several real bugs (cross-tenant PII enumeration in
+`ChatEligibilityService`, staff/tenant identity mixing across five
+commits, a group-visibility field silently dropped by Jackson) — all
+closed, both subprojects green. **Nothing is currently queued next.**
+Two candidate directions are documented as deliberately deferred, not
+started, and explicitly *not* to be picked up silently (per this
+section's own protocol): item 16, chat message full-text search, and
+item 17, frictionless/passkey login for trusted devices — both further
+below in this list with full technical groundwork already written up.
+Per protocol: propose these (plus anything from `VISION.md`'s "What's
+deliberately not decided yet") to the user and get a pick before
+starting a new SPEC.
 
 **Previous state (2026-08-08): `soft-delete-default-filter` backend feature
 done** — soft-delete filtering is now a Hibernate `@Filter`-enforced
