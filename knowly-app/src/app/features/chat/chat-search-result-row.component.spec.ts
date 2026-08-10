@@ -90,6 +90,29 @@ describe('ChatSearchResultRowComponent', () => {
     expect(label).toContain('Grupo A');
   });
 
+  describe('REQ-32 (Amended 2026-08-10): matched-substring highlight', () => {
+    it('wraps the matched substring of a message result in <mark> when `query` is set', async () => {
+      await createWith(MESSAGE_RESULT);
+      fixture.componentRef.setInput('query', 'reunião');
+      fixture.detectChanges();
+      const mark: HTMLElement | null = fixture.nativeElement.querySelector('mark');
+      expect(mark?.textContent).toBe('reunião');
+    });
+
+    it('renders plain, unmarked text when `query` does not literally substring-match', async () => {
+      await createWith(MESSAGE_RESULT);
+      fixture.componentRef.setInput('query', 'orçamento');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('mark')).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('vamos falar sobre a reunião');
+    });
+
+    it('renders plain text with no `query` input set (default)', () => {
+      expect(fixture.nativeElement.querySelector('mark')).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('vamos falar sobre a reunião');
+    });
+  });
+
   describe('per-kind rendering (Amended 2026-08-10)', () => {
     it('kind: person — renders nickname, emits userId, distinct aria-label', async () => {
       await createWith({ kind: 'person', userId: 7, nickname: 'Beltrano', avatarUrl: null });

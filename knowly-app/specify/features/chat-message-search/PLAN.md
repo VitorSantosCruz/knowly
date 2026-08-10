@@ -876,3 +876,278 @@ sketch, not final copy):
   is indistinguishable, from the frontend's vantage point, from a group
   that simply had zero matches) — not a blocker, but worth an explicit
   sign-off alongside the backend's own already-flagged Tier-2 item.
+
+## Amended (2026-08-10) — highlight matched text + jump-to-message
+
+> Authoritative PLAN for REQ-32 through REQ-37 (SPEC.md's second
+> 2026-08-10 amendment). No backend dependency — purely frontend
+> rendering/navigation, no new API contract. Closes the "Scroll-to-
+> message-on-open... not implemented in this PLAN" gap noted above and
+> in "Open dependency on backend feasibility work," on different terms
+> than originally assumed: no "fetch page centered on message X"
+> backend endpoint is needed, because `ChatService.loadOlderMessages`
+> already exists and repeated calls are sufficient — that endpoint was
+> only ever required for an *efficient single-call* jump, not a
+> functionally correct one.
+
+### Architectural decisions
+
+- **New pure function `splitOnMatch(content: string, query: string):
+  { before: string; match: string; after: string } | null` in
+  `chat.model.ts`** (co-located with the other pure helpers there,
+  e.g. `deriveViewerRelation`), first-occurrence-only,
+  case-insensitive substring match via `content.toLowerCase()
+  .indexOf(query.toLowerCase())`. **First match only, not all
+  occurrences** — REQ-32/REQ-36 both say "the matched substring"
+  (singular) and the SPEC's own framing is "confirm what matched,"
+  not "audit every occurrence"; marking every occurrence in a long
+  message body risks visual noise disproportionate to the ask, and
+  nothing in REQ-32/36 or the acceptance criteria asks for it. If the
+  product owner wants all-occurrences highlighting later, this is a
+  one-line change inside `splitOnMatch` (return an array of segments
+  instead of a single triple) — flagged here as the cheap reversal
+  path, not built as an option now (YAGNI, no requirement calls for
+  it). A `null` return (no literal substring match) means the caller
+  renders the content unstyled — REQ-32's explicit "does not change
+  what counts as a result" carve-out.
+- **`chat-search-result-row.component.ts` (already `kind`-discriminated
+  per the prior amendment) consumes `splitOnMatch` directly in its
+  template for `kind === 'message'` rows only** via a `highlighted =
+  computed(() => splitOnMatch(this.result().content, this.query()))`
+  and renders `{{ before }}<mark>{{ match }}</mark>{{ after }}` when
+  non-null, plain `{{ content }}` when null. `query` becomes a new
+  required input (`input.required<string>()`) on the row component —
+  it previously had no need for the raw query string; now REQ-32
+  requires it.
+- **Routing (REQ-33/34): router state, not query params, not a new
+  route.** `onEntitySelect`'s `'message'` case changes from
+  `this.router.navigate(['/chat', result.conversationId])` to
+  `this.router.navigate(['/chat', result.conversationId], { state: {
+  jumpToMessageId: result.id, jumpToQuery: this.query() } })`.
+  Confirmed over query params: SPEC's own "Out of scope" explicitly
+  excludes deep-linking (`?message=123` is called out by name as *not*
+  wanted), and `Router` state is exactly the mechanism this codebase
+  already reaches for when data needs to survive one navigation
+  without becoming a bookmarkable/shareable URL or polluting browser
+  history entries — no existing precedent for `state:` elsewhere in
+  this codebase yet, but it's a built-in `@angular/router` capability
+  (already a dependency), not a new one, and it's the direct
+  counter-shape to what "Out of scope" rules out. `ConversationDetail
+  Component` reads it via `this.router.getCurrentNavigation()?.extras
+  .state` inside its constructor (state is only available synchronously
+  during navigation, not reliably via `history.state` read later in
+  `ngOnInit` after Angular's own post-navigation `history.replaceState`
+  calls may have run) — captured into two local signals,
+  `jumpToMessageId = signal<number | undefined>(undefined)` and
+  `jumpToQuery = signal<string | undefined>(undefined)`, cleared
+  (`set(undefined)`) once consumed so a same-conversation re-render
+  (e.g. polling) doesn't repeatedly attempt to re-jump.
+- **Load-older loop (REQ-34): reactive `effect()` over
+  `ChatService.entryOf(id)`, not a manual polling/awaiting loop.**
+  Rejecting the awaited-repeated-call sketch in favor of: an
+  `effect()` in `ConversationDetailComponent`, scoped to run only while
+  `jumpToMessageId()` is set and the target id is not found in
+  `chatService.entryOf(conversationId()).messages`, that (a) checks
+  membership first — no-op immediately if already loaded (REQ-33's
+  "already loaded" fast path, zero extra network calls, matching the
+  acceptance criteria's explicit "without an additional network
+  request" line); (b) otherwise, if `entry.hasMore && !entry.loading`,
+  calls `chatService.loadOlderMessages(id)` once and returns — the
+  effect **re-runs automatically** the next time `entryOf(id)` changes
+  (messages array or `loading` flag), because `entryOf` reads the
+  same `_messageCache` signal `loadOlderMessages`'s `patchEntry` calls
+  write to; no explicit "await completion" plumbing is needed, Angular's
+  own signal-effect re-scheduling *is* the polling mechanism, already
+  idiomatic in this codebase's signal-first convention (no new pattern
+  invented). This is cleaner than the awaited-loop sketch in the task
+  because it needs no manual iteration counter living outside signal
+  graph — the counter becomes a plain local variable captured by the
+  effect closure across its re-invocations (see bound below), and
+  because it composes for free with `ChatService`'s existing
+  `patchEntry`/`entryOf` shape rather than adding a second, parallel
+  "wait for signal to settle" mechanism.
+  - **Bound: capped at 20 `loadOlderMessages()` invocations per jump
+    (an in-closure counter, reset when `jumpToMessageId` changes),
+    matching the task's own proposed figure** — the SPEC only requires
+    "a PLAN-level finite cap," not a specific number; 20 pages is
+    generous relative to `MessageCacheEntry`'s existing default page
+    size (confirmed same as `loadOlderMessages`'s already-shipped
+    pagination, no change there) while still bounded — a message
+    old enough to need more than 20 pages of lookback is treated the
+    same as REQ-34's other terminal case (`hasMore === false`): stop,
+    leave the thread scrolled to its current top, no error state.
+    Once the cap or `hasMore === false` is hit, the effect calls
+    `jumpToMessageId.set(undefined)` to stop re-triggering itself.
+  - **Race with `pollNewMessages`'s existing 5s interval (real risk,
+    flagged explicitly):** `pollNewMessages` and the jump-loop's
+    `loadOlderMessages` both call `patchEntry` on the same cache
+    entry, but touch disjoint ends of the message window (newest vs.
+    older) and neither is gated on the other today (`loadOlderMessages`
+    already runs concurrently with `pollNewMessages` for the existing
+    "scroll up while new messages arrive" case, pre-dating this
+    amendment) — no new race is introduced by reusing the same method,
+    only the same class of interleaving that already exists in
+    production. The one genuinely new risk: if `pollNewMessages` fires
+    while `entry.loading` is `true` from a jump-loop-issued
+    `loadOlderMessages` call, `ChatService`'s own `loading` guard inside
+    `pollNewMessages` (confirmed present, same short-circuit pattern as
+    `loadOlderMessages`'s own reentrancy guard) already prevents a
+    double in-flight request — this is existing, tested behavior, not
+    something this amendment needs to add. No fix needed here, but
+    called out per the task's explicit ask.
+- **Scroll + flash + persistent highlight target: `MessageThread
+  Component` gains two new optional inputs**, `highlightMessageId:
+  number | undefined` (was `jumpTargetMessageId` in the task's sketch —
+  renamed for symmetry with the new `highlightQuery` input, both
+  describing "what to highlight," not "what to scroll to," since REQ-36
+  says the highlight persists after the scroll/flash is long done) and
+  `highlightQuery: string | undefined`. Internally: a `computed()`
+  finds the target `DisplayMessage` by id; each `<li>` gets a
+  **template reference conditionally bound** via a directive-free
+  approach — an `effect()` that runs after the target message is
+  present in `messages()` and calls `document.getElementById(
+  'msg-' + id)?.scrollIntoView({ block: 'center', behavior: reduceMotion
+  ? 'auto' : 'smooth' })`, using a stable `id="msg-{{ m.id }}"` attribute
+  already addressable per-row (new, one line, no new child component).
+  This is simpler than a `#messageEl` template-ref + `ViewChildren`
+  query for a *list* the task's sketch implied, since only one row at a
+  time is ever a scroll target and `document.getElementById` scoped to
+  a `:host`-rendered list is already how this component's DOM is
+  structured — no new query/directive machinery needed for a single-
+  target lookup.
+- **Flash animation (REQ-35): plain CSS `@keyframes` appended to
+  `MessageThreadComponent`'s existing `styles: [...]` array** (that
+  array today holds one rule, `:host { display: block; flex: 1 1 0%;
+  min-height: 0; }` — extending the existing array, not introducing a
+  second styling mechanism), a `.chat-flash` class applying
+  `animation: chat-flash-pulse 0.6s ease-in-out 3;` (3 iterations ×
+  0.6s ≈ 1.8s, inside REQ-35's "roughly 1.5–2s" band) with the
+  keyframe animating `background-color` between the bubble's own
+  resting color and the `signal-600`/`signal-700` accent already used
+  for outgoing bubbles (same accent token, per the task's own
+  instruction, reused rather than a new color introduced) —
+  **`@media (prefers-reduced-motion: reduce) { .chat-flash { animation:
+  none; } }`** in the same stylesheet block. The class is applied via
+  `[class.chat-flash]="isFlashTarget(m.id)"` on the target `<li>`,
+  where `isFlashTarget` is a signal set `true` by the same effect that
+  triggers `scrollIntoView` and cleared via `setTimeout(…, 1800)` back
+  to `false` — a finite, self-clearing flag, matching REQ-35's "finite,
+  does not loop indefinitely." **No existing `prefers-reduced-motion`
+  precedent exists elsewhere in this codebase** (confirmed via search)
+  — this is the first use of the media query; noted so a future
+  grep for "how do we already do this" doesn't come up empty and
+  re-invent a second convention.
+- **Persistent highlight (REQ-36) reuses `splitOnMatch` directly inside
+  `MessageThreadComponent`'s own template**, exactly the same function
+  REQ-32 introduced for the result row — `highlightMessageId()`/
+  `highlightQuery()` feed a `computed()` per rendered message (only
+  the matching id computes a non-null split; every other message's
+  computed short-circuits to `null` via an id check before calling
+  `splitOnMatch`, avoiding running the substring search against every
+  message in the thread on every render). This is the reuse the task's
+  own framing anticipated (REQ-36 "same treatment as REQ-32's
+  result-row marking") — one function, two call sites, not a
+  duplicated implementation.
+- **REQ-37 (read-only/`LOOKING_IN` viewers): no special-casing needed —
+  confirmed, not newly decided.** Scroll/flash/highlight are rendering
+  concerns inside `MessageThreadComponent`, which today already renders
+  identically regardless of `viewerRelation` (the composer, not the
+  thread, is what's conditionally omitted for `LOOKING_IN` in
+  `ConversationDetailComponent`) — this amendment adds no new
+  `viewerRelation` branch, satisfying REQ-37 by construction rather
+  than by an explicit check.
+
+### Components changed
+
+```
+core/
+  chat.model.ts                       // + splitOnMatch(content, query)
+
+features/chat/
+  chat-unified-search.component.ts    // CHANGED — 'message' case of
+                                       //   onEntitySelect passes router
+                                       //   state (jumpToMessageId,
+                                       //   jumpToQuery)
+  chat-search-result-row.component.ts // CHANGED — new required `query`
+                                       //   input; message-kind rows
+                                       //   render via splitOnMatch
+  conversation-detail.component.ts    // CHANGED — reads router-state
+                                       //   via getCurrentNavigation(),
+                                       //   effect() drives the bounded
+                                       //   loadOlderMessages loop,
+                                       //   passes highlightMessageId/
+                                       //   highlightQuery down
+
+shared/chat/
+  message-thread.component.ts         // CHANGED — new optional inputs
+                                       //   highlightMessageId/
+                                       //   highlightQuery; scrollIntoView
+                                       //   + chat-flash effect; new
+                                       //   @keyframes + prefers-reduced-
+                                       //   motion block in styles[]
+```
+
+### Dependencies
+
+None. `Router`'s `state`/`getCurrentNavigation()` and CSS
+`prefers-reduced-motion` are both platform-native (Angular Router,
+CSS media queries) — no `package.json` change.
+
+### i18n keys
+
+None new — no user-visible copy is introduced (`<mark>` styling and a
+scroll/flash are non-textual affordances); existing row/thread labels
+are unchanged.
+
+### Testing strategy (Vitest)
+
+- `chat.model.spec.ts` (extended): `splitOnMatch` — case-insensitive
+  match, first-occurrence-only against a string with the query
+  appearing twice (asserts only the first is split out), `null` on no
+  literal match, empty-string query returns `null` (no false-positive
+  "match everything").
+- `chat-search-result-row.component.spec.ts` (extended): message-kind
+  row wraps the matched substring in `<mark>` given a matching `query`
+  input; renders plain text when `query` doesn't literally substring-
+  match `content`; non-message kinds are unaffected (query input
+  present but unused in their templates).
+- `chat-unified-search.component.spec.ts` (extended): clicking a
+  message result calls `router.navigate` with `state: { jumpToMessageId,
+  jumpToQuery }` set to the clicked result's id/current query (spy-based,
+  same assertion shape as the existing routing-table test).
+- `conversation-detail.component.spec.ts` (extended):
+  - Target message already in `entryOf(id).messages` — no
+    `loadOlderMessages` call, `highlightMessageId`/`highlightQuery`
+    passed to `MessageThreadComponent` immediately.
+  - Target message not yet loaded — asserts `loadOlderMessages` is
+    called, and called again after a simulated `entryOf` update that
+    still doesn't contain the target (regression for the effect
+    re-triggering itself); once found, no further calls.
+  - Bound: simulate 20 `loadOlderMessages` calls that never surface the
+    target and `hasMore` still `true` — asserts a 21st call is never
+    made and `jumpToMessageId` resets to `undefined` (no infinite loop
+    regression).
+  - `hasMore === false` before the target is found — asserts the loop
+    stops immediately at that point, no error state rendered.
+- `message-thread.component.spec.ts` (extended):
+  - Given `highlightMessageId`/`highlightQuery` matching a rendered
+    message, asserts `scrollIntoView` is called (mocked) on that
+    message's element and the `chat-flash` class is applied, then
+    removed after the timer (fake timers).
+  - `window.matchMedia('(prefers-reduced-motion: reduce)').matches ===
+    true` (mocked) — asserts `scrollIntoView` is still called and the
+    persistent highlight (`<mark>`) is still present, but `chat-flash`
+    is never applied (or applied with `animation: none` verified via
+    computed style, whichever this codebase's existing a11y test
+    convention already uses elsewhere).
+  - The persistent `<mark>` remains present in a re-render after the
+    flash's `setTimeout` clears `isFlashTarget`, confirming REQ-36's
+    "stays highlighted... until navigating away."
+
+### Open items carried forward
+
+- None new. This amendment closes the "Scroll-to-message-on-open"
+  open item from the original PLAN and its own later "unified search
+  bar" amendment — no further backend work is required for it, contrary
+  to those documents' original assumption that a "fetch page centered
+  on message X" endpoint was a hard prerequisite.

@@ -297,9 +297,8 @@ document.
   system shall open that message's conversation in the conversation
   column, using the existing conversation view for its kind unchanged
   — carried forward from the original REQ-11 unchanged in substance.
-  **Scroll-to-message/highlighting the matched message remains
-  v1-out-of-scope**, same as before (no new backend "fetch page
-  containing message X" endpoint exists).
+  **(Superseded 2026-08-10 by REQ-32 through REQ-36 below — the
+  "remains v1-out-of-scope" note no longer applies.)**
 - **REQ-25 [Event-Driven]** When the user clicks a "recent places"
   entry (REQ-19), the system shall open that conversation the same way
   REQ-23 does for its kind.
@@ -339,6 +338,95 @@ document.
   away, pressing Escape) shall clear the dropdown without submitting a
   new search on reopen — reopening starts from "recent places" (REQ-19)
   again, not the last query's stale results.
+
+## Amendment (2026-08-10) — highlight matched text + jump-to-message
+
+**Trigger:** direct product-owner feedback after using the shipped
+unified search — clicking a message result opens the right
+conversation but gives no visual confirmation of *what* matched or
+*where* in the thread it is, undercutting the "I remember roughly what
+I typed" recall use case this SPEC's own motivation section describes.
+This closes REQ-24's "remains v1-out-of-scope" note above. Resolved
+directly by the product owner's own message (no further Tier 3
+questions needed — see `PROJECT_STATUS.md`'s dated entry for this
+amendment for the full instruction); implementation-detail choices
+(exact timing/color) are Tier 2, decided here with reasoning recorded,
+same convention as REQ-1(5)'s "grouped by type" call above.
+
+- **REQ-32 [Ubiquitous]** Wherever a message search result's content
+  (REQ-21/`ChatSearchResultRowComponent`'s message-kind row) contains
+  the current query as a case-insensitive substring, the system shall
+  visually mark the matched substring within that row's content
+  (e.g. `<mark>`), leaving the rest of the row's text unstyled. A query
+  that does not literally substring-match the row's own `content`
+  (e.g. the backend matched on a different tokenization) shows the
+  content unmarked, same as today — this does not change what counts
+  as a result, only how an already-returned result's text is rendered.
+- **REQ-33 [Event-Driven]** When the user clicks a message result
+  (REQ-24), in addition to opening the conversation, the system shall
+  scroll the conversation column's message thread to the specific
+  matched message once it is loaded into the thread.
+- **REQ-34 [Complex]** While the matched message is not yet among the
+  conversation's currently-loaded messages, the system shall load
+  older pages (the same "Load older messages" mechanism REQ-2 already
+  exposes) automatically and repeatedly until the matched message is
+  found or the conversation reports no further older pages, showing a
+  loading state for the duration; if the message is never found (e.g.
+  it was since deleted, or belongs to a page beyond a bounded lookback
+  the PLAN defines), the system shall stop after that bound and leave
+  the thread scrolled to its current top, with no error state (an
+  unwanted-but-non-fatal outcome, not a failure of the search feature
+  itself).
+- **REQ-35 [Event-Driven]** When the matched message becomes visible
+  in the thread (REQ-33/REQ-34), the system shall briefly flash that
+  message's bubble (a short, finite background-color pulse using the
+  app's existing accent color, 2–3 iterations totaling roughly 1.5–2s)
+  to draw the eye to it, and shall respect `prefers-reduced-motion` by
+  skipping the pulse animation entirely (the bubble is still scrolled
+  into view and still gets the persistent highlight from REQ-36) for a
+  viewer who has that preference set.
+- **REQ-36 [Ubiquitous]** After the flash (REQ-35) ends, the matched
+  substring shall remain visually marked within that message bubble
+  in the thread (same treatment as REQ-32's result-row marking) for as
+  long as that conversation/thread stays open — persistent, not part
+  of the transient flash — so the viewer can still see exactly what
+  was found after the animation ends.
+- **REQ-37 [Unwanted Behavior]** If the user opens a message result for
+  a conversation kind whose viewer relation is `LOOKING_IN` (no
+  composer, oversight-only — REQ-4 in `chat-unified-ui`) or otherwise
+  read-only, the scroll/flash/highlight behavior (REQ-33 through
+  REQ-36) shall still apply unchanged — this is a read-affordance, not
+  a participant-only one.
+
+### Acceptance criteria (amendment)
+
+- [x] A message result row with the query appearing literally inside
+      its `content` shows that substring `<mark>`-wrapped (or
+      equivalent styled span); a row where the query does not literally
+      substring-match shows plain text.
+- [x] Clicking a message result whose message is already loaded in the
+      open conversation scrolls to it and flashes it without an
+      additional network request beyond opening the conversation.
+- [x] Clicking a message result whose message is *not* yet loaded
+      triggers one or more automatic "load older" calls, then scrolls/
+      flashes once found.
+- [x] The flash animation is finite (does not loop indefinitely) and is
+      skipped under `prefers-reduced-motion`, while the scroll and the
+      persistent highlight still happen.
+- [x] The matched substring stays highlighted in the bubble after the
+      flash ends, until the user navigates away from that conversation.
+
+### Out of scope (amendment)
+
+- Deep-linking a message via a shareable URL (e.g. `?message=123`) —
+  this amendment's jump-to-message is triggered only from an
+  in-session search-result click, not from a URL a user could
+  bookmark/share. A future SPEC can add that separately.
+- Fuzzy/stemmed/tokenized highlight matching — REQ-32 is a literal,
+  case-insensitive substring match against the exact query string, not
+  the backend's own (potentially fuzzier) match logic.
+- Any bound tuning beyond "a PLAN-level finite cap" for REQ-34's
+  repeated-load-older loop — the exact page count is a PLAN decision.
 
 ## Non-functional requirements
 

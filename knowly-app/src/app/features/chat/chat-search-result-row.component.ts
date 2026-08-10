@@ -7,6 +7,7 @@ import {
   ChatPersonSearchResultDto,
   ChatRagConversationSearchResultDto,
   ChatSupportSearchResultDto,
+  splitOnMatch,
 } from '../../core/chat.model';
 
 export type ChatSearchResultKind = 'person' | 'group' | 'support' | 'rag' | 'message';
@@ -54,7 +55,17 @@ export type ChatSearchRowResult =
           <span class="text-xs text-ink-500 dark:text-ink-400">{{
             messageResult().conversationTitle
           }}</span>
-          <p class="text-ink-700 dark:text-ink-300">{{ messageResult().content }}</p>
+          <p class="text-ink-700 dark:text-ink-300">
+            @if (contentMatch(); as match) {
+              {{ match.before
+              }}<mark
+                class="rounded bg-signal-200 px-0.5 text-ink-900 dark:bg-signal-700 dark:text-white"
+                >{{ match.match }}</mark
+              >{{ match.after }}
+            } @else {
+              {{ messageResult().content }}
+            }
+          </p>
         }
         @case ('person') {
           <span class="font-medium text-ink-900 dark:text-white">{{
@@ -78,7 +89,22 @@ export type ChatSearchRowResult =
 })
 export class ChatSearchResultRowComponent {
   readonly result = input.required<ChatSearchRowResult>();
+  /** REQ-32 (Amended 2026-08-10): current search query, used to highlight the matched substring
+   * within a message-kind result's content. Optional/blank for non-search-result-list call sites
+   * (none exist today, but keeps this row reusable without forcing every caller to pass one). */
+  readonly query = input<string>('');
   readonly rowSelected = output<number>();
+
+  /** REQ-32: only meaningful for `kind: 'message'` rows — `null` when there's no literal
+   * substring match (blank query, or the backend's match didn't literally substring-match this
+   * row's own `content`), in which case the template falls back to plain, unmarked text. */
+  protected readonly contentMatch = computed(() => {
+    const r = this.result();
+    if (r.kind !== 'message') {
+      return null;
+    }
+    return splitOnMatch(r.content, this.query());
+  });
 
   protected messageResult = computed(
     () => this.result() as Extract<ChatSearchRowResult, { kind: 'message' }>,

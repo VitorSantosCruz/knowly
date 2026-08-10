@@ -251,6 +251,38 @@ export interface ChatMessageSearchResultDto {
   createdAt: string;
 }
 
+export interface MatchSplit {
+  before: string;
+  match: string;
+  after: string;
+}
+
+/**
+ * `chat-message-search` PLAN.md, Amended (2026-08-10) — REQ-32's literal, case-insensitive,
+ * first-occurrence-only substring match. Shared by `chat-search-result-row.component.ts` (search
+ * result list marking) and `message-thread.component.ts` (persistent in-bubble highlight,
+ * REQ-36) so both render exactly the same "what matched" as one string-splitting concern rather
+ * than two independent regex/highlight implementations. A blank query intentionally returns
+ * `null` (never "matches everything") — REQ-32 only marks a genuine literal match.
+ */
+export function splitOnMatch(text: string, query: string): MatchSplit | null {
+  const trimmedQuery = query.trim();
+  if (trimmedQuery === '') {
+    return null;
+  }
+
+  const index = text.toLowerCase().indexOf(trimmedQuery.toLowerCase());
+  if (index === -1) {
+    return null;
+  }
+
+  return {
+    before: text.slice(0, index),
+    match: text.slice(index, index + trimmedQuery.length),
+    after: text.slice(index + trimmedQuery.length),
+  };
+}
+
 export interface ChatMessageSearchPageDto {
   results: ChatMessageSearchResultDto[];
   nextCursor: string | null;

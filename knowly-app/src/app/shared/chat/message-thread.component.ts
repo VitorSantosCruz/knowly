@@ -1,12 +1,22 @@
-import { Component, input, output } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { DisplayMessage } from '../../core/chat.model';
+import { DisplayMessage, splitOnMatch } from '../../core/chat.model';
 import { MessageComposerComponent } from './message-composer.component';
+
+/** REQ-35 (chat-message-search PLAN.md, Amended 2026-08-10): how long the flash's finite
+ * background-color pulse runs before the persistent highlight (REQ-36) is all that remains. */
+const FLASH_DURATION_MS = 1800;
 
 /**
  * Shared message list + progressive/paginated loading UI + optional composer (REQ-19/20/21),
  * used by both the peer conversation view and the support channel view — see PLAN.md.
  * Pure presentational component with no service of its own, parametrized via inputs/outputs.
+ *
+ * **Amended (2026-08-10)**: gains `highlightMessageId`/`highlightQuery` (REQ-33 through REQ-36 of
+ * `chat-message-search`'s SPEC amendment) — when a message search result is clicked, the parent
+ * conversation view resolves the target message into these inputs once it's loaded, and this
+ * component scrolls it into view, flashes it briefly (`chat-flash`, skipped under
+ * `prefers-reduced-motion`), and leaves the matched substring `<mark>`-wrapped persistently.
  */
 @Component({
   selector: 'app-message-thread',
@@ -59,14 +69,16 @@ import { MessageComposerComponent } from './message-composer.component';
         <ul class="flex flex-col gap-2" aria-label="{{ 'chat.thread.messages' | transloco }}">
           @for (message of messages(); track message.id + (message.localId ?? '')) {
             <li
+              [id]="'message-thread-item-' + message.id"
               data-testid="message-thread-item"
               [attr.aria-label]="
                 ('chat.thread.messageFrom' | transloco: { sender: message.senderNickname }) || ''
               "
               [class]="
-                message.fromViewer
+                (message.fromViewer
                   ? 'max-w-[80%] self-end rounded-2xl rounded-br-sm bg-signal-600 px-3 py-2 text-sm text-white shadow-sm dark:bg-signal-700'
-                  : 'max-w-[80%] self-start rounded-2xl rounded-bl-sm bg-ink-100 px-3 py-2 text-sm text-ink-900 shadow-sm dark:bg-ink-800/80 dark:text-ink-100'
+                  : 'max-w-[80%] self-start rounded-2xl rounded-bl-sm bg-ink-100 px-3 py-2 text-sm text-ink-900 shadow-sm dark:bg-ink-800/80 dark:text-ink-100') +
+                (flashTargetId() === message.id ? ' chat-flash' : '')
               "
             >
               @if (!message.fromViewer) {
@@ -87,6 +99,14 @@ import { MessageComposerComponent } from './message-composer.component';
                     class="h-1.5 w-1.5 animate-bounce rounded-full bg-signal-500 [animation-delay:0.2s]"
                   ></span>
                 </span>
+              } @else if (highlightSplit(message); as split) {
+                <p class="whitespace-pre-wrap">
+                  {{ split.before
+                  }}<mark
+                    class="rounded bg-signal-200 px-0.5 text-ink-900 dark:bg-signal-400 dark:text-ink-950"
+                    >{{ split.match }}</mark
+                  >{{ split.after }}
+                </p>
               } @else {
                 <p class="whitespace-pre-wrap">{{ message.content }}</p>
               }
@@ -126,17 +146,110 @@ import { MessageComposerComponent } from './message-composer.component';
   // See ChatShellComponent's :host comment — this component is used across peer/group,
   // support-channel, and RAG conversation views, always as the flex child expected to fill the
   // remaining vertical space and let its own message list scroll internally.
-  styles: [':host { display: block; flex: 1 1 0%; min-height: 0; }'],
+  //
+  // REQ-35 (Amended 2026-08-10): `.chat-flash`'s pulse — 2 iterations (~1.8s total) of a
+  // background-color tween using the same signal accent the outgoing bubbles already use, so the
+  // flash reads as "this app's own accent momentarily brightening", not an unrelated color.
+  // `prefers-reduced-motion: reduce` disables the animation outright (the element still gets the
+  // class and the scroll/persistent-highlight still happen — only the motion is suppressed).
+  styles: [
+    `
+      :host {
+        display: block;
+        flex: 1 1 0%;
+        min-height: 0;
+      }
+
+      .chat-flash {
+        animation: chat-flash-pulse 0.9s ease-in-out 2;
+      }
+
+      @keyframes chat-flash-pulse {
+        0%,
+        100% {
+          background-color: inherit;
+        }
+        50% {
+          background-color: var(--color-signal-400, #b666fa);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .chat-flash {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class MessageThreadComponent {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly messages = input<DisplayMessage[]>([]);
   readonly hasMore = input(false);
   readonly loading = input(false);
   readonly loadError = input(false);
   readonly showComposer = input(false);
   readonly composerDisabled = input(false);
+  /** REQ-33/34: the message to scroll to/flash/highlight once it's among `messages()` —
+   * `undefined` under normal use (no pending search-result jump). */
+  readonly highlightMessageId = input<number | undefined>(undefined);
+  /** REQ-32/36: the query whose literal, case-insensitive first occurrence gets `<mark>`-wrapped
+   * inside `highlightMessageId`'s bubble — persists after the flash ends (REQ-36), unlike
+   * `flashTargetId` below, which only exists for the animation's duration. */
+  readonly highlightQuery = input<string | undefined>(undefined);
 
   readonly loadMore = output<void>();
   readonly send = output<string>();
   readonly retry = output<DisplayMessage>();
+
+  /** REQ-35: only set for the finite duration of the flash animation — `highlightMessageId`
+   * itself (not this) drives the persistent `<mark>`, so the mark outlives the flash. */
+  protected readonly flashTargetId = signal<number | undefined>(undefined);
+  private lastScrolledId: number | undefined;
+  private flashTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  constructor() {
+    effect(() => {
+      const targetId = this.highlightMessageId();
+      const found = this.messages().some((message) => message.id === targetId);
+      if (targetId === undefined || !found || targetId === this.lastScrolledId) {
+        return;
+      }
+      this.lastScrolledId = targetId;
+
+      const element = document.getElementById(`message-thread-item-${targetId}`);
+      element?.scrollIntoView({ block: 'center', behavior: 'auto' });
+
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReducedMotion) {
+        return;
+      }
+
+      this.flashTargetId.set(targetId);
+      if (this.flashTimeoutId !== undefined) {
+        clearTimeout(this.flashTimeoutId);
+      }
+      this.flashTimeoutId = setTimeout(() => this.flashTargetId.set(undefined), FLASH_DURATION_MS);
+    });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.flashTimeoutId !== undefined) {
+        clearTimeout(this.flashTimeoutId);
+      }
+    });
+  }
+
+  /** REQ-32/36: reused split-highlight helper — `null` (renders plain text) unless this is the
+   * jump target *and* the current query literally substring-matches this message's content. */
+  protected highlightSplit(message: DisplayMessage) {
+    if (message.id !== this.highlightMessageId()) {
+      return null;
+    }
+    const query = this.highlightQuery();
+    if (!query) {
+      return null;
+    }
+    return splitOnMatch(message.content, query);
+  }
 }

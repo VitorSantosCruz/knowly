@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { interval } from 'rxjs';
@@ -70,6 +70,8 @@ const POLL_INTERVAL_MS = 5000;
           [loading]="entry().loading"
           [loadError]="entry().loadError"
           [showComposer]="viewerRelation() === 'PARTICIPANT'"
+          [highlightMessageId]="jumpTargetMessageId()"
+          [highlightQuery]="jumpToQuery()"
           (loadMore)="chatService.loadOlderMessages(conversationId())"
           (send)="onSend($event)"
           (retry)="onRetry($event)"
@@ -91,6 +93,74 @@ export class ConversationDetailComponent implements OnInit {
   protected readonly conversationId = signal(0);
   protected readonly currentUserId = signal<number | null>(null);
   protected readonly infoModalOpen = signal(false);
+
+  /** REQ-33/34 (chat-message-search PLAN.md, Amended 2026-08-10): the id/query a search-result
+   * click asked us to jump to, read once off `history.state` (never a query param — the SPEC's
+   * amendment explicitly excludes deep-linking a message via a shareable URL). `null` on any
+   * normal navigation to `/chat/:id` (typed URL, sidebar click, etc.) — this is a one-shot,
+   * in-session-only signal, not part of this route's contract.
+   *
+   * **Deviation from the PLAN's original sketch**: `router.getCurrentNavigation()` is only
+   * populated synchronously during the navigation transaction itself — reliable when a routed
+   * component is created directly by a `RouterOutlet`, which is *not* this codebase's shape.
+   * `ChatShellComponent` owns the `/chat/**` outlet alone and mounts this component reactively
+   * off its own `route.data`/`route.queryParamMap` subscriptions (see that file's Javadoc) — by
+   * the time that subscription callback fires and Angular actually constructs this component,
+   * the navigation transaction has already ended and `getCurrentNavigation()` reads `null`.
+   * `history.state` (what the Router's `state:` extra actually calls `pushState` with) has no
+   * such timing window — confirmed via manual Playwright verification that
+   * `getCurrentNavigation()`-based reads silently never fired the jump in this app's real
+   * routing shape, while `history.state` did. */
+  private readonly jumpRequestedMessageId = signal<number | null>(
+    (history.state?.['jumpToMessageId'] as number | undefined) ?? null,
+  );
+  protected readonly jumpToQuery = signal<string | undefined>(
+    history.state?.['jumpToQuery'] as string | undefined,
+  );
+  /** Set once the requested message is actually present among the loaded messages — this, not
+   * `jumpRequestedMessageId`, is what `MessageThreadComponent` receives, so it only ever tries to
+   * scroll to/flash a message that genuinely exists in the DOM right now. */
+  protected readonly jumpTargetMessageId = signal<number | undefined>(undefined);
+  private jumpLoadAttempts = 0;
+  private static readonly MAX_JUMP_LOAD_ATTEMPTS = 20;
+
+  /** REQ-34: while a jump is pending and the target isn't loaded yet, keep requesting older
+   * pages — Angular's own effect scheduling re-runs this on every `entryOf(...)` cache update
+   * `loadOlderMessages` produces, so no manual await/poll loop is needed (this codebase's
+   * existing `ChatService.patchEntry`/signal pattern already does the "notify on change" part).
+   * Bounded at `MAX_JUMP_LOAD_ATTEMPTS` pages so a message that's been deleted, or sits beyond a
+   * reasonable lookback, doesn't loop forever — REQ-34's "stop... with no error state". */
+  private readonly jumpToMessageEffect = effect(() => {
+    const targetId = this.jumpRequestedMessageId();
+    if (targetId === null || this.conversationId() === 0) {
+      return;
+    }
+
+    const entry = this.entry();
+    const found = entry.messages.some((message) => message.id === targetId);
+    if (found) {
+      this.jumpTargetMessageId.set(targetId);
+      this.jumpRequestedMessageId.set(null);
+      this.jumpLoadAttempts = 0;
+      return;
+    }
+
+    if (entry.loading) {
+      return;
+    }
+
+    if (
+      !entry.hasMore ||
+      this.jumpLoadAttempts >= ConversationDetailComponent.MAX_JUMP_LOAD_ATTEMPTS
+    ) {
+      this.jumpRequestedMessageId.set(null);
+      this.jumpLoadAttempts = 0;
+      return;
+    }
+
+    this.jumpLoadAttempts += 1;
+    this.chatService.loadOlderMessages(this.conversationId());
+  });
 
   protected readonly detail = computed(() => this.chatService.details().get(this.conversationId()));
   protected readonly entry = computed(() => this.chatService.entryOf(this.conversationId()));

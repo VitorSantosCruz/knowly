@@ -243,4 +243,132 @@ describe('ConversationDetailComponent', () => {
       .expectOne('/api/users/2/profile')
       .flush({ userId: 2, email: 'bob@x.com', fields: { fullName: 'Bob' }, avatarUrl: null });
   });
+
+  describe('REQ-33/34 (Amended 2026-08-10): jump-to-message from a search result', () => {
+    function createWithJumpState(jumpToMessageId: number, jumpToQuery: string) {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ConversationDetailComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideTransloco({
+            config: { availableLangs: ['en'], defaultLang: 'en' },
+            loader: FakeTranslocoLoader,
+          }),
+          {
+            provide: ActivatedRoute,
+            useValue: { paramMap: of(convertToParamMap({ conversationId: '1' })) },
+          },
+        ],
+      });
+      router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      // See conversation-detail.component.ts's Javadoc on `jumpRequestedMessageId` — this
+      // component reads `history.state`, not `router.getCurrentNavigation()`, because it isn't
+      // constructed directly by a RouterOutlet in this codebase's routing shape.
+      vi.spyOn(window.history, 'state', 'get').mockReturnValue({ jumpToMessageId, jumpToQuery });
+      fixture = TestBed.createComponent(ConversationDetailComponent);
+      httpMock = TestBed.inject(HttpTestingController);
+    }
+
+    it('passes highlightMessageId/highlightQuery straight through when the target is already loaded', () => {
+      createWithJumpState(10, 'hi');
+      fixture.detectChanges();
+      flushOpen([1, 2]); // seeds message id 10, content 'hi'
+      fixture.detectChanges();
+
+      const thread = fixture.nativeElement.querySelector('[data-testid="message-thread"]');
+      expect(thread).toBeTruthy();
+      httpMock.expectNone(
+        (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('before'),
+      );
+    });
+
+    it('calls loadOlderMessages repeatedly until the target message is found', () => {
+      createWithJumpState(999, 'hi');
+      fixture.detectChanges();
+
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: 'c1',
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      // Not found yet (target id 999) — another older page is requested automatically.
+      httpMock
+        .expectOne(
+          (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('before') === 'c1',
+        )
+        .flush({
+          messages: [
+            {
+              id: 999,
+              senderUserId: 2,
+              senderNickname: 'Bob',
+              content: 'hi again',
+              createdAt: 'earlier',
+            },
+          ],
+          nextCursor: null,
+        });
+      fixture.detectChanges();
+
+      httpMock.expectNone(
+        (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('before'),
+      );
+    });
+
+    it('gives up once hasMore is false without an error state', () => {
+      createWithJumpState(999, 'hi');
+      fixture.detectChanges();
+
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: null,
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      httpMock.expectNone(
+        (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('before'),
+      );
+      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    });
+  });
 });

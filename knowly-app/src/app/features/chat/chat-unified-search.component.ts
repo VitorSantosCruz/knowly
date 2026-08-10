@@ -228,7 +228,8 @@ type UnifiedStatus = 'idle' | 'loading' | 'results' | 'no-results' | 'error';
                       @for (r of messageResults(); track r.id) {
                         <app-chat-search-result-row
                           [result]="r"
-                          (rowSelected)="onEntitySelect(r)"
+                          [query]="queryInput()"
+                          (rowSelected)="onMessageSelect(r)"
                         />
                       }
                     </ul>
@@ -407,10 +408,22 @@ export class ChatUnifiedSearchComponent {
         this.router.navigate(['/chat/articles', result.id]);
         return;
       case 'message':
-        this.dismiss();
-        this.router.navigate(['/chat', result.conversationId]);
+        this.onMessageSelect(result);
         return;
     }
+  }
+
+  /** REQ-33/34 (Amended 2026-08-10): the target message id + the raw query string travel via
+   * router navigation `state`, not a query param — the SPEC's amendment explicitly excludes
+   * deep-linking a message via a shareable/bookmarkable URL, so this is a one-shot,
+   * in-session-only signal `ConversationDetailComponent` reads off
+   * `router.getCurrentNavigation()?.extras.state` in its own constructor. */
+  protected onMessageSelect(result: Extract<ChatSearchRowResult, { kind: 'message' }>): void {
+    const query = this.queryInput();
+    this.dismiss();
+    this.router.navigate(['/chat', result.conversationId], {
+      state: { jumpToMessageId: result.id, jumpToQuery: query },
+    });
   }
 
   protected onRecentPlaceSelect(place: ChatRecentPlaceDto): void {

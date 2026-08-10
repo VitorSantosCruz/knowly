@@ -266,7 +266,9 @@ describe('ChatUnifiedSearchComponent', () => {
     fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
     fixture.detectChanges();
 
-    expect(router.navigate).toHaveBeenCalledWith(['/chat', 42]);
+    expect(router.navigate).toHaveBeenCalledWith(['/chat', 42], {
+      state: { jumpToMessageId: 1, jumpToQuery: 'ana' },
+    });
     expect(messageSearch.status()).toBe('idle');
     expect(entitySearch.peopleStatus()).toBe('idle');
     expect(
