@@ -371,10 +371,18 @@ export class ChatDirectoryRowsService {
    * may resolve asynchronously after `ensureLoaded()` already ran once. */
   maybeFetchArticles(): void {
     const tenantId = this.activeTenantService.activeTenantId();
-    if (tenantId === null || this.articlesFetchedForTenant === tenantId) {
+    if (this.articlesFetchedForTenant === tenantId) {
       return;
     }
     this.articlesFetchedForTenant = tenantId;
+
+    // Unlike `maybeRefetchConversations()`/`maybeRefetchEligibleParticipants()`, there is no
+    // staff-level ("no tenant") article/RAG conversation list to fetch — leaving a tenant must
+    // clear the previous tenant's rows instead of leaving them frozen in `articleConversations`.
+    if (tenantId === null) {
+      this.articleConversations.set([]);
+      return;
+    }
     this.conversationService
       .list(tenantId)
       .subscribe((conversations) => this.articleConversations.set(conversations));

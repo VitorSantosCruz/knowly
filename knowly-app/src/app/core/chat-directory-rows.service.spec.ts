@@ -163,4 +163,46 @@ describe('ChatDirectoryRowsService — Amendment (3) unified rows', () => {
 
     expect(service.conversationRows().some((r) => r.kind === 'group' && r.id === 6)).toBe(false);
   });
+
+  // Bug fix (2026-08-10, reported by the user): leaving a tenant correctly cleared group/peer
+  // rows (the fix above) but `maybeFetchArticles()` early-returned on tenantId === null without
+  // ever clearing `articleConversations`, so the previous tenant's "Base de artigos" (RAG)
+  // conversations kept showing in the staff-level view.
+  it('clears article/knowledge-base conversation rows when the active tenant is left', () => {
+    flushInit({});
+
+    const activeTenantService = TestBed.inject(ActiveTenantService);
+    activeTenantService.selectTenant(10, 'Tenant A').subscribe();
+    httpMock.expectOne('/api/tenants/active').flush(null, { status: 200, statusText: 'OK' });
+    TestBed.tick();
+
+    httpMock.expectOne('/api/chat/conversations').flush([]);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/discoverable-groups')
+      .flush({ content: [], page: 0, size: 200, totalElements: 0, totalPages: 1 });
+    httpMock
+      .expectOne(
+        (r) => r.url === '/api/chat/eligible-participants' && r.params.get('tenantId') === '10',
+      )
+      .flush([]);
+    httpMock
+      .expectOne('/api/tenants/10/conversations')
+      .flush([{ id: 42, title: 'Políticas de RH', icon: null }]);
+
+    expect(service.conversationRows().some((r) => r.kind === 'article' && r.id === 42)).toBe(true);
+
+    activeTenantService.leaveTenant().subscribe();
+    httpMock.expectOne('/api/tenants/active/clear').flush({});
+    TestBed.tick();
+
+    httpMock.expectOne('/api/chat/conversations').flush([]);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/discoverable-groups')
+      .flush({ content: [], page: 0, size: 200, totalElements: 0, totalPages: 1 });
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/eligible-participants' && !r.params.has('tenantId'))
+      .flush([]);
+
+    expect(service.conversationRows().some((r) => r.kind === 'article')).toBe(false);
+  });
 });
