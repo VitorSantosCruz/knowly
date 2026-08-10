@@ -342,16 +342,10 @@ export class ChatDirectoryRowsService {
 
   onPersonClick(row: PersonRow): void {
     this.clearRowError(row.key);
-    if (row.conversationId !== null) {
-      this.router.navigate(['/chat', row.conversationId]);
-      return;
-    }
-    this.chatService
-      .createConversation({ kind: 'DIRECT', participantUserIds: [row.userId] })
-      .subscribe({
-        next: (conversation) => this.router.navigate(['/chat', conversation.id]),
-        error: () => this.setRowError(row.key),
-      });
+    this.chatService.openPersonConversation(row.userId).subscribe({
+      next: (id) => this.router.navigate(['/chat', id]),
+      error: () => this.setRowError(row.key),
+    });
   }
 
   onGroupClick(row: GroupRow): void {

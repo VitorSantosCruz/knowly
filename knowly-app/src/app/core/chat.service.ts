@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { catchError, Observable, of, tap, throwError } from 'rxjs';
+import { catchError, map, Observable, of, tap, throwError } from 'rxjs';
 import {
   CandidateUser,
   ConversationDetail,
@@ -63,6 +63,25 @@ export class ChatService {
     return this.http
       .post<ConversationSummary>('/api/chat/conversations', request)
       .pipe(tap((conversation) => this._conversations.update((list) => [...list, conversation])));
+  }
+
+  /**
+   * chat-unified-ui PLAN.md's "A person search result opening a 1:1 with no existing
+   * conversation" decision — the shared create-or-open helper `chat-directory-rows.service.ts`'s
+   * `onPersonClick` and `chat-unified-search.component.ts`'s person-result click both call,
+   * rather than duplicating the "existing conversation vs. create-and-open" branch a third time.
+   * Resolves to that person's DIRECT conversation id (existing or newly created).
+   */
+  openPersonConversation(userId: number): Observable<number> {
+    const existing = this._conversations().find(
+      (c) => c.kind === 'PEER_DIRECT' && c.participantUserIds.includes(userId),
+    );
+    if (existing) {
+      return of(existing.id);
+    }
+    return this.createConversation({ kind: 'DIRECT', participantUserIds: [userId] }).pipe(
+      map((conversation) => conversation.id),
+    );
   }
 
   openConversation(id: number): void {
