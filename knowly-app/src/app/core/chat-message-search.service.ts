@@ -1,18 +1,20 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { catchError, of } from 'rxjs';
-import {
-  ChatMessageSearchFilters,
-  ChatMessageSearchPageDto,
-  ChatMessageSearchResultDto,
-  ChatMessageSearchStatus,
-} from './chat.model';
+import { ChatMessageSearchPageDto, ChatMessageSearchResultDto, ChatMessageSearchStatus } from './chat.model';
 
 /**
  * `chat-message-search` PLAN.md — signals-based, mirrors `ChatDirectoryService`'s shape, kept
  * separate from `ChatService` (cross-conversation, filtered, cursor-paginated search over
  * `GET /api/chat/messages/search`, a fundamentally different concern than "my conversations +
  * their message history" addressed by `conversationId`).
+ *
+ * **Amended (2026-08-10)**: `search()`'s signature narrows to `search(q: string)` — the old
+ * `senderId`/`conversationId`/`dateFrom`/`dateTo` filter-param composition is removed alongside
+ * `chat-search-dialog.component.ts`'s own retirement (no filter form exists anymore); this
+ * service now always calls the backend with only `q` set. `_results`/`_status`/`_nextCursor`/
+ * `_lastQuery`/`loadMore()`/`reset()` are otherwise byte-for-byte unchanged from the shipped
+ * implementation.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatMessageSearchService {
@@ -30,16 +32,16 @@ export class ChatMessageSearchService {
   private readonly _lastQuery = signal('');
   readonly lastQuery = this._lastQuery.asReadonly();
 
-  private lastFilters: ChatMessageSearchFilters | null = null;
+  private lastQ: string | null = null;
 
-  search(filters: ChatMessageSearchFilters): void {
-    this.lastFilters = filters;
-    this._lastQuery.set(filters.q);
+  search(q: string): void {
+    this.lastQ = q;
+    this._lastQuery.set(q);
     this._status.set('loading');
 
     this.http
       .get<ChatMessageSearchPageDto>('/api/chat/messages/search', {
-        params: this.buildParams(filters),
+        params: new HttpParams().set('q', q),
       })
       .pipe(catchError(() => of(null)))
       .subscribe((page) => {
@@ -55,15 +57,15 @@ export class ChatMessageSearchService {
 
   loadMore(): void {
     const cursor = this._nextCursor();
-    if (cursor === null || this._status() === 'loading' || this.lastFilters === null) {
+    if (cursor === null || this._status() === 'loading' || this.lastQ === null) {
       return;
     }
-    const filters = this.lastFilters;
+    const q = this.lastQ;
     this._status.set('loading');
 
     this.http
       .get<ChatMessageSearchPageDto>('/api/chat/messages/search', {
-        params: this.buildParams(filters).set('cursor', cursor),
+        params: new HttpParams().set('q', q).set('cursor', cursor),
       })
       .pipe(catchError(() => of(null)))
       .subscribe((page) => {
@@ -82,23 +84,6 @@ export class ChatMessageSearchService {
     this._status.set('idle');
     this._nextCursor.set(null);
     this._lastQuery.set('');
-    this.lastFilters = null;
-  }
-
-  private buildParams(filters: ChatMessageSearchFilters): HttpParams {
-    let params = new HttpParams().set('q', filters.q);
-    if (filters.senderId !== undefined) {
-      params = params.set('senderId', filters.senderId);
-    }
-    if (filters.conversationId !== undefined) {
-      params = params.set('conversationId', filters.conversationId);
-    }
-    if (filters.dateFrom !== undefined) {
-      params = params.set('dateFrom', filters.dateFrom);
-    }
-    if (filters.dateTo !== undefined) {
-      params = params.set('dateTo', filters.dateTo);
-    }
-    return params;
+    this.lastQ = null;
   }
 }

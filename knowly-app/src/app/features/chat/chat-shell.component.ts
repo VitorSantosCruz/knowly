@@ -10,7 +10,6 @@ import { ChatSidebarComponent } from './chat-sidebar.component';
 import { ConversationDetailComponent } from './conversation-detail.component';
 import { CreateGroupDialogComponent } from './create-group-dialog.component';
 import { CreateConversationDialogComponent } from './create-conversation-dialog.component';
-import { ChatSearchDialogComponent } from './chat-search-dialog.component';
 import { ConversationsPageComponent } from '../conversations/conversations-page.component';
 import { SupportPageComponent } from '../support/support-page.component';
 
@@ -77,7 +76,6 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
     NoActiveTenantStateComponent,
     CreateGroupDialogComponent,
     CreateConversationDialogComponent,
-    ChatSearchDialogComponent,
   ],
   template: `
     <div
@@ -94,7 +92,6 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
               [hasActiveTenant]="hasActiveTenantForSidebar()"
               (openArticles)="onOpenArticles()"
               (createGroup)="createGroupOpen.set(true)"
-              (openSearch)="searchOpen.set(true)"
             />
             @if (!viewportFitsColumns()) {
               <button
@@ -192,7 +189,6 @@ const CHAT_COLUMNS_QUERY = '(min-width: 1280px)';
       [open]="createConversationOpen()"
       (dismissed)="createConversationOpen.set(false)"
     />
-    <app-chat-search-dialog [open]="searchOpen()" (dismissed)="searchOpen.set(false)" />
   `,
   // Angular component hosts default to display:inline with no explicit height, which breaks
   // percentage-height chains (h-full) at every component boundary — this host needs a real,
@@ -225,7 +221,6 @@ export class ChatShellComponent implements OnInit {
 
   protected readonly createGroupOpen = signal(false);
   protected readonly createConversationOpen = signal(false);
-  protected readonly searchOpen = signal(false);
 
   protected readonly activeSection = computed<QuerySection>(() => {
     const kind = this.chatRouteKind();

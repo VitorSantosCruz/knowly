@@ -31,8 +31,8 @@ describe('ChatMessageSearchService', () => {
     ...overrides,
   });
 
-  it('search({ q }) calls GET /api/chat/messages/search with only q, no other params, and sets status loading first', () => {
-    service.search({ q: 'reunião' });
+  it('search(q) calls GET /api/chat/messages/search with only q, no other params, and sets status loading first', () => {
+    service.search('reunião');
 
     expect(service.status()).toBe('loading');
 
@@ -49,26 +49,8 @@ describe('ChatMessageSearchService', () => {
     req.flush({ results: [], nextCursor: null });
   });
 
-  it('search() with every optional filter set includes all of them as query params', () => {
-    service.search({
-      q: 'reunião',
-      senderId: 2,
-      conversationId: 10,
-      dateFrom: '2026-08-01T00:00:00Z',
-      dateTo: '2026-08-09T00:00:00Z',
-    });
-
-    const req = httpMock.expectOne((r) => r.url === '/api/chat/messages/search');
-    expect(req.request.params.get('senderId')).toBe('2');
-    expect(req.request.params.get('conversationId')).toBe('10');
-    expect(req.request.params.get('dateFrom')).toBe('2026-08-01T00:00:00Z');
-    expect(req.request.params.get('dateTo')).toBe('2026-08-09T00:00:00Z');
-
-    req.flush({ results: [], nextCursor: null });
-  });
-
   it('search() success with non-empty results replaces _results, sets status "results", and stores nextCursor', () => {
-    service.search({ q: 'reunião' });
+    service.search('reunião');
     const results = [result()];
     httpMock
       .expectOne((r) => r.url === '/api/chat/messages/search')
@@ -83,7 +65,7 @@ describe('ChatMessageSearchService', () => {
   });
 
   it('search() success with results: [] sets status "no-results" and stores lastQuery', () => {
-    service.search({ q: 'xyz' });
+    service.search('xyz');
     httpMock
       .expectOne((r) => r.url === '/api/chat/messages/search')
       .flush({ results: [], nextCursor: null });
@@ -94,13 +76,13 @@ describe('ChatMessageSearchService', () => {
   });
 
   it('search() failure sets status "error" without clearing a prior non-empty _results', () => {
-    service.search({ q: 'reunião' });
+    service.search('reunião');
     httpMock
       .expectOne((r) => r.url === '/api/chat/messages/search')
       .flush({ results: [result()], nextCursor: null });
     expect(service.status()).toBe('results');
 
-    service.search({ q: 'outra' });
+    service.search('outra');
     httpMock
       .expectOne((r) => r.url === '/api/chat/messages/search')
       .flush('boom', { status: 500, statusText: 'Server Error' });
@@ -109,8 +91,8 @@ describe('ChatMessageSearchService', () => {
     expect(service.results()).toEqual([result()]);
   });
 
-  it('loadMore() sends the cursor param and the last filters, appending to _results and updating nextCursor', () => {
-    service.search({ q: 'reunião', senderId: 2 });
+  it('loadMore() sends the cursor param and the last q, appending to _results and updating nextCursor', () => {
+    service.search('reunião');
     httpMock
       .expectOne((r) => r.url === '/api/chat/messages/search')
       .flush({ results: [result({ id: 1 })], nextCursor: 'cursor-1' });
@@ -119,7 +101,6 @@ describe('ChatMessageSearchService', () => {
     const req = httpMock.expectOne((r) => r.url === '/api/chat/messages/search');
     expect(req.request.params.get('cursor')).toBe('cursor-1');
     expect(req.request.params.get('q')).toBe('reunião');
-    expect(req.request.params.get('senderId')).toBe('2');
     req.flush({ results: [result({ id: 2 })], nextCursor: null });
 
     expect(service.results()).toEqual([result({ id: 1 }), result({ id: 2 })]);
@@ -131,7 +112,7 @@ describe('ChatMessageSearchService', () => {
     service.loadMore();
     httpMock.expectNone((r) => r.url === '/api/chat/messages/search');
 
-    service.search({ q: 'reunião' });
+    service.search('reunião');
     // status is 'loading' right now — a second loadMore() call must no-op too
     service.loadMore();
     httpMock
@@ -143,7 +124,7 @@ describe('ChatMessageSearchService', () => {
   });
 
   it('reset() returns to idle with empty results, null cursor, and empty lastQuery', () => {
-    service.search({ q: 'reunião' });
+    service.search('reunião');
     httpMock
       .expectOne((r) => r.url === '/api/chat/messages/search')
       .flush({ results: [result()], nextCursor: 'cursor-1' });

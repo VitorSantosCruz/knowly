@@ -1,6 +1,6 @@
 import { Component, input, output } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { LucidePlus, LucideSearch } from '@lucide/angular';
+import { LucidePlus } from '@lucide/angular';
 
 /**
  * Directory column's (column 1) header — direct action buttons, never a tab strip
@@ -9,10 +9,15 @@ import { LucidePlus, LucideSearch } from '@lucide/angular';
  *
  * This component used to own the People/Groups/Support/Base-de-artigos tab switch
  * (`ChatSection`/`sectionChange`) — that responsibility is retired. `ChatDirectoryComponent`
- * (the unified, always-visible, searchable list) is the directory column's permanent content;
+ * (the unified, always-visible, browsable list) is the directory column's permanent content;
  * this header exposes the remaining direct actions — start a new "Base de artigos" conversation,
  * and create a group. `ChatShellComponent` owns what each action actually does
  * (navigate/create/open a dialog).
+ *
+ * **Amended (2026-08-10)**: the "Buscar mensagens" icon button (which opened the now-retired
+ * `chat-search-dialog.component.ts`) is removed — the unified persistent search bar
+ * (`chat-unified-search.component.ts`, mounted by `ChatShellComponent`'s own header region) is
+ * now the screen's only search entry point (REQ-15).
  *
  * **UX fix (2026-08-10)**: the separate "Abrir chamado de suporte" action was removed — there is
  * only ever one persistent Support channel per viewer (member or staff), and
@@ -39,21 +44,9 @@ import { LucidePlus, LucideSearch } from '@lucide/angular';
  */
 @Component({
   selector: 'app-chat-sidebar',
-  imports: [TranslocoPipe, LucidePlus, LucideSearch],
+  imports: [TranslocoPipe, LucidePlus],
   template: `
     <div data-testid="chat-sidebar" class="flex flex-col gap-2">
-      <button
-        type="button"
-        data-testid="chat-sidebar-action-search"
-        [attr.aria-label]="'chat.search.entryPointLabel' | transloco"
-        [title]="'chat.search.entryPointLabel' | transloco"
-        (click)="openSearch.emit()"
-        class="flex items-center gap-2 rounded-lg border border-ink-200/70 px-3 py-2 text-left text-sm font-medium hover:bg-ink-50 dark:border-ink-800/70 dark:hover:bg-ink-800"
-      >
-        <svg lucideSearch class="h-4 w-4 shrink-0" aria-hidden="true"></svg>
-        {{ 'chat.search.entryPointLabel' | transloco }}
-      </button>
-
       @if (hasActiveTenant()) {
         <button
           type="button"
@@ -83,5 +76,4 @@ export class ChatSidebarComponent {
   readonly hasActiveTenant = input<boolean>(false);
   readonly openArticles = output<void>();
   readonly createGroup = output<void>();
-  readonly openSearch = output<void>();
 }

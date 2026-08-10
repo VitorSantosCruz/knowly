@@ -256,17 +256,72 @@ export interface ChatMessageSearchPageDto {
   nextCursor: string | null;
 }
 
-/** `ChatMessageSearchService.search()`'s input — no `cursor`/`size` fields; `loadMore()`
- * derives `cursor` from the service's own `_nextCursor` signal internally. */
+/**
+ * `ChatMessageSearchService.search()`'s input. Narrowed 2026-08-10 (Amended, unified search
+ * bar) — the old `senderId`/`conversationId`/`dateFrom`/`dateTo` filter fields are removed
+ * entirely alongside `chat-search-dialog.component.ts`'s own retirement (no filter form exists
+ * anymore). `loadMore()` derives `cursor` from the service's own `_nextCursor` signal internally.
+ */
 export interface ChatMessageSearchFilters {
   q: string;
-  senderId?: number;
-  conversationId?: number;
-  dateFrom?: string;
-  dateTo?: string;
 }
 
 /** `'idle'` (never searched yet) is distinct from `'no-results'` (searched, zero matches) —
  * REQ-12's explicit distinct-state requirement, mirrors `MessageSendState`'s existing convention
  * of an explicit status enum over booleans-that-can-contradict-each-other. */
 export type ChatMessageSearchStatus = 'idle' | 'loading' | 'results' | 'no-results' | 'error';
+
+/**
+ * `chat-message-search` — Amended (2026-08-10) — `GET /api/chat/search`. Matches
+ * `br.com.conectabyte.knowly.chat.dto.ChatEntitySearchResponseDto`/friends verbatim (see
+ * knowly-api's PLAN.md "Amended (2026-08-10)" section, closed/final).
+ */
+export interface ChatPersonSearchResultDto {
+  userId: number;
+  nickname: string;
+  avatarUrl: string | null;
+}
+
+export interface ChatGroupSearchResultDto {
+  id: number;
+  title: string;
+  isParticipant: boolean;
+  visibility: ChatGroupVisibility;
+}
+
+export interface ChatSupportSearchResultDto {
+  channelId: number;
+}
+
+export interface ChatRagConversationSearchResultDto {
+  id: number;
+  title: string;
+}
+
+export interface ChatEntitySearchSectionDto<T> {
+  results: T[];
+  hasMore: boolean;
+}
+
+export interface ChatEntitySearchResponseDto {
+  people: ChatEntitySearchSectionDto<ChatPersonSearchResultDto>;
+  groups: ChatEntitySearchSectionDto<ChatGroupSearchResultDto>;
+  support: ChatSupportSearchResultDto | null;
+  rag: ChatEntitySearchSectionDto<ChatRagConversationSearchResultDto>;
+}
+
+export interface ChatRecentPlaceDto {
+  conversationId: number;
+  kind: 'PEER_DIRECT' | 'PEER_GROUP' | 'SUPPORT' | 'RAG';
+  title: string;
+  orderingTimestamp: string;
+}
+
+export interface ChatEntitySearchResultDto {
+  recentPlaces: ChatRecentPlaceDto[];
+}
+
+/** Per-section status on `ChatEntitySearchService` — `'idle'`/`'loading'`/`'ok'`/`'error'`.
+ * Narrowed, per PLAN.md's "two failure domains, not five" decision, to fail all four entity
+ * sections simultaneously on a transport-level failure (one HTTP response backs all four). */
+export type ChatEntitySearchSectionStatus = 'idle' | 'loading' | 'ok' | 'error';
