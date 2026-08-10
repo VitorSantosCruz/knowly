@@ -770,6 +770,22 @@
       "save": "Save",
       "cancel": "Cancel",
       "error": "Could not rename this conversation. Please try again."
+    },
+    "search": {
+      "entryPointLabel": "Search messages",
+      "dialogTitle": "Search message content",
+      "queryPlaceholder": "Search message content…",
+      "filterSenderLabel": "Sender",
+      "filterConversationLabel": "Conversation",
+      "filterDateFromLabel": "From",
+      "filterDateToLabel": "To",
+      "blankQueryError": "Enter a search term.",
+      "invalidDateRangeError": "The \"from\" date must not be after the \"to\" date.",
+      "loading": "Searching…",
+      "noResults": "No results for '{{query}}'",
+      "error": "Something went wrong while searching. Please try again.",
+      "loadMore": "Load more results",
+      "resultA11yLabel": "Message from {{sender}} in {{conversation}} at {{timestamp}}"
     }
   },
   "support": {

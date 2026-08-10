@@ -770,6 +770,22 @@
       "save": "Salvar",
       "cancel": "Cancelar",
       "error": "Não foi possível renomear esta conversa. Tente novamente."
+    },
+    "search": {
+      "entryPointLabel": "Buscar mensagens",
+      "dialogTitle": "Buscar no conteúdo das mensagens",
+      "queryPlaceholder": "Buscar no conteúdo das mensagens…",
+      "filterSenderLabel": "Remetente",
+      "filterConversationLabel": "Conversa",
+      "filterDateFromLabel": "De",
+      "filterDateToLabel": "Até",
+      "blankQueryError": "Digite um termo de busca.",
+      "invalidDateRangeError": "A data \"de\" não pode ser posterior à data \"até\".",
+      "loading": "Buscando…",
+      "noResults": "Nenhum resultado para '{{query}}'",
+      "error": "Ocorreu um erro ao buscar. Tente novamente.",
+      "loadMore": "Carregar mais resultados",
+      "resultA11yLabel": "Mensagem de {{sender}} em {{conversation}} às {{timestamp}}"
     }
   },
   "support": {
