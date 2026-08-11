@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { catchError, map, Observable, of, tap, throwError } from 'rxjs';
+import { catchError, finalize, map, Observable, of, tap, throwError } from 'rxjs';
 import {
   CandidateUser,
   ConversationDetail,
@@ -188,15 +188,54 @@ export class ChatService {
     });
   }
 
+  /**
+   * Bug fix (found live, reported as "consuming the backend nonstop" — a DIFFERENT root cause
+   * from the earlier `before=`-cursor jump-pagination storms fixed in `7e6fc57`/`3d32946`/
+   * `30378ea`, this one is about the plain 5s `after=` new-message poll `ConversationDetailComponent`
+   * runs forever while a conversation is open): this used to fire a brand-new `GET .../messages`
+   * request on every 5s tick with zero regard for whether the *previous* poll's request had
+   * actually come back yet. Under load (many open conversations/tabs, or the backend itself
+   * slowing down — exactly the "tortura" scenario reported), a poll response taking longer than
+   * 5s let the next tick fire anyway, both still reading `entry.newestCursor` off the SAME
+   * not-yet-updated cache entry (the first poll's response, which is what advances
+   * `newestCursor` via `appendNewer`, hadn't landed yet) — so the second request went out with
+   * the identical `after=<cursor>` as the first, in flight *concurrently*, not one after another.
+   * Each additional overlapping poll adds more backend load without ever letting a response
+   * catch up and advance the cursor, compounding: more concurrent requests, slower backend,
+   * more requests still queued behind the same stale cursor — observed live as an unbounded
+   * stream of identical `after=<cursor>` requests with no real gap between them, not a clean
+   * one-every-5-seconds cadence. Fixed by tracking in-flight polls per conversation id and
+   * skipping a tick entirely if that conversation's previous poll hasn't resolved yet — the very
+   * next 5s tick after it finally does resolve picks up the now-advanced `newestCursor` and
+   * proceeds normally.
+   */
+  private readonly pollInFlightIds = new Set<number>();
+
   pollNewMessages(id: number): void {
+    if (this.pollInFlightIds.has(id)) {
+      return;
+    }
+
     const entry = this.entryOf(id);
     const params = new HttpParams().set('size', PAGE_SIZE);
 
+    this.pollInFlightIds.add(id);
     this.http
       .get<MessagePage>(`/api/chat/conversations/${id}/messages`, {
         params: entry.newestCursor ? params.set('after', entry.newestCursor) : params,
       })
-      .subscribe((page) => this.appendNewer(id, page));
+      .pipe(
+        // A poll failing (e.g. a transient 5xx while the backend is under exactly the load this
+        // fix addresses) must not surface as an unhandled RxJS error — `finalize` below still
+        // clears `pollInFlightIds` either way, so the next 5s tick simply retries.
+        catchError(() => of(null)),
+        finalize(() => this.pollInFlightIds.delete(id)),
+      )
+      .subscribe((page) => {
+        if (page) {
+          this.appendNewer(id, page);
+        }
+      });
   }
 
   private appendNewer(id: number, page: MessagePage): void {

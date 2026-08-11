@@ -150,7 +150,55 @@ task after it ships) — do not silently fold it into REQ-47-51's
 current wording, since the current SPEC text doesn't yet call out the
 oversight-admin case at all.
 
-**Current state (2026-08-11): two more chat jump-to-message bugs found
+**Current state (2026-08-11): FOURTH distinct infinite-request-loop
+variant found live in production/dev — an `after=`-cursor new-message
+poll storm, unrelated to search/jump-to-message entirely (a red herring
+initially suspected, then explicitly ruled out), fixed and
+regression-tested.** Reported directly by the user as "isso pra o
+backend é uma tortura" — `GET /api/chat/conversations/{id}/messages
+?after=<cursor>` firing nonstop, the SAME cursor value never advancing.
+Every prior loop fix in this file (`7e6fc57`/`3d32946`/`30378ea`, and
+the two entries directly below this one) is about `before=`-cursor
+jump-to-message pagination — this is the plain, always-on 5s
+`ChatService#pollNewMessages()`/`ConversationDetailComponent`'s
+`interval(POLL_INTERVAL_MS)` new-message poll, running independent of
+any search/jump activity for as long as a conversation stays open.
+Root cause: `pollNewMessages()` fired a brand-new request on every 5s
+tick with **no regard for whether the previous poll's request had
+actually come back yet**. Under backend load (many open
+conversations/tabs, or the backend itself slowing down — precisely the
+reported "tortura" scenario), a response taking longer than 5s let the
+next tick fire anyway, both reading `entry.newestCursor` off the SAME
+not-yet-updated cache entry (the in-flight poll's response — the only
+thing that advances `newestCursor`, via `appendNewer` — hadn't landed
+yet), so the two requests went out with the identical `after=<cursor>`
+**concurrently**, not one after another. Each additional overlapping
+poll adds backend load without ever letting a response land and
+advance the cursor, compounding: more concurrent requests, a slower
+backend, more requests piling up behind the same stale cursor —
+observed live as an unbounded stream of identical `after=<cursor>`
+requests with no real gap between them, not a clean one-every-5-seconds
+cadence. Fixed in `ChatService#pollNewMessages()`
+(`knowly-app/src/app/core/chat.service.ts`) by tracking in-flight polls
+per conversation id (`pollInFlightIds: Set<number>`) and skipping a
+tick entirely if that conversation's previous poll hasn't resolved
+yet — the very next 5s tick after it finally does resolve picks up the
+now-advanced `newestCursor` and proceeds normally; a poll erroring
+(e.g. a transient 5xx from the same overloaded backend) is caught so it
+can't leave `pollInFlightIds` permanently stuck, and the next tick
+simply retries. New regression test in
+`conversation-detail.component.spec.ts` ("a slow-to-respond 5s
+new-message poll must not let the next tick fire an overlapping request
+against the same stale cursor"): leaves a poll response unflushed
+across three more 5s ticks, asserts zero additional requests fire, then
+flushes a genuinely-new message and asserts the very next tick's
+request carries the advanced cursor, not the stale one. All 1008
+frontend tests green (1 new), `format`/`format:check`/`npm
+test`/`build`/`lint` all clean. Not yet independently re-verified live
+in a browser as of this write-up — flagging for whoever picks this up
+next if that hasn't happened yet.
+
+**Previous state (2026-08-11): two more chat jump-to-message bugs found
 live via Playwright — a stale-cache race distinct from every fix below
 it, plus a same-URL-navigation gap the user asked to prioritize out of
 what had been left as an optional note — both fixed and

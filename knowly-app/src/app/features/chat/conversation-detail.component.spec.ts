@@ -137,6 +137,62 @@ describe('ConversationDetailComponent', () => {
       .flush({ messages: [], nextCursor: null });
   });
 
+  it('regression: a slow-to-respond 5s new-message poll must not let the next tick fire an overlapping request against the same stale cursor', () => {
+    // Reported live as "consuming the backend nonstop" — a DIFFERENT root cause from every
+    // `before=`-cursor jump-pagination storm fixed earlier (`7e6fc57`/`3d32946`/`30378ea`): this
+    // is the plain 5s `after=` new-message poll itself, unrelated to search/jump-to-message.
+    // `ChatService#pollNewMessages()` used to fire a brand-new request on every 5s tick with no
+    // regard for whether the PREVIOUS poll's response had actually come back yet. If a response
+    // takes longer than 5s (backend under load — exactly the reported scenario), the next tick
+    // fired anyway, reading `entry.newestCursor` off the same not-yet-updated cache entry, so
+    // both requests went out with the IDENTICAL `after=<cursor>` concurrently — not one clean
+    // request every 5 seconds. Left unbounded, each additional overlapping poll adds backend
+    // load without ever letting a response land and advance the cursor, compounding: observed
+    // live as an unbounded stream of identical `after=<cursor>` requests with no real gap
+    // between them.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    fixture.detectChanges();
+    flushOpen([1, 2]);
+    fixture.detectChanges();
+
+    // First 5s tick fires the first poll — deliberately left unflushed (simulating a slow
+    // backend response).
+    vi.advanceTimersByTime(5000);
+    const firstPolls = httpMock.match(
+      (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('after'),
+    );
+    expect(firstPolls.length).toBe(1);
+    const firstCursor = firstPolls[0].request.params.get('after');
+
+    // Several more 5s ticks elapse while that first poll is still in flight — none of them must
+    // fire a new request (the actual bug: they used to, all with the same stale cursor).
+    vi.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
+    httpMock.expectNone(
+      (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('after'),
+    );
+
+    // The first poll finally resolves, with a genuinely new message advancing the cursor.
+    firstPolls[0].flush({
+      messages: [
+        { id: 174, senderUserId: 2, senderNickname: 'Bob', content: 'new', createdAt: 'later' },
+      ],
+      nextCursor: null,
+    });
+    fixture.detectChanges();
+
+    // The very next 5s tick after that resolves fires exactly one new poll, using the now
+    // ADVANCED cursor — not the same stale one as before.
+    vi.advanceTimersByTime(5000);
+    const secondPolls = httpMock.match(
+      (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('after'),
+    );
+    expect(secondPolls.length).toBe(1);
+    expect(secondPolls[0].request.params.get('after')).not.toBe(firstCursor);
+    secondPolls[0].flush({ messages: [], nextCursor: null });
+  });
+
   it('the header icon+name opens the group info modal, which hosts "leave group" for a genuine participant', () => {
     fixture.detectChanges();
     flushOpen([1, 2]);
