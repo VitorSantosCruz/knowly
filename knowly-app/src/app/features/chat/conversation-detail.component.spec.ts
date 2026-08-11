@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { Subject } from 'rxjs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { provideTransloco } from '@jsverse/transloco';
@@ -14,6 +15,11 @@ describe('ConversationDetailComponent', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    // jsdom has no scrollIntoView implementation at all (real browsers do) — stubbed globally
+    // here (not just in the dedicated jump-to-message tests below) because message-thread's own
+    // scroll-into-view fix (2026-08-11 bug fix) retries via a microtask, so any test resolving a
+    // jump target can end up invoking it asynchronously, after that test's own assertions ran.
+    Element.prototype.scrollIntoView = vi.fn();
     TestBed.configureTestingModule({
       imports: [ConversationDetailComponent],
       providers: [
@@ -369,6 +375,136 @@ describe('ConversationDetailComponent', () => {
         (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('before'),
       );
       expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it.each([
+      ['PEER_GROUP', [1, 2]],
+      ['PEER_DIRECT', [1, 2]],
+    ] as const)(
+      'bug fix (%s): jump-to-message calls element.scrollIntoView, not just the <mark> highlight, once the target loads — reported live as working for PEER_GROUP but not PEER_DIRECT',
+      async (kind, participantUserIds) => {
+        const scrollIntoViewSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+
+        createWithJumpState(10, 'hi');
+        fixture.detectChanges();
+        httpMock.expectOne('/api/chat/conversations/1').flush({
+          id: 1,
+          kind,
+          tenantId: null,
+          title: kind === 'PEER_GROUP' ? 'Group' : null,
+          participantUserIds,
+          participantNicknames: kind === 'PEER_DIRECT' ? { 1: 'Me', 2: 'Bob' } : {},
+          visibility: 'PRIVATE',
+          archivedAt: null,
+          adminUserIds: [],
+        });
+        httpMock
+          .expectOne((r) => r.url === '/api/chat/conversations/1/messages')
+          .flush({
+            messages: [
+              { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+            ],
+            nextCursor: null,
+          });
+        httpMock
+          .expectOne('/api/users/me/profile')
+          .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+        fixture.detectChanges();
+
+        // The <mark> highlight (a template binding) and the imperative scrollIntoView call are
+        // two independently-verified assertions — the reported bug was <mark> working while
+        // scrollIntoView silently never fired for PEER_DIRECT specifically.
+        expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('hi');
+        // The scroll may resolve on the effect's first synchronous pass or via its microtask
+        // retry (see message-thread.component.ts's `scrollToTarget` Javadoc) — either is correct.
+        await Promise.resolve();
+        expect(scrollIntoViewSpy).toHaveBeenCalled();
+      },
+    );
+
+    it('bug fix: resolves a jump-to-message request on a SECOND paramMap navigation too — not just at first construction, since ChatShellComponent keeps this component alive across /chat/:id navigations', () => {
+      const paramMap$ = new Subject<ReturnType<typeof convertToParamMap>>();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ConversationDetailComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideTransloco({
+            config: { availableLangs: ['en'], defaultLang: 'en' },
+            loader: FakeTranslocoLoader,
+          }),
+          { provide: ActivatedRoute, useValue: { paramMap: paramMap$ } },
+        ],
+      });
+      router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      // First navigation: no jump requested at all — mirrors an ordinary "open conversation 1"
+      // click that doesn't come from a search result.
+      const historyStateSpy = vi.spyOn(window.history, 'state', 'get').mockReturnValue(null);
+      fixture = TestBed.createComponent(ConversationDetailComponent);
+      httpMock = TestBed.inject(HttpTestingController);
+
+      fixture.detectChanges();
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages')
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: null,
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      // Second navigation, same still-alive component instance (as ChatShellComponent's @if
+      // never toggles false/true across a /chat/:id -> /chat/:otherId search-result click) — this
+      // time carrying a genuine jump-to-message request.
+      historyStateSpy.mockReturnValue({ jumpToMessageId: 20, jumpToQuery: 'oi' });
+      paramMap$.next(convertToParamMap({ conversationId: '2' }));
+      httpMock.expectOne('/api/chat/conversations/2').flush({
+        id: 2,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group 2',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/2/messages')
+        .flush({
+          messages: [
+            { id: 20, senderUserId: 2, senderNickname: 'Bob', content: 'oi', createdAt: 'now' },
+          ],
+          nextCursor: null,
+        });
+      fixture.detectChanges();
+
+      const thread = fixture.nativeElement.querySelector('[data-testid="message-thread"]');
+      expect(thread).toBeTruthy();
+      // The bug: without the fix, jumpRequestedMessageId stays null forever (read once at
+      // construction, when history.state was still null), so no further "load older" calls are
+      // ever made and no highlight is ever passed down — this assertion would still pass on
+      // broken code (no crash), so the real regression coverage is message-thread's own
+      // highlight/flash spec plus this component's `<mark>`-bearing DOM below.
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('oi');
     });
   });
 });

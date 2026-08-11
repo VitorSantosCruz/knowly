@@ -95,7 +95,7 @@ export class ConversationDetailComponent implements OnInit {
   protected readonly infoModalOpen = signal(false);
 
   /** REQ-33/34 (chat-message-search PLAN.md, Amended 2026-08-10): the id/query a search-result
-   * click asked us to jump to, read once off `history.state` (never a query param — the SPEC's
+   * click asked us to jump to, read off `history.state` (never a query param — the SPEC's
    * amendment explicitly excludes deep-linking a message via a shareable URL). `null` on any
    * normal navigation to `/chat/:id` (typed URL, sidebar click, etc.) — this is a one-shot,
    * in-session-only signal, not part of this route's contract.
@@ -110,13 +110,20 @@ export class ConversationDetailComponent implements OnInit {
    * `history.state` (what the Router's `state:` extra actually calls `pushState` with) has no
    * such timing window — confirmed via manual Playwright verification that
    * `getCurrentNavigation()`-based reads silently never fired the jump in this app's real
-   * routing shape, while `history.state` did. */
-  private readonly jumpRequestedMessageId = signal<number | null>(
-    (history.state?.['jumpToMessageId'] as number | undefined) ?? null,
-  );
-  protected readonly jumpToQuery = signal<string | undefined>(
-    history.state?.['jumpToQuery'] as string | undefined,
-  );
+   * routing shape, while `history.state` did.
+   *
+   * **Bug fix (found live: a search-result jump only ever worked from a cold mount)**: reading
+   * `history.state` only in a field initializer was wrong — `ChatShellComponent` keeps this
+   * component alive across `/chat/:id` → `/chat/:otherId` navigations (its own `@if
+   * (chatRouteKind() === 'peer')` branch stays true, so Angular never destroys/reconstructs this
+   * component, only `route.paramMap` re-emits). A field initializer runs exactly once, at that
+   * first construction, so every jump-to-message click *after* the conversation view was already
+   * open silently read stale (usually absent) `history.state` and never set a jump target. Fixed
+   * by re-reading `history.state` inside the same `route.paramMap.subscribe` callback that
+   * updates `conversationId`, so every navigation — first mount or not — re-resolves the jump
+   * request for the state that navigation actually carried. */
+  private readonly jumpRequestedMessageId = signal<number | null>(null);
+  protected readonly jumpToQuery = signal<string | undefined>(undefined);
   /** Set once the requested message is actually present among the loaded messages — this, not
    * `jumpRequestedMessageId`, is what `MessageThreadComponent` receives, so it only ever tries to
    * scroll to/flash a message that genuinely exists in the DOM right now. */
@@ -200,6 +207,12 @@ export class ConversationDetailComponent implements OnInit {
       const id = Number(params.get('conversationId'));
       this.conversationId.set(id);
       this.chatService.openConversation(id);
+
+      const state = history.state as Record<string, unknown> | null;
+      this.jumpRequestedMessageId.set((state?.['jumpToMessageId'] as number | undefined) ?? null);
+      this.jumpToQuery.set(state?.['jumpToQuery'] as string | undefined);
+      this.jumpTargetMessageId.set(undefined);
+      this.jumpLoadAttempts = 0;
     });
 
     interval(POLL_INTERVAL_MS)
