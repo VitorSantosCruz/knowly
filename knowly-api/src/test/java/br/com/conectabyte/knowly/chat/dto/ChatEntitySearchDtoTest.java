@@ -45,6 +45,19 @@ class ChatEntitySearchDtoTest {
 
         assertThat(dto.id()).isEqualTo(1L);
         assertThat(dto.title()).isEqualTo("Base de artigos");
+        assertThat(dto.matchedSnippet()).isNull();
+        assertThat(dto.matchedRole()).isNull();
+    }
+
+    @Test
+    void ragConversationSearchResultDtoCarriesAnAdditiveMatchedSnippetAndRole() {
+        var dto =
+                new ChatRagConversationSearchResultDto(1L, "Base de artigos", "a snippet", "USER");
+
+        assertThat(dto.id()).isEqualTo(1L);
+        assertThat(dto.title()).isEqualTo("Base de artigos");
+        assertThat(dto.matchedSnippet()).isEqualTo("a snippet");
+        assertThat(dto.matchedRole()).isEqualTo("USER");
     }
 
     @Test
