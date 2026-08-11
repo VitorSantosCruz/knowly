@@ -751,6 +751,44 @@ tests it calls out below.
 - [x] 150. Update `PROJECT_STATUS.md` to record this correction and its
       regression test.
 
+## Amendment (2026-08-11, membership-precedence generalization) — REQ-5 completion (final v3)
+
+- [x] 151. Inject `GlobalPermissionService` into
+      `ChatMessageSearchService`'s constructor (new read-only dependency
+      on an existing bean).
+- [x] 152. Extract `activeMembershipIn(actor, tenantId)` (returns
+      `Optional<TenantMembership>`) replacing the old
+      `isActiveMemberAdminOf` boolean helper — same underlying query
+      (`tenantMembershipRepository.findByUserAndActiveTrue`), one query
+      instead of a potential second one.
+- [x] 153. Restructure the tenant-present branch of `search()`: resolve
+      `activeMembershipIn` first; if present, branch
+      `MEMBER_ADMIN`->`TENANT_UNRESTRICTED` else
+      `PARTICIPANT_AND_DISCOVERABLE` (unchanged fragments); if absent,
+      new sibling branch: `isStaffAdmin()` or (`isStaff()` and
+      `globalPermissionService.hasPermission(actor,
+      TENANT_ACT_AS_ANY)`) -> `TENANT_UNRESTRICTED`; else fail closed
+      (empty `ChatMessageSearchPageDto`, zero repository interaction).
+      Extract `tenantUnrestrictedSearch`/`scopedSearch` helpers to avoid
+      duplicating the three call sites now sharing the same fragment.
+- [x] 154. Add regression tests to `ChatMessageSearchServiceTest`:
+      `staffAdminWithNoMembershipInActiveTenantGetsTenantUnrestrictedSearch`,
+      `staffAdminWithPlainMemberMembershipInActiveTenantGetsOnlyMemberShapedResults`,
+      `nonAdminStaffWithTenantActAsAnyAndNoMembershipGetsTenantUnrestrictedSearch`,
+      `nonAdminStaffWithoutTenantActAsAnyAndNoMembershipFailsClosed`. Update
+      the pre-existing tenant-MEMBER-shaped tests
+      (`tenantMemberDispatchesToScopedSearchWithResolvedLocaleAndFilters`,
+      `enResolvedLocaleDispatchesToScopedSearchEnWithSuppliedFilters`,
+      `staffAdminWithAnActiveTenantNeverDispatchesToStaffScopeUnrestrictedSearch`,
+      `memberAdminInADifferentTenantDoesNotTriggerTenantUnrestrictedForActiveTenant`,
+      `logsActorHasQueryFilterPresenceAndResultCountButNeverTheRawQuery`) to
+      stub an explicit active `MEMBER` `TenantMembership` in the active
+      tenant, since membership presence is now resolved explicitly rather
+      than implied by "not `MEMBER_ADMIN`".
+- [x] 155. Run `./mvnw spotless:apply` then
+      `./mvnw test -Dtest="br.com.conectabyte.knowly.chat.**"` and
+      confirm all green — no `./mvnw verify`.
+
 ## Wrap-up (original)
 
 - [x] 135. Update `PROJECT_STATUS.md` to reflect this amendment's

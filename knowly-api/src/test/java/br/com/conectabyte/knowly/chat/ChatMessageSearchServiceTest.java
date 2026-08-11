@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.chat.exception.ChatBlankSearchQueryException;
 import br.com.conectabyte.knowly.chat.exception.ChatInvalidSearchDateRangeException;
+import br.com.conectabyte.knowly.tenancy.GlobalPermission;
+import br.com.conectabyte.knowly.tenancy.GlobalPermissionService;
 import br.com.conectabyte.knowly.tenancy.MembershipRole;
 import br.com.conectabyte.knowly.tenancy.Tenant;
 import br.com.conectabyte.knowly.tenancy.TenantContext;
@@ -45,6 +47,7 @@ class ChatMessageSearchServiceTest {
     @Mock private TenantMembershipRepository tenantMembershipRepository;
     @Mock private ChatConversationRepository chatConversationRepository;
     @Mock private ChatEligibilityService chatEligibilityService;
+    @Mock private GlobalPermissionService globalPermissionService;
 
     private ChatMessageSearchService service;
     private ListAppender<ILoggingEvent> logAppender;
@@ -53,6 +56,16 @@ class ChatMessageSearchServiceTest {
         User user = new User("search-actor@example.com");
         user.setId(1L);
         return user;
+    }
+
+    private TenantMembership memberMembershipOf(Long tenantId) {
+        TenantMembership membership = new TenantMembership();
+        Tenant tenant = new Tenant("Tenant " + tenantId);
+        tenant.setId(tenantId);
+        membership.setTenant(tenant);
+        membership.setActive(true);
+        membership.setRole(MembershipRole.MEMBER);
+        return membership;
     }
 
     @BeforeEach
@@ -64,7 +77,8 @@ class ChatMessageSearchServiceTest {
                         tenantContext,
                         tenantMembershipRepository,
                         chatConversationRepository,
-                        chatEligibilityService);
+                        chatEligibilityService,
+                        globalPermissionService);
         logAppender = new ListAppender<>();
         logAppender.start();
         ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(ChatMessageSearchService.class))
@@ -127,6 +141,8 @@ class ChatMessageSearchServiceTest {
     @Test
     void tenantMemberDispatchesToScopedSearchWithResolvedLocaleAndFilters() {
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
+                .thenReturn(List.of(memberMembershipOf(42L)));
         when(chatMessageSearchLocaleResolver.resolve("pt-BR")).thenReturn(ChatSearchLocale.PT);
         when(chatMessageSearchRepository.searchScopedPt(
                         eq(1L),
@@ -160,6 +176,8 @@ class ChatMessageSearchServiceTest {
     @Test
     void enResolvedLocaleDispatchesToScopedSearchEnWithSuppliedFilters() {
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
+                .thenReturn(List.of(memberMembershipOf(42L)));
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchScopedEn(
                         eq(1L),
@@ -217,6 +235,8 @@ class ChatMessageSearchServiceTest {
     @Test
     void staffAdminWithAnActiveTenantNeverDispatchesToStaffScopeUnrestrictedSearch() {
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
+                .thenReturn(List.of(memberMembershipOf(42L)));
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchScopedEn(
                         eq(1L),
@@ -293,7 +313,7 @@ class ChatMessageSearchServiceTest {
         staleMembership.setActive(true);
         staleMembership.setRole(MembershipRole.MEMBER_ADMIN);
         when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
-                .thenReturn(List.of(staleMembership));
+                .thenReturn(List.of(staleMembership, memberMembershipOf(42L)));
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchScopedEn(
                         eq(1L),
@@ -322,6 +342,126 @@ class ChatMessageSearchServiceTest {
                         eq(null),
                         eq(null),
                         eq(ChatCursor.DEFAULT_PAGE_SIZE));
+    }
+
+    // REQ-5s(a)/REQ-5t: a STAFF_ADMIN with NO membership in the active tenant gets
+    // TENANT_UNRESTRICTED, not the restricted PARTICIPANT_AND_DISCOVERABLE fallback.
+    @Test
+    void staffAdminWithNoMembershipInActiveTenantGetsTenantUnrestrictedSearch() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantContext.isStaffAdmin()).thenReturn(true);
+        when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
+        when(chatMessageSearchRepository.searchTenantUnrestrictedEn(
+                        eq(42L),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        anyInt()))
+                .thenReturn(List.of());
+
+        service.search(actor(), "hello", null, null, null, null, null, null, null);
+
+        verify(chatMessageSearchRepository)
+                .searchTenantUnrestrictedEn(
+                        42L, "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
+        verify(chatMessageSearchRepository, org.mockito.Mockito.never())
+                .searchScopedEn(
+                        any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt());
+    }
+
+    // REQ-5s: a STAFF_ADMIN who ALSO holds a plain MEMBER membership in the active tenant must get
+    // ONLY the MEMBER-shaped restricted results -- membership overrides staff role.
+    @Test
+    void staffAdminWithPlainMemberMembershipInActiveTenantGetsOnlyMemberShapedResults() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        TenantMembership membership = new TenantMembership();
+        Tenant tenant = new Tenant("Tenant 42");
+        tenant.setId(42L);
+        membership.setTenant(tenant);
+        membership.setActive(true);
+        membership.setRole(MembershipRole.MEMBER);
+        when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
+                .thenReturn(List.of(membership));
+        when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
+        when(chatMessageSearchRepository.searchScopedEn(
+                        eq(1L),
+                        eq(42L),
+                        any(Long[].class),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        anyInt()))
+                .thenReturn(List.of());
+
+        service.search(actor(), "hello", null, null, null, null, null, null, null);
+
+        verify(chatMessageSearchRepository)
+                .searchScopedEn(
+                        eq(1L),
+                        eq(42L),
+                        any(Long[].class),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(ChatCursor.DEFAULT_PAGE_SIZE));
+        verify(chatMessageSearchRepository, org.mockito.Mockito.never())
+                .searchTenantUnrestrictedEn(
+                        any(), any(), any(), any(), any(), any(), any(), anyInt());
+        verify(globalPermissionService, org.mockito.Mockito.never()).hasPermission(any(), any());
+    }
+
+    // REQ-5s(b)/REQ-5t: non-admin STAFF holding TENANT_ACT_AS_ANY, with no membership in the
+    // active tenant, gets TENANT_UNRESTRICTED.
+    @Test
+    void nonAdminStaffWithTenantActAsAnyAndNoMembershipGetsTenantUnrestrictedSearch() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantContext.isStaffAdmin()).thenReturn(false);
+        when(tenantContext.isStaff()).thenReturn(true);
+        when(globalPermissionService.hasPermission(any(), eq(GlobalPermission.TENANT_ACT_AS_ANY)))
+                .thenReturn(true);
+        when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
+        when(chatMessageSearchRepository.searchTenantUnrestrictedEn(
+                        eq(42L),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        anyInt()))
+                .thenReturn(List.of());
+
+        service.search(actor(), "hello", null, null, null, null, null, null, null);
+
+        verify(chatMessageSearchRepository)
+                .searchTenantUnrestrictedEn(
+                        42L, "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
+    }
+
+    // REQ-5s(e): non-admin STAFF WITHOUT TENANT_ACT_AS_ANY, with no membership in the active
+    // tenant, fails closed.
+    @Test
+    void nonAdminStaffWithoutTenantActAsAnyAndNoMembershipFailsClosed() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantContext.isStaffAdmin()).thenReturn(false);
+        when(tenantContext.isStaff()).thenReturn(true);
+        when(globalPermissionService.hasPermission(any(), eq(GlobalPermission.TENANT_ACT_AS_ANY)))
+                .thenReturn(false);
+
+        var page = service.search(actor(), "hello", null, null, null, null, null, null, null);
+
+        assertThat(page.results()).isEmpty();
+        assertThat(page.nextCursor()).isNull();
+        verifyNoInteractions(chatMessageSearchRepository);
     }
 
     // REQ-5f: staff with no active tenant now gets scoped (not empty) results -- staff-chat
@@ -378,6 +518,8 @@ class ChatMessageSearchServiceTest {
     @Test
     void logsActorHasQueryFilterPresenceAndResultCountButNeverTheRawQuery() {
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
+                .thenReturn(List.of(memberMembershipOf(42L)));
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchScopedEn(
                         eq(1L),
