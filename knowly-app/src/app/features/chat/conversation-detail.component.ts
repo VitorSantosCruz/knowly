@@ -223,7 +223,25 @@ export class ConversationDetailComponent implements OnInit {
     this.route.paramMap.subscribe((params) => {
       const id = Number(params.get('conversationId'));
       this.conversationId.set(id);
-      this.chatService.openConversation(id);
+
+      // Bug fix (found live via Playwright: jumping to an already-loaded older message, after
+      // jumping elsewhere and back, re-triggered an unbounded ?after=<same cursor> request storm)
+      // — `openConversation` used to run unconditionally on every `paramMap` emission, including
+      // re-navigations that only change the jump target within the SAME already-open conversation
+      // (ChatShellComponent keeps this component mounted across those, per the class Javadoc).
+      // That re-seeded `ChatService`'s message cache back down to just the latest page every
+      // single time, discarding whatever older pages an in-progress or already-resolved jump had
+      // paginated in — so a message that had genuinely already been loaded looked "not found"
+      // again on the next jump back to it, restarting pagination from scratch, and overlapping
+      // in-flight `openConversation` responses from back-to-back jumps could resolve out of order
+      // and repeatedly stomp the cache back to the same boundary, looking like an infinite loop
+      // requesting the same cursor. Only re-fetch/reset when this is genuinely a different
+      // conversation than the one already open — a same-conversation jump-target change must
+      // reuse whatever is already cached.
+      const isNewConversation = id !== this.lastOpenedConversationId;
+      if (isNewConversation) {
+        this.chatService.openConversation(id);
+      }
 
       const state = history.state as Record<string, unknown> | null;
       this.jumpRequestedMessageId.set((state?.['jumpToMessageId'] as number | undefined) ?? null);
@@ -231,7 +249,7 @@ export class ConversationDetailComponent implements OnInit {
       this.jumpTargetMessageId.set(undefined);
       // Only re-arm the per-conversation MAX_JUMP_LOAD_ATTEMPTS budget when this is genuinely a
       // different conversation than the one already open — see jumpLoadAttempts's Javadoc.
-      if (id !== this.lastOpenedConversationId) {
+      if (isNewConversation) {
         this.jumpLoadAttempts = 0;
       }
       this.lastOpenedConversationId = id;

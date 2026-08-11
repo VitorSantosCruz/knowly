@@ -544,10 +544,63 @@ describe('ConversationDetailComponent', () => {
 
       // A second click on a DIFFERENT search result, still targeting this SAME conversation —
       // ChatShellComponent doesn't destroy/recreate this component, so this is another
-      // `paramMap` emission with the SAME conversationId, carrying fresh `history.state`. This
-      // re-triggers `ChatService.openConversation(1)` too (unconditional on every paramMap
-      // emission), which re-seeds the first page — matching production behavior exactly.
+      // `paramMap` emission with the SAME conversationId, carrying fresh `history.state`. Bug fix
+      // (distinct from the one above, found live via Playwright): this must NOT re-trigger
+      // `ChatService.openConversation(1)` — doing so used to re-seed the message cache back down
+      // to just the latest page, discarding every older page the first jump had already paginated
+      // in, which is what let a jump back to an already-loaded older message look "not found"
+      // again and restart an unbounded pagination loop. A same-conversation jump-target change
+      // must reuse the already-cached messages/cursor state as-is.
       historyStateSpy.mockReturnValue({ jumpToMessageId: 998, jumpToQuery: 'oi' });
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectNone('/api/chat/conversations/1');
+      httpMock.expectNone(
+        (r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'),
+      );
+      fixture.detectChanges();
+      drainOlderPageRequests();
+
+      // The combined total across both jump requests for this one still-open conversation must
+      // stay at the single 20-page ceiling — not 20 (first) + 20 (second) = 40. Since the cache
+      // was never re-seeded, the second jump's own budget is already exhausted too, so it makes
+      // zero further "before" requests.
+      expect(totalBeforeRequests).toBe(20);
+    });
+
+    it('regression: jumping back to a message already loaded earlier in this same open conversation makes no new pagination requests (distinct from the jumpLoadAttempts-budget bug above — this is about the message cache itself being wrongly re-seeded)', () => {
+      // Reported live via Playwright: jump to an older message (paginate to find it), jump to a
+      // different, newer, already-loaded message, then jump BACK to the original older message —
+      // GET .../messages?after=<same cursor> then fired repeatedly, ~1/s, 30+ times, never
+      // stopping. Root cause: `openConversation` used to run unconditionally on every `paramMap`
+      // emission, including same-conversation jump-target changes, which re-seeded the message
+      // cache back down to just the latest page each time — evicting the older message that had
+      // already been loaded, so jumping back to it looked "not found" and restarted pagination
+      // (and overlapping in-flight re-seed responses could resolve out of order, looking like an
+      // infinite loop against the same cursor).
+      const paramMap$ = new Subject<ReturnType<typeof convertToParamMap>>();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ConversationDetailComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideTransloco({
+            config: { availableLangs: ['en'], defaultLang: 'en' },
+            loader: FakeTranslocoLoader,
+          }),
+          { provide: ActivatedRoute, useValue: { paramMap: paramMap$ } },
+        ],
+      });
+      router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const historyStateSpy = vi
+        .spyOn(window.history, 'state', 'get')
+        .mockReturnValue({ jumpToMessageId: 999, jumpToQuery: 'hi' });
+      fixture = TestBed.createComponent(ConversationDetailComponent);
+      httpMock = TestBed.inject(HttpTestingController);
+
+      // First navigation: opens conversation 1, jumping to older message id 999.
+      fixture.detectChanges();
       paramMap$.next(convertToParamMap({ conversationId: '1' }));
       httpMock.expectOne('/api/chat/conversations/1').flush({
         id: 1,
@@ -566,15 +619,48 @@ describe('ConversationDetailComponent', () => {
           messages: [
             { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
           ],
-          nextCursor: 'reseed-c0',
+          nextCursor: 'c0',
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      // Paginate once to find message 999.
+      httpMock
+        .expectOne(
+          (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('before') === 'c0',
+        )
+        .flush({
+          messages: [
+            {
+              id: 999,
+              senderUserId: 2,
+              senderNickname: 'Bob',
+              content: 'hi again',
+              createdAt: 'earlier',
+            },
+          ],
+          nextCursor: null,
         });
       fixture.detectChanges();
-      cursor = 'reseed-c0';
-      drainOlderPageRequests();
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('hi');
 
-      // The combined total across both jump requests for this one still-open conversation must
-      // stay at the single 20-page ceiling — not 20 (first) + 20 (second) = 40.
-      expect(totalBeforeRequests).toBeLessThanOrEqual(20);
+      // Jump to message id 10, already loaded in the first page — no new requests at all.
+      historyStateSpy.mockReturnValue({ jumpToMessageId: 10, jumpToQuery: 'hi' });
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectNone('/api/chat/conversations/1');
+      httpMock.expectNone((r) => r.url === '/api/chat/conversations/1/messages');
+      fixture.detectChanges();
+
+      // Jump BACK to message id 999 — already loaded earlier in this same open conversation, so
+      // this must not trigger any new HTTP request either.
+      historyStateSpy.mockReturnValue({ jumpToMessageId: 999, jumpToQuery: 'again' });
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectNone('/api/chat/conversations/1');
+      httpMock.expectNone((r) => r.url === '/api/chat/conversations/1/messages');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('again');
     });
 
     it('gives up once hasMore is false without an error state', () => {
