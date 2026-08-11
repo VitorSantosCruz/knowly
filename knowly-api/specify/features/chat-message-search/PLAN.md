@@ -429,6 +429,186 @@ flagged main implementation risk gets the most coverage here):
   where practical (same helper builders) rather than re-deriving
   conversation/participant test fixtures from scratch.
 
+## Amended (2026-08-10, role-based scoping) — REQ-5e–REQ-5j implementation
+
+> Supersedes every "fail closed, no bypass for anyone, including staff
+> with no active tenant" statement above (Architectural decisions'
+> "Deliberately no staff-no-active-tenant bypass" note, and the
+> REQ-5/staff-no-bypass regression test) **for message-content search
+> only** — those statements described REQ-5's *original* wording and
+> are now superseded by SPEC.md's "Amended (2026-08-10, role-based
+> scoping) — REQ-5 completion" section (REQ-5e through REQ-5j). The
+> unified entity-search section below (REQ-16–REQ-26) is explicitly
+> unaffected per the SPEC's own framing note and needs no changes here.
+> **AppSec must review this section before TASKS.md is generated** —
+> see "AppSec review required" at the end of this amendment.
+
+- **Role determination reuses `TenantContext.isStaffAdmin()`/`isStaff()`
+  plus the exact `isActiveMemberAdminOf(actor, tenant)` pattern already
+  established in `ChatConversationService`** (active
+  `TenantMembership` lookup via `tenantMembershipRepository
+  .findByUserAndTenant(actor, tenant).filter(TenantMembership::isActive)
+  .filter(m -> m.getRole() == MembershipRole.MEMBER_ADMIN)`), rather than
+  inventing a new role-resolution helper or a `@PreAuthorize` expression.
+  This mirrors the same precedent `ChatConversationService#canReadSupportChannel`
+  and `#isActiveMemberAdminOf` already use for an identical "does this
+  caller hold the admin role in their currently-active tenant"
+  question — the exact reference shape `DECISIONS.md`'s "Staff bypass
+  authorization, never isolation" entry describes, now applied to a new
+  endpoint instead of a new mechanism.
+  `ChatMessageSearchService.search()` computes one `ChatMessageSearchScope`
+  (new small private enum/record: `PLATFORM_UNRESTRICTED` /
+  `TENANT_UNRESTRICTED` / `PARTICIPANT_AND_DISCOVERABLE`) with this
+  precedence, evaluated in order so no caller can satisfy two branches
+  ambiguously:
+  1. `tenantContext.isStaffAdmin()` → `PLATFORM_UNRESTRICTED` (REQ-5e),
+     regardless of any active tenant in session.
+  2. Else, if `tenantContext.getActiveTenantId()` is present **and**
+     `isActiveMemberAdminOf(actor, thatTenant)` → `TENANT_UNRESTRICTED`,
+     bound to that tenant id (REQ-5g).
+  3. Else, if an active tenant is present (ordinary `MEMBER`) →
+     `PARTICIPANT_AND_DISCOVERABLE`, bound to that tenant id (REQ-5h/5j).
+     **AppSec-required invariant**: immediately before binding
+     `activeTenantId` for this branch, assert
+     `Preconditions`-style (`if (activeTenantId == null) throw new
+     IllegalStateException(...)`, matching the existing "throw
+     `IllegalStateException` for an invariant that must never happen"
+     pattern already used elsewhere in this codebase, e.g.
+     `BlindIndexService`/`TaxIdEncryptionConverter`/`MailService`) that
+     `activeTenantId` is non-null in this branch specifically. This
+     exists solely so a future refactor that reorders or splits the
+     precedence chain fails loudly here instead of silently falling
+     through to the `PARTICIPANT_AND_DISCOVERABLE` fragment's nullable-
+     aware `(:activeTenantId IS NULL OR cc.tenant_id =
+     :activeTenantId)` guard with a null id — which would widen branch
+     3 (an ordinary tenant `MEMBER`) to platform-wide scope, the exact
+     failure mode branch 4's legitimate null-tenant case is allowed to
+     hit. Branch 4 keeps no such assertion (null is its correct,
+     intentional state).
+  4. Else, if `tenantContext.isStaff()` (no active tenant) →
+     `PARTICIPANT_AND_DISCOVERABLE`, unbound to any tenant — this is the
+     staff-chat-parity fix (REQ-5f): staff's own participant/discoverable
+     conversations are almost always `tenant_id IS NULL` (staff-to-staff
+     chat), so the predicate below simply never applies a tenant filter
+     in this branch rather than needing a separate "tenant IS NULL"
+     special case.
+  5. Else (no active tenant, not staff) → fail closed exactly as today:
+     empty result, no query executed. This preserves REQ-2's original
+     baseline for the one caller shape the amendment doesn't touch.
+
+- **Repository shape: four native-query variants (×2 for pt/en) replace
+  today's two, sharing predicate fragments as SQL string constants
+  rather than duplicating the full statement four times.** Current
+  `ChatMessageSearchRepository` already composes `SELECT_AND_JOIN` +
+  `SCOPE_PREDICATE` + a locale-specific `@@` clause + `ORDER_AND_LIMIT`;
+  this amendment splits `SCOPE_PREDICATE` into an always-present base
+  (`kind IN (...)`, `archived_at`/`deleted_at IS NULL`,
+  `m.deleted_at IS NULL`, and the existing optional `senderId`/
+  `conversationId`/`dateFrom`/`dateTo`/`cursor` filters — all unchanged)
+  plus one of three interchangeable **scope fragments**, selected in
+  Java by `ChatMessageSearchScope` before the query method is chosen:
+  - `PLATFORM_UNRESTRICTED`: no tenant predicate, no participant/
+    discoverability predicate at all — `searchUnrestrictedPt`/`En`.
+  - `TENANT_UNRESTRICTED`: `cc.tenant_id = :activeTenantId` only, no
+    participant/discoverability predicate — `searchTenantUnrestrictedPt`/
+    `En`. This is the existing tenant predicate from the AppSec
+    correction above, reused verbatim; it never leaks cross-tenant for
+    the same reason it doesn't today.
+  - `PARTICIPANT_AND_DISCOVERABLE`: today's `chat_participants EXISTS`
+    clause, **OR**ed with a new
+    `cc.id = ANY(:additionalVisibleConversationIds)` clause, both still
+    inside the same `(:activeTenantId IS NULL OR cc.tenant_id =
+    :activeTenantId)` guard (nullable-aware, so the staff/no-tenant case
+    in branch 4 above naturally applies no tenant restriction) —
+    `searchScopedPt`/`En`. `additionalVisibleConversationIds` is
+    resolved in Java, not SQL (see next bullet), so this fragment never
+    needs to re-express `ChatEligibilityService`'s membership-tier/plan
+    logic in raw SQL.
+  This keeps the "one `WHERE` clause, no post-filter step in Java"
+  posture the original AppSec correction established — the OR'd id list
+  is a bind parameter, not a second query pass over already-fetched rows.
+
+- **`additionalVisibleConversationIds` reuses existing discoverability
+  building blocks unchanged, confirmed present**: `ChatConversationRepository
+  .findDiscoverable(Pageable)` (visibility `IN (PUBLIC, REQUEST_TO_JOIN)`,
+  already backing `ChatConversationService#listDiscoverableGroups` for
+  REQ-19/28-style group discoverability) plus `ChatEligibilityService
+  .isEligible(actor, tenantAnchorOf(conversation))` (already the
+  "who can reach a group they haven't joined" gate) are the exact two
+  building blocks needed — no duplication required. One gap: both are
+  currently `Pageable`-shaped for UI listing, and search needs the full
+  id set (bounded by workspace group count, not message count, so this
+  is cheap). **New, small repository addition**: a sibling
+  `findDiscoverableIds(Long tenantId)` / `findDiscoverableIdsPlatformWide()`
+  query on `ChatConversationRepository` returning `List<Long>` only (same
+  `visibility IN (...)` predicate as `findDiscoverable`, no pagination),
+  reused by `ChatMessageSearchService` to compute, per request: fetch
+  candidate ids → filter with `ChatEligibilityService.isEligible` →
+  filter out ids the caller is already a participant of (already covered
+  by the OR'd participant-EXISTS clause, so no need to de-duplicate in
+  Java) → pass the remainder as the bind parameter. This is additive to
+  `ChatConversationRepository`, not a new mechanism, and PRIVATE groups
+  the caller hasn't joined are never included, since `findDiscoverable`'s
+  `visibility IN (PUBLIC, REQUEST_TO_JOIN)` predicate already excludes
+  them (REQ-5i/REQ-3's amended note). **AppSec-required cap**:
+  `findDiscoverableIds`/`findDiscoverableIdsPlatformWide` carry an
+  explicit `LIMIT 100` in the native query itself (not just a Java-side
+  truncation after fetch), reusing the same `100` ceiling already
+  established as this codebase's page-size cap convention
+  (`ChatCursor.MAX_PAGE_SIZE`, `TenantService`/`StaffService`'s
+  `MAX_PAGE_SIZE`) rather than inventing a new number — so the "bounded
+  by workspace group count, cheap in practice" assumption above is an
+  enforced ceiling, not an unenforced belief, and a tenant/platform with
+  an unusually large discoverable-group count can't turn this into an
+  unbounded-query DoS vector. A caller with more than 100 eligible
+  discoverable groups simply gets the first 100 (by the same default
+  ordering `findDiscoverable` already uses) folded into the OR'd id
+  list; the already-joined participant path is unaffected by this cap
+  since it's covered by the separate `chat_participants EXISTS` clause.
+
+- **Why not fold eligibility into the native SQL directly**: `ChatEligibilityService
+  .isEligible` branches on tenant membership state, plan/tier rules, and
+  staff-capability checks that are Java-side business logic today, not
+  columns queryable in one predicate; re-deriving that as raw SQL would
+  duplicate logic that must stay in one place per this same file's
+  earlier "no duplicated scoping logic per kind" principle (SPEC
+  "Relationship to existing SPECs"). The bind-parameter-id-list approach
+  keeps `ChatEligibilityService` as the single source of truth while
+  still executing the actual message filter as one SQL statement.
+
+- **`ChatMessageSearchService`'s Javadoc claim that it "deliberately
+  never reads `tenantContext.isStaff()`/`isStaffAdmin()`" is now
+  incorrect and must be rewritten**, not left standing next to
+  contradicting code — this is exactly the kind of stale-comment risk
+  DECISIONS.md warns about; the TASKS.md breakdown must include
+  updating that Javadoc alongside the code change, in the same commit.
+
+- **No new DECISIONS.md entry required.** This is not a novel
+  architectural pattern — it is the existing "staff bypass
+  authorization, never isolation" / `MEMBER_ADMIN`-unrestricted-within-
+  tenant precedent (already used by `ChatConversationService` for group
+  administration) applied to a new endpoint that previously opted out
+  of it for a stated, now-superseded reason. Flagging this explicitly
+  per this PLAN's own discipline rule rather than silently assuming it.
+
+- **AppSec review required before TASKS.md.** This changes an
+  authorization-critical, previously AppSec-hardened query (the same
+  `ChatMessageSearchRepository` that already received one AppSec
+  correction for a cross-tenant leak) to add a materially broader grant
+  (platform-wide search for `STAFF_ADMIN`, tenant-wide for
+  `MEMBER_ADMIN`) and a new OR-based visibility clause. Per this repo's
+  standing rule, appsec-review must sign off on this section of PLAN.md
+  before TASKS.md is generated — do not proceed to task breakdown until
+  that review lands. Two areas most likely to need scrutiny: (a) the
+  nullable-aware `(:activeTenantId IS NULL OR ...)` guard must be
+  verified to never evaluate `NULL OR true` in a way that widens scope
+  for a non-staff, non-tenant caller (branch 5's fail-closed case must
+  never reach the query at all, exactly as today); (b) the
+  `additionalVisibleConversationIds` id list must be verified to be
+  computed fresh per request (never cached) and never accept a
+  client-supplied id, consistent with REQ-2/REQ-17's "re-derived at
+  request time" posture.
+
 ## Amended (2026-08-10) — unified entity search (REQ-16 through REQ-26)
 
 > Companion to SPEC.md's "Amended (2026-08-10)" section. Everything
