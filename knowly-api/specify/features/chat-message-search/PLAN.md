@@ -1390,3 +1390,129 @@ re-review):
     regression in the previously-passing pieces. **TASKS.md generation
     for all three amended documents (this one, and both frontend PLANs)
     was cleared to proceed on this basis**, and has since happened.
+
+## Amended (2026-08-11, membership-precedence generalization) — REQ-5 completion (final v3)
+
+> Implements SPEC.md's "Amended (2026-08-11, membership-precedence
+> generalization) — REQ-5 completion (final v3)" (REQ-5r–REQ-5v), the
+> locked, authoritative source of truth. **No prior v3 draft exists
+> anywhere in this PLAN.md** — the "final v2"/"staff-admin-context-
+> agnostic" model (SPEC.md's now-superseded "Amended (2026-08-11,
+> staff-admin/staff-membership correction) — REQ-5 completion (final
+> v2)") was rejected before any PLAN section for it was ever written, so
+> there is nothing to mark superseded here beyond noting that rejection
+> explicitly. The section immediately above ("context-boundary
+> correction — final") remains the last **implemented** state (commit
+> `8e1c225`) and is confirmed, by re-reading
+> `ChatMessageSearchService.java` (current file, 328 lines) and
+> `ChatMessageSearchRepository.java`, to still be exactly what's in the
+> code today: `activeTenantId` resolved first; tenant-present branches on
+> `isActiveMemberAdminOf` (`TENANT_UNRESTRICTED` vs.
+> `PARTICIPANT_AND_DISCOVERABLE`); staff-scope branches on
+> `isStaffAdmin()` (`STAFF_SCOPE_UNRESTRICTED`) then `isStaff()`
+> (`PARTICIPANT_AND_DISCOVERABLE`, unbound); else fail-closed. This is
+> the delta from that confirmed-current state to final v3, scoped as
+> narrowly as possible.
+
+**What changes vs. what stays the same.**
+
+- **New first step inside the tenant-present branch (`activeTenantId.isPresent()`),
+  before the existing `isActiveMemberAdminOf` check**: look up whether
+  the actor holds *any* active `TenantMembership` in `activeTenantId`
+  at all (not just `MEMBER_ADMIN`) — reuse
+  `tenantMembershipRepository.findByUserAndActiveTrue(actor)` (already
+  injected, already the exact call `isActiveMemberAdminOf` makes) rather
+  than adding a second repository method; filter for
+  `m.getTenant().getId().equals(tenantId) && m.isActive()` to get
+  `Optional<TenantMembership>`. **Why:** REQ-5s requires membership
+  presence, not just `MEMBER_ADMIN`, to gate the entire branch — a
+  `MEMBER` row must also short-circuit past any staff check, which the
+  current code already does implicitly (its `else` branch *is* the
+  `PARTICIPANT_AND_DISCOVERABLE` fragment) but only by accident of there
+  being no staff-fallback branch to skip; v3 makes that skip explicit
+  because a staff-fallback branch is being added beside it.
+- **If membership is present** → branch exactly as today, unchanged:
+  `MEMBER_ADMIN` → `TENANT_UNRESTRICTED`; anything else (`MEMBER`) →
+  `PARTICIPANT_AND_DISCOVERABLE`. **No new SQL fragment, no changed bind
+  parameters, no changed method signatures for either query path.**
+  `isActiveMemberAdminOf` can be reused as-is by evaluating it on the
+  already-fetched `Optional<TenantMembership>` (`.map(m -> m.getRole()
+  == MembershipRole.MEMBER_ADMIN).orElse(false)`) instead of
+  re-querying — same result, one query instead of two.
+- **If membership is absent for `activeTenantId`** → **new `else`
+  sub-branch**, added as a sibling to the existing membership branch,
+  not replacing it:
+  - `tenantContext.isStaffAdmin()` → reuse `TENANT_UNRESTRICTED`
+    (`searchTenantUnrestrictedPt`/`En`) bound to `activeTenantId` —
+    **the same fragment `MEMBER_ADMIN` gets**, per REQ-5s(a)/REQ-5t: its
+    SQL (`AND cc.tenant_id = :activeTenantId`) has no caller-role
+    predicate, so it is correct to reuse verbatim rather than clone.
+  - else if `tenantContext.isStaff()` (non-admin) holds
+    `GlobalPermission.TENANT_ACT_AS_ANY` → same `TENANT_UNRESTRICTED`
+    fragment, same binding. **Permission check**: call
+    `globalPermissionService.hasPermission(actor,
+    GlobalPermission.TENANT_ACT_AS_ANY)` directly — **not**
+    `TenantService`'s private `requireStaff` helper, which throws
+    `PermissionDeniedException` on failure; this path must fail closed
+    (empty result), not throw, per this service's existing convention
+    (the no-active-tenant/not-staff branch already returns an empty
+    `ChatMessageSearchPageDto` rather than throwing) and per REQ-5s(d).
+    Requires injecting `GlobalPermissionService` into
+    `ChatMessageSearchService`'s constructor (new dependency on an
+    existing bean — no new class, no `pom.xml` change).
+  - else (no membership, not `STAFF_ADMIN`, `STAFF` without
+    `TENANT_ACT_AS_ANY`) → fail closed: `logSearch(...)` +
+    `new ChatMessageSearchPageDto(List.of(), null)`, mirroring the
+    existing no-active-tenant/not-staff fail-closed branch exactly
+    (REQ-5s(e), documented as unreachable in ordinary operation but
+    handled defensively).
+- **Staff-scope branch (`activeTenantId` empty) is unchanged, confirmed
+  explicitly**: `isStaffAdmin()` → `STAFF_SCOPE_UNRESTRICTED`;
+  `isStaff()` → `PARTICIPANT_AND_DISCOVERABLE` unbound; else fail
+  closed. No membership concept applies here (REQ-5v) — nothing in this
+  amendment touches this `else if`/`else` chain at all.
+- **The `IllegalStateException` non-null invariant on `tenantId` stays
+  exactly as-is, unmoved.** It guards `Optional#isPresent()` producing a
+  non-null value at the top of the tenant-present branch, before any
+  role/membership logic runs; the new membership lookup and its two
+  sibling role checks are all downstream of that guard and all consume
+  the same already-validated `tenantId`, so none of them introduce a new
+  null-vs-non-null ambiguity for it to catch. No adjustment needed.
+- **No new DECISIONS.md entry required.** This is a refinement of the
+  same "resolve context before role" precedent already established by
+  the context-boundary correction above, now additionally requiring
+  "resolve membership before role, within a resolved tenant context" —
+  a narrowing of an existing precedent's application, not a new
+  cross-cutting pattern. `TENANT_ACT_AS_ANY`'s use as a staff fallback
+  when no membership exists also has direct precedent in
+  `TenantService.getTenantForStaffAccess`-style methods (grep
+  `TENANT_ACT_AS_ANY` in `TenantService.java`, lines 226/273) — reused,
+  not invented.
+
+**AppSec re-review scope — fifth pass on this code path, precisely
+bounded:**
+
+- **New, needs review**: (1) the membership lookup's filter predicate
+  (`tenant match + isActive()`) correctly identifies *any* membership
+  role, not just `MEMBER_ADMIN`, and cannot be satisfied by a stale/
+  inactive row; (2) the new `STAFF_ADMIN`/`TENANT_ACT_AS_ANY` fallback
+  sub-branch is reachable *only* when the membership lookup returned
+  empty — confirm no code path evaluates it before the membership check
+  runs; (3) the `TENANT_ACT_AS_ANY` permission check uses
+  `globalPermissionService.hasPermission` directly (fails closed to
+  empty results) and not `requireStaff` (which throws) — a throwing path
+  here would be a behavior change SPEC.md does not ask for; (4) the new
+  `GlobalPermissionService` constructor dependency is read-only and
+  introduces no new write/side-effect surface.
+- **Provably unchanged, do not re-review**: the staff-scope
+  (no-active-tenant) branch in its entirety; the `TENANT_UNRESTRICTED`
+  and `PARTICIPANT_AND_DISCOVERABLE` SQL fragments themselves (only
+  their existing bind sites gain a second, third caller — same
+  fragment, same query text); the four-category discoverability/
+  eligibility machinery (`additionalVisibleConversationIds*`,
+  `ChatEligibilityService`); the `IllegalStateException` invariant
+  (unmoved, unmodified); cursor/pagination/logging/DTO mapping.
+
+**TASKS.md generation is blocked until this AppSec pass returns a clean
+PASS** — same gate this feature's prior three corrections all went
+through.
