@@ -38,10 +38,22 @@ export class ChatMessageSearchService {
 
   private lastQ: string | null = null;
 
+  /** Bug fix (found live: type-ahead flicker while typing) — a plain `.subscribe()` per
+   * keystroke's debounced `search()` call has no cancellation/ordering guarantee: an in-flight
+   * request for an earlier, shorter query can resolve AFTER a later request for a longer one and
+   * overwrite its correct, newer results with stale/empty ones. Guarded with a monotonically
+   * increasing generation token instead of `switchMap` — `runSearch()` in
+   * `chat-unified-search.component.ts` fires this and `ChatEntitySearchService.search()` as two
+   * independent HTTP calls off the same debounced query, so the guard lives here rather than in
+   * an RxJS operator chain the component doesn't own the subscription for. */
+  private searchGeneration = 0;
+
   search(q: string): void {
     this.lastQ = q;
     this._lastQuery.set(q);
     this._status.set('loading');
+
+    const generation = ++this.searchGeneration;
 
     this.http
       .get<ChatMessageSearchPageDto>('/api/chat/messages/search', {
@@ -49,6 +61,11 @@ export class ChatMessageSearchService {
       })
       .pipe(catchError(() => of(null)))
       .subscribe((page) => {
+        if (generation !== this.searchGeneration) {
+          // A newer search() call has already superseded this one — never let a stale response
+          // overwrite the current query's state.
+          return;
+        }
         if (page === null) {
           this._status.set('error');
           return;
@@ -89,5 +106,8 @@ export class ChatMessageSearchService {
     this._nextCursor.set(null);
     this._lastQuery.set('');
     this.lastQ = null;
+    // Also supersedes any in-flight search()/loadMore() response — reopening the dropdown always
+    // starts clean, never gets repopulated by a request that was already in flight when it closed.
+    this.searchGeneration += 1;
   }
 }

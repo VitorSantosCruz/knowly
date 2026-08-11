@@ -159,6 +159,24 @@ describe('ChatEntitySearchService', () => {
     expect(service.groups()).toEqual([group()]);
   });
 
+  it("bug fix: a stale response for an earlier, shorter query never overwrites a newer query's results (out-of-order resolution)", () => {
+    service.search('m');
+    const reqM = httpMock.expectOne((r) => r.url === '/api/chat/search');
+
+    service.search('me');
+    const reqMe = httpMock.expectOne((r) => r.url === '/api/chat/search');
+
+    reqMe.flush(fullResponse({ people: { results: [person({ userId: 2 })], hasMore: false } }));
+    expect(service.people()).toEqual([person({ userId: 2 })]);
+
+    // The older "m" request resolves last — it must be ignored, not overwrite "me"'s results
+    // with empty/different ones.
+    reqM.flush(fullResponse({ people: { results: [], hasMore: false } }));
+
+    expect(service.people()).toEqual([person({ userId: 2 })]);
+    expect(service.peopleStatus()).toBe('ok');
+  });
+
   it('reset() returns every section to idle/empty', () => {
     service.search('ana');
     httpMock.expectOne((r) => r.url === '/api/chat/search').flush(fullResponse());

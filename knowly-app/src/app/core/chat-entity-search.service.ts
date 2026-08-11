@@ -67,11 +67,19 @@ export class ChatEntitySearchService {
       this._ragStatus() === 'loading',
   );
 
+  /** Bug fix (found live: type-ahead flicker while typing) — see
+   * `ChatMessageSearchService#searchGeneration`'s Javadoc for the full race-condition writeup;
+   * the same "no cancellation/ordering guarantee on a plain `.subscribe()` per keystroke" bug
+   * applies here too, so this service gets the identical generation-token guard. */
+  private searchGeneration = 0;
+
   search(q: string): void {
     this._peopleStatus.set('loading');
     this._groupsStatus.set('loading');
     this._supportStatus.set('loading');
     this._ragStatus.set('loading');
+
+    const generation = ++this.searchGeneration;
 
     this.http
       .get<ChatEntitySearchResponseDto>('/api/chat/search', {
@@ -79,6 +87,10 @@ export class ChatEntitySearchService {
       })
       .pipe(catchError(() => of(null)))
       .subscribe((response) => {
+        if (generation !== this.searchGeneration) {
+          // A newer search() call has already superseded this one.
+          return;
+        }
         if (response === null) {
           this._peopleStatus.set('error');
           this._groupsStatus.set('error');
@@ -152,6 +164,10 @@ export class ChatEntitySearchService {
 
     this._recentPlaces.set([]);
     this._recentPlacesStatus.set('idle');
+
+    // Also supersedes any in-flight search() response — reopening the dropdown always starts
+    // clean, never gets repopulated by a request that was already in flight when it closed.
+    this.searchGeneration += 1;
   }
 
   private sectionResults(type: ExpandableSection): unknown[] {

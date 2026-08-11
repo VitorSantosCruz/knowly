@@ -123,6 +123,27 @@ describe('ChatMessageSearchService', () => {
       });
   });
 
+  it("bug fix: a stale response for an earlier, shorter query never overwrites a newer query's results (out-of-order resolution)", () => {
+    // Simulates the reported type-ahead flicker: "m" then "me" fire two separate requests
+    // (debounce lets both through because the user paused between keystrokes), but the network
+    // resolves them out of order — the "m" response arrives AFTER the "me" response.
+    service.search('m');
+    const reqM = httpMock.expectOne((r) => r.url === '/api/chat/messages/search');
+
+    service.search('me');
+    const reqMe = httpMock.expectOne((r) => r.url === '/api/chat/messages/search');
+
+    reqMe.flush({ results: [result({ id: 2, content: 'me match' })], nextCursor: null });
+    expect(service.status()).toBe('results');
+    expect(service.results()).toEqual([result({ id: 2, content: 'me match' })]);
+
+    // The older "m" request resolves last — it must be ignored, not overwrite "me"'s results.
+    reqM.flush({ results: [], nextCursor: null });
+
+    expect(service.status()).toBe('results');
+    expect(service.results()).toEqual([result({ id: 2, content: 'me match' })]);
+  });
+
   it('reset() returns to idle with empty results, null cursor, and empty lastQuery', () => {
     service.search('reunião');
     httpMock
