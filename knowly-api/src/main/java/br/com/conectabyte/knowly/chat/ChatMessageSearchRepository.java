@@ -97,6 +97,45 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
 
     String ORDER_AND_LIMIT = "ORDER BY m.id DESC LIMIT :limit";
 
+    /**
+     * Bugfix (type-ahead prefix matching): {@code websearch_to_tsquery} matches the query only
+     * against the exact stemmed lexeme it derives from {@code :q} -- fine for a complete word (e.g.
+     * "mensag", which happens to equal Portuguese's stem of "mensagem"), but wrong for this
+     * feature's live type-ahead use case, where "men" (a true in-progress prefix of "mensagem")
+     * must also match. Postgres's own recommended pattern for this is a hand-built {@code
+     * to_tsquery} with a trailing {@code :*} on the last lexeme -- but unlike {@code
+     * websearch_to_tsquery}, raw {@code to_tsquery} treats {@code & | ! ( ) :} and quote characters
+     * in its input as boolean/ prefix/weight *operators*, not literal text, so a hand-built query
+     * string is an injection surface for user-controlled {@code :q} (e.g. a crafted {@code "a | b"}
+     * could turn an intended AND-match into an OR-match across otherwise-unrelated messages). This
+     * expression therefore:
+     *
+     * <ol>
+     *   <li>strips every character from {@code :q} except letters (including the Latin-1 Supplement
+     *       range covering Portuguese diacritics), digits, and whitespace -- eliminating every
+     *       {@code to_tsquery} operator character before it ever reaches the parser;
+     *   <li>collapses runs of whitespace and trims, so multiple spaces don't produce empty tokens;
+     *   <li>appends {@code :*} to the *last* whitespace-delimited token only, prefix-matching just
+     *       the term the user is presumably still typing while leaving earlier, presumably-complete
+     *       terms exact/stemmed-matched;
+     *   <li>joins the (now-safe) tokens with {@code &} to preserve the existing multi-word AND
+     *       semantics.
+     * </ol>
+     *
+     * A {@code :q} that sanitizes down to the empty string yields an empty {@code to_tsquery}
+     * result, which matches nothing (not an error) -- the same effectively-no-match outcome the
+     * caller already gets from any other non-matching query.
+     */
+    String PREFIX_TSQUERY_PT =
+            "to_tsquery('portuguese', regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(:q,"
+                    + " '[^a-zA-Z0-9À-ÿ\\s]', ' ', 'g'), '\\s+', ' ', 'g')), '(\\S+)$', '\\1:*'), ' ',"
+                    + " ' & ', 'g'))";
+
+    String PREFIX_TSQUERY_EN =
+            "to_tsquery('english', regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(:q,"
+                    + " '[^a-zA-Z0-9À-ÿ\\s]', ' ', 'g'), '\\s+', ' ', 'g')), '(\\S+)$', '\\1:*'), ' ',"
+                    + " ' & ', 'g'))";
+
     // --- REQ-5e (corrected): STAFF_SCOPE_UNRESTRICTED (STAFF_ADMIN, currently in staff scope) ---
 
     @Query(
@@ -104,7 +143,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
                             + SCOPE_STAFF_SCOPE_UNRESTRICTED
-                            + "AND m.content_tsv_pt @@ websearch_to_tsquery('portuguese', :q) "
+                            + "AND m.content_tsv_pt @@ "
+                            + PREFIX_TSQUERY_PT
+                            + " "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
     List<ChatMessageSearchRow> searchStaffScopeUnrestrictedPt(
@@ -121,7 +162,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
                             + SCOPE_STAFF_SCOPE_UNRESTRICTED
-                            + "AND m.content_tsv_en @@ websearch_to_tsquery('english', :q) "
+                            + "AND m.content_tsv_en @@ "
+                            + PREFIX_TSQUERY_EN
+                            + " "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
     List<ChatMessageSearchRow> searchStaffScopeUnrestrictedEn(
@@ -140,7 +183,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
                             + SCOPE_TENANT_UNRESTRICTED
-                            + "AND m.content_tsv_pt @@ websearch_to_tsquery('portuguese', :q) "
+                            + "AND m.content_tsv_pt @@ "
+                            + PREFIX_TSQUERY_PT
+                            + " "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
     List<ChatMessageSearchRow> searchTenantUnrestrictedPt(
@@ -158,7 +203,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
                             + SCOPE_TENANT_UNRESTRICTED
-                            + "AND m.content_tsv_en @@ websearch_to_tsquery('english', :q) "
+                            + "AND m.content_tsv_en @@ "
+                            + PREFIX_TSQUERY_EN
+                            + " "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
     List<ChatMessageSearchRow> searchTenantUnrestrictedEn(
@@ -178,7 +225,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
                             + SCOPE_PARTICIPANT_AND_DISCOVERABLE
-                            + "AND m.content_tsv_pt @@ websearch_to_tsquery('portuguese', :q) "
+                            + "AND m.content_tsv_pt @@ "
+                            + PREFIX_TSQUERY_PT
+                            + " "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
     List<ChatMessageSearchRow> searchScopedPt(
@@ -198,7 +247,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
                             + SCOPE_PARTICIPANT_AND_DISCOVERABLE
-                            + "AND m.content_tsv_en @@ websearch_to_tsquery('english', :q) "
+                            + "AND m.content_tsv_en @@ "
+                            + PREFIX_TSQUERY_EN
+                            + " "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
     List<ChatMessageSearchRow> searchScopedEn(

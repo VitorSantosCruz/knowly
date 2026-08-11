@@ -333,6 +333,149 @@ class ChatMessageSearchRepositoryTest {
         assertThat(results).hasSize(1);
     }
 
+    // --- bugfix (prefix-match type-ahead): "men" (substring of "mensagem") must match ---
+    @Test
+    void shortPrefixOfALongerWordMatchesViaPrefixTsQuery() {
+        Tenant t = tenant("Prefix Bugfix Co");
+        User caller = user("prefix-bugfix@example.com");
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Prefix Bugfix Group");
+        participate(conversation, caller);
+        message(conversation, caller, "enviei uma mensagem importante ontem");
+
+        List<ChatMessageSearchRow> results =
+                chatMessageSearchRepository.searchScopedPt(
+                        caller.getId(),
+                        t.getId(),
+                        new Long[0],
+                        "men",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        30);
+
+        assertThat(results).hasSize(1);
+    }
+
+    // --- bugfix regression: the previously-working longer-substring/full-word matches still work
+    // ---
+    @Test
+    void longerSubstringAndFullWordStillMatchAfterPrefixFix() {
+        Tenant t = tenant("Prefix Regression Co");
+        User caller = user("prefix-regression@example.com");
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Prefix Regression Group");
+        participate(conversation, caller);
+        message(conversation, caller, "enviei uma mensagem importante ontem");
+
+        List<ChatMessageSearchRow> byLongerSubstring =
+                chatMessageSearchRepository.searchScopedPt(
+                        caller.getId(),
+                        t.getId(),
+                        new Long[0],
+                        "mensag",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        30);
+        assertThat(byLongerSubstring).hasSize(1);
+
+        List<ChatMessageSearchRow> byFullWord =
+                chatMessageSearchRepository.searchScopedPt(
+                        caller.getId(),
+                        t.getId(),
+                        new Long[0],
+                        "mensagem",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        30);
+        assertThat(byFullWord).hasSize(1);
+    }
+
+    // --- bugfix regression: multi-word AND semantics preserved with the last term prefix-matched
+    // ---
+    @Test
+    void multiWordQueryStillRequiresAllTermsWithOnlyLastTermPrefixMatched() {
+        Tenant t = tenant("Prefix MultiWord Co");
+        User caller = user("prefix-multiword@example.com");
+        ChatConversation both = conversation(ChatConversationKind.PEER_GROUP, t, "Both Group");
+        participate(both, caller);
+        message(both, caller, "important message about the budget");
+
+        ChatConversation onlyOne =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Only One Group");
+        participate(onlyOne, caller);
+        message(onlyOne, caller, "important announcement only");
+
+        List<ChatMessageSearchRow> results =
+                searchEn(caller.getId(), t.getId(), "important mess", null, null, null, null, null);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getConversationId()).isEqualTo(both.getId());
+    }
+
+    // --- bugfix (AppSec): no tsquery-operator injection via crafted user input ---
+    @Test
+    void craftedInputCannotInjectATsQueryOrOperatorAcrossUnrelatedMessages() {
+        Tenant t = tenant("Prefix Injection Co");
+        User caller = user("prefix-injection@example.com");
+        ChatConversation conversationA =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Injection Group A");
+        participate(conversationA, caller);
+        message(conversationA, caller, "zzzalpha only");
+
+        ChatConversation conversationB =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Injection Group B");
+        participate(conversationB, caller);
+        message(conversationB, caller, "zzzbeta only");
+
+        // If the raw "|" were honored as a tsquery OR operator instead of being stripped/escaped,
+        // this would match both conversations; it must instead be treated as AND (or reject/no-op),
+        // matching neither since no single message contains both terms.
+        List<ChatMessageSearchRow> results =
+                searchEn(
+                        caller.getId(),
+                        t.getId(),
+                        "zzzalpha | zzzbeta",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void craftedInputWithTsQuerySpecialCharactersDoesNotThrowAndStillMatchesLiterally() {
+        Tenant t = tenant("Prefix Injection Chars Co");
+        User caller = user("prefix-injection-chars@example.com");
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Injection Chars Group");
+        participate(conversation, caller);
+        message(conversation, caller, "zzzgamma safe message");
+
+        List<ChatMessageSearchRow> results =
+                searchEn(
+                        caller.getId(),
+                        t.getId(),
+                        "zzzgamma&()!:*'\"\\",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThat(results).hasSize(1);
+    }
+
     // --- task 27/28: cursor pagination, no overlap/no gaps, most-recent-first ---
     @Test
     void cursorPaginationHasNoOverlapOrGapsAndOrdersMostRecentFirst() {
