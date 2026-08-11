@@ -343,6 +343,240 @@ describe('ConversationDetailComponent', () => {
       );
     });
 
+    it('regression: the 5s poll interleaving with in-progress jump pagination must not restart/uncap the older-page load loop', () => {
+      // Reported live as an infinite-request loop after clicking a search result: the 5s poll
+      // (`pollNewMessages`/`appendNewer`) and the jump effect's own `loadOlderMessages` chain both
+      // funnel through the SAME `ChatService._messageCache` signal. If a poll tick lands between
+      // two "before" round trips it produces a *new* entry object (new newer message appended),
+      // which re-runs `jumpToMessageEffect` — this must not let the older-page loop exceed
+      // `MAX_JUMP_LOAD_ATTEMPTS` (20) or ever resume once it has given up.
+      createWithJumpState(999, 'hi');
+      fixture.detectChanges();
+
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: 'c0',
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      let beforeRequestCount = 0;
+      let cursor = 'c0';
+      // Drive up to 25 "before" round trips (more than MAX_JUMP_LOAD_ATTEMPTS=20) — after every
+      // other one, advance the fake clock past the 5s poll interval and flush a poll response
+      // that appends a brand-new (unrelated) message, forcing `_messageCache` to change identity
+      // mid-chain.
+      for (let i = 0; i < 25; i++) {
+        const pending = httpMock.match(
+          (r) =>
+            r.url === '/api/chat/conversations/1/messages' && r.params.get('before') === cursor,
+        );
+        if (pending.length === 0) {
+          break;
+        }
+        beforeRequestCount += pending.length;
+        const nextCursor = `c${i + 1}`;
+        pending.forEach((req) =>
+          req.flush({
+            messages: [
+              {
+                id: 100 + i,
+                senderUserId: 2,
+                senderNickname: 'Bob',
+                content: 'older',
+                createdAt: 'earlier',
+              },
+            ],
+            nextCursor,
+          }),
+        );
+        cursor = nextCursor;
+        fixture.detectChanges();
+
+        if (i % 2 === 0) {
+          vi.advanceTimersByTime(5000);
+          const poll = httpMock.match(
+            (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('after'),
+          );
+          poll.forEach((req) =>
+            req.flush({
+              messages: [
+                {
+                  id: 500 + i,
+                  senderUserId: 2,
+                  senderNickname: 'Bob',
+                  content: 'new',
+                  createdAt: 'now',
+                },
+              ],
+              nextCursor: null,
+            }),
+          );
+          fixture.detectChanges();
+        }
+      }
+
+      // Target message 999 is never among any of the flushed pages, so the loop must have given
+      // up at (or before) MAX_JUMP_LOAD_ATTEMPTS=20 "before" requests — not run unbounded.
+      expect(beforeRequestCount).toBeGreaterThan(0);
+      expect(beforeRequestCount).toBeLessThanOrEqual(20);
+
+      // Once given up, further poll ticks must never resume it.
+      vi.advanceTimersByTime(30000);
+      httpMock
+        .match((r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('after'))
+        .forEach((req) => req.flush({ messages: [], nextCursor: null }));
+      fixture.detectChanges();
+      httpMock.expectNone(
+        (r) => r.url === '/api/chat/conversations/1/messages' && r.params.has('before'),
+      );
+    });
+
+    it('regression: a second jump-to-message request for the SAME still-open conversation must not re-arm a fresh 20-page budget on top of an already-exhausted one', () => {
+      // Reported live as an unbounded-looking request storm after clicking a search result: the
+      // paramMap.subscribe callback (added in the history.state re-resolve fix) unconditionally
+      // reset `jumpLoadAttempts = 0` on every navigation, including a second/third/... search
+      // click landing on a conversation that's already open. Since ChatShellComponent keeps this
+      // component mounted across same-conversation re-navigations too, a user trying several
+      // different search results in a row against a large, mostly-unloaded conversation could
+      // trigger 20 "before" requests per click, unboundedly, instead of a single 20-page ceiling
+      // for that conversation's whole time open.
+      const paramMap$ = new Subject<ReturnType<typeof convertToParamMap>>();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ConversationDetailComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideTransloco({
+            config: { availableLangs: ['en'], defaultLang: 'en' },
+            loader: FakeTranslocoLoader,
+          }),
+          { provide: ActivatedRoute, useValue: { paramMap: paramMap$ } },
+        ],
+      });
+      router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const historyStateSpy = vi
+        .spyOn(window.history, 'state', 'get')
+        .mockReturnValue({ jumpToMessageId: 999, jumpToQuery: 'hi' });
+      fixture = TestBed.createComponent(ConversationDetailComponent);
+      httpMock = TestBed.inject(HttpTestingController);
+
+      fixture.detectChanges();
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: 'c0',
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      let totalBeforeRequests = 0;
+      let cursor = 'c0';
+      const drainOlderPageRequests = () => {
+        for (let i = 0; i < 30; i++) {
+          const pending = httpMock.match(
+            (r) =>
+              r.url === '/api/chat/conversations/1/messages' && r.params.get('before') === cursor,
+          );
+          if (pending.length === 0) {
+            return;
+          }
+          totalBeforeRequests += pending.length;
+          const nextCursor = `c${cursor}-${i + 1}`;
+          pending.forEach((req) =>
+            req.flush({
+              messages: [
+                {
+                  id: 1000 + i,
+                  senderUserId: 2,
+                  senderNickname: 'Bob',
+                  content: 'older',
+                  createdAt: 'earlier',
+                },
+              ],
+              nextCursor,
+            }),
+          );
+          cursor = nextCursor;
+          fixture.detectChanges();
+        }
+      };
+
+      // First jump-to-message request: never found, exhausts the 20-page ceiling.
+      drainOlderPageRequests();
+      expect(totalBeforeRequests).toBe(20);
+
+      // A second click on a DIFFERENT search result, still targeting this SAME conversation —
+      // ChatShellComponent doesn't destroy/recreate this component, so this is another
+      // `paramMap` emission with the SAME conversationId, carrying fresh `history.state`. This
+      // re-triggers `ChatService.openConversation(1)` too (unconditional on every paramMap
+      // emission), which re-seeds the first page — matching production behavior exactly.
+      historyStateSpy.mockReturnValue({ jumpToMessageId: 998, jumpToQuery: 'oi' });
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: 'reseed-c0',
+        });
+      fixture.detectChanges();
+      cursor = 'reseed-c0';
+      drainOlderPageRequests();
+
+      // The combined total across both jump requests for this one still-open conversation must
+      // stay at the single 20-page ceiling — not 20 (first) + 20 (second) = 40.
+      expect(totalBeforeRequests).toBeLessThanOrEqual(20);
+    });
+
     it('gives up once hasMore is false without an error state', () => {
       createWithJumpState(999, 'hi');
       fixture.detectChanges();

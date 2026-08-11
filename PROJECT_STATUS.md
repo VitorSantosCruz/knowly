@@ -56,7 +56,49 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-10): AppSec follow-up fix on
+**Current state (2026-08-11): CRITICAL regression fix — jump-to-message
+from a chat search result could fire an unbounded (not just uncapped
+per-click, but uncapped in aggregate) storm of
+`GET /api/chat/conversations/{id}/messages` older-page requests,
+reported live as "infinite loop consuming resources."** Root cause:
+`ConversationDetailComponent`'s `jumpToMessageEffect`
+(`knowly-app/src/app/features/chat/conversation-detail.component.ts`)
+auto-paginates backward looking for the target message, hard-capped at
+`MAX_JUMP_LOAD_ATTEMPTS` (20) "before" page loads per jump so a
+deleted/very-old message can't loop forever (REQ-34). The
+`61e7dd1`/`e96e90e` history.state re-resolve fix (2026-08-10/11,
+correctly fixing "jump only worked from a cold mount") made
+`route.paramMap.subscribe` reset `jumpLoadAttempts = 0`
+**unconditionally on every navigation** — including a second/third/...
+search-result click landing on a conversation that's *already open*
+(same `conversationId`, only `jumpRequestedMessageId`/`jumpToQuery`
+actually changing). Since `ChatShellComponent` keeps this component
+mounted across same-conversation re-navigations (by design, so the
+history.state fix could even matter), each such click re-armed a
+*fresh* 20-page budget on top of whatever an earlier, already-given-up
+jump for that same conversation had already burned through — unbounded
+in aggregate for a viewer trying several search results in a row
+against a large, mostly-unloaded conversation, exactly the "não acha
+mais mensagens e consome recursos" symptom reported. Fixed by tracking
+`lastOpenedConversationId` and only resetting `jumpLoadAttempts` when
+the conversation actually changes (not on every `paramMap` emission),
+and by no longer resetting `jumpLoadAttempts` in the effect's own
+give-up branch either — giving each conversation exactly one real
+`MAX_JUMP_LOAD_ATTEMPTS` ceiling for as long as it stays open, no
+matter how many different jump targets are tried against it.
+Regression coverage added to
+`conversation-detail.component.spec.ts`: one test interleaving the
+existing 5s poll (`pollNewMessages`) with an in-progress jump-pagination
+chain (confirmed this interleaving was *not* itself the bug — it stays
+correctly bounded at 20), and one that reproduces the actual bug
+directly — two consecutive jump requests for the same still-open
+conversation, asserting the combined total of "before" requests across
+both stays ≤20 (was 40 before the fix). All 989 frontend tests green;
+`format:check`/`lint`/`build` all clean. Not yet independently verified
+live in a browser (Network tab) as of this write-up — flagging for
+whoever picks this up next if that hasn't happened yet.
+
+**Previous state (2026-08-10): AppSec follow-up fix on
 `chat-message-search`'s role-based scoping (REQ-5e-REQ-5j) — the PO's
 "if I'm in tenant X, only tenant X's stuff shows, even if I have
 conversations/groups in other tenants or in staff scope" requirement

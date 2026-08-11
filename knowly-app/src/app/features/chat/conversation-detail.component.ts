@@ -130,6 +130,20 @@ export class ConversationDetailComponent implements OnInit {
   protected readonly jumpTargetMessageId = signal<number | undefined>(undefined);
   private jumpLoadAttempts = 0;
   private static readonly MAX_JUMP_LOAD_ATTEMPTS = 20;
+  /** Bug fix (found live: reported as an unbounded-looking request storm) — `jumpLoadAttempts`
+   * used to be reset to 0 on every `route.paramMap` emission unconditionally, including a second
+   * (third, ...) search-result click landing on a conversation that's already open (which,
+   * unlike a real conversation switch, only refreshes `jumpRequestedMessageId`/`jumpToQuery`, not
+   * `conversationId`). Since `ChatShellComponent` keeps this component mounted across
+   * same-conversation re-navigations too, that let a viewer trying several different search
+   * results in a row against a large, mostly-unloaded conversation re-arm a *fresh*
+   * `MAX_JUMP_LOAD_ATTEMPTS`-page budget per click, on top of whatever an earlier, already-given-up
+   * jump for the same conversation had already burned through — unbounded in aggregate, and the
+   * one thing REQ-34's cap exists to prevent. Tracked so the reset only happens when
+   * `conversationId` itself actually changes (below), giving each conversation one real
+   * `MAX_JUMP_LOAD_ATTEMPTS` ceiling for as long as it stays open, no matter how many different
+   * jump targets are tried against it in that time. */
+  private lastOpenedConversationId: number | null = null;
 
   /** REQ-34: while a jump is pending and the target isn't loaded yet, keep requesting older
    * pages — Angular's own effect scheduling re-runs this on every `entryOf(...)` cache update
@@ -160,8 +174,11 @@ export class ConversationDetailComponent implements OnInit {
       !entry.hasMore ||
       this.jumpLoadAttempts >= ConversationDetailComponent.MAX_JUMP_LOAD_ATTEMPTS
     ) {
+      // Bug fix: NOT resetting jumpLoadAttempts here (unlike the `found` branch above) is
+      // intentional — see jumpLoadAttempts's Javadoc. Giving up must permanently spend this
+      // conversation's MAX_JUMP_LOAD_ATTEMPTS budget, not hand a fresh one to whatever jump
+      // target comes next for the same still-open conversation.
       this.jumpRequestedMessageId.set(null);
-      this.jumpLoadAttempts = 0;
       return;
     }
 
@@ -212,7 +229,12 @@ export class ConversationDetailComponent implements OnInit {
       this.jumpRequestedMessageId.set((state?.['jumpToMessageId'] as number | undefined) ?? null);
       this.jumpToQuery.set(state?.['jumpToQuery'] as string | undefined);
       this.jumpTargetMessageId.set(undefined);
-      this.jumpLoadAttempts = 0;
+      // Only re-arm the per-conversation MAX_JUMP_LOAD_ATTEMPTS budget when this is genuinely a
+      // different conversation than the one already open — see jumpLoadAttempts's Javadoc.
+      if (id !== this.lastOpenedConversationId) {
+        this.jumpLoadAttempts = 0;
+      }
+      this.lastOpenedConversationId = id;
     });
 
     interval(POLL_INTERVAL_MS)
