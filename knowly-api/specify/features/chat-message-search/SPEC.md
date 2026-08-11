@@ -34,15 +34,24 @@
 > scratch, when in fact REQ-1 through REQ-15 are being reused and
 > extended, not revisited.
 >
-> **Status: both Tier 3 product/access-control questions this amendment
-> depended on are now resolved by the product owner (see "Tier 3 —
-> status" at the end of this document) — REQ-19/REQ-20 below are final.
-> This document, in full, is ready for read-back and sign-off**,
-> together with the two frontend amendments
-> (`knowly-app/specify/features/chat-message-search/SPEC.md`'s "Amended
-> (2026-08-10)" and `knowly-app/specify/features/chat-unified-ui/SPEC.md`'s
-> "Amended (5)") — all three should be approved together before any
-> PLAN work starts, since none is a complete, buildable picture alone.
+> **Status (2026-08-10, context-boundary correction — see the final
+> section of this document): a live Playwright test caught a real design
+> error in the just-shipped "role-based scoping" ruleset (REQ-5e–REQ-5j
+> as originally drafted) — a `STAFF_ADMIN` viewing chat in staff scope
+> (no active tenant) could find a tenant member's message via search.
+> The product owner confirmed this is a genuine bug, not a
+> misunderstanding, and corrected the model: current viewing context
+> (staff scope, or one specific active tenant) always bounds what search
+> can find, for every role, with no exception — an admin role only ever
+> removes the participancy/visibility restriction *within* that same
+> context, it never expands the context itself. "Amended (2026-08-10,
+> role-based scoping) — REQ-5 completion" below is superseded in full by
+> "Amended (2026-08-10, context-boundary correction) — REQ-5 completion
+> (final)" at the end of this document — implement that section, not the
+> superseded one. REQ-1 through REQ-4, REQ-6 through REQ-15, and REQ-16
+> through REQ-26 (entity search) are unaffected and remain final — see
+> that section's own confirmation that entity search was independently
+> checked against the same bug class and found already correct.**
 
 ## Context and motivation
 
@@ -118,15 +127,17 @@ requires; both explicitly defer it here. This amendment supplies it.
   they are a new capability. This is the exact class of constraint an
   AppSec review previously blocked on for this same feature area; it is
   not being reopened here. (Amended 2026-08-10, role-based scoping
-  completion): this "no oversight bypass" statement is refined, not
-  reversed, by the role-based scoping ruleset in "Amended (2026-08-10,
-  role-based scoping) — REQ-5 completion" below — an *admin* role
-  (`GlobalRole.STAFF_ADMIN` or `MembershipRole.MEMBER_ADMIN`) does get an
-  unrestricted-within-scope search grant, but that grant is an explicit,
-  bounded, product-confirmed role privilege (never cross-tenant for a
-  tenant admin), not the kind of unbounded staff "look-in"/oversight
-  bypass this line was written to rule out. See that section for the
-  full ruleset and the reasoning for why this is not the same thing.**
+  completion, later superseded — see below): this "no oversight bypass"
+  statement is refined, not reversed, by the role-based scoping ruleset
+  in "Amended (2026-08-10, context-boundary correction) — REQ-5
+  completion (final)" below — an *admin* role (`GlobalRole.STAFF_ADMIN`
+  or `MembershipRole.MEMBER_ADMIN`) does get an
+  unrestricted-*within-the-caller's-current-context* search grant, but
+  that grant never expands which context (staff scope vs. a specific
+  tenant) is searched, and is therefore not the kind of unbounded staff
+  "look-in"/oversight bypass this line was written to rule out. See that
+  section for the full ruleset and the reasoning for why this is not the
+  same thing.**
 - Must respect `chat-group-membership-management`'s archive (REQ-43) and
   soft-delete (REQ-49) semantics: a conversation the caller is no longer
   a current participant of — because they left, were removed, or the
@@ -174,10 +185,12 @@ requires; both explicitly defer it here. This amendment supplies it.
    participant of, the exact same rule as every other caller — no
    `STAFF_ADMIN`/`MEMBER_ADMIN` platform-wide or per-request bypass path
    exists in this SPEC at all. **(Amended 2026-08-10, role-based scoping
-   completion): this item is refined by the role-based scoping ruleset
-   below — see that section's own framing note for why an explicit,
-   bounded admin-role search grant is not the same thing as the
-   unbounded oversight bypass this item rules out.**
+   completion, later superseded): this item is refined by the role-based
+   scoping ruleset below — see "Amended (2026-08-10, context-boundary
+   correction) — REQ-5 completion (final)" for the current, correct
+   version of why an explicit, bounded, context-respecting admin-role
+   search grant is not the same thing as the unbounded oversight bypass
+   this item rules out.**
 3. **Locale-aware search, resolved server-side from the app's existing
    locale plumbing, not a client-freely-supplied parameter.** The
    product owner wants both `en` and `pt-BR` users to get effective
@@ -233,17 +246,21 @@ requires; both explicitly defer it here. This amendment supplies it.
   staff-to-staff/support-adjacent 1:1 and group conversations exactly
   like a tenant-scoped user can search theirs, instead of always getting
   an empty result just because I have no active tenant.
-- **(Amended 2026-08-10, role-based scoping completion):** As a staff
-  admin, I want to search across all conversations platform-wide,
-  without the public/request-to-join/private-membership restriction that
-  applies to a non-admin, since an admin's oversight need is broader by
-  design. As a tenant member who holds the admin role in my active
-  tenant, I want the same unrestricted search within my own tenant only
-  — never another tenant's conversations. As a non-admin (staff or
-  tenant member), I want my search to additionally reach public and
+- **(Amended 2026-08-10, role-based scoping completion — corrected
+  2026-08-10, context-boundary correction, see below):** As a staff
+  admin viewing chat in staff scope, I want to search across every
+  staff-scope conversation without the public/request-to-join/private-
+  membership restriction that applies to a non-admin, since an admin's
+  oversight need within that scope is broader by design — **but I never
+  want that to reach into any tenant's conversations while I'm not
+  currently inside that tenant.** As a tenant member who holds the admin
+  role in my active tenant, I want the same unrestricted search within
+  my own active tenant only — never another tenant's conversations, and
+  never staff-scope conversations. As a non-admin (staff or tenant
+  member), I want my search to additionally reach public and
   request-to-join groups I haven't joined yet, not just groups I'm
   already a participant of, mirroring the same discoverability I already
-  get browsing groups.
+  get browsing groups — still bounded to my current context.
 
 ## Requirements (EARS/GEARS)
 
@@ -258,11 +275,13 @@ requires; both explicitly defer it here. This amendment supplies it.
   non-removed, non-soft-deleted `chat_participants` row — re-derived at
   request time from the caller's actual current membership, never from
   a cached or client-supplied list of conversation ids. **(Amended
-  2026-08-10, role-based scoping completion): this baseline rule is the
-  non-admin rule and the admin exception both build on — see "Amended
-  (2026-08-10, role-based scoping) — REQ-5 completion" below for the
-  complete, final ruleset (REQ-5e through REQ-5j), which supersedes
-  REQ-5c/REQ-5d in full.**
+  2026-08-10, role-based scoping completion; corrected 2026-08-10,
+  context-boundary correction): this baseline rule is the non-admin rule
+  and the admin exception both build on — see "Amended (2026-08-10,
+  context-boundary correction) — REQ-5 completion (final)" below for the
+  complete, current, final ruleset (REQ-5e through REQ-5j), which
+  supersedes both REQ-5c/REQ-5d and the first (incorrect,
+  context-crossing) REQ-5e–REQ-5j draft in full.**
 - **REQ-3 [Unwanted Behavior]** If a caller supplies a `conversationId`
   filter for a conversation they are not currently a participant of (or
   that does not exist, or is `SUPPORT`, or is archived/soft-deleted),
@@ -270,12 +289,16 @@ requires; both explicitly defer it here. This amendment supplies it.
   without revealing whether it exists — behaving identically to "the
   caller has zero matching messages in that conversation," not
   distinguishing "no access" from "no matches" or "no such
-  conversation." **(Amended 2026-08-10, role-based scoping completion):
+  conversation." **(Amended 2026-08-10, context-boundary correction):
   "not currently a participant of" here is read as "not currently
-  in-scope per REQ-5e through REQ-5j" — for a non-admin caller this
-  includes a `PUBLIC`/`REQUEST_TO_JOIN` group they are eligible for but
-  haven't joined, per REQ-5h/REQ-5i; it still excludes a `PRIVATE` group
-  they're not a member of.**
+  in-scope per the final REQ-5e through REQ-5j ruleset" — for a
+  non-admin caller this includes a `PUBLIC`/`REQUEST_TO_JOIN` group they
+  are eligible for but haven't joined, per REQ-5f/REQ-5h/REQ-5i, always
+  within the caller's current context (REQ-5j); it still excludes a
+  `PRIVATE` group they're not a member of, and it excludes any
+  conversation belonging to a different context entirely (a different
+  tenant, or staff scope while active in a tenant, or vice versa), for
+  every role including admins.**
 - **REQ-4 [Unwanted Behavior]** If a conversation the caller was
   previously a participant of has since been archived (per
   `chat-group-membership-management` REQ-43) or soft-deleted (REQ-49),
@@ -284,19 +307,24 @@ requires; both explicitly defer it here. This amendment supplies it.
   results from that point forward, regardless of any earlier
   participation.
 - **REQ-5 [Ubiquitous] (Amended 2026-08-10, role-based scoping
-  completion — see "Amended (2026-08-10, role-based scoping) — REQ-5
-  completion" below for the final, complete ruleset).** The system's
-  access-control rule for this capability is role-based: a caller
-  holding an admin role (`GlobalRole.STAFF_ADMIN` for staff, or
-  `MembershipRole.MEMBER_ADMIN` for a tenant member, each within their
-  own bounded scope) searches without the participancy/visibility
-  restriction REQ-2 otherwise applies, per REQ-5e/REQ-5g below; every
-  other caller remains subject to REQ-2 as refined by REQ-5f/REQ-5h/
-  REQ-5i/REQ-5j below. **This supersedes both the original unqualified
-  "no bypass for anyone" wording and the earlier partial
-  no-active-tenant-only correction (REQ-5c/REQ-5d) — see the superseding
-  section for the full four-case ruleset and why it is not the same
-  thing as the "oversight bypass" this document elsewhere rules out.**
+  completion; corrected 2026-08-10, context-boundary correction — see
+  "Amended (2026-08-10, context-boundary correction) — REQ-5 completion
+  (final)" below for the current, complete ruleset).** The system's
+  access-control rule for this capability is role-based *within the
+  caller's current viewing context*: a caller holding an admin role
+  (`GlobalRole.STAFF_ADMIN` while in staff scope, or
+  `MembershipRole.MEMBER_ADMIN` while active in their own tenant)
+  searches, within that same context only, without the
+  participancy/visibility restriction REQ-2 otherwise applies, per
+  REQ-5e/REQ-5g below; every other caller remains subject to REQ-2 as
+  refined by REQ-5f/REQ-5h/REQ-5i below. No role, admin or not, ever
+  reaches outside the caller's current context (REQ-5j) — this is the
+  master invariant the earlier, incorrect draft violated. **This
+  supersedes the original unqualified "no bypass for anyone" wording,
+  the earlier partial no-active-tenant-only correction (REQ-5c/REQ-5d),
+  and the first role-based draft's cross-context premise (which
+  incorrectly let a `STAFF_ADMIN` in staff scope match tenant content) —
+  see the final superseding section for the complete ruleset.**
 
 ### Query behavior
 
@@ -371,6 +399,28 @@ requires; both explicitly defer it here. This amendment supplies it.
 > content-search gap under discussion, REQ-5's own subject). If entity
 > search is later meant to carry the same admin exception, that is a
 > separate, future product decision, not implied by this amendment.
+>
+> **(Amended 2026-08-10, context-boundary correction — verified, no fix
+> needed here): this section was independently re-checked against the
+> same context-crossing bug class that hit message search (REQ-5e–REQ-5j)
+> and found already correct, not merely "carries no admin exception."**
+> `ChatEntitySearchService` never reads `isStaff()`/`isStaffAdmin()` at
+> all (confirmed directly in source, not just via the historical
+> `PROJECT_STATUS.md` note this was checked against), and every
+> underlying primitive it delegates to —
+> `ChatConversationService#listConversations`,
+> `#searchDiscoverableGroups` (REQ-19), `ChatEligibilityService` (REQ-20),
+> `SupportTicketService#findOwnOrClaimableChannel` (REQ-21), and RAG's
+> own tenant-owned `conversations` query (REQ-22) — already resolves
+> `TenantContext#getActiveTenantId()` itself and fails closed (empty
+> branch, not a wider one) whenever it is absent, exactly the
+> context-respecting shape REQ-5j now requires for message search too.
+> Because entity search never had a role-based branch to begin with, it
+> never had a *role* crossing context — and its existing "no active
+> tenant → fail closed for tenant-anchored results" posture already
+> matches the corrected context-first model. **No REQ-16–REQ-26 change is
+> needed; this note exists so a future reader doesn't have to re-derive
+> the same conclusion from scratch.**
 
 - **REQ-16 [Ubiquitous]** The system shall provide a unified entity
   search capability, separate from message-content search (REQ-1
@@ -514,13 +564,15 @@ requires; both explicitly defer it here. This amendment supplies it.
   (REQ-17/REQ-23) — a group/person/RAG-conversation match must never be
   returned and then filtered client-side; the filtering happens
   server-side, before the result is ever serialized. (Amended 2026-08-10,
-  role-based scoping completion): for message search specifically, this
-  same "before any other criterion" posture applies to the role check
-  itself (REQ-5e through REQ-5j) — the caller's admin/non-admin status
-  and, for a non-admin, the group-visibility predicate, are both
-  resolved from the caller's current, re-derived role/membership state
-  before `q`/`senderId`/`conversationId`/date filters are applied, never
-  as a post-filter.**
+  role-based scoping completion; corrected 2026-08-10, context-boundary
+  correction): for message search specifically, this same "before any
+  other criterion" posture applies to the role check **and the current-
+  context check** themselves (REQ-5e through REQ-5j) — the caller's
+  current context (staff scope vs. a specific active tenant),
+  admin/non-admin status, and, for a non-admin, the group-visibility
+  predicate, are all resolved from the caller's current, re-derived
+  state before `q`/`senderId`/`conversationId`/date filters are applied,
+  never as a post-filter.**
 - Locale resolution: follows the same narrow, non-global-`LocaleResolver`
   shape as `DeletionConfirmationLocaleResolver` (see Tier 3 item 3) —
   whether this feature reuses that exact class or introduces its own
@@ -551,15 +603,18 @@ requires; both explicitly defer it here. This amendment supplies it.
   predicate is required in addition to the participant join). The
   amendment below corrects the remaining *no-active-tenant* case, which
   this line never actually addressed one way or the other. (Amended
-  2026-08-10, role-based scoping completion): the full, current version
-  of this correction is the role-based ruleset in "Amended (2026-08-10,
-  role-based scoping) — REQ-5 completion" below, which supersedes the
-  earlier no-active-tenant-only draft (REQ-5c/REQ-5d) in full — a
-  `MEMBER_ADMIN`'s "no restriction" grant is still bounded to their own
-  active tenant's `tenant_id`, never cross-tenant, and a `STAFF_ADMIN`'s
-  "no restriction" grant is the sole case in this SPEC where the
-  `tenant_id` predicate is intentionally not applied at all (by design,
-  not by omission).**
+  2026-08-10, role-based scoping completion; corrected 2026-08-10,
+  context-boundary correction): the full, current version of this
+  correction is the ruleset in "Amended (2026-08-10, context-boundary
+  correction) — REQ-5 completion (final)" below, which supersedes both
+  the earlier no-active-tenant-only draft (REQ-5c/REQ-5d) and the first,
+  incorrect role-based draft (which wrongly let `STAFF_ADMIN` cross into
+  tenant content) in full — a `MEMBER_ADMIN`'s "no restriction" grant is
+  bounded to their own active tenant's `tenant_id` and never reaches
+  staff scope or another tenant; a `STAFF_ADMIN`'s "no restriction" grant
+  is bounded to staff-scope conversations only (`tenant_id IS NULL`) and
+  never reaches any tenant's `tenant_id`, including while the same
+  `STAFF_ADMIN` is separately active in a tenant.**
 - **(Amended 2026-08-10) Architectural call: entity search (REQ-16
   through REQ-26) is a new, separate endpoint, not a parameter added to
   `GET /api/chat/messages/search`.** Message search already has its own
@@ -635,13 +690,18 @@ requires; both explicitly defer it here. This amendment supplies it.
 - [ ] A `STAFF_ADMIN`/`MEMBER_ADMIN` caller with no participant row on a
       given conversation gets zero results from that conversation via
       this endpoint, confirming no oversight bypass applies here.
-      **(Amended 2026-08-10, role-based scoping completion): superseded
-      for message-content search only by the role-based criteria below
-      — a `STAFF_ADMIN`/tenant-active `MEMBER_ADMIN` caller now *does*
-      get results from a conversation they hold no participant row on,
-      per REQ-5e/REQ-5g; this original bullet's guarantee remains fully
-      in force for entity search (REQ-18) and for a non-admin caller's
-      message search, unchanged.**
+      **(Amended 2026-08-10, role-based scoping completion; corrected
+      2026-08-10, context-boundary correction): superseded for
+      message-content search only by the role-based, context-bounded
+      criteria below — a `STAFF_ADMIN`/active-tenant `MEMBER_ADMIN`
+      caller now *does* get results from a conversation they hold no
+      participant row on, **but only when that conversation belongs to
+      the caller's own current context** (staff scope for `STAFF_ADMIN`,
+      their own active tenant for `MEMBER_ADMIN`), per the final
+      REQ-5e/REQ-5g below; this original bullet's guarantee remains fully
+      in force for any conversation outside the caller's current context,
+      for entity search (REQ-18), and for a non-admin caller's message
+      search, unchanged.**
 - [ ] **(Amended 2026-08-10)** A unified entity-search query returns
       matching people, groups, Support row, and RAG conversations, each
       scoped by that result kind's own access rule (REQ-19 through
@@ -676,11 +736,13 @@ requires; both explicitly defer it here. This amendment supplies it.
       conversation they are a current direct participant of (a
       staff-to-staff or staff-support 1:1/group conversation with no
       tenant anchor at all), instead of an unconditional empty result.
-      **Now generalized by REQ-5e/REQ-5f/REQ-5h below (see "Amended
-      (2026-08-10, role-based scoping) — REQ-5 completion"): this
-      behavior is a specific instance of REQ-5f/REQ-5h's non-admin
-      participancy rule and REQ-5e's staff-admin unrestricted rule, both
-      of which apply with or without an active tenant.**
+      **Now generalized by the final REQ-5e/REQ-5f/REQ-5h below (see
+      "Amended (2026-08-10, context-boundary correction) — REQ-5
+      completion (final)"): this behavior is a specific instance of
+      REQ-5f/REQ-5h's non-admin participancy rule and REQ-5e's
+      staff-admin unrestricted-within-staff-scope rule, both of which
+      apply with or without an active tenant, and both of which are
+      bounded to staff scope only.**
 - [ ] **(Amended 2026-08-10, bug fix — superseded)** The same
       no-active-tenant staff caller's search still returns **zero**
       results from any tenant-scoped conversation they are not an
@@ -689,33 +751,61 @@ requires; both explicitly defer it here. This amendment supplies it.
       — confirming the corrected REQ-5 narrows scope to direct
       participancy, it does not widen it into a cross-tenant scan.
       **Now generalized by REQ-5j below: a non-admin's scope is never
-      cross-tenant regardless of active-tenant state; a `MEMBER_ADMIN`'s
-      unrestricted grant (REQ-5g) is likewise never cross-tenant; only
-      `STAFF_ADMIN` (REQ-5e) is intentionally cross-tenant, by explicit
-      product-owner design.**
-- [ ] **(Amended 2026-08-10, role-based scoping completion)** A
+      cross-context regardless of active-tenant state; a `MEMBER_ADMIN`'s
+      unrestricted grant (REQ-5g) is likewise never cross-tenant; and — as
+      of the context-boundary correction — `STAFF_ADMIN` (REQ-5e) is
+      likewise never cross-context: its unrestricted grant reaches every
+      staff-scope conversation, and only staff-scope conversations,
+      never a tenant's. The earlier draft's "STAFF_ADMIN is the one
+      intentional cross-tenant exception" premise is retracted — see the
+      final section below for the confirmed bug and correction.**
+- [ ] **(Amended 2026-08-10, role-based scoping completion — retracted
+      2026-08-10, context-boundary correction: this exact bullet
+      described the bug a live Playwright test caught.)** ~~A
       `GlobalRole.STAFF_ADMIN` caller's message search returns matches
       from any `PEER_DIRECT`/`PEER_GROUP` conversation platform-wide,
       including one they hold no `chat_participants` row on and
-      regardless of tenant or group visibility (REQ-5e).
+      regardless of tenant or group visibility.~~ **Replaced by:** A
+      `GlobalRole.STAFF_ADMIN` caller viewing chat in **staff scope**
+      gets unrestricted message-search results from every staff-scope
+      `PEER_DIRECT`/`PEER_GROUP` conversation (no participancy/visibility
+      filter), but **zero** results from any tenant's conversation, even
+      one they hold a `chat_participants` row on, while in staff scope
+      (REQ-5e/REQ-5j).
 - [ ] **(Amended 2026-08-10, role-based scoping completion)** A
       `GlobalRole.STAFF` (non-admin) caller with no active tenant gets
       results only from: 1:1 conversations they participate in; `PUBLIC`
       groups; `REQUEST_TO_JOIN` groups; and `PRIVATE` groups they are a
-      member of — never a `PRIVATE` group they haven't joined (REQ-5f).
+      member of — never a `PRIVATE` group they haven't joined, and never
+      any tenant's conversation (REQ-5f/REQ-5j).
 - [ ] **(Amended 2026-08-10, role-based scoping completion)** A tenant
       member holding `MembershipRole.MEMBER_ADMIN` in their active
       tenant gets unrestricted message-search results within that
       tenant (no participancy/visibility filter), but zero results from
-      any conversation belonging to a different tenant, even one they
-      hold a stale participant row on (REQ-5g/REQ-5j).
+      any conversation belonging to a different tenant or to staff
+      scope, even one they hold a stale participant row on (REQ-5g/
+      REQ-5j).
 - [ ] **(Amended 2026-08-10, role-based scoping completion)** A tenant
       member holding `MembershipRole.MEMBER` (non-admin) in their active
       tenant gets results, within that tenant only, from: 1:1
       conversations they participate in; `PUBLIC` groups; `REQUEST_TO_JOIN`
       groups; and `PRIVATE` groups they are a member of — never a
       `PRIVATE` group in-tenant they haven't joined, and never any
-      conversation in a different tenant (REQ-5h/REQ-5j).
+      conversation in a different tenant or in staff scope (REQ-5h/
+      REQ-5j).
+- [ ] **(Amended 2026-08-10, context-boundary correction — new)** A
+      `STAFF_ADMIN` who is currently active in a tenant (i.e. has
+      switched into that tenant, so is not in staff scope) gets **zero**
+      staff-scope results from message search while active in that
+      tenant — the master invariant (REQ-5j) runs both directions, not
+      just tenant-content-leaking-into-staff-scope.
+- [ ] **(Amended 2026-08-10, context-boundary correction — new,
+      regression test for the exact reported bug)** A `STAFF_ADMIN`
+      viewing chat in staff scope (no active tenant) who searches for a
+      word known to appear only in a tenant member's message (e.g.
+      "Member Three"'s message inside a tenant conversation) gets
+      **zero** results for that query — the exact scenario the live
+      Playwright test caught, now a permanent regression fixture.
 
 ## Out of scope
 
@@ -735,14 +825,18 @@ requires; both explicitly defer it here. This amendment supplies it.
   of; it only removes the previously-unconditional "no active tenant ⇒
   empty result" behavior for conversations the caller already,
   legitimately, directly participates in. (Amended 2026-08-10,
-  role-based scoping completion): this bullet is now superseded, for
-  message-content search only, by the role-based ruleset below — a
+  role-based scoping completion; corrected 2026-08-10, context-boundary
+  correction): this bullet is now superseded, for message-content search
+  only, by the final role-based, context-bounded ruleset below — a
   `STAFF_ADMIN`/active-tenant `MEMBER_ADMIN` caller's unrestricted-search
   grant (REQ-5e/REQ-5g) is an explicit, bounded, product-confirmed role
-  privilege, not the unbounded "look-in on conversations they aren't a
-  participant of, regardless of role" bypass this bullet originally, and
-  still, rules out for every *non-admin* caller and for entity search in
-  full (REQ-18, unaffected).**
+  privilege *strictly within the caller's own current context*, not the
+  unbounded "look-in on conversations they aren't a participant of,
+  regardless of role or context, anywhere" bypass this bullet originally,
+  and still, rules out for every *non-admin* caller, for entity search in
+  full (REQ-18, unaffected), and — critically, per the context-boundary
+  correction — for any conversation outside the admin's own current
+  context, no exception.**
 - Relevance-ranked (`ts_rank`) result ordering — v1 is chronological
   only; relevance ordering is a valid future increment, not specified
   here. **(Amended 2026-08-10): entity-search results are also
@@ -783,24 +877,31 @@ requires; both explicitly defer it here. This amendment supplies it.
   either) is never matched, mirroring the message-search endpoint's own
   existing tenant boundary. **(Amended 2026-08-10, role-based scoping
   completion): unaffected — entity search's REQ-18 carries no admin
-  exception; see that section's framing note.**
+  exception; see that section's framing note. (Amended 2026-08-10,
+  context-boundary correction): re-verified, still unaffected — see
+  entity search's own "verified, no fix needed here" note.**
 - **(Amended 2026-08-10) A person or group result the caller can find
   by name but cannot actually reach** — explicitly rejected by REQ-20's
   resolution (Tier 3 item B): unlike some directory-search products,
   this endpoint never returns a "dead-end" match deferred to a
   click-time failure; eligibility is enforced at match time, not at
   open time.
-- **(Amended 2026-08-10, bug fix — superseded, see role-based scoping
-  section) A no-active-tenant staff caller searching across tenant-scoped
-  conversations they have no active-tenant relationship with** — remains
-  out of scope for a *non-admin* staff caller, per REQ-5f/REQ-5j; a
-  `GlobalRole.STAFF_ADMIN` caller is the one explicit, product-confirmed
-  exception to this line (REQ-5e), by design, not an accidental widening.
+- **(Amended 2026-08-10, bug fix — superseded, see context-boundary
+  correction section) A no-active-tenant staff caller searching across
+  tenant-scoped conversations they have no active-tenant relationship
+  with** — remains out of scope for every staff caller, admin included:
+  the earlier role-based draft's claim that `GlobalRole.STAFF_ADMIN` was
+  "the one explicit, product-confirmed exception to this line" is
+  **retracted** by the context-boundary correction below — a
+  `STAFF_ADMIN` in staff scope never sees tenant-scoped conversations
+  either; its unrestricted grant (REQ-5e) reaches only staff-scope
+  conversations.
 - **(Amended 2026-08-10, role-based scoping completion) Cross-tenant
   message search for a `MembershipRole.MEMBER_ADMIN` caller** — a
   tenant admin's unrestricted-search grant (REQ-5g) is bounded to their
-  own active tenant; it never extends to another tenant's conversations,
-  including one they hold a stale/unrelated participant row on (REQ-5j).
+  own active tenant; it never extends to another tenant's conversations
+  or to staff scope, including one they hold a stale/unrelated
+  participant row on (REQ-5j).
 - **(Amended 2026-08-10, role-based scoping completion) An admin-role
   exception for entity search (REQ-16 through REQ-26)** — the
   admin/non-admin distinction introduced by this amendment applies only
@@ -809,6 +910,17 @@ requires; both explicitly defer it here. This amendment supplies it.
   product decision extends the same admin exception to entity search,
   that requires its own explicit confirmation, not an inferred extension
   of this amendment.
+- **(Amended 2026-08-10, context-boundary correction — new) Any
+  cross-context search result for any role, including any admin role**
+  — a `STAFF_ADMIN`'s or `MEMBER_ADMIN`'s unrestricted-within-context
+  grant (REQ-5e/REQ-5g) is now explicitly, permanently out of scope for
+  reaching a *different* context (staff scope while active in a tenant,
+  a different tenant, or tenant content while in staff scope) — this is
+  the corrected, symmetric restatement of the master invariant (REQ-5j)
+  the reported bug violated, and it applies uniformly to messages,
+  people, groups, and RAG/knowledge-base conversations per the product
+  owner's own generalization ("Isso vale para tudo, usuários, grupos,
+  conversas com a base, etc").
 
 ## Tier 3 — status
 
@@ -841,37 +953,51 @@ been removed.**
 
 **Amendment (2026-08-10, role-based scoping completion): resolved by
 the product owner, in full, across a rapid sequence of messages (see the
-superseding section below for the full transcript-derived ruleset).**
-This item replaces the earlier, incomplete REQ-5c/REQ-5d draft (which
-only covered the staff-no-active-tenant case) with the complete
-four-case admin/non-admin ruleset the product owner actually intended.
-Not inferred — each of the four cases (staff admin, staff non-admin,
-tenant admin, tenant non-admin) was either stated directly or is the
-product owner's own explicit generalization ("é admin? busca em
-qualquer lugar sem restrição. não é admin, pode buscar 1:1, grupos
-públicos ou grupos que ele faz parte."), which is treated as
-authoritative product intent, not an AI-inferred extrapolation.
+now-superseded section below for the full transcript-derived ruleset,
+which had a real bug — see the context-boundary correction that
+follows it, which is the current authoritative version).**
+
+**Amendment (2026-08-10, context-boundary correction): the role-based
+scoping ruleset above was shipped, then caught by a live Playwright test
+with a genuine bug — a `STAFF_ADMIN` in staff scope could find a tenant
+member's message. The product owner confirmed this is a real design
+error and corrected the model to be context-first, not role-first:
+current viewing context (staff scope, or one active tenant) always
+bounds results for every role; an admin role only removes the
+participancy/visibility restriction *within* that same context. See the
+final section of this document for the complete, corrected ruleset.**
 
 **This document, in full, is now ready for read-back and sign-off** —
-every requirement (REQ-1 through REQ-26, plus REQ-5e through REQ-5j
-below), acceptance criterion, and "Out of scope" line is final, with no
-remaining open Tier 3 item. Ready to be approved alongside the two
-frontend amendments (`knowly-app/specify/features/chat-message-search/SPEC.md`'s
+every requirement (REQ-1 through REQ-26, plus the final REQ-5e through
+REQ-5j below), acceptance criterion, and "Out of scope" line is final,
+with no remaining open Tier 3 item. Ready to be approved alongside the
+two frontend amendments (`knowly-app/specify/features/chat-message-search/SPEC.md`'s
 "Amended (2026-08-10)" and `knowly-app/specify/features/chat-unified-ui/SPEC.md`'s
-"Amended (5)") before PLAN.md work starts for any of the three.
+"Amended (5)") before PLAN.md/TASKS.md work resumes for the corrected
+REQ-5e–REQ-5j.
 
-## Amended (2026-08-10, role-based scoping) — REQ-5 completion
+## Superseded — Amended (2026-08-10, role-based scoping) — REQ-5 completion (v1 — DO NOT IMPLEMENT, contains the reported bug)
 
-> **This section fully replaces "Amended (2026-08-10, bug fix) — REQ-5
-> no-active-tenant scoping correction" (the REQ-5c/REQ-5d draft below
-> the horizontal rule at the end of this document is kept only as a
-> superseded historical record — do not implement REQ-5c/REQ-5d as
-> written; implement REQ-5e through REQ-5j below instead).** The earlier
-> draft was a partial fix, addressing only "what happens to a staff
-> caller with no active tenant." The product owner's follow-up messages
-> (2026-08-10, delivered as a rapid sequence, reproduced and folded in
-> here in full) made clear the real rule is role-based and applies
-> regardless of active-tenant state:
+> **Historical record only, kept per this project's "visible
+> supersession, not silent deletion" convention (see `DECISIONS.md`'s
+> incident record) — do not implement REQ-5e through REQ-5j as written
+> in this section.** This version's premise — that `STAFF_ADMIN`'s
+> "search anywhere, no restriction" grant meant literally *any*
+> conversation platform-wide, cross-tenant, regardless of the caller's
+> current viewing context — was confirmed by the product owner on
+> 2026-08-10 as a genuine design error after a live Playwright test
+> caught it in practice (a `STAFF_ADMIN` viewing chat in staff scope,
+> with no active tenant selected, found a tenant member's message via
+> search). It is fully superseded by "Amended (2026-08-10,
+> context-boundary correction) — REQ-5 completion (final)" below, which
+> is the authoritative, implementable ruleset. Every acceptance-criteria
+> and out-of-scope bullet elsewhere in this document that depended on
+> this section's premise has its own inline correction note pointing
+> here and to the final section.
+
+> The product owner's follow-up messages (2026-08-10, delivered as a
+> rapid sequence, reproduced and folded in here in full) made clear the
+> real rule is role-based and applies regardless of active-tenant state:
 >
 > 1. "Antes de seguir, staff pode fazer buscas em grupos públicos, com
 >    requisição para entrar e privados que ele faz parte" — staff can
@@ -892,136 +1018,57 @@ frontend amendments (`knowly-app/specify/features/chat-message-search/SPEC.md`'s
 >    conversations participated in, `PUBLIC` groups, `REQUEST_TO_JOIN`
 >    groups, and `PRIVATE` groups the caller is a member of.
 >
-> **Existing role vocabulary reused, nothing invented.** "Admin" maps to
-> two already-existing enums in this codebase, never a new role concept:
-> `GlobalRole.STAFF_ADMIN` (`br.com.conectabyte.knowly.tenancy.GlobalRole`)
-> for staff, and `MembershipRole.MEMBER_ADMIN`
-> (`br.com.conectabyte.knowly.tenancy.MembershipRole`) for a tenant
-> member's role within their active tenant. `ChatGroupVisibility`'s
-> three existing values (`PUBLIC`, `REQUEST_TO_JOIN`, `PRIVATE` — see
-> `knowly-app/src/app/core/chat.model.ts` and the backend equivalent
-> enum) are reused unchanged, identical to REQ-19's existing group
-> discoverability set.
+> **In hindsight, message 2 ("busca em qualquer lugar sem restrição" for
+> staff admin) was read literally as "platform-wide, cross-tenant" —
+> which is what shipped, and what the Playwright test caught as wrong.
+> The product owner's 2026-08-10 correction clarifies "qualquer lugar"
+> meant "anywhere within staff's own scope," not "anywhere on the
+> platform including inside tenants" — see the final section below for
+> the corrected reading.**
 
-**Corrected REQ-5 (EARS/GEARS) — final, replaces REQ-5c/REQ-5d in
-full.**
+**(v1, superseded) REQ-5e through REQ-5j as originally drafted:**
 
-- **REQ-5e [State-Driven]** While the caller is a staff user holding
-  `GlobalRole.STAFF_ADMIN`, when a message search request is submitted,
-  the system shall return matches from any `PEER_DIRECT`/`PEER_GROUP`
-  conversation platform-wide, with no `chat_participants` join
-  restriction, no `tenant_id` predicate, and no `ChatGroupVisibility`
-  restriction — i.e. fully unrestricted within this capability's
-  existing `PEER_DIRECT`/`PEER_GROUP` scope (REQ-1). This is the sole
-  case in this SPEC where search is intentionally cross-tenant.
-- **REQ-5f [State-Driven]** While the caller is a staff user holding
-  `GlobalRole.STAFF` and not `STAFF_ADMIN`, when a message search
-  request is submitted, the system shall scope results to: (a) 1:1
-  (`PEER_DIRECT`) conversations for which the caller currently holds a
-  non-removed, non-soft-deleted `chat_participants` row; (b) `PEER_GROUP`
-  conversations with `ChatGroupVisibility.PUBLIC`; (c) `PEER_GROUP`
-  conversations with `ChatGroupVisibility.REQUEST_TO_JOIN`; and (d)
-  `PEER_GROUP` conversations with `ChatGroupVisibility.PRIVATE` for
-  which the caller currently holds a non-removed, non-soft-deleted
-  `chat_participants` row. This applies identically whether or not the
-  caller has an active tenant selected — active-tenant state is not a
-  factor in this rule at all, since staff scope was never tenant-anchored
-  to begin with.
-- **REQ-5g [State-Driven]** While the caller is a tenant member holding
-  `MembershipRole.MEMBER_ADMIN` in their currently active tenant, when a
-  message search request is submitted, the system shall return matches
-  from any `PEER_DIRECT`/`PEER_GROUP` conversation whose `tenant_id`
-  equals the caller's active tenant, with no `chat_participants` join
-  restriction and no `ChatGroupVisibility` restriction within that
-  tenant — but shall never include a conversation belonging to any other
-  tenant, regardless of any participant row the caller may separately
-  hold there.
-- **REQ-5h [State-Driven]** While the caller is a tenant member holding
-  `MembershipRole.MEMBER` (not `MEMBER_ADMIN`) in their currently active
-  tenant, when a message search request is submitted, the system shall
-  scope results, within that active tenant only, to: (a) 1:1
-  (`PEER_DIRECT`) conversations for which the caller currently holds a
-  non-removed, non-soft-deleted `chat_participants` row; (b) `PEER_GROUP`
-  conversations with `ChatGroupVisibility.PUBLIC`; (c) `PEER_GROUP`
-  conversations with `ChatGroupVisibility.REQUEST_TO_JOIN`; and (d)
-  `PEER_GROUP` conversations with `ChatGroupVisibility.PRIVATE` for
-  which the caller currently holds a non-removed, non-soft-deleted
-  `chat_participants` row — identical shape to REQ-5f, scoped
-  additionally to the active tenant's `tenant_id`.
-- **REQ-5i [Ubiquitous]** For every non-admin case (REQ-5f, REQ-5h), a
-  `PRIVATE` group the caller is not currently a non-removed,
-  non-soft-deleted participant of is never matched, regardless of query
-  content — mirroring REQ-19's existing group-discoverability rule for
-  `PRIVATE` groups exactly (visible-by-search is never broader than
-  visible-by-browse for `PRIVATE` groups).
-- **REQ-5j [Unwanted Behavior]** If a caller's admin-role grant is
-  tenant-scoped (`MembershipRole.MEMBER_ADMIN`, REQ-5g) and a candidate
-  conversation belongs to a tenant other than the caller's currently
-  active tenant, then the system shall exclude that conversation from
-  the results even if the caller holds a non-removed `chat_participants`
-  row on it (e.g. a stale membership from a tenant they've since left,
-  or a role held in a different tenant they are not currently active
-  in) — a tenant-admin's unrestricted grant never becomes a cross-tenant
-  scan. This preserves, for `MEMBER_ADMIN`, the exact same anti-scan
-  guarantee the original REQ-5/REQ-5d language established, narrowed
-  here to apply specifically to the admin-unrestricted case rather than
-  the participancy case REQ-2 already covers for non-admins.
+- **REQ-5e (v1, superseded) [State-Driven]** While the caller is a staff
+  user holding `GlobalRole.STAFF_ADMIN`, when a message search request
+  is submitted, the system shall return matches from any
+  `PEER_DIRECT`/`PEER_GROUP` conversation platform-wide, with no
+  `chat_participants` join restriction, no `tenant_id` predicate, and no
+  `ChatGroupVisibility` restriction. **Superseded: this is the exact bug
+  — see REQ-5e (final) below, which bounds this grant to staff-scope
+  conversations only.**
+- **REQ-5f (v1, superseded) [State-Driven]** (unchanged in substance by
+  the correction — see REQ-5f (final) below, restated with explicit
+  staff-scope framing.)
+- **REQ-5g (v1, superseded) [State-Driven]** (unchanged in substance by
+  the correction — confirmed correct; see REQ-5g (final) below,
+  restated unchanged.)
+- **REQ-5h (v1, superseded) [State-Driven]** (unchanged in substance by
+  the correction — see REQ-5h (final) below.)
+- **REQ-5i (v1, superseded) [Ubiquitous]** (unchanged in substance by the
+  correction — see REQ-5i (final) below.)
+- **REQ-5j (v1, superseded) [Unwanted Behavior]** Only addressed the
+  `MEMBER_ADMIN` cross-tenant case, silent on the `STAFF_ADMIN`
+  cross-context case — this omission is exactly what let the bug ship.
+  **Superseded: REQ-5j (final) below restates this as the master,
+  symmetric invariant covering every role and every context, in both
+  directions.**
 
-**Precedence and interaction with REQ-2/REQ-3/REQ-19.** REQ-5e through
-REQ-5j are the complete access-control rule for message-content search;
-REQ-2's "current participant" rule is the *non-admin* baseline these
-requirements refine (REQ-5f/REQ-5h), not a separate, additional
-restriction layered on top of the admin cases (REQ-5e/REQ-5g bypass
-REQ-2's participancy join entirely, by design). REQ-3's non-revealing
-`conversationId`-filter behavior is unaffected in shape — it now
-evaluates "is this conversation in-scope" against whichever of REQ-5e
-through REQ-5h applies to the caller's actual role/tenant state, rather
-than against REQ-2 alone. The `PUBLIC`/`REQUEST_TO_JOIN`/`PRIVATE`
-visibility categories used here are identical to, and must stay
-consistent with, REQ-19's existing group-discoverability rule for
-unified entity search — this is the same underlying `ChatGroupVisibility`
-concept applied to a second capability (content search, not just
-name-matching), not a new, parallel visibility taxonomy.
-
-**What this does not change.** Entity search (REQ-16 through REQ-26) is
-explicitly untouched by this section — see that section's own framing
-note and the corresponding "Out of scope" bullet. Support-content search
-remains fully out of scope regardless of caller role (REQ-1's
-`PEER_DIRECT`/`PEER_GROUP`-only boundary is unaffected by anything in
-this section). Locale resolution (REQ-13–REQ-15), pagination/ordering
-(REQ-10), and filter behavior (REQ-7–REQ-9, REQ-11, REQ-12) are all
-unaffected — this section only changes *which conversations* are
-in-scope before those filters apply, per the Non-functional
-requirements' "before any other criterion" posture.
-
-**Acceptance criteria for this section** are listed above in
-"Acceptance criteria" (the "Amended 2026-08-10, role-based scoping
-completion" bullets) and are not repeated here.
-
-**Status.** Final — confirmed by the product owner 2026-08-10 across the
-message sequence quoted above, not an open Tier 3 question. Supersedes
-"Amended (2026-08-10, bug fix) — REQ-5 no-active-tenant scoping
-correction" below in full. Ready for PLAN.md/TASKS.md work by
-`software-architect` against `ChatMessageSearchService`/
-`ChatMessageSearchRepository` — the native-query predicate structure
-needs an admin/non-admin branch (REQ-5e/REQ-5g bypass the
-`chat_participants`/`ChatGroupVisibility` predicates entirely; REQ-5f/
-REQ-5h apply them; REQ-5g/REQ-5j still apply the `tenant_id` predicate
-for `MEMBER_ADMIN`, REQ-5e intentionally omits it for `STAFF_ADMIN`),
-replacing the no-active-tenant-only branch the earlier draft described.
+**Status.** Superseded 2026-08-10 (context-boundary correction) by the
+final section below, following a genuine bug confirmed by the product
+owner via a live Playwright test.
 
 ---
 
 ## Superseded — Amended (2026-08-10, bug fix) — REQ-5 no-active-tenant scoping correction
 
 > **Historical record only. Superseded in full by "Amended (2026-08-10,
-> role-based scoping) — REQ-5 completion" above — do not implement
-> REQ-5c/REQ-5d below.** Kept for traceability of how the role-based
-> ruleset was arrived at (this was the first, partial pass at the same
-> underlying gap) rather than deleted outright, consistent with this
-> project's incident history around silently editing out prior decisions
-> (`DECISIONS.md`) — the correction here is an explicit, visible
-> supersession, not a silent rewrite.
+> context-boundary correction) — REQ-5 completion (final)" at the end of
+> this document — do not implement REQ-5c/REQ-5d below.** Kept for
+> traceability of how the corrected ruleset was arrived at (this was the
+> first, partial pass at the same underlying gap) rather than deleted
+> outright, consistent with this project's incident history around
+> silently editing out prior decisions (`DECISIONS.md`) — the correction
+> here is an explicit, visible supersession, not a silent rewrite.
 
 > **Bug-fix amendment, not a new open design question.** This corrects a
 > functional gap in the already-implemented REQ-5/AppSec fail-closed
@@ -1057,10 +1104,9 @@ conversations they already, legitimately, directly participate in.
 
 **Corrected REQ-5 (EARS/GEARS) — superseded, see above.**
 
-- **REQ-5c [State-Driven] (superseded by REQ-5f/REQ-5h above)** While the
-  caller has no active tenant selected
-  (`TenantContext.getActiveTenantId()` is empty), when a message search
-  request is submitted, the system shall scope results to
+- **REQ-5c [State-Driven] (superseded)** While the caller has no active
+  tenant selected (`TenantContext.getActiveTenantId()` is empty), when a
+  message search request is submitted, the system shall scope results to
   `PEER_DIRECT`/`PEER_GROUP` conversations for which the caller
   currently holds a non-removed, non-soft-deleted `chat_participants`
   row (the same REQ-2 join), evaluated **without** any `tenant_id`
@@ -1068,16 +1114,197 @@ conversations they already, legitimately, directly participate in.
   unconditional empty result. This applies identically to every caller,
   staff or otherwise; it is not a staff-only carve-out, it is what
   "no active tenant" now means for every caller.
-- **REQ-5d [Unwanted Behavior] (superseded by REQ-5j above)** If, while
-  the caller has no active tenant selected, a candidate conversation is
-  tenant-scoped (i.e. its `tenant_id` is not `NULL`) and the caller has
-  no active-tenant membership relationship to that tenant, then the
-  system shall exclude that conversation's messages from the results,
-  exactly as before this amendment — REQ-5c's removal of the `tenant_id`
-  predicate applies only to the participancy check itself; it does not,
-  and must never, cause a tenant-scoped conversation to become visible
-  to a caller with no active membership in that tenant.
+- **REQ-5d [Unwanted Behavior] (superseded)** If, while the caller has no
+  active tenant selected, a candidate conversation is tenant-scoped (i.e.
+  its `tenant_id` is not `NULL`) and the caller has no active-tenant
+  membership relationship to that tenant, then the system shall exclude
+  that conversation's messages from the results, exactly as before this
+  amendment — REQ-5c's removal of the `tenant_id` predicate applies only
+  to the participancy check itself; it does not, and must never, cause a
+  tenant-scoped conversation to become visible to a caller with no
+  active membership in that tenant.
 
-**Status.** Superseded 2026-08-10 by "Amended (2026-08-10, role-based
-scoping) — REQ-5 completion" above, which is the authoritative,
-implementable version of this correction.
+**Status.** Superseded 2026-08-10 by "Amended (2026-08-10,
+context-boundary correction) — REQ-5 completion (final)" at the end of
+this document, which is the authoritative, implementable version of this
+correction.
+
+---
+
+## Amended (2026-08-10, context-boundary correction) — REQ-5 completion (final)
+
+> **This section fully replaces "Amended (2026-08-10, role-based
+> scoping) — REQ-5 completion" (the v1 draft above, kept as a superseded
+> historical record — do not implement it) and remains, as before, the
+> section that supersedes the earlier "Amended (2026-08-10, bug fix) —
+> REQ-5 no-active-tenant scoping correction" (REQ-5c/REQ-5d) in full.
+> This is the third and current pass at the same underlying access-
+> control rule, and — unlike the previous two — was prompted by a
+> genuine, confirmed bug caught by a live Playwright test, not a
+> proactive review or a forward product request.**
+
+**What was wrong, confirmed by the product owner as a genuine design
+error.** While logged in as a `STAFF_ADMIN` viewing chat in **staff
+scope** (no active tenant selected — the left sidebar showed only
+Support/staff colleagues/a private staff group, no tenant content), the
+message search bar returned a message from "Member Three" — a tenant
+member's message from inside a tenant. The v1 draft's REQ-5e
+("`STAFF_ADMIN` → search unrestricted, platform-wide, across ALL
+conversations, regardless of tenant or participancy") was the direct
+cause: it read the product owner's "staff admin pode buscar em qualquer
+lugar sem restrição" as license to cross into tenant content, which was
+never the intent.
+
+**The corrected, simpler mental model (product owner's exact words,
+2026-08-10):** "estando na visão do staff mensagens dentro de tenant são
+encontradas, para encontrar mensagens de um tenant o usuário precisa
+estar dentro dele, independente do perfil do usuário. staff_admin na
+visão de staff vê mensagens do staff e nada mais, se ele entra em um
+tenant ele vê as mensagens daquele tenant e nada mais. Isso vale para
+tudo, usuários, grupos, conversas com a base, etc."
+
+- **Current context = active tenant (if one is selected) OR staff scope
+  (if none is selected). Never both, never a union.**
+- Within the current context, an admin role (`STAFF_ADMIN` in staff
+  scope, or `MEMBER_ADMIN` in their active tenant) removes only the
+  participancy/visibility restriction (sees every conversation in that
+  context, not just ones they participate in) — it does **not** expand
+  the context itself.
+- Within the current context, a non-admin (`STAFF` in staff scope, or
+  `MEMBER` in their active tenant) is restricted to: 1:1 they
+  participate in, `PUBLIC` groups, `REQUEST_TO_JOIN` groups, and
+  `PRIVATE` groups they're a member of — all within that same context.
+- **No role, however privileged, ever sees content from a different
+  context** (a different tenant, or staff scope while active in a
+  tenant, or tenant content while in staff scope) via this search. This
+  applies uniformly to messages (this section), and — confirmed
+  separately, see the entity-search section's own note — was already
+  true for people/group/RAG entity search, which needed no fix.
+
+**Corrected REQ-5 (EARS/GEARS) — final, replaces the v1 draft and
+REQ-5c/REQ-5d in full.**
+
+- **REQ-5e [State-Driven] (final)** While the caller is a staff user
+  holding `GlobalRole.STAFF_ADMIN` and is currently in **staff scope**
+  (`TenantContext.getActiveTenantId()` is empty), when a message search
+  request is submitted, the system shall return matches from any
+  `PEER_DIRECT`/`PEER_GROUP` conversation whose `tenant_id` is `NULL`
+  (i.e. a staff-scope conversation), with no `chat_participants` join
+  restriction and no `ChatGroupVisibility` restriction — but shall
+  **never** include a conversation whose `tenant_id` is non-`NULL`
+  (i.e. belongs to any tenant), regardless of any participant row the
+  caller may separately hold there. This is the corrected reading of the
+  product owner's "search anywhere, no restriction" — "anywhere" means
+  "anywhere within staff scope," not "anywhere on the platform."
+- **REQ-5f [State-Driven] (final, restated — unchanged in substance from
+  the superseded v1 draft)** While the caller is a staff user holding
+  `GlobalRole.STAFF` and not `STAFF_ADMIN`, and is currently in staff
+  scope, when a message search request is submitted, the system shall
+  scope results, to staff-scope (`tenant_id IS NULL`) conversations
+  only, to: (a) 1:1 (`PEER_DIRECT`) conversations for which the caller
+  currently holds a non-removed, non-soft-deleted `chat_participants`
+  row; (b) `PEER_GROUP` conversations with `ChatGroupVisibility.PUBLIC`;
+  (c) `PEER_GROUP` conversations with
+  `ChatGroupVisibility.REQUEST_TO_JOIN`; and (d) `PEER_GROUP`
+  conversations with `ChatGroupVisibility.PRIVATE` for which the caller
+  currently holds a non-removed, non-soft-deleted `chat_participants`
+  row. This applies whenever the caller has no active tenant selected —
+  staff scope was never tenant-anchored to begin with.
+- **REQ-5g [State-Driven] (final, restated unchanged — confirmed correct
+  in the v1 draft, not affected by the bug)** While the caller is a
+  tenant member holding `MembershipRole.MEMBER_ADMIN` in their currently
+  active tenant, when a message search request is submitted, the system
+  shall return matches from any `PEER_DIRECT`/`PEER_GROUP` conversation
+  whose `tenant_id` equals the caller's active tenant, with no
+  `chat_participants` join restriction and no `ChatGroupVisibility`
+  restriction within that tenant — but shall never include a
+  conversation belonging to any other tenant, or to staff scope,
+  regardless of any participant row the caller may separately hold
+  there.
+- **REQ-5h [State-Driven] (final, restated — unchanged in substance from
+  the superseded v1 draft)** While the caller is a tenant member holding
+  `MembershipRole.MEMBER` (not `MEMBER_ADMIN`) in their currently active
+  tenant, when a message search request is submitted, the system shall
+  scope results, within that active tenant only, to: (a) 1:1
+  (`PEER_DIRECT`) conversations for which the caller currently holds a
+  non-removed, non-soft-deleted `chat_participants` row; (b) `PEER_GROUP`
+  conversations with `ChatGroupVisibility.PUBLIC`; (c) `PEER_GROUP`
+  conversations with `ChatGroupVisibility.REQUEST_TO_JOIN`; and (d)
+  `PEER_GROUP` conversations with `ChatGroupVisibility.PRIVATE` for
+  which the caller currently holds a non-removed, non-soft-deleted
+  `chat_participants` row — identical shape to REQ-5f, scoped
+  additionally to the active tenant's `tenant_id`.
+- **REQ-5i [Ubiquitous] (final, restated unchanged)** For every non-admin
+  case (REQ-5f, REQ-5h), a `PRIVATE` group the caller is not currently a
+  non-removed, non-soft-deleted participant of is never matched,
+  regardless of query content — mirroring REQ-19's existing
+  group-discoverability rule for `PRIVATE` groups exactly (visible-by-
+  search is never broader than visible-by-browse for `PRIVATE` groups).
+- **REQ-5j [Unwanted Behavior] (final — the master invariant; this is the
+  corrected, symmetric rule the reported bug violated)** If a candidate
+  conversation's context (staff scope, i.e. `tenant_id IS NULL`; or a
+  specific tenant, i.e. `tenant_id` equals that tenant) does not match
+  the caller's **currently active viewing context** (staff scope if no
+  active tenant is selected; that specific tenant if one is), then the
+  system shall exclude that conversation from message-search results —
+  with **no exception for any role**, admin or not. Concretely:
+  - A `STAFF_ADMIN`/`STAFF` in staff scope never matches a conversation
+    with a non-`NULL` `tenant_id`, regardless of participant row.
+  - A `MEMBER_ADMIN`/`MEMBER` active in tenant X never matches a
+    conversation whose `tenant_id` is `NULL` (staff scope) or belongs to
+    a different tenant Y, regardless of participant row.
+  - This holds even for a caller with a genuine, non-stale
+    `chat_participants` row on the out-of-context conversation (e.g. a
+    `STAFF_ADMIN` who also happens to be a direct participant in a
+    tenant conversation) — REQ-5e/REQ-5g's admin bypass is scoped to
+    *this request's current context only*, it is never a standing,
+    context-independent grant.
+
+**Precedence and interaction with REQ-2/REQ-3/REQ-19.** REQ-5e through
+REQ-5j are the complete access-control rule for message-content search;
+REQ-2's "current participant" rule is the *non-admin* baseline these
+requirements refine (REQ-5f/REQ-5h), not a separate, additional
+restriction layered on top of the admin cases (REQ-5e/REQ-5g bypass
+REQ-2's participancy join entirely, by design, but never REQ-5j's
+context predicate). REQ-3's non-revealing `conversationId`-filter
+behavior is unaffected in shape — it now evaluates "is this conversation
+in-scope" against whichever of REQ-5e through REQ-5h applies to the
+caller's actual role/context state, rather than against REQ-2 alone. The
+`PUBLIC`/`REQUEST_TO_JOIN`/`PRIVATE` visibility categories used here are
+identical to, and must stay consistent with, REQ-19's existing
+group-discoverability rule for unified entity search — this is the same
+underlying `ChatGroupVisibility` concept applied to a second capability
+(content search, not just name-matching), not a new, parallel visibility
+taxonomy.
+
+**What this does not change.** Entity search (REQ-16 through REQ-26) was
+independently re-checked against this exact bug class and confirmed
+already correct — see that section's own "verified, no fix needed here"
+note; it is not touched by this correction. Support-content search
+remains fully out of scope regardless of caller role or context (REQ-1's
+`PEER_DIRECT`/`PEER_GROUP`-only boundary is unaffected by anything in
+this section). Locale resolution (REQ-13–REQ-15), pagination/ordering
+(REQ-10), and filter behavior (REQ-7–REQ-9, REQ-11, REQ-12) are all
+unaffected — this section only changes *which conversations* are
+in-scope before those filters apply, per the Non-functional
+requirements' "before any other criterion" posture.
+
+**Acceptance criteria for this section** are listed above in
+"Acceptance criteria" (the "Amended 2026-08-10, context-boundary
+correction" bullets, plus the corrected/retracted "role-based scoping
+completion" bullets they annotate) and are not repeated here.
+
+**Status.** Final — confirmed by the product owner 2026-08-10 following
+a live Playwright test's bug report, superseding both the v1 role-based
+draft above and the earlier REQ-5c/REQ-5d no-active-tenant draft in
+full. Ready for PLAN.md/TASKS.md rework by `software-architect` against
+`ChatMessageSearchService`/`ChatMessageSearchRepository` — the
+already-planned admin/non-admin branch (per the v1 PLAN.md, now itself
+needing a corresponding correction pass) must additionally gate
+REQ-5e/REQ-5g's bypass on the caller's *current context* (`tenant_id IS
+NULL` for `STAFF_ADMIN`, `tenant_id = activeTenantId` for
+`MEMBER_ADMIN`), not omit the `tenant_id` predicate outright as the v1
+draft's REQ-5e did. **An AppSec re-review of the corrected PLAN is
+required before TASKS.md/implementation resumes**, given this is
+exactly the class of access-control defect AppSec review exists to
+catch, and the first pass missed it.

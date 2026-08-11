@@ -609,6 +609,160 @@ flagged main implementation risk gets the most coverage here):
   client-supplied id, consistent with REQ-2/REQ-17's "re-derived at
   request time" posture.
 
+## Amended (2026-08-10, context-boundary correction) — REQ-5e–REQ-5j implementation (final)
+
+> **This section fully replaces "Amended (2026-08-10, role-based
+> scoping) — REQ-5e–REQ-5j implementation" above (the v1 draft, kept as
+> a superseded historical record — do not implement it).** It
+> implements SPEC.md's "Amended (2026-08-10, context-boundary
+> correction) — REQ-5 completion (final)" section, which supersedes the
+> v1 SPEC draft this v1 PLAN section was written against. This is the
+> **second** correction to this same query path in one session — the
+> diff from v1 is narrow and enumerated below so AppSec's re-review can
+> be targeted rather than a full re-read.
+
+**What changes vs. what stays the same.**
+
+- **Deleted entirely**: the `PLATFORM_UNRESTRICTED` scope fragment and
+  its two repository methods (`searchUnrestrictedPt`/`En`), and the
+  `SELECT_AND_JOIN + BASE_PREDICATE + <locale clause> + ORDER_AND_LIMIT`
+  query built with no tenant predicate at all. Not kept as unused dead
+  code — removed, because there is no longer any caller shape that
+  searches across tenant boundaries or across the staff/tenant boundary.
+- **New, structurally mirrors `TENANT_UNRESTRICTED`**: a
+  `STAFF_SCOPE_UNRESTRICTED` fragment/pair of repository methods
+  (`searchStaffScopeUnrestrictedPt`/`En`) for `STAFF_ADMIN` in staff
+  scope (REQ-5e, corrected) — `AND cc.tenant_id IS NULL` in place of
+  `TENANT_UNRESTRICTED`'s `AND cc.tenant_id = :activeTenantId`, no
+  participant/discoverability predicate, exactly the same shape
+  otherwise (same `BASE_PREDICATE`, same locale clauses, same
+  `ORDER_AND_LIMIT`). No bind parameter needed for this fragment (unlike
+  `TENANT_UNRESTRICTED`'s `:activeTenantId`) since `IS NULL` is a
+  constant condition, not caller-supplied.
+- **Unchanged**: `TENANT_UNRESTRICTED` (`searchTenantUnrestrictedPt`/
+  `En`, REQ-5g/`MEMBER_ADMIN`) — already correctly modeled in v1,
+  confirmed by re-reading `ChatMessageSearchRepository.java` lines
+  127–163; no edit needed to these two methods. `PARTICIPANT_AND_
+  DISCOVERABLE` (`searchScopedPt`/`En`, REQ-5f/REQ-5h, non-admins) and
+  its nullable-aware `((:activeTenantId IS NULL AND cc.tenant_id IS
+  NULL) OR cc.tenant_id = :activeTenantId)` guard are also unchanged —
+  this guard already correctly implements REQ-5j's context-boundary
+  invariant for the non-admin case (it was the admin short-circuit in
+  `ChatMessageSearchService.search()`, not this SQL, that let
+  `STAFF_ADMIN` bypass context resolution).
+
+- **`ChatMessageSearchService.search()` precedence is restructured to
+  resolve context first, then branch on admin-vs-non-admin within it** —
+  this is the actual root-cause fix, because the confirmed bug was
+  `STAFF_ADMIN`'s branch (old branch 1, `tenantContext.isStaffAdmin()`)
+  short-circuiting ahead of any context check at all. New precedence,
+  replacing lines 99–215 of the current
+  `ChatMessageSearchService.java`:
+  1. Resolve `activeTenantId = tenantContext.getActiveTenantId()` first,
+     unconditionally, before any role check.
+  2. If `activeTenantId` is present: this is tenant-X context.
+     - If `isActiveMemberAdminOf(actor, activeTenantId.get())` →
+       `TENANT_UNRESTRICTED`, bound to that tenant (REQ-5g). Unchanged
+       from v1's branch 2.
+     - Else → `PARTICIPANT_AND_DISCOVERABLE`, bound to that tenant
+       (REQ-5h/5i). Unchanged from v1's branch 3, including the
+       AppSec-required `IllegalStateException` non-null invariant
+       (still needed — see below).
+  3. Else (`activeTenantId` empty): this is staff-scope context. A
+     caller who reaches this branch with neither `isStaff()` nor
+     `isStaffAdmin()` true falls through to the existing fail-closed
+     branch — that caller shape (no active tenant, not staff) is
+     untouched by this correction.
+     - If `tenantContext.isStaffAdmin()` → **`STAFF_SCOPE_UNRESTRICTED`**
+       (new; REQ-5e corrected) — the direct fix: this branch is now only
+       reachable when there is *no* active tenant, so `STAFF_ADMIN`
+       can no longer short-circuit into an active tenant's content.
+     - Else if `tenantContext.isStaff()` → `PARTICIPANT_AND_DISCOVERABLE`,
+       unbound to any tenant (REQ-5f). Unchanged from v1's branch 4,
+       reusing `additionalVisibleConversationIdsPlatformWide` — see
+       naming note below.
+     - Else → fail closed, unchanged from v1's branch 5.
+  This is a *reordering plus one substitution* (staff-admin fragment
+  swapped, tenant-first precedence), not a rewrite of the non-admin
+  branches, the cursor/pagination logic, the logging, or the DTO
+  mapping — all of that (lines 216–310 of the current file) is
+  unaffected.
+
+- **`additionalVisibleConversationIdsPlatformWide`/
+  `findDiscoverableIdsPlatformWide` naming is now misleading and should
+  be renamed to `...StaffScope`/`findDiscoverableIdsStaffScope`** (no
+  behavior change — these already only ever get invoked from the
+  staff-no-active-tenant branch, never actually platform-wide across
+  tenants) to stop the name implying a scope that no longer exists
+  anywhere in this feature. Purely cosmetic, but worth doing in the same
+  commit per this codebase's "don't leave a stale name next to
+  corrected behavior" precedent (mirrors the existing Javadoc-rewrite
+  rule below).
+
+- **AppSec-required non-null invariant (v1's branch-3 guard, now
+  branch-2's tenant-admin/tenant-member sub-branches): still needed,
+  restated, not moot.** The reason it existed — a future refactor
+  reordering the precedence chain and silently falling through into the
+  nullable-aware `PARTICIPANT_AND_DISCOVERABLE` fragment with a null id
+  — is if anything *more* relevant under the corrected model, since
+  context resolution is now a single explicit fork (tenant-present vs.
+  absent) that all four role outcomes flow through; an accidental swap
+  of that fork's branches would now silently misroute an ordinary tenant
+  `MEMBER` into staff-scope-shaped handling instead of just widening one
+  branch. Keep the `IllegalStateException` assertion exactly as
+  written in v1, moved (not altered) into the new tenant-present branch.
+  No corresponding assertion is needed on the staff-scope side: `STAFF_
+  SCOPE_UNRESTRICTED`'s `tenant_id IS NULL` condition is a SQL constant,
+  not a caller-supplied bind parameter, so there is no null-vs-non-null
+  ambiguity to guard against there.
+
+- **LIMIT 100 `findDiscoverableIds`/`findDiscoverableIds...Scope` cap:
+  confirmed unaffected, explicitly.** This cap and its reuse of
+  `ChatConversationRepository.findDiscoverable`-style querying plus
+  `ChatEligibilityService.isEligible` back the four-category non-admin
+  case (REQ-5f/REQ-5h/REQ-5i) exclusively — that logic path is untouched
+  by this correction, which only changes the admin-branch fragments and
+  the precedence order deciding which fragment runs. No change needed
+  to `ChatConversationRepository` or `ChatEligibilityService` usage.
+
+- **`ChatMessageSearchService`'s class/method Javadoc already documents
+  the v1 (wrong) precedence** (see current file lines 25–41) and must be
+  rewritten to the corrected five-branch precedence above, in the same
+  commit as the code change — same "no stale comment next to corrected
+  code" rule v1's PLAN already flagged for the *original* pre-2026-08-10
+  Javadoc; it now applies a second time to v1's own amendment Javadoc.
+  Likewise `ChatMessageSearchRepository`'s class Javadoc (current file
+  lines 29–60, describing `searchUnrestrictedPt`/`En` and the old
+  three-fragment model) needs the `PLATFORM_UNRESTRICTED` bullet deleted
+  and a `STAFF_SCOPE_UNRESTRICTED` bullet added in its place, mirroring
+  the `TENANT_UNRESTRICTED` bullet's wording exactly.
+
+- **No new DECISIONS.md entry required**, for the same reason v1 stated
+  none was needed: this remains an application of the existing "admin
+  role removes participancy restriction within one bounded scope"
+  precedent, now applied correctly (bounded to the caller's *current*
+  context) instead of incorrectly (unbounded). The correction itself —
+  "resolve context before role" — is a bug fix to this feature's own
+  precedence logic, not a new cross-cutting architectural pattern
+  reusable elsewhere.
+
+- **AppSec re-review required before TASKS.md/implementation resumes —
+  second pass on this same code path.** Scope the re-review to exactly
+  four things, to keep it fast: (1) confirm `STAFF_SCOPE_UNRESTRICTED`'s
+  `cc.tenant_id IS NULL` condition can never be satisfied by a row that
+  also matches a non-null tenant (trivial by construction, but worth one
+  look given the previous bug was exactly this class of guard failing);
+  (2) confirm the reordered precedence in `ChatMessageSearchService
+  .search()` truly resolves `activeTenantId` before any role check, with
+  no remaining code path that reads `isStaffAdmin()`/`isStaff()` first;
+  (3) confirm the `IllegalStateException` invariant moved cleanly into
+  the tenant-present branch without being dropped or weakened; (4)
+  confirm no other branch was inadvertently touched — `TENANT_
+  UNRESTRICTED` and `PARTICIPANT_AND_DISCOVERABLE` (both SQL and their
+  callers) should diff as unchanged. Do not re-review the discoverable-
+  ids/eligibility/pagination machinery — that was already reviewed
+  under v1 and is confirmed unaffected above.
+
 ## Amended (2026-08-10) — unified entity search (REQ-16 through REQ-26)
 
 > Companion to SPEC.md's "Amended (2026-08-10)" section. Everything
