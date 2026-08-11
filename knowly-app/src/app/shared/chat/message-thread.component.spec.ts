@@ -206,6 +206,37 @@ describe('MessageThreadComponent', () => {
       expect(mark?.textContent).toBe('relatório');
     });
 
+    it('bug fix: retries the scroll-into-view lookup on a microtask when the target <li> is not yet in the DOM at effect-run time (reported live as "1:1 marks but never scrolls, group does both")', async () => {
+      // Simulates the exact race that only ever surfaced for PEER_DIRECT in the live report: the
+      // target message id is genuinely present in `messages()` (so the <mark> renders correctly,
+      // proving this isn't a data problem), but `document.getElementById` doesn't find the <li>
+      // node on the effect's first synchronous pass.
+      const realGetElementById = document.getElementById.bind(document);
+      let calls = 0;
+      vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
+        calls += 1;
+        // First lookup: pretend the node isn't painted yet. Every lookup after that: real DOM.
+        return calls === 1 ? null : realGetElementById(id);
+      });
+
+      fixture.componentInstance.messages.set([msg({ id: 2, content: 'sobre o relatório mensal' })]);
+      fixture.detectChanges();
+
+      fixture.componentInstance.highlightMessageId.set(2);
+      fixture.componentInstance.highlightQuery.set('relatório');
+      fixture.detectChanges();
+
+      // The <mark> is a template binding — it renders regardless of the getElementById race.
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('relatório');
+      // But scrollIntoView hasn't happened yet — the first lookup returned null.
+      expect(scrollIntoViewSpy).not.toHaveBeenCalled();
+
+      // Let the queued microtask retry run.
+      await Promise.resolve();
+
+      expect(scrollIntoViewSpy).toHaveBeenCalled();
+    });
+
     it('respects prefers-reduced-motion by scrolling/highlighting without the flash class', () => {
       window.matchMedia = vi
         .fn()

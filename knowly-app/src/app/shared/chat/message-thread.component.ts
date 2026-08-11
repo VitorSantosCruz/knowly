@@ -218,8 +218,33 @@ export class MessageThreadComponent {
       }
       this.lastScrolledId = targetId;
 
-      const element = document.getElementById(`message-thread-item-${targetId}`);
-      element?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      /** Bug fix (found live: 1:1/`PEER_DIRECT` conversations mark the target message but never
+       * scroll to it, while `PEER_GROUP` conversations do both) — `found` only proves `targetId`
+       * is present in the `messages()` array the effect reads; it says nothing about whether
+       * Angular has actually painted the corresponding `<li id="message-thread-item-…">` yet.
+       * The `<mark>` above renders straight off a template binding (`highlightSplit()`), so it
+       * always shows the instant `messages()`/`highlightMessageId()` update — but this
+       * `document.getElementById` lookup is imperative DOM access, and `element?.scrollIntoView`
+       * silently no-ops via optional chaining if the node isn't in the DOM tree at this exact
+       * moment. Nothing about `PEER_DIRECT` vs. `PEER_GROUP` in this component or
+       * `ConversationDetailComponent` branches on conversation kind — the asymmetry is a genuine
+       * race, just one that happened to resolve safely for `PEER_GROUP` and not for
+       * `PEER_DIRECT` in the reported session (e.g. one extra reactive hop, such as
+       * `PersonInfoModalComponent`'s `otherParticipantId` input resolving, can shift which CD
+       * flush this effect ends up scheduled in relative to the `@for` list's own re-render). Made
+       * unconditionally robust with one microtask retry rather than depending on exact effect/CD
+       * ordering. */
+      const scrollToTarget = (): boolean => {
+        const element = document.getElementById(`message-thread-item-${targetId}`);
+        if (!element) {
+          return false;
+        }
+        element.scrollIntoView({ block: 'center', behavior: 'auto' });
+        return true;
+      };
+      if (!scrollToTarget()) {
+        queueMicrotask(() => scrollToTarget());
+      }
 
       const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
       if (prefersReducedMotion) {
