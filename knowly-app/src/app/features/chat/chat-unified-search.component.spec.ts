@@ -93,6 +93,36 @@ describe('ChatUnifiedSearchComponent', () => {
     httpMock.expectNone((r) => r.url === '/api/chat/search');
   });
 
+  it('regression: searching, closing (Escape), then searching the SAME term again in the same page load still fires both services — not silently swallowed', () => {
+    // Reported live as "search twice and the second one doesn't go": distinctUntilChanged() used
+    // to guard the debounced query pipe, but its "last value" state lived inside the RxJS operator
+    // for this component's whole lifetime (a singleton mounted once in the chat shell, never
+    // destroyed/recreated between searches) — dismiss() reset queryInput/messageSearch/
+    // entitySearch but had no way to reset that operator-internal state. So closing the dropdown
+    // and reopening it to search the exact same term again produced no request at all (not an
+    // empty result — no HTTP call in the first place), reproducible entirely within one SPA load,
+    // no reload needed.
+    type('ana');
+    vi.advanceTimersByTime(400);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/messages/search')
+      .flush({ results: [], nextCursor: null });
+    httpMock.expectOne((r) => r.url === '/api/chat/search').flush(entityResponse());
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-unified-search-dropdown"]'),
+    ).toBeFalsy();
+
+    type('ana');
+    vi.advanceTimersByTime(400);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/messages/search')
+      .flush({ results: [], nextCursor: null });
+    httpMock.expectOne((r) => r.url === '/api/chat/search').flush(entityResponse());
+  });
+
   it('REQ-19/20: opening the bar (focus, blank query) calls recentPlaces() and neither search()', () => {
     input().dispatchEvent(new Event('focus'));
     fixture.detectChanges();

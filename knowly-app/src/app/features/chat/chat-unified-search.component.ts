@@ -2,7 +2,7 @@ import { Component, DestroyRef, HostListener, computed, inject, signal } from '@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, debounceTime } from 'rxjs';
 import { ChatEntitySearchService } from '../../core/chat-entity-search.service';
 import { ChatRecentPlaceDto } from '../../core/chat.model';
 import { ChatDirectoryRowsService, GroupRow } from '../../core/chat-directory-rows.service';
@@ -271,10 +271,28 @@ export class ChatUnifiedSearchComponent {
 
   private readonly querySubject = new Subject<string>();
 
+  /** Bug fix (found live: "search twice and the second one doesn't go" — reproducible within the
+   * SAME SPA load, no reload needed, by searching, closing/selecting a result, then searching
+   * again with the same term). RxJS's `distinctUntilChanged()` operator was used here to collapse
+   * a debounced emission that repeats the immediately-preceding one — but its "last emitted
+   * value" state lives inside the operator itself, for the lifetime of the `Subject`/pipe
+   * (component-scoped, since this component is a singleton mounted once in the chat shell, never
+   * destroyed/recreated between searches). `dismiss()` resets `queryInput`/`messageSearch`/
+   * `entitySearch` on every close, but had no way to reset that operator-internal state — so
+   * reopening the bar and searching the exact same term the operator last saw silently suppressed
+   * `runSearch()` entirely, with no loading/error/empty state at all (not a request that returns
+   * nothing — no request fires in the first place). Tracked manually instead, in a field `dismiss()`
+   * can and does reset, so every fresh search session starts with no "last query" memory. */
+  private lastEmittedQuery: string | null = null;
+
   constructor() {
-    this.querySubject
-      .pipe(debounceTime(QUERY_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
-      .subscribe((q) => this.runSearch(q));
+    this.querySubject.pipe(debounceTime(QUERY_DEBOUNCE_MS), takeUntilDestroyed()).subscribe((q) => {
+      if (q === this.lastEmittedQuery) {
+        return;
+      }
+      this.lastEmittedQuery = q;
+      this.runSearch(q);
+    });
   }
 
   protected readonly peopleResults = computed(() =>
@@ -442,5 +460,8 @@ export class ChatUnifiedSearchComponent {
     this.queryInput.set('');
     this.messageSearch.reset();
     this.entitySearch.reset();
+    // See lastEmittedQuery's Javadoc — without this, searching the same term again in a later,
+    // still-same-page-load session would be silently swallowed.
+    this.lastEmittedQuery = null;
   }
 }

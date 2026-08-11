@@ -56,7 +56,81 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-11): CRITICAL regression fix — jump-to-message
+**Current state (2026-08-11): two more chat bugs found live via
+Playwright, both distinct root causes from every fix below them,
+both fixed and regression-tested.**
+
+1. *Jumping back to an already-loaded older message re-triggered an
+   unbounded `?after=<same cursor>` request storm* — a DIFFERENT
+   mechanism than the `jumpLoadAttempts`-budget bug fixed in `7e6fc57`
+   (below), confirmed still reproducible after that fix. Repro: in an
+   already-open `/chat/{id}` conversation, jump to an older message
+   (paginating to find it), jump to a different, newer, already-loaded
+   message, then jump BACK to the original older one. Root cause:
+   `ConversationDetailComponent`'s `route.paramMap.subscribe` called
+   `ChatService.openConversation(id)` **unconditionally on every
+   navigation**, including same-conversation jump-target-only
+   re-navigations (`ChatShellComponent` keeps this component mounted
+   across those, by design — see the `61e7dd1` fix's own Javadoc).
+   `openConversation`'s `seedFirstPage` REPLACES the entire cached
+   `messages` array with just the latest page every time it's called —
+   so every same-conversation jump silently evicted whatever older
+   pages an earlier jump had already paginated in, making an
+   already-loaded older message look "not found" again and restarting
+   pagination from scratch; overlapping in-flight `openConversation`
+   responses from back-to-back jumps could also resolve out of order
+   and repeatedly stomp the cache back to the same boundary, which is
+   what produced the observed "same cursor requested forever" pattern.
+   Fixed by gating `openConversation`'s call (and `jumpLoadAttempts`'s
+   reset, unchanged from `7e6fc57`) on `id !== lastOpenedConversationId`
+   — a same-conversation jump-target change now reuses whatever
+   messages/cursor state is already cached, no re-fetch at all. Two
+   regression tests updated/added in `conversation-detail.component.spec.ts`:
+   the existing `7e6fc57` regression test's comments/assertions updated
+   to reflect that a second same-conversation jump no longer re-triggers
+   `openConversation` (so its already-exhausted 20-page budget makes
+   zero further requests, not "up to 20 more"), plus a new test driving
+   jump A (paginate to found) → jump B (already loaded, no requests) →
+   jump back to A (still no requests, since A was never evicted).
+2. *"Se você busca 2x a segunda não vai"* — searching, closing the
+   unified search bar (Escape/result click/outside click), then
+   searching the exact same term again in the same page load (no
+   reload) produced no HTTP request at all on the second search.
+   Root cause: `chat-unified-search.component.ts`'s debounced query
+   `Subject` piped through RxJS's `distinctUntilChanged()`, whose
+   "last emitted value" state lives inside the operator for this
+   component's whole lifetime — it's a singleton mounted once in the
+   chat shell, never destroyed/recreated between searches.
+   `dismiss()` reset `queryInput`/`messageSearch`/`entitySearch` on
+   every close but had no way to reach into that operator-internal
+   state, so reopening and searching the same term the operator last
+   saw was silently swallowed by `distinctUntilChanged` before
+   `runSearch()` ever ran — not a request returning empty, no request
+   at all. This is unrelated to the `61e7dd1`/`f4dbc69` generation-token
+   flicker fix (that guards stale-response ordering, not
+   whether a search fires in the first place) and unrelated to fix 1
+   above (different service, different component). Fixed by replacing
+   the RxJS operator with a manually-tracked `lastEmittedQuery` field
+   that `dismiss()` explicitly resets to `null`. New regression test in
+   `chat-unified-search.component.spec.ts`: search → Escape → search
+   the same term again, asserting both services' HTTP calls fire the
+   second time too (distinct from the existing "same query without
+   closing in between doesn't re-search" test, which is intentional
+   behavior and still passes unchanged).
+
+All 1000 frontend tests green (32 new/changed across both fixes),
+`format:check`/`npm test`/`build`/`lint` all clean. Not yet
+independently re-verified live in a browser as of this write-up —
+flagging for whoever picks this up next if that hasn't happened yet.
+Separately noted, not yet investigated: during the live Playwright
+session that surfaced these, a search result ("Vítor Santos da Cruz",
+conversation id 15) appeared in `owner@acme.test`'s search results but
+returned 403 on open — may be intentional seed data for another test
+scenario, or a real tenant/participant-scoping leak in the search
+result set itself (distinct from the 403-on-open being correct); needs
+a backend-side look at REQ-5's scoping before ruling either way.
+
+**Previous state (2026-08-11): CRITICAL regression fix — jump-to-message
 from a chat search result could fire an unbounded (not just uncapped
 per-click, but uncapped in aggregate) storm of
 `GET /api/chat/conversations/{id}/messages` older-page requests,
