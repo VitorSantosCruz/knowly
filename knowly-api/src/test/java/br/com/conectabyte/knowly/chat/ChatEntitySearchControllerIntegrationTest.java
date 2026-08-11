@@ -9,6 +9,9 @@ import br.com.conectabyte.knowly.auth.User;
 import br.com.conectabyte.knowly.auth.UserRepository;
 import br.com.conectabyte.knowly.conversation.Conversation;
 import br.com.conectabyte.knowly.conversation.ConversationRepository;
+import br.com.conectabyte.knowly.conversation.Message;
+import br.com.conectabyte.knowly.conversation.MessageRepository;
+import br.com.conectabyte.knowly.conversation.MessageRole;
 import br.com.conectabyte.knowly.identity.UserProfile;
 import br.com.conectabyte.knowly.identity.UserProfileRepository;
 import br.com.conectabyte.knowly.tenancy.DirectGlobalPermissionGrantRepository;
@@ -60,6 +63,7 @@ class ChatEntitySearchControllerIntegrationTest {
     @Autowired private ChatConversationRepository chatConversationRepository;
     @Autowired private ChatParticipantRepository chatParticipantRepository;
     @Autowired private ConversationRepository conversationRepository;
+    @Autowired private MessageRepository messageRepository;
     @MockitoBean private JavaMailSender mailSender;
 
     @BeforeEach
@@ -128,6 +132,10 @@ class ChatEntitySearchControllerIntegrationTest {
 
     private Conversation ragConversation(Tenant tenant, User owner, String title) {
         return conversationRepository.saveAndFlush(new Conversation(tenant, owner, title));
+    }
+
+    private void turn(Conversation conversation, MessageRole role, String content) {
+        messageRepository.saveAndFlush(new Message(conversation, role, content));
     }
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult search(
@@ -472,5 +480,95 @@ class ChatEntitySearchControllerIntegrationTest {
                 .contains("\"groups\":{\"results\":[]");
         assertThat(responseForNoMatch.getResponse().getContentAsString())
                 .contains("\"groups\":{\"results\":[]");
+    }
+
+    // TASKS.md item 163 (REQ-27/REQ-30/REQ-33, RAG turn-content search)
+    @Test
+    void ragQueryMatchingOnlyTurnContentSurfacesTheConversationUnderRagWithMatchedRoleAndSnippet()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ27 Co"));
+        User caller = member("req27-caller@example.com", tenant);
+        Conversation assistantMatch = ragConversation(tenant, caller, "Untitled conversation A");
+        turn(assistantMatch, MessageRole.USER, "hi there");
+        turn(
+                assistantMatch,
+                MessageRole.ASSISTANT,
+                "the flibberjabber meeting is scheduled for 3pm");
+
+        Conversation userMatch = ragConversation(tenant, caller, "Untitled conversation B");
+        turn(userMatch, MessageRole.USER, "when is the flibberjabber standup?");
+
+        Cookie session = logIn("req27-caller@example.com");
+        switchActiveTenant(session, tenant.getId());
+
+        var response = search(session, "flibberjabber");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"matchedRole\":\"ASSISTANT\"");
+        assertThat(body).contains("\"matchedRole\":\"USER\"");
+        assertThat(body).contains("flibberjabber meeting is scheduled");
+        assertThat(body).contains("flibberjabber standup");
+        assertThat(body).doesNotContain("\"people\":{\"results\":[{");
+        assertThat(body).doesNotContain("\"groups\":{\"results\":[{");
+        assertThat(body).contains("\"support\":null");
+    }
+
+    // TASKS.md item 163 (REQ-29, no oversight bypass for turn-content matches)
+    @Test
+    void ragTurnContentMatchNeverAppearsForACallerWithNoRealAnchorInTheConversation()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ29 Co"));
+        User owner = member("req29-owner@example.com", tenant);
+        Conversation ownerConversation = ragConversation(tenant, owner, "Owner conversation");
+        turn(ownerConversation, MessageRole.ASSISTANT, "the wibblesnort turn content");
+
+        User staffAdmin = staff("req29-staffadmin@example.com", GlobalRole.STAFF_ADMIN);
+        Cookie noTenantSession = logIn("req29-staffadmin@example.com");
+        var noTenantResponse = search(noTenantSession, "wibblesnort");
+        assertThat(noTenantResponse).hasStatus(HttpStatus.OK);
+        assertThat(noTenantResponse.getResponse().getContentAsString())
+                .contains("\"rag\":{\"results\":[]");
+
+        switchActiveTenant(noTenantSession, tenant.getId());
+        var activeTenantResponse = search(noTenantSession, "wibblesnort");
+        assertThat(activeTenantResponse).hasStatus(HttpStatus.OK);
+        assertThat(activeTenantResponse.getResponse().getContentAsString())
+                .contains("\"rag\":{\"results\":[]");
+    }
+
+    // TASKS.md item 165 (REQ-27, type=rag&offset= expand path)
+    @Test
+    void expandedRagSectionCarriesTheSameMatchedSnippetAndRoleAndDoesNotDoubleCountBothMatched()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ27Expand Co"));
+        User caller = member("req27expand-caller@example.com", tenant);
+
+        // Six conversations matching by title alone, to force pagination past SECTION_LIMIT (5).
+        for (int i = 0; i < 6; i++) {
+            ragConversation(tenant, caller, "Quorzlepatch title " + i);
+        }
+        Conversation bothMatch = ragConversation(tenant, caller, "Quorzlepatch both match");
+        turn(bothMatch, MessageRole.USER, "quorzlepatch turn content too");
+
+        Cookie session = logIn("req27expand-caller@example.com");
+        switchActiveTenant(session, tenant.getId());
+
+        var expanded =
+                mockMvc.get()
+                        .uri("/api/chat/search")
+                        .param("q", "quorzlepatch")
+                        .param("type", "rag")
+                        .param("offset", "0")
+                        .cookie(session)
+                        .exchange();
+
+        assertThat(expanded).hasStatus(HttpStatus.OK);
+        String body = expanded.getResponse().getContentAsString();
+        assertThat(body).contains("Quorzlepatch both match");
+        assertThat(body).contains("\"matchedSnippet\":\"quorzlepatch turn content too\"");
+        // The both-matched conversation must appear exactly once, not twice.
+        int occurrences = body.split("Quorzlepatch both match", -1).length - 1;
+        assertThat(occurrences).isEqualTo(1);
     }
 }
