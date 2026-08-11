@@ -82,7 +82,12 @@ export interface ProfileFieldsFormSubmission {
   selector: 'app-profile-fields-form',
   imports: [TranslocoPipe, InputMaskDirective, PhoneDdiInputComponent, LucideCircleAlert],
   template: `
-    <form data-testid="profile-fields-form" (submit)="onSubmit($event)" class="flex flex-col gap-3">
+    <form
+      data-testid="profile-fields-form"
+      (submit)="onSubmit($event)"
+      novalidate
+      class="flex flex-col gap-3"
+    >
       <label class="flex flex-col gap-1 text-sm text-ink-700 dark:text-ink-300">
         {{ 'profile.fields.fullName' | transloco }}
         <div class="relative w-full">

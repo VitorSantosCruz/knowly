@@ -621,6 +621,45 @@ describe('ProfileFieldsFormComponent', () => {
       },
     );
 
+    // Bugfix (members "add member" flow, real-browser repro): clicking the Salvar <button
+    // type="submit"> in a real browser routes through native HTML5 constraint validation
+    // before Angular ever sees a `submit` event, because every mandatory input also carries a
+    // plain `[required]` attribute (see the table above) and the <form> has no `novalidate`.
+    // With every field still blank, the browser silently blocks the click — no `submit` event,
+    // no onSubmit(), none of this component's own (well-built) inline required-field messages,
+    // and therefore no `submitted` emission ever reaches members-page.component.ts to fire the
+    // POST. `submitForm()`'s `dispatchEvent(new Event('submit'))` above bypasses that native gate
+    // entirely, which is why every other test in this file never caught it. This test instead
+    // clicks the real button, which jsdom (like a real browser) routes through
+    // HTMLFormElement's constraint validation first.
+    it('still runs onSubmit (via a real Salvar button click) and shows its own required messages when every field is blank, instead of being silently blocked by native HTML validation', async () => {
+      await createFixture(false, true, true);
+
+      input('profile-contact-remove-id-1').click();
+      input('profile-field-fullName').value = '';
+      input('profile-field-fullName').dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const emitted: ProfileFieldsFormSubmission[] = [];
+      fixture.componentInstance.submitted.subscribe((value) => emitted.push(value));
+
+      const saveButton: HTMLButtonElement = fixture.nativeElement.querySelector(
+        '[data-testid="profile-fields-submit"]',
+      );
+      saveButton.click();
+      fixture.detectChanges();
+
+      // `onSubmit()`'s own required-field checks run in order (country, then contacts, then the
+      // flat/address fields) and return on the first failure. The fixture's `fields` already
+      // carries a country, so removing the only contact makes the contacts check the first (and
+      // only, for this click) one `onSubmit()` reaches — what proves the fix is that this
+      // component's own inline message renders at all instead of nothing happening.
+      expect(emitted).toEqual([]);
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="profile-contacts-required-message"]'),
+      ).toBeTruthy();
+    });
+
     it('falls back to the backend taxIdInvalid message (not the client-required one) when the error comes from fieldErrors and the field is non-blank', async () => {
       await createFixture(false, true, true);
       fixture.componentRef.setInput('fieldErrors', ['taxId']);
