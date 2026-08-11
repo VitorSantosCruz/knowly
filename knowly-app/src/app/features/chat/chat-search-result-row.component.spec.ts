@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideTransloco } from '@jsverse/transloco';
+import { provideTransloco, TranslocoService } from '@jsverse/transloco';
+import { firstValueFrom } from 'rxjs';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import {
   ChatSearchResultRowComponent,
@@ -31,6 +32,7 @@ describe('ChatSearchResultRowComponent', () => {
         }),
       ],
     }).compileComponents();
+    await firstValueFrom(TestBed.inject(TranslocoService).load('en'));
     fixture = TestBed.createComponent(ChatSearchResultRowComponent);
     fixture.componentRef.setInput('result', result);
     fixture.detectChanges();
@@ -157,6 +159,114 @@ describe('ChatSearchResultRowComponent', () => {
       fixture.componentInstance.rowSelected.subscribe(spy);
       fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
       expect(spy).toHaveBeenCalledWith(5);
+    });
+  });
+
+  describe('RAG turn-content match rendering (Amended 2026-08-11, REQ-38 through REQ-43)', () => {
+    it('renders a snippet block beneath the title when `matchedSnippet` is present', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'a resposta certa é sobre férias',
+        matchedRole: 'ASSISTANT',
+      });
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.textContent).toContain('Base X');
+      expect(el.textContent).toContain('a resposta certa é sobre férias');
+    });
+
+    it('renders exactly as before (title only, no snippet, no role indicator) when `matchedSnippet` is absent/null', async () => {
+      await createWith({ kind: 'rag', id: 5, title: 'Base X', matchedSnippet: null });
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.textContent).toContain('Base X');
+      expect(el.querySelector('[data-testid="chat-search-result-rag-snippet"]')).toBeNull();
+      expect(el.querySelector('[data-testid="chat-search-result-rag-role"]')).toBeNull();
+    });
+
+    it('highlights the current query inside the snippet when it literally, case-insensitively matches', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'a resposta certa é sobre férias',
+        matchedRole: 'ASSISTANT',
+      });
+      fixture.componentRef.setInput('query', 'FÉRIAS');
+      fixture.detectChanges();
+      const mark: HTMLElement | null = fixture.nativeElement.querySelector('mark');
+      expect(mark?.textContent?.toLowerCase()).toBe('férias');
+    });
+
+    it('renders the snippet unmarked when the query does not literally substring-match it', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'a resposta certa é sobre férias',
+        matchedRole: 'ASSISTANT',
+      });
+      fixture.componentRef.setInput('query', 'orçamento');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('mark')).toBeNull();
+    });
+
+    it('renders a distinct icon+text indicator for matchedRole === "USER"', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'quando são as férias?',
+        matchedRole: 'USER',
+      });
+      const role: HTMLElement | null = fixture.nativeElement.querySelector(
+        '[data-testid="chat-search-result-rag-role"]',
+      );
+      expect(role?.textContent).toContain('You asked');
+      expect(role?.querySelector('svg')).not.toBeNull();
+    });
+
+    it('renders a distinct icon+text indicator for matchedRole === "ASSISTANT", differing from USER', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'as férias são em julho',
+        matchedRole: 'ASSISTANT',
+      });
+      const role: HTMLElement | null = fixture.nativeElement.querySelector(
+        '[data-testid="chat-search-result-rag-role"]',
+      );
+      expect(role?.textContent).toContain('The assistant answered');
+      expect(role?.textContent).not.toContain('You asked');
+      expect(role?.querySelector('svg')).not.toBeNull();
+    });
+
+    it('renders the snippet but omits the role indicator when matchedRole is null/absent (REQ-41)', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'as férias são em julho',
+        matchedRole: null,
+      });
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelector('[data-testid="chat-search-result-rag-snippet"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="chat-search-result-rag-role"]')).toBeNull();
+    });
+
+    it('interpolates the role-label text into the aria-label when matchedRole is present (REQ-42)', async () => {
+      await createWith({
+        kind: 'rag',
+        id: 5,
+        title: 'Base X',
+        matchedSnippet: 'quando são as férias?',
+        matchedRole: 'USER',
+      });
+      const row: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="chat-search-result-row"]',
+      );
+      expect(row.getAttribute('aria-label')).toContain('You asked');
     });
   });
 });

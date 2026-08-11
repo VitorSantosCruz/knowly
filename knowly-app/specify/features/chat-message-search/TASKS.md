@@ -449,3 +449,109 @@
       leaving the REQ-30 five-way-granularity gap and the
       REQ-11-carried-forward scroll-to-message gap both explicitly noted
       as out-of-scope/known-gap rather than checked.
+
+## 11. Amended (2026-08-11) — RAG conversation turn-content search
+
+> Consumes PLAN.md's "Amended (2026-08-11, RAG conversation turn-content
+> search)" section. **Low-risk, additive extension** — two new optional
+> fields on an already-consumed DTO
+> (`ChatRagConversationSearchResultDto`), rendered by an already-existing,
+> already-`kind`-discriminated row component, reusing the already-shipped
+> `splitOnMatch` highlight function unchanged. No new service, no new
+> route, no backend contract change beyond the additive fields (backend
+> already shipped, `knowly-api/specify/features/chat-message-search/PLAN.md`,
+> closed). Tasks continue numbering from 124.
+
+### 11.1 Model
+
+- [x] 124. Widen `ChatRagConversationSearchResultDto` in
+      `core/chat.model.ts` to add `matchedSnippet?: string | null` and
+      `matchedRole?: 'USER' | 'ASSISTANT' | null`, matching PLAN.md's
+      "Amended (2026-08-11...)" section verbatim. No test needed (pure
+      type change, additive/optional so no existing fixture breaks);
+      run `npm run build` after this task to confirm.
+
+### 11.2 `chat-search-result-row.component.ts` — snippet rendering
+
+- [x] 125. Test: a `kind === 'rag'` result with a non-empty
+      `matchedSnippet` renders a snippet block beneath the title; a
+      `kind === 'rag'` result with `matchedSnippet` absent/null renders
+      exactly as the pre-amendment RAG row did — title only, no snippet
+      block, no role indicator (REQ-38, both halves as one table-driven
+      test) (Red).
+- [x] 126. Implement that conditional snippet block, reusing
+      `splitOnMatch` against `result().matchedSnippet` (Green).
+- [x] 127. Test: a rendered snippet containing the current query
+      (case-insensitive) shows that substring `<mark>`-wrapped; a
+      snippet that does not literally substring-match the current query
+      renders unmarked (REQ-39) (Red).
+- [x] 128. Confirm task 127 passes with the task-126 implementation as-is
+      (Green — `splitOnMatch` is already fully tested; no additional
+      code should be needed beyond wiring it to the new field).
+
+### 11.3 `chat-search-result-row.component.ts` — role indicator
+
+- [x] 129. Test: `matchedRole === 'USER'` renders a distinct indicator
+      (icon + text, asserted via text content so a color-only
+      implementation fails this test) using
+      `chat.search.ragMatchedByUser`; `matchedRole === 'ASSISTANT'`
+      renders a distinct indicator using
+      `chat.search.ragMatchedByAssistant` — the two must differ in both
+      icon and text (REQ-40, REQ-42) (Red).
+- [x] 130. Implement that role-indicator sub-block (icon + translated
+      text), nested inside its own `@if (result().matchedRole)` per
+      PLAN.md's template-shape decision (Green).
+- [x] 131. Test: a result with `matchedSnippet` set but `matchedRole`
+      null/absent still renders the snippet, only omitting the role
+      indicator — no thrown error, no fallback icon (REQ-41) (Red).
+- [x] 132. Confirm task 131 passes with the task-130 implementation as-is
+      (Green — the nested-`@if` shape from task 130 already satisfies
+      this independent-degradation case; adjust only if it doesn't).
+
+### 11.4 Accessibility
+
+- [x] 133. Test: a turn-content RAG result's `aria-label`
+      (`chat.search.resultA11yLabelRag`, extended) interpolates the
+      role-label text when `matchedRole` is present, so the accessible
+      name conveys the same question/answer distinction a sighted user
+      gets visually (REQ-42) (Red).
+- [x] 134. Implement that extended `aria-label` interpolation (Green).
+
+### 11.5 i18n
+
+- [x] 135. Add `chat.search.ragMatchedByUser` and
+      `chat.search.ragMatchedByAssistant` to `public/i18n/en.json`, per
+      PLAN.md's "i18n keys" section.
+- [x] 136. Add the same two keys, translated, to `public/i18n/pt-BR.json`.
+
+### 11.6 Regression confirmation
+
+- [x] 137. Test: the existing per-kind routing-table test (from section
+      10.8) still passes unchanged for `kind === 'rag'` results now that
+      the DTO carries the two new optional fields — confirms REQ-43
+      (opening behavior unchanged) without adding a new navigation code
+      path (Red if the widened DTO broke it, expected Green/no-op
+      otherwise).
+- [x] 138. Confirm (by omission) `chat-entity-search.service.spec.ts`
+      needs no changes — the service performs no per-field
+      transformation on the `rag` section's results, so the two new
+      fields already flow through untouched.
+
+### 11.7 Final verification
+
+- [x] 139. Run
+      `npm run format:check && npm test && npm run build && npm run lint`
+      and confirm everything is green. Confirm (by omission) that
+      `chat-directory.component.spec.ts`/`chat-full-directory.component.spec.ts`/
+      `chat-unified-search.component.spec.ts`'s pre-existing tests remain
+      unmodified/unbroken by this amendment, per PLAN.md's regression
+      notes.
+- [x] 140. Update `SPEC.md`'s "Acceptance criteria (2026-08-11 RAG
+      turn-content amendment)" checkboxes to reflect what's now verified
+      by tests.
+- [x] 141. Update `../../../../PROJECT_STATUS.md` to note that RAG
+      turn-content search results now render a matched snippet + role
+      indicator in the unified search bar, cross-referencing the backend
+      feature's own already-landed `PROJECT_STATUS.md` entry for this
+      same amendment (commits `33ee585`, `2543f04`, `89cb0ff`, `0347a79`)
+      so both sides of the amendment are traceable from one place.

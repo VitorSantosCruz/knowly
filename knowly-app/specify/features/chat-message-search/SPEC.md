@@ -18,6 +18,22 @@
 > this document owns the search *behavior* (query semantics, result
 > types, grouping, recent places), that one owns *where it lives on
 > screen*. Read both together; neither is a full picture alone.**
+>
+> **Amended (2026-08-11, RAG conversation turn-content search) — this
+> amendment is companion to
+> `knowly-api/specify/features/chat-message-search/SPEC.md`'s own
+> "Amended (2026-08-11, RAG conversation turn-content search)" section
+> (backend, shipped — `matchedSnippet`/`matchedRole` are now returned on
+> `ChatRagConversationSearchResultDto`).** This document's REQ-21 (RAG
+> results render inside a "Base de artigos" group) and REQ-32/REQ-36's
+> already-shipped substring-highlight pattern are extended, not
+> reversed, by new REQ-38 through REQ-43 at the end of the "Unified
+> search" section below — a "Base de artigos" result that matched by
+> turn content now shows the matched snippet (with the query
+> highlighted, reusing REQ-32's own `<mark>` mechanism) and a
+> role indicator ("Você perguntou" / "A IA respondeu"), while a result
+> that still only matched by title renders exactly as before. See that
+> section for the full ruleset.
 
 ## Context and motivation
 
@@ -153,6 +169,15 @@ document.
   does today.
 - As a user, I want clear, distinct feedback for "still searching,"
   "nothing matched," and "the search failed."
+- **(Amended 2026-08-11, RAG conversation turn-content search):** As a
+  user who remembers roughly what I asked the AI assistant, or roughly
+  what it answered, but not which "Base de artigos" conversation that
+  was in, I want the search result itself to show me the matching
+  snippet of that conversation and whether it was my own question or
+  the assistant's reply that matched — the same kind of "confirm what
+  matched" confidence REQ-32/REQ-36 already give me for a message
+  result — instead of only the conversation's title, which I may never
+  have set to anything memorable.
 
 ## Requirements (EARS/GEARS)
 
@@ -339,6 +364,75 @@ document.
   new search on reopen — reopening starts from "recent places" (REQ-19)
   again, not the last query's stale results.
 
+### RAG conversation turn-content match rendering (Amended 2026-08-11, RAG conversation turn-content search)
+
+> **New subsection.** Backend companion:
+> `knowly-api/specify/features/chat-message-search/SPEC.md`'s REQ-27
+> through REQ-33 (shipped) — `ChatRagConversationSearchResultDto` now
+> carries two optional, additive fields, `matchedSnippet` (a
+> plain-text, ≤150-char, HTML-free excerpt of whichever turn matched)
+> and `matchedRole` (`"USER"` or `"ASSISTANT"`), populated only when the
+> match came from turn *content* rather than the conversation's title.
+> This subsection defines how the "Base de artigos" group (REQ-21)
+> renders a result depending on whether those two fields are present.
+> It extends REQ-21's existing rendering, and reuses REQ-32's already-
+> shipped substring-highlight mechanism — it does not reverse or
+> redefine either.
+
+- **REQ-38 [Complex]** Where a "Base de artigos" group result (REQ-21)
+  is returned with a non-null, non-empty `matchedSnippet`, the system
+  shall render that snippet beneath the conversation's title within
+  that result row; where a "Base de artigos" group result is returned
+  with `matchedSnippet` absent/null/empty (a title-only match, today's
+  existing behavior), the system shall render that row exactly as it
+  does today — title only, no snippet, no role indicator. This is the
+  same "reflect exactly what the backend response contains, never
+  re-derive" posture this document already establishes elsewhere (see
+  "Relationship to `chat-unified-ui`'s SPEC").
+- **REQ-39 [Ubiquitous]** Wherever a rendered `matchedSnippet` (REQ-38)
+  contains the current query as a case-insensitive substring, the
+  system shall visually mark the matched substring within the snippet
+  (e.g. `<mark>`), reusing REQ-32's existing highlight mechanism
+  unchanged rather than introducing a second one — a snippet that does
+  not literally substring-match the current query (e.g. the backend
+  matched on a different tokenization) renders unmarked, same
+  "no highlight ≠ not a real match" posture REQ-32 already establishes
+  for message results.
+- **REQ-40 [Complex]** Where a "Base de artigos" group result carries a
+  non-null `matchedRole`, the system shall render a distinct,
+  human-readable indicator alongside the snippet showing whether the
+  caller's own question matched (`matchedRole === "USER"`, e.g. "Você
+  perguntou") or the AI assistant's reply matched (`matchedRole ===
+  "ASSISTANT"`, e.g. "A IA respondeu") — the exact label wording/icon
+  is a PLAN-level (and, if genuinely ambiguous on the visual side, a
+  `design-system-ui-ux`-level) decision; this requirement only pins the
+  functional distinction that must be conveyed, not the pixel design.
+- **REQ-41 [Unwanted Behavior]** If a "Base de artigos" group result
+  carries a `matchedSnippet` but a null/missing `matchedRole` (should
+  not happen per the backend contract, which always pairs the two, but
+  not structurally guaranteed by the DTO's own optionality), then the
+  system shall still render the snippet (REQ-38/REQ-39) and simply omit
+  the role indicator (REQ-40), rather than hiding the snippet entirely
+  or throwing — the two fields degrade independently, not as an
+  all-or-nothing pair.
+- **REQ-42 [Ubiquitous]** The role indicator (REQ-40) shall convey the
+  question/answer distinction through text and/or an icon with a
+  discernible shape difference, never through color alone — consistent
+  with this app's existing accessibility conventions (see "Non-
+  functional requirements" below) and with the fact that a
+  screen-reader user gets no benefit from a color-only cue.
+- **REQ-43 [Ubiquitous]** Clicking a "Base de artigos" result that
+  matched by turn content (REQ-38 through REQ-40) opens that
+  conversation exactly as REQ-23 already specifies for any RAG result
+  — this amendment does not add scroll-to-turn/highlight-in-thread
+  behavior analogous to REQ-33 through REQ-36's message-result jump; see
+  "Out of scope" below.
+
+### Original acceptance criteria (message-content-only, filter-form shape) are retired along with `chat-search-dialog.component.ts`
+
+> Kept for history, not reproduced as checkable items — see "Acceptance
+> criteria" further below for the authoritative list.
+
 ## Amendment (2026-08-10) — highlight matched text + jump-to-message
 
 **Trigger:** direct product-owner feedback after using the shipped
@@ -428,6 +522,50 @@ same convention as REQ-1(5)'s "grouped by type" call above.
 - Any bound tuning beyond "a PLAN-level finite cap" for REQ-34's
   repeated-load-older loop — the exact page count is a PLAN decision.
 
+### Acceptance criteria (2026-08-11 RAG turn-content amendment)
+
+- [x] A "Base de artigos" result returned with a non-empty
+      `matchedSnippet` renders that snippet beneath the conversation
+      title; a "Base de artigos" result with no `matchedSnippet`
+      renders exactly as before (title only).
+- [x] A rendered snippet that literally, case-insensitively contains the
+      current query shows that substring `<mark>`-wrapped, reusing
+      REQ-32's existing mechanism; a snippet that doesn't literally
+      substring-match renders unmarked.
+- [x] A result with `matchedRole === "USER"` shows a distinct
+      "Você perguntou"/"you asked"-shaped indicator; one with
+      `matchedRole === "ASSISTANT"` shows a distinct
+      "A IA respondeu"/"the assistant answered"-shaped indicator; the
+      two are visually and textually distinguishable without relying on
+      color alone.
+- [x] A result with a snippet but no role (a defensive, off-contract
+      case) still renders the snippet, only omitting the role
+      indicator.
+- [x] Clicking a turn-content "Base de artigos" result opens that
+      conversation exactly like any other RAG result — no scroll-to-turn
+      behavior is expected or tested.
+
+### Out of scope (2026-08-11 RAG turn-content amendment)
+
+- **Scroll-to-turn / flash-highlight inside the RAG conversation view**,
+  analogous to REQ-33 through REQ-36's message-result jump-to-message —
+  not requested by the product owner for this amendment and not implied
+  by the backend contract (which returns a snippet for display in the
+  search dropdown only, not a turn id the RAG conversation view has any
+  existing mechanism to scroll to). A future amendment could add this
+  symmetrically to REQ-33–36 if wanted, but it is a materially different
+  scope decision, not a natural extension assumed here.
+- **Highlighting more than the first literal substring match inside a
+  snippet** — mirrors REQ-32/`splitOnMatch`'s existing "first match
+  only" decision; not revisited by this amendment.
+- **Any change to how a "Base de artigos" result opens** (REQ-23/
+  REQ-43) — a turn-content match opens the same conversation view a
+  title match already opens, unchanged.
+- **The exact visual treatment (icon choice, color, spacing) of the
+  role indicator** — REQ-40 pins the functional requirement only; the
+  pixel-level design is explicitly deferred to PLAN/`design-system-
+  ui-ux` if genuinely ambiguous, not decided in this document.
+
 ## Non-functional requirements
 
 - Accessibility: the search bar, its result groups, "see more" actions,
@@ -435,7 +573,10 @@ same convention as REQ-1(5)'s "grouped by type" call above.
   labeled (each group announced, each result an accessible name),
   consistent with this app's existing accessibility conventions —
   carried forward from the original document, extended to the new
-  grouped/type-ahead shape.
+  grouped/type-ahead shape. **(Amended 2026-08-11):** a "Base de
+  artigos" result's role indicator (REQ-40) is included in that row's
+  accessible name/label, and never relies on color alone to convey the
+  question/answer distinction (REQ-42).
 - Performance: results remain paginated per-group (REQ-22), never an
   unbounded list; the query debounces to avoid firing a backend request
   on every keystroke (exact debounce mechanism a PLAN-level decision,
@@ -446,11 +587,16 @@ same convention as REQ-1(5)'s "grouped by type" call above.
 - Security: the frontend never filters or re-derives which
   conversations/messages/people/groups a search result is allowed to
   include — it displays exactly what the backend's response(s) contain,
-  unchanged posture from the original document.
+  unchanged posture from the original document. **(Amended
+  2026-08-11):** this includes `matchedSnippet`/`matchedRole` — the
+  frontend never infers or re-derives which turn matched, only displays
+  what the backend already resolved and truncated.
 - Localization: unchanged from the original document — locale continues
   to be driven entirely by the app's existing in-app language selection,
   consumed automatically by the existing `localeInterceptor`; no new
-  locale UI is introduced by this amendment either.
+  locale UI is introduced by this amendment either. The role-indicator
+  label text (REQ-40) is a translated i18n string like every other
+  user-facing label in this document, not hardcoded.
 
 ## Acceptance criteria
 
@@ -496,6 +642,10 @@ same convention as REQ-1(5)'s "grouped by type" call above.
 - [x] A loading state is shown while a search request is in flight.
 - [x] Dismissing the bar and reopening it shows "recent places" again,
       not the previous query's stale results.
+- [x] **(New, 2026-08-11)** See "Acceptance criteria (2026-08-11 RAG
+      turn-content amendment)" above for REQ-38 through REQ-43's own
+      checklist — implemented and verified by tests as of this SPEC
+      amendment.
 
 ## Out of scope
 
@@ -509,6 +659,10 @@ same convention as REQ-1(5)'s "grouped by type" call above.
   or a new backend feature) is required before PLAN can build
   REQ-15/REQ-17/REQ-21/REQ-23's entity-search half. REQ-18 documents
   the interim fallback if PLAN needs to sequence around this gap.
+  **(Amended 2026-08-11): this gap is now closed for the RAG
+  turn-content half specifically — see the new subsection above; the
+  general entity-search contract itself has been shipped since
+  2026-08-10.**
 - Any change to `chat-unified-ui`'s own conversation-kind behaviors
   (1:1, group, Support, RAG) beyond how they're opened from search
   results — unchanged, per that document's existing "Out of scope."
@@ -521,7 +675,11 @@ same convention as REQ-1(5)'s "grouped by type" call above.
 - Any `STAFF_ADMIN`/`MEMBER_ADMIN` "search across every group" UI or
   affordance — unchanged from the original document; no such backend
   capability exists.
-- Highlighting/snippet-generation of the exact matched term.
+- Highlighting/snippet-generation of the exact matched term for
+  message results — unchanged (this is REQ-32's job, already shipped);
+  **(Amended 2026-08-11): "Base de artigos" results now get an
+  equivalent, backend-supplied snippet too, per the new subsection
+  above — this bullet no longer applies to that result kind.**
 - Exporting or saving search results/queries.
 - Any manual language override for search — unchanged from the
   original document.
@@ -536,6 +694,10 @@ same convention as REQ-1(5)'s "grouped by type" call above.
   own column-3 cross-surface-recency signal (REQ-2d there, itself
   still PLAN-blocked on backend feasibility) is a PLAN-level decision,
   not specified here.
+- **(New, 2026-08-11)** See "Out of scope (2026-08-11 RAG turn-content
+  amendment)" above for the scope boundaries specific to REQ-38 through
+  REQ-43 (no scroll-to-turn, no all-occurrences highlighting, no pixel
+  design decisions).
 
 ## Tier 3 — status
 
@@ -551,3 +713,17 @@ is ready for the product owner's final read-back and sign-off**,
 together with `chat-unified-ui/SPEC.md`'s "Amended (5)" section — they
 should be approved as a pair, not independently, since neither is a
 complete, buildable picture alone.
+
+**Amended (2026-08-11, RAG conversation turn-content search) — status:**
+REQ-38 through REQ-43 above have **no open Tier 3 question** — the
+backend contract they depend on is already shipped
+(`matchedSnippet`/`matchedRole`, additive/optional fields), and the two
+genuinely ambiguous presentation choices (exact snippet placement
+styling, exact role-indicator wording/icon) are explicitly deferred to
+PLAN/`design-system-ui-ux` rather than blocking this SPEC — consistent
+with how REQ-1(5)'s "grouped by type" call and REQ-35's flash-timing
+call were both handled earlier in this same document as Tier 2 calls
+recorded with reasoning, not Tier 3 stops. **This subsection is ready
+for PLAN** — see the companion PLAN.md/TASKS.md amendment for the
+low-risk, additive task breakdown (consuming two new optional DTO
+fields, no route/contract change).

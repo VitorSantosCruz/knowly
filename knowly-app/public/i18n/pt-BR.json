@@ -786,8 +786,10 @@
       "resultA11yLabelPerson": "Pessoa {{nickname}}",
       "resultA11yLabelGroup": "Grupo {{title}}",
       "resultA11yLabelSupport": "Suporte",
-      "resultA11yLabelRag": "Conversa da base de artigos {{title}}",
-      "resultA11yLabelMessage": "Mensagem de {{sender}} em {{conversation}} às {{timestamp}}"
+      "resultA11yLabelRag": "Conversa da base de artigos {{title}}{{roleSuffix}}",
+      "resultA11yLabelMessage": "Mensagem de {{sender}} em {{conversation}} às {{timestamp}}",
+      "ragMatchedByUser": "Você perguntou",
+      "ragMatchedByAssistant": "A IA respondeu"
     }
   },
   "support": {

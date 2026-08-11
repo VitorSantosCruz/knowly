@@ -1151,3 +1151,163 @@ are unchanged.
   bar" amendment — no further backend work is required for it, contrary
   to those documents' original assumption that a "fetch page centered
   on message X" endpoint was a hard prerequisite.
+
+## Amended (2026-08-11, RAG conversation turn-content search)
+
+> Authoritative PLAN for SPEC.md's own "Amended (2026-08-11, RAG
+> conversation turn-content search)" section (REQ-38 through REQ-43).
+> **Low-risk, additive amendment — no new endpoint, no new route, no
+> new service.** Backend contract consumed verbatim from
+> `knowly-api/specify/features/chat-message-search/PLAN.md`'s
+> "Amended (2026-08-11, RAG conversation turn-content search)" section
+> (shipped): `ChatRagConversationSearchResultDto` gains two optional
+> fields, both nullable/absent on a title-only match:
+>
+> ```ts
+> interface ChatRagConversationSearchResultDto {
+>   id: number;
+>   title: string;
+>   matchedSnippet?: string | null; // NEW, ≤150 chars, plain text
+>   matchedRole?: 'USER' | 'ASSISTANT' | null; // NEW
+> }
+> ```
+>
+> No change to `GET /api/chat/search`'s request shape, status codes, or
+> any other field — this is a pure response-shape widening, additive
+> and backward-compatible with every existing consumer of this DTO.
+
+### Architectural decisions
+
+- **No new component, no new service.** This reuses the existing
+  `kind`-discriminated `chat-search-result-row.component.ts` (already
+  rendering `kind === 'rag'` rows per the 2026-08-10 unified-bar
+  amendment) and the existing `splitOnMatch` pure function (already
+  introduced by the "highlight matched text" amendment for
+  `kind === 'message'` rows) — REQ-39's snippet-highlight requirement is
+  satisfied by calling the exact same function against
+  `result().matchedSnippet` instead of `result().content`, not a second
+  highlight implementation. `ChatEntitySearchService` needs no code
+  change at all: it already fans the backend response straight into
+  `_rag` without transforming individual fields, so the two new optional
+  DTO fields flow through automatically once `ChatRagConversationSearchResultDto`
+  is widened in `chat.model.ts`.
+- **`chat-search-result-row.component.ts`'s `kind === 'rag'` branch
+  gains a conditional sub-block**, structurally mirroring the existing
+  `kind === 'message'` branch:
+  - `snippet = computed(() => splitOnMatch(this.result().matchedSnippet
+    ?? '', this.query()))` — reuses `splitOnMatch` unchanged; a `null`/
+    absent `matchedSnippet` naturally short-circuits (empty string has
+    no match against a non-empty query, and the template's own
+    `*ngIf="result().matchedSnippet"` guard — see below — means this
+    computed is never even rendered for a title-only result).
+  - Template: `@if (result().matchedSnippet) { <p class="...">{{ before
+    }}<mark>{{ match }}</mark>{{ after }}</p> <span class="...">{{
+    roleLabel() }}</span> }` — the snippet `<p>` and the role `<span>`
+    are siblings inside the same conditional block, not two independent
+    `@if`s, so REQ-41's "snippet renders even without a role" case is
+    handled by nesting the role span in its *own* inner `@if
+    (result().matchedRole)`, not the outer one — this is the concrete
+    template shape backing REQ-41's independent-degradation
+    requirement.
+  - `roleLabel = computed(() => result().matchedRole === 'USER' ?
+    i18n('chat.search.ragMatchedByUser') : result().matchedRole ===
+    'ASSISTANT' ? i18n('chat.search.ragMatchedByAssistant') : null)` —
+    a plain computed string, not a child component, since it's one
+    short translated label, consistent with how every other per-row
+    label in this component is already produced.
+- **Role indicator uses a Lucide icon *plus* text, never icon/color
+  alone (REQ-42)** — `lucideUser` (a shape already conceptually
+  distinct from any AI/assistant icon in this codebase's existing set)
+  paired with the translated text label for `USER`, and `lucideBot` (or
+  this codebase's existing "AI/assistant" icon if one is already in use
+  elsewhere — confirm via a quick grep for an existing bot/AI icon
+  usage before adding a new Lucide import, to avoid introducing a
+  second visual vocabulary for "the AI" if one already exists) paired
+  with the translated text label for `ASSISTANT`. **Exact icon choice,
+  spacing, and color are explicitly deferred** per SPEC's own REQ-40
+  framing — if a genuine visual-design ambiguity remains once a
+  first pass is built, route it to `design-system-ui-ux` before this
+  amendment's tasks are marked done, rather than the PLAN author
+  guessing at final pixel values.
+- **No routing/navigation change.** REQ-43 confirms a turn-content RAG
+  result opens exactly like a title-match RAG result already does
+  (`/chat/articles/:conversationId`, unchanged from the 2026-08-10
+  amendment's routing table) — no new code path, no new test beyond
+  confirming the existing one still passes with the widened DTO.
+
+### Components changed
+
+```
+core/
+  chat.model.ts                       // CHANGED — ChatRagConversationSearchResultDto
+                                       //   gains matchedSnippet?/matchedRole?
+
+features/chat/
+  chat-search-result-row.component.ts // CHANGED — kind === 'rag' branch
+                                       //   gains snippet+role sub-block,
+                                       //   reusing splitOnMatch unchanged
+```
+
+No change to `chat-entity-search.service.ts`, `chat-unified-search
+.component.ts`'s routing/reset/debounce logic, or any backend contract
+beyond the additive DTO fields already shipped.
+
+### i18n keys
+
+- `chat.search.ragMatchedByUser` — REQ-40 (e.g. "Você perguntou" /
+  "You asked").
+- `chat.search.ragMatchedByAssistant` — REQ-40 (e.g. "A IA respondeu" /
+  "The assistant answered").
+- `chat.search.resultA11yLabelRag` (existing key, from the 2026-08-10
+  amendment) is **extended, not replaced**, to optionally interpolate
+  the role label when present, so the accessible name for a
+  turn-content match includes the same distinction a sighted user gets
+  from the visible indicator (REQ-42's "included in that row's
+  accessible name" NFR).
+
+### Testing strategy (Vitest)
+
+- `chat.model.spec.ts`: no new tests needed for `splitOnMatch` itself
+  (unchanged function, already covered) — confirm (by omission) no
+  regression to its existing test suite.
+- `chat-search-result-row.component.spec.ts` (extended):
+  - A `kind === 'rag'` result with a non-empty `matchedSnippet` renders
+    the snippet `<p>`; one with `matchedSnippet` absent/null renders
+    exactly as the pre-amendment RAG row did (title only, no snippet
+    `<p>`, no role indicator) — direct regression test for REQ-38's
+    "renders exactly as before" half.
+  - A snippet containing the current query (case-insensitive) renders
+    it `<mark>`-wrapped; a snippet that doesn't literally substring-
+    match renders unmarked (REQ-39) — table-driven alongside the
+    existing message-kind highlight test, reusing the same fixture
+    shape.
+  - `matchedRole === 'USER'` renders the "Você perguntou"-shaped
+    indicator with both icon and text; `matchedRole === 'ASSISTANT'`
+    renders the distinct "A IA respondeu"-shaped one; asserted via
+    text content, not just a CSS class, so a color-only implementation
+    would fail this test (REQ-40/REQ-42 regression guard).
+  - A result with `matchedSnippet` set but `matchedRole` null/absent
+    (the defensive, off-contract case) renders the snippet but omits
+    the role indicator entirely — no thrown error, no fallback icon
+    (REQ-41).
+  - The row's `aria-label` for a turn-content RAG match includes the
+    role-label text, confirmed via the extended
+    `chat.search.resultA11yLabelRag` interpolation (REQ-42's
+    accessible-name requirement).
+- `chat-unified-search.component.spec.ts`: no new test needed for
+  navigation — the existing per-kind routing-table test (from the
+  2026-08-10 amendment) already covers `kind === 'rag'` and is
+  unaffected by the widened DTO; confirm (by omission) it still passes
+  unchanged.
+- Regression: `chat-entity-search.service.spec.ts` — confirm (by
+  omission) no test needs updating, since the service performs no
+  per-field transformation on the `rag` section's results.
+
+### Open items carried forward
+
+- None new. This amendment closes the RAG half of the general
+  "highlighting/snippet-generation... Base de artigos" out-of-scope
+  line the 2026-08-10 unified-bar PLAN never explicitly carried (that
+  PLAN's own scope was message-content highlighting only) — no
+  outstanding backend or cross-repo dependency remains for REQ-38
+  through REQ-43.

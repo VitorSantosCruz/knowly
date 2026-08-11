@@ -328,6 +328,12 @@ export interface ChatSupportSearchResultDto {
 export interface ChatRagConversationSearchResultDto {
   id: number;
   title: string;
+  /** Amended (2026-08-11, RAG conversation turn-content search): a plain-text, HTML-free,
+   * ≤150-char excerpt of whichever turn matched the query — absent/null on a title-only match. */
+  matchedSnippet?: string | null;
+  /** Amended (2026-08-11): which turn matched — `'USER'` (the caller's own question) or
+   * `'ASSISTANT'` (the AI's reply) — absent/null on a title-only match. */
+  matchedRole?: 'USER' | 'ASSISTANT' | null;
 }
 
 export interface ChatEntitySearchSectionDto<T> {
