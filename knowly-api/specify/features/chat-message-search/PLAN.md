@@ -1516,3 +1516,243 @@ bounded:**
 **TASKS.md generation is blocked until this AppSec pass returns a clean
 PASS** — same gate this feature's prior three corrections all went
 through.
+
+## Amended (2026-08-11, RAG conversation turn-content search) — REQ-27 through REQ-33
+
+> Implements SPEC.md's "Amended (2026-08-11, RAG conversation
+> turn-content search) — REQ-16(d)/REQ-22 extension (REQ-27 through
+> REQ-33)". Extends `ChatEntitySearchService#ragMatches`/
+> `ConversationService#searchOwn` (title-only today) to also match turn
+> content, without touching message-content search (REQ-1–REQ-15) or
+> any other entity-search result kind. **Standard AppSec review of this
+> section is required before TASKS.md, per this feature's own standing
+> gate — see "AppSec review scope" at the end of this section.**
+
+### Matching mechanism: substring `ILIKE`, not a new `tsvector`/GIN pair — Tier 2 call, rationale below
+
+- **Decision: extend `ConversationRepository`'s existing
+  `searchByOwnerAndTitle` pattern — a plain `LOWER(x) LIKE
+  LOWER(:pattern)` JPQL predicate — to `messages.content` as well,
+  rather than mirroring `chat_messages`' generated-`tsvector`+GIN+
+  `websearch_to_tsquery`/prefix-`tsquery` infrastructure.** No new
+  migration, no new generated column, no new index.
+- **Why not FTS (option (a) in the SPEC's NFR):** the FTS
+  infrastructure in this feature exists to solve two problems neither
+  of which apply here: (1) *result-set size* — `chat_messages` is
+  queried across **all** of a caller's conversations with **no
+  per-conversation cap**, so a sequential scan across a caller's full
+  message history at every keystroke is the actual performance
+  problem FTS/GIN solves; a RAG turn-content match, by contrast, is
+  already computed *per-owner* (`Conversation.owner`, REQ-29) and
+  capped by `ChatEntitySearchService`'s existing `SECTION_LIMIT`/`+1`
+  fetch-limit convention (5, or 6 for the has-more probe) the same way
+  `ragMatches`/`groupMatches`/`peopleMatches` already are — a single
+  user's own RAG-conversation corpus (assistant Q&A turns across their
+  own conversations in one tenant) is the "thousands, not
+  Slack-corporate-scale" case the SPEC's own "Context and motivation"
+  section says FTS was sized for, several orders of magnitude smaller
+  than the cross-conversation, cross-participant scan message-content
+  search's FTS was built for; and (2) *lexical richness* (web-search
+  query syntax: quoted phrases, `-exclude`d terms, PT/EN word-form
+  stemming) — REQ-30/REQ-31 ask only for "find this conversation by a
+  snippet of what was said," the exact same bar `searchByOwnerAndTitle`
+  already clears today for titles with plain `LIKE`, not the "recall
+  roughly-remembered phrasing across thousands of messages I didn't
+  write myself" bar REQ-6/REQ-13 set for message-content search. Adding
+  a second generated-column+GIN-index pipeline to satisfy a
+  single-owner, section-capped, "does this snippet appear" query is
+  the exact overhead the SPEC's own NFR flags as possibly unwarranted,
+  and `DECISIONS.md`'s `tenant-pagination-search` YAGNI precedent this
+  SPEC explicitly points to (do not build the general/scalable
+  mechanism before the simpler one is shown insufficient) applies
+  directly.
+- **Why this is safe from the isolation angle:** `LIKE`/`ILIKE`
+  predicates are always issued as bound `@Query` parameters (Spring
+  Data `@Param`, never string concatenation) — no SQL-injection surface
+  differs from `searchByOwnerAndTitle`'s existing, already-shipped
+  pattern.
+- **Locale:** N/A — REQ-33's NFR only requires locale handling *if*
+  FTS is chosen; a plain case-insensitive substring match has no
+  language-specific behavior to resolve, so `ChatMessageSearchLocaleResolver`
+  is not involved in this query at all (it remains used only for the
+  existing Support-label match in `ChatEntitySearchService`).
+- **Revisit trigger, written down so it isn't silently forgotten:** if
+  a future profiling pass (or a product ask for phrase/stemmed
+  matching across turn content) shows this query becoming a real cost
+  center, revisit with the `chat_messages` FTS pattern as the direct
+  template — this decision is explicitly reversible and the precedent
+  to reuse is already fully built.
+- **New `DECISIONS.md` entry required** (no exact prior precedent for
+  "which of two already-proven mechanisms — FTS-with-migration vs.
+  plain `LIKE` — applies to a *new* table doing a similar-looking
+  search"): see the entry titled `chat-message-search`: turn-content
+  search reuses plain `LIKE`, not `chat_messages`' FTS pipeline, added
+  to `DECISIONS.md` alongside this PLAN.
+
+### Query shape
+
+- **New `MessageRepository` method**, mirroring
+  `ConversationRepository#searchByOwnerAndTitle`'s exact shape
+  (explicit `@Query`, both the owner and tenant predicates written
+  into the query text itself, not left to `Conversation`'s
+  `@Filter(TenantFilter)`/`@Filter(SoftDeleteFilter)` alone — same
+  AppSec rationale already documented on that method: a staff caller
+  with no active tenant selected must not silently widen this into
+  "every tenant's turns this owner ever wrote"):
+
+  ```java
+  @Query(
+      "SELECT m FROM Message m WHERE m.conversation.owner.id = :ownerId"
+          + " AND m.conversation.tenant.id = :tenantId"
+          + " AND m.conversation.deletedAt IS NULL"
+          + " AND LOWER(m.content) LIKE LOWER(:pattern)"
+          + " ORDER BY m.createdAt DESC")
+  Page<Message> searchByConversationOwnerAndContent(
+      @Param("ownerId") Long ownerId,
+      @Param("tenantId") Long tenantId,
+      @Param("pattern") String pattern,
+      Pageable pageable);
+  ```
+
+  `m.conversation.deletedAt IS NULL` is written explicitly (mirroring
+  the tenant/owner predicates' own rationale) rather than relying on
+  `Conversation`'s `@Filter(SoftDeleteFilter)` alone — `Message` itself
+  has no `@Filter` of its own and Hibernate filters do not
+  automatically propagate through a `ManyToOne` traversal inside a
+  `@Query`'s `WHERE` clause the way an entity-rooted query would apply
+  them to its own root.
+- **`ConversationService#searchOwn` (REQ-27/REQ-31) is extended, not
+  duplicated, to merge title hits and content hits into one
+  deduplicated list**: run both `searchByOwnerAndTitle` and the new
+  `searchByConversationOwnerAndContent` (same `pattern`, same
+  `PageRequest.of(0, limit)` cap on each independently, per REQ-29's
+  "ownership predicate applied before any text predicate" — both
+  queries carry `ownerId`/`tenantId` as their first two bound
+  predicates, never a post-filter), then merge by `Conversation.id`
+  into a `LinkedHashMap<Long, ChatRagConversationSearchResultDto>`
+  (title hits first, so a conversation matching both keeps its
+  title-match flag) — **REQ-31's tie-break**: for a conversation
+  matched by content, keep the single most-recent matching `Message`
+  (`ORDER BY m.createdAt DESC` in the query above already returns them
+  in that order, so "first content hit per conversation id" is
+  "most-recent" for free, no extra sort needed) — "most recent" is
+  chosen over "strongest textual match" because a substring match has
+  no relevance score to rank by, so recency is the only signal
+  available, consistent with REQ-10's existing "chronological, not
+  relevance-ranked" philosophy for message-content search.
+- **Result cap**: each of the two underlying queries is capped at
+  `limit` (today `SECTION_LIMIT + 1` = 6, from
+  `ChatEntitySearchService`); the merge can therefore return up to
+  `2 * limit` distinct conversations before `ChatEntitySearchService`'s
+  own `section()` helper caps/truncates to `SECTION_LIMIT` with
+  `hasMore` — no new pagination concept introduced, reuses the
+  existing `type=rag&offset=` expand-section path unchanged.
+
+### DTO shape (REQ-30/REQ-31/REQ-33)
+
+- **`ChatRagConversationSearchResultDto` gains two new nullable
+  fields**, additive (no consumer breaks — existing frontend code
+  reading `id`/`title` is unaffected):
+
+  ```java
+  public record ChatRagConversationSearchResultDto(
+      Long id,
+      String title,
+      String matchedSnippet,
+      String matchedRole) {}
+  ```
+
+  - `matchedSnippet`: `null` when the conversation matched by title
+    only; otherwise the *raw* content of the single representative
+    matching `Message` (REQ-31's tie-break above) — truncated
+    server-side to a fixed bound (150 chars, centered on the first
+    match occurrence, mirroring how `ChatMessageSearchResultDto`
+    already returns full `content` and leaves highlighting to the
+    frontend) so a very long turn doesn't bloat the response; **no
+    HTML/markup wrapping is added server-side** — REQ-30's own NFR
+    scopes the actual highlight rendering to the frontend SPECs, this
+    is a plain-text contract only.
+  - `matchedRole`: `null` when title-only; otherwise `"USER"` or
+    `"ASSISTANT"` (the matching `Message.role.name()`) so the frontend
+    can render "you asked" vs. "the assistant replied" per REQ-30 —
+    reuses `MessageRole`'s existing enum constants as the wire values
+    rather than inventing a new vocabulary.
+  - No new/renamed field for "did this match by title" — the frontend
+    already treats a present `title` as the title-match signal
+    (unchanged); `matchedSnippet != null` is the turn-content-match
+    signal. No separate boolean needed for REQ-31's "carrying the
+    title-match indicator and/or a snippet" — the two nullable fields
+    already encode all four states (title-only, content-only, both,
+    neither — the last one being unreachable in practice since a
+    result only exists because it matched something).
+
+### Access control (REQ-29/REQ-32)
+
+- **No `TenantContext.isStaff()`/`isStaffAdmin()` branch anywhere in
+  this code path** — `ConversationService#searchOwn` already fails
+  closed (empty list) when `tenantContext.getActiveTenantId()` is
+  absent, and the new query's `ownerId`/`tenantId` predicates apply
+  identically regardless of caller role, mirroring
+  `ChatEntitySearchService`'s class-level Javadoc invariant
+  ("no method in this service ever reads `isStaff()`/`isStaffAdmin()`
+  to branch into a wider result set") verbatim — REQ-29's "no
+  staff/admin oversight bypass of any kind" is satisfied by *absence*
+  of any such branch, not by an explicit denial check.
+- **REQ-32 (non-revealing omission)** is satisfied for free by the
+  same mechanism `searchByOwnerAndTitle` already relies on: the
+  `ownerId`/`tenantId` predicates are applied *inside* the same SQL
+  `WHERE` clause as the content-match predicate (not as a later Java
+  filter step on a broader result set), so a matching-but-inaccessible
+  turn is never fetched, computed, or distinguishable in any log/error
+  path from "no match at all."
+
+### API contract
+
+No new endpoint or DTO wrapper — this extends the existing
+`GET /api/chat/search` contract's `rag` section in place:
+
+| Method | Path | Change |
+|---|---|---|
+| GET | `/api/chat/search?q=...` | `rag` section's `ChatRagConversationSearchResultDto` items gain two new nullable fields (`matchedSnippet`, `matchedRole`); no request-shape change. |
+| GET | `/api/chat/search?type=rag&offset=...` | Same DTO change, expand-section path; `ragMatches`/`ChatEntitySearchService#expandSection`'s `"rag"` branch is unaffected in shape, only in what `ConversationService#searchOwn` now returns. |
+
+### What does not change
+
+- `ChatController`'s `/search` and `/search?type=rag&offset=` routes,
+  request parameters, and CSRF posture — read-only `GET`, no new
+  authenticated endpoint added to `SecurityConfig`.
+- `ChatEntitySearchService`'s `recentPlaces()` (REQ-25/26) — untouched;
+  the RAG entries it already builds from `findByOwnerIdOrderByCreatedAtDesc`
+  carry only `id`/`title`/`createdAt` today and REQ-27 through REQ-33
+  say nothing about recent-places' own shape.
+- Message-content search (REQ-1–REQ-15/REQ-5r–REQ-5v) — no file this
+  section touches (`MessageRepository`, `ConversationRepository`,
+  `ConversationService`, `ChatRagConversationSearchResultDto`) is
+  shared with `ChatMessageSearchRepository`/`ChatMessageSearchService`.
+- Any other entity-search result kind (people/groups/Support) — REQ-19
+  through REQ-21 are untouched.
+
+### AppSec review scope
+
+- **New, needs review**: (1) the new `MessageRepository` query's
+  `ownerId`/`tenantId` predicates are bound parameters written into the
+  same `WHERE` clause as the content match (never a post-filter), the
+  exact shape already reviewed and passed for `searchByOwnerAndTitle`;
+  (2) `LIKE`-pattern construction (`"%" + q + "%"`, wherever it's
+  built) never allows a caller-controlled `%`/`_` wildcard escape to
+  broaden the match beyond a literal substring in a way that changes
+  the *access* outcome (a purely cosmetic false-positive substring
+  match is not an access-control issue since ownership is still
+  enforced in the same clause — confirm this framing, not a stricter
+  escaping requirement, is the correct bar); (3) `deletedAt IS NULL`
+  written explicitly on the `Message`→`Conversation` join, confirming
+  the stated reason (`@Filter` non-propagation across `@Query`
+  traversal) is accurate for this Hibernate version.
+- **Provably unchanged, do not re-review**: `chat_messages`
+  FTS/GIN infrastructure and its service/repository (untouched by this
+  section); `ChatEntitySearchService`'s section-capping/`hasMore`
+  logic (reused, not modified in behavior); `SecurityConfig` (no
+  change).
+
+**TASKS.md generation for this section proceeds once this AppSec pass
+returns a clean PASS**, consistent with this feature's standing gate.

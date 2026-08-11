@@ -798,3 +798,100 @@ tests it calls out below.
       tests live, and the REQ-26 "recent places merges two sources"
       design correction, so a future conversation doesn't have to
       rediscover any of it from the diff.
+
+## Amendment (2026-08-11, RAG conversation turn-content search) — REQ-27–REQ-33
+
+> Continues numbering from task 155 above. Derived from PLAN.md's
+> "Amended (2026-08-11, RAG conversation turn-content search) — REQ-27
+> through REQ-33" section. **Blocked on a clean AppSec PASS on that
+> PLAN section** before any task below is implemented — same standing
+> gate this feature's every prior amendment went through; do not start
+> task 156 until that review returns.
+
+- [x] 156. Write `MessageRepositoryTest#searchByConversationOwnerAndContentReturnsOnlyTheOwnersOwnMessagesInTheActiveTenant`:
+      seed two owners' RAG conversations (one in the caller's active
+      tenant, one in a different tenant, one belonging to another user
+      in the same tenant), assert the new
+      `searchByConversationOwnerAndContent` query returns only the
+      caller's own, active-tenant matches, matches both
+      `MessageRole.USER` and `MessageRole.ASSISTANT` rows, excludes a
+      soft-deleted (`Conversation.deletedAt` set) conversation's
+      messages, and orders results by `createdAt DESC` (Red — method
+      doesn't exist yet).
+- [x] 157. Add `MessageRepository#searchByConversationOwnerAndContent`
+      exactly per PLAN's query block (Green for task 156).
+- [x] 158. Write `ConversationServiceTest#searchOwnMergesTitleAndContentMatchesWithoutDuplicateConversations`:
+      a conversation matching only by title, one matching only by turn
+      content, one matching both (asserted returned exactly once,
+      carrying both a non-null `title` and non-null `matchedSnippet`),
+      and one matching two turns (asserted the returned
+      `matchedSnippet`/`matchedRole` reflect the *most recent* matching
+      turn, per REQ-31's tie-break) — plus the existing no-active-tenant
+      fail-closed case still returning `List.of()` (Red).
+- [x] 159. Add the two new nullable fields
+      (`matchedSnippet`/`matchedRole`) to
+      `ChatRagConversationSearchResultDto` per PLAN's DTO block, and
+      update `ChatEntitySearchDtoTest`/`ChatMessageSearchDtoTest` (or
+      wherever this record's existing serialization test lives) for
+      the additive fields, confirming the pre-existing title-only
+      shape still (de)serializes with both new fields `null` (Green for
+      part of task 158, before the merge logic below).
+- [x] 160. Implement `ConversationService#searchOwn`'s merge: call
+      `conversationRepository.searchByOwnerAndTitle` and the new
+      `messageRepository.searchByConversationOwnerAndContent` with the
+      same `pattern`/`limit`, merge into a
+      `LinkedHashMap<Long, ChatRagConversationSearchResultDto>` keyed by
+      conversation id (title hits inserted first), fill in
+      `matchedSnippet` (150-char, match-centered truncation of the
+      single most-recent matching `Message.content`) /`matchedRole`
+      (`Message.role.name()`) for a content-matched or both-matched
+      conversation, leaving both `null` for a title-only match (Green
+      for task 158).
+- [x] 161. Write a truncation-boundary unit test for the snippet
+      builder (a match near the very start of a long turn, a match near
+      the very end, and a turn shorter than the truncation bound)
+      confirming the 150-char window is centered on the first match
+      occurrence and never throws on an out-of-range substring index
+      (Red then Green).
+- [x] 162. Write `ConversationServiceTest#searchOwnNeverReturnsAnotherUsersOrDifferentTenantsConversationByContentMatch`
+      (REQ-29/REQ-32): a matching-but-inaccessible turn (different
+      owner, or same owner different tenant) produces the exact same
+      empty/absent result as "no matching turn exists," asserted
+      indistinguishable, mirroring REQ-23/REQ-3's existing
+      non-revealing-omission precedent (Red — should already pass given
+      task 157's query shape; confirms no regression, not a new gap).
+- [x] 163. Write a `ChatEntitySearchControllerIntegrationTest` case
+      (REQ-27/REQ-30/REQ-33): a query matching only the AI assistant's
+      reply in the caller's own RAG conversation returns that
+      conversation under the `rag` section (never under `people`/
+      `groups`/`support`, and never mixed into a separate
+      `GET /api/chat/messages/search` result) with `matchedRole`
+      `"ASSISTANT"` and a non-null `matchedSnippet`; a matching
+      `MessageRole.USER` turn returns `matchedRole` `"USER"`; a
+      `STAFF_ADMIN`/`MEMBER_ADMIN` caller with no active tenant, or with
+      an active tenant they hold no `TenantMembership`/ownership in,
+      gets no such result despite a matching turn existing elsewhere
+      (REQ-29, no oversight bypass) (Red).
+- [x] 164. Fix any gap task 163 exposes (Green), or confirm none
+      needed.
+- [x] 165. Write a `ChatEntitySearchControllerIntegrationTest` case for
+      the `type=rag&offset=` expand-section path (REQ-27, existing
+      "see more" mechanism): confirm a content-matched conversation
+      appears in the expanded page with the same `matchedSnippet`/
+      `matchedRole` fields as the unexpanded response, and that
+      `hasMore` accounts for merged title+content hits without
+      duplicate-counting a both-matched conversation (Red).
+- [x] 166. Fix any gap task 165 exposes (Green), or confirm none
+      needed.
+- [x] 167. Run `./mvnw spotless:apply` then
+      `./mvnw test -Dtest="br.com.conectabyte.knowly.chat.**,br.com.conectabyte.knowly.conversation.**"`
+      and confirm all green — no `./mvnw verify`.
+- [x] 168. Update `PROJECT_STATUS.md` to record this amendment's
+      completion: the new `MessageRepository` query, the
+      `ChatRagConversationSearchResultDto` field additions, the
+      LIKE-vs-FTS decision and its `DECISIONS.md` entry, and a note
+      that the frontend counterpart SPECs
+      (`knowly-app/specify/features/chat-message-search/SPEC.md`,
+      `knowly-app/specify/features/chat-unified-ui/SPEC.md`) still need
+      their own amendment to consume `matchedSnippet`/`matchedRole`
+      before this is visibly usable end-to-end.

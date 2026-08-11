@@ -2632,6 +2632,54 @@ duplicate the list, and don't bolt it onto whichever existing package
 happens to be imported everywhere already unless the new concept is
 actually related to that package's own domain.
 
+## `chat-message-search` (backend): RAG turn-content search reuses plain `LIKE`, not `chat_messages`' FTS pipeline (Tier 2, 2026-08-11)
+
+This feature already has two proven mechanisms on the table for "match
+free text against a column": the `tsvector`/GIN/`websearch_to_tsquery`
+pipeline built for `chat_messages` (REQ-1–REQ-15, cross-conversation,
+unbounded-per-caller, needs quoted-phrase/`-exclude`/PT-EN stemming
+recall), and the plain `LOWER(x) LIKE LOWER(:pattern)` JPQL predicate
+`ConversationRepository#searchByOwnerAndTitle` already uses for RAG
+conversation titles (REQ-22, single-owner, tenant-scoped, no relevance
+ranking needed). The REQ-27–REQ-33 amendment (turn-content search inside
+a caller's own RAG conversations) needed one of the two for the
+`conversation` package's `messages` table, which has no FTS
+infrastructure today, and the SPEC's own non-functional requirements
+explicitly left the choice open as a PLAN-level call, citing
+`tenant-pagination-search`'s YAGNI precedent as the applicable
+reasoning. **Decision: extend the plain-`LIKE` pattern to
+`messages.content` (new `MessageRepository` query, same shape as
+`searchByOwnerAndTitle` — explicit bound `ownerId`/`tenantId`
+predicates in the query text, not left to `@Filter` alone) — no new
+migration, no new generated `tsvector` column, no new GIN index.**
+**Why:** the two problems the `chat_messages` FTS pipeline actually
+solves — result-set size (an unbounded cross-conversation,
+cross-participant scan at every keystroke) and lexical richness
+(web-search query syntax, PT/EN stemming) — don't apply here: turn
+content is scoped to a single caller's own RAG conversations
+(`Conversation.owner`), already capped by `ChatEntitySearchService`'s
+existing per-section fetch limit (5, same as every other entity-search
+result kind), and REQ-30/REQ-31 only ask for "find this conversation by
+a snippet of what was said," the same bar `searchByOwnerAndTitle`
+already clears for titles today. Building a second generated-column+
+GIN-index pipeline to satisfy a single-owner, already-capped,
+substring-presence query would be exactly the premature-scalability
+overhead `tenant-pagination-search` already declined to build ahead of
+proven need. The decision is explicitly reversible (documented in
+PLAN.md as a "revisit trigger") — if profiling ever shows this query
+costing real time, or product asks for phrase/stemmed matching over
+turn content, the `chat_messages` FTS pattern is the ready-made
+template to reuse, not re-derive. **Applies to new decisions:** when a
+new table needs "match free text against a column" and this codebase
+already has two proven mechanisms (FTS+GIN for unbounded/lexically-rich
+recall vs. plain `LIKE` for owner-scoped/already-capped substring
+matching), pick based on which problem the *new* query actually has —
+result-set size and lexical-recall need, not "does a similar-looking
+column already have FTS elsewhere" — and write down which of the two
+problems is/isn't present, the way this entry does, rather than
+defaulting to whichever mechanism is more recently precedented in the
+same feature file.
+
 ## How to use this file for something new
 
 When facing a new architectural or code-level decision with no exact

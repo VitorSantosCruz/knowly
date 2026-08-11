@@ -57,6 +57,23 @@
 > invariant is restated and extended, not reversed, by final v3's
 > REQ-5v. REQ-1 through REQ-4, REQ-6 through REQ-15, and REQ-16 through
 > REQ-26 (entity search) remain unaffected and final.**
+>
+> **Amended (2026-08-11, RAG conversation turn-content search): REQ-16(d)
+> and REQ-22 are extended, not reversed, by new REQ-27 through REQ-33 at
+> the very end of this document.** Unified search now also matches the
+> text of the *turns* exchanged inside the caller's own RAG ("Base de
+> artigos") conversations — the question the caller typed to the AI
+> assistant, and the AI assistant's own reply — not only the
+> conversation's title as REQ-16(d)/REQ-22 originally scoped it. **This
+> is strictly about searching the `messages` table in the `conversation`
+> package (a RAG conversation's own turns) — it is explicitly NOT about
+> searching the content of published knowledge-base `Article` rows,
+> which is a different, still out-of-scope feature** (see REQ-28 and
+> "Out of scope" at the end of this document for the explicit boundary).
+> Ownership/ no-oversight-bypass rules (REQ-17/REQ-18/REQ-22) are
+> unaffected and apply identically to this new match kind. See the final
+> section for the full ruleset, UI-placement decision, and acceptance
+> criteria.
 
 ## Context and motivation
 
@@ -189,7 +206,10 @@ requires; both explicitly defer it here. This amendment supplies it.
   - RAG ("Base de artigos") conversation title matches reuse
     `conversations`' existing REQ-1 rule (a viewer only ever sees their
     own RAG conversations) — not redefined here, and not extended to
-    any cross-user visibility.
+    any cross-user visibility. **(Amended 2026-08-11, RAG conversation
+    turn-content search): this ownership rule is extended, not
+    redefined, to also govern turn-content matching — see REQ-27
+    through REQ-33 at the end of this document.**
 
 ## Tier 3 — resolved (product owner, confirmed this conversation)
 
@@ -299,6 +319,13 @@ requires; both explicitly defer it here. This amendment supplies it.
   I haven't joined yet, not just groups I'm already a participant of,
   mirroring the same discoverability I already get browsing groups —
   still bounded to my current context.
+- **(Amended 2026-08-11, RAG conversation turn-content search):** As a
+  user who remembers roughly what I asked the AI assistant, or roughly
+  what it answered, but not which "Base de artigos" conversation that
+  was in, I want the same unified search bar to also find that
+  conversation by the content of what was actually said — not only by
+  the conversation's title, which I may never have set to anything
+  memorable.
 
 ## Requirements (EARS/GEARS)
 
@@ -497,7 +524,10 @@ requires; both explicitly defer it here. This amendment supplies it.
   the caller could message, by display name; (b) groups, by name; (c)
   the caller's own Support channel/ticket, if the query matches a
   fixed, always-available "Suporte"/"Support" label; (d) the caller's
-  own RAG ("Base de artigos") conversations, by title.
+  own RAG ("Base de artigos") conversations, by title. **(Amended
+  2026-08-11, RAG conversation turn-content search): clause (d) is
+  extended, not replaced, by REQ-27 below — a RAG conversation may now
+  also match by the content of its turns, not only its title.**
 - **REQ-17 [Ubiquitous]** The system shall scope every entity-search
   result to what the calling user is actually authorized to see or
   reach, re-derived at request time from the caller's current state
@@ -549,6 +579,9 @@ requires; both explicitly defer it here. This amendment supplies it.
   scoped strictly to the caller's own RAG conversations — a viewer never
   matches another user's "Base de artigos" conversation by title,
   mirroring `conversations`' existing REQ-1 ownership rule unchanged.
+  **(Amended 2026-08-11, RAG conversation turn-content search): this
+  same ownership scoping is extended, unchanged in substance, to govern
+  turn-content matching too — see REQ-29 below.**
 - **REQ-23 [Unwanted Behavior]** If a caller's query would otherwise
   match an entity (person, group, Support row, RAG conversation) they
   are not authorized to see or reach per REQ-17 through REQ-22, then the
@@ -966,6 +999,32 @@ requires; both explicitly defer it here. This amendment supplies it.
       entered `STAFF_ADMIN` sees within a tenant it has actually entered,
       never what a staff-scope `STAFF_ADMIN` sees of a tenant it has not
       entered).
+- [ ] **(Amended 2026-08-11, RAG conversation turn-content search)** A
+      query matching text the caller typed to the AI assistant inside
+      their own RAG conversation returns that conversation under
+      "Base de artigos," carrying a highlighted snippet identifying the
+      matching turn as the caller's own question (REQ-27, REQ-30).
+- [ ] **(Amended 2026-08-11, RAG conversation turn-content search)** A
+      query matching text of the AI assistant's own reply inside the
+      caller's own RAG conversation returns that conversation the same
+      way, with the snippet identifying the matched turn as the
+      assistant's answer (REQ-27, REQ-30).
+- [ ] **(Amended 2026-08-11, RAG conversation turn-content search)** A
+      query matching turn content that exists only inside another user's
+      RAG conversation returns nothing for that conversation — ownership
+      is enforced identically to REQ-22/REQ-29's existing rule, verified
+      with a fixture asserting the other user's conversation is absent.
+- [ ] **(Amended 2026-08-11, RAG conversation turn-content search)** A
+      query matching only a published `Article`'s own content (with no
+      matching RAG-conversation turn or title) returns no result from
+      this endpoint — confirms turn-content search is scoped to
+      conversation turns only and is never conflated with (or a
+      substitute for) article-content search (REQ-28).
+- [ ] **(Amended 2026-08-11, RAG conversation turn-content search)** A
+      RAG-conversation result matched via turn content is always grouped
+      under "Base de artigos," never under "Mensagens" — confirms REQ-33
+      and that REQ-1's `PEER_DIRECT`/`PEER_GROUP`-only scope for the
+      "Mensagens" group is unaffected by this amendment.
 
 ## Out of scope
 
@@ -1121,6 +1180,36 @@ requires; both explicitly defer it here. This amendment supplies it.
   `TenantMembership` in the currently-entered tenant governs completely
   for `STAFF_ADMIN` exactly as it already did for non-admin `STAFF`, with
   no admin-role exception of any kind.
+- **(Amended 2026-08-11, RAG conversation turn-content search — new)
+  Full-text or any other search over published knowledge-base `Article`
+  content.** This is explicitly, deliberately not what this amendment
+  does, and is not implied by it. REQ-27 through REQ-33 add search over
+  the *turns* of a caller's own RAG conversation (the question they
+  typed and the AI's reply, both stored in the `conversation` package's
+  `messages` table) — never over `Article.content`/`Article.title`,
+  which remains fully out of scope for this SPEC and belongs, if ever
+  built, to a separate, future "article search" feature with its own
+  SPEC and its own access-model analysis (articles are tenant-owned
+  published content with a different visibility model than a single
+  user's private RAG conversation).
+- **(Amended 2026-08-11, RAG conversation turn-content search — new)
+  Cross-user or cross-tenant visibility of RAG conversation turns, or
+  any staff/admin oversight bypass for turn-content results** — REQ-29
+  extends REQ-22's existing strict-ownership rule unchanged; REQ-17/
+  REQ-18's "no oversight bypass, re-derived per request" posture applies
+  identically to turn-content matches as it already does to title
+  matches.
+- **(Amended 2026-08-11, RAG conversation turn-content search — new)
+  Merging RAG-conversation turn-content results into the "Mensagens"
+  group** — explicitly rejected, see REQ-33 and its rationale in
+  Non-functional requirements; a RAG conversation is not a
+  `ChatConversation` and REQ-1's `PEER_DIRECT`/`PEER_GROUP`-only scope
+  for "Mensagens" is unaffected.
+- **(Amended 2026-08-11, RAG conversation turn-content search — new)
+  Editing, redacting, or otherwise modifying RAG conversation turn
+  content as a side effect of this amendment** — turns remain exactly as
+  currently persisted; this amendment only adds a way to find them via
+  search.
 
 ## Tier 3 — status
 
@@ -1212,8 +1301,23 @@ no fine-grained permission gate of its own is not a reason to exempt
 message search from this override). See the final section below for the
 complete, current, authoritative ruleset.**
 
+**Amendment (2026-08-11, RAG conversation turn-content search): resolved
+by the product owner directly, not inferred. The product owner's
+original request ("A busca deve encontrar grupos, usuários, chat com a
+base de artigos pelo nome, mensagens dentro de cada chat desses citados
+e outros que eu não lembrei de citar, a busca cobre tudo referente ao
+chat") was clarified in a follow-up exchange to remove a genuine
+ambiguity: the request is NOT to search inside published `Article`
+content (a separate feature, out of scope here) — it is to search
+inside the turns of the caller's own RAG conversation with the AI
+assistant (the question the caller typed, and the AI's reply), i.e. the
+`messages` table in the `conversation` package, exactly as the prior
+technical investigation had mapped it. See REQ-27 through REQ-33 at the
+end of this document for the resulting ruleset, and the "Out of scope"
+entry above making the article-content boundary explicit.**
+
 **This document, in full, is now ready for read-back and sign-off** —
-every requirement (REQ-1 through REQ-26, plus the final REQ-5r through
+every requirement (REQ-1 through REQ-33, plus the final REQ-5r through
 REQ-5v below), acceptance criterion, and "Out of scope" line is final,
 with no remaining open Tier 3 item.
 
@@ -2097,3 +2201,183 @@ before the unreachable/out-of-scope state. **An AppSec re-review of the
 corrected PLAN is required before TASKS.md/implementation resumes**,
 given this is exactly the class of access-control defect AppSec review
 exists to catch, and the first three passes each missed part of it.
+
+---
+
+## Amended (2026-08-11, RAG conversation turn-content search) — REQ-16(d)/REQ-22 extension (REQ-27 through REQ-33)
+
+> **New section. Fully resolved by the product owner — REQ-27 through
+> REQ-33 below are final and ready for PLAN. This section extends, and
+> does not reverse, REQ-16(d) and REQ-22 above; it does not touch
+> message-content search (REQ-1–REQ-15/REQ-5r–REQ-5v) or any other
+> entity-search result kind (REQ-19–REQ-21).**
+
+**What prompted this amendment.** The product owner's original request
+("A busca deve encontrar grupos, usuários, chat com a base de artigos
+pelo nome, mensagens dentro de cada chat desses citados e outros que eu
+não lembrei de citar, a busca cobre tudo referente ao chat") named "chat
+com a base de artigos" (a RAG conversation) as one of the things unified
+search should find "pelo nome" (by name/title) — which REQ-16(d)/REQ-22
+already do — but then separately asked that search also cover
+"mensagens dentro de cada chat desses citados," which, read literally
+for a RAG conversation, means the turns exchanged inside it, not just
+its title.
+
+**The scope this amendment explicitly does — and does not — cover
+(clarified directly by the product owner, not inferred, to remove a
+real ambiguity):**
+
+- **In scope: searching the text of the *turns* of the caller's own RAG
+  conversation** — the question the caller typed to the AI assistant,
+  and the AI assistant's own reply, both persisted as rows in the
+  `conversation` package's `messages` table (`Message.content`,
+  `Message.role` — `MessageRole.USER` or `MessageRole.ASSISTANT` —
+  `Message.conversation` → `Conversation.owner`/`Conversation.tenant`).
+  This is exactly what the prior technical investigation had already
+  mapped this request onto, confirmed by the product owner as the
+  correct reading.
+- **Out of scope, explicitly: searching the content of published
+  knowledge-base `Article` rows** — a different feature ("busca de
+  artigos"), with a different ownership/visibility model (tenant-owned
+  published content, not a single user's private conversation), no
+  full-text index today, and not implied by this amendment in any way.
+  See REQ-28 and the corresponding "Out of scope" entry above.
+
+**UI-placement decision (Tier 2 call, decided here with rationale, not
+escalated as Tier 3 — this is a technical/architectural framing of
+already-approved product intent, not a new product/business decision):
+a RAG conversation matched by turn content stays grouped under "Base de
+artigos" (REQ-16(d)'s existing group), carrying a highlighted snippet of
+the matching turn — it is never folded into the "Mensagens"/
+message-content-search group (REQ-1 through REQ-15).**
+
+**Why:** `chat-message-search`'s own Non-functional requirements already
+establish, for the exact same "should this be one merged result kind or
+two separate ones" question between message search and entity search,
+that different underlying data shapes with different ownership/access
+models get different endpoints/result kinds rather than being merged
+(see "Architectural call: entity search... is a new, separate endpoint").
+A RAG `Conversation` is not a `ChatConversation`: it has a single
+`owner` (not a `chat_participants` roster), no `senderId` concept a
+caller could filter by, and REQ-1 explicitly scopes "Mensagens" to
+`PEER_DIRECT`/`PEER_GROUP` only. Merging a RAG turn-content match into
+"Mensagens" would require either inventing a fake "sender" for an
+`ASSISTANT` turn (there is no `User` row to point to) or silently
+widening REQ-1's own boundary — neither is a small change, and neither
+was asked for. Keeping the match under "Base de artigos" — the group the
+product owner already named this conversation kind under — and simply
+giving that result a richer "why did this match" signal (a highlighted
+turn snippet, mirroring how "Mensagens" already shows a message preview)
+is the smaller, additive change that satisfies the actual request
+("busca cobre tudo referente ao chat [com a base de artigos]") without
+touching REQ-1's scope or inventing a new participant model for RAG
+conversations.
+
+**REQ-27 through REQ-33 (EARS/GEARS):**
+
+- **REQ-27 [Ubiquitous]** The system shall extend unified entity search's
+  RAG-conversation matching (REQ-16(d)) to additionally match the
+  caller's own RAG conversations by the text content of their turns —
+  both the question the caller submitted (`MessageRole.USER`) and the AI
+  assistant's own reply (`MessageRole.ASSISTANT`) — not only by the
+  conversation's title as REQ-16(d)/REQ-22 originally scoped it. A
+  conversation may match by title, by turn content, or both; this
+  extends REQ-16(d), it does not replace it.
+- **REQ-28 [Ubiquitous]** Turn-content matching under this amendment
+  shall be evaluated strictly against `messages.content` (both
+  `MessageRole.USER` and `MessageRole.ASSISTANT` rows) belonging to a
+  RAG `Conversation` (the `conversation` package's own entities) — it
+  shall never match against a published knowledge-base `Article`'s
+  `title`/`content`. Article-content search is a distinct, out-of-scope
+  capability (see "Out of scope") and is not implied, enabled, or
+  approximated by this amendment in any way.
+- **REQ-29 [Ubiquitous]** Turn-content matching shall be scoped strictly
+  to the caller's own RAG conversations (`Conversation.owner` equals the
+  caller, filtered by the caller's active tenant), identical to REQ-22's
+  existing ownership rule for title matching — a viewer never matches
+  another user's conversation by turn content, with no cross-user or
+  cross-tenant visibility and no staff/admin oversight bypass of any
+  kind, mirroring REQ-17/REQ-18's existing "no exception, re-derived per
+  request" posture for every other entity-search result kind.
+- **REQ-30 [Event-Driven]** When a query matches a RAG conversation's
+  turn content, the system shall return that conversation together with
+  an identifying snippet of the matching turn — enough surrounding text,
+  plus which role produced it (the caller's own question, or the AI
+  assistant's reply), for the frontend to render a highlighted preview
+  that makes clear *why* the conversation matched, the same way a
+  "Mensagens" result already shows a message preview/highlight.
+- **REQ-31 [Complex]** Where a single RAG conversation matches on both
+  its title and turn content, or on more than one turn, the system shall
+  return that conversation exactly once (no duplicate rows for the same
+  conversation) — carrying the title-match indicator and/or a single
+  representative matching turn's snippet. The exact tie-break/
+  snippet-selection rule (e.g. most recent matching turn, or the turn
+  with the strongest textual match) is a PLAN-level decision, not pinned
+  here.
+- **REQ-32 [Unwanted Behavior]** If a caller's query would otherwise
+  match turn content inside a RAG conversation they do not own, then the
+  system shall omit that conversation from turn-content-matched results
+  without revealing that a matching-but-inaccessible turn exists — the
+  same non-revealing posture REQ-23/REQ-3 already establish for every
+  other inaccessible match.
+- **REQ-33 [Ubiquitous]** A RAG conversation matched via turn content
+  (REQ-27) shall be grouped and returned under the same "Base de
+  artigos" result kind as a title match (REQ-16(d)) — it shall never be
+  folded into, or returned as part of, the "Mensagens"/message-
+  content-search result group (REQ-1 through REQ-15's
+  `PEER_DIRECT`/`PEER_GROUP`-only scope is unaffected and unchanged by
+  this amendment).
+
+**Non-functional additions for this section:**
+
+- Data model: unlike `chat_messages`, the `conversation` package's
+  `messages` table has **no** full-text index today (no
+  `tsvector`/GIN column of any kind). Satisfying REQ-27 requires a
+  PLAN-level decision on matching mechanism: (a) the identical two-
+  column (`pt`/`en`) generated `tsvector`/GIN pattern REQ-13's NFR
+  already established for `chat_messages`, applied the same way to
+  `messages`, for locale-aware matching consistent with the rest of this
+  SPEC; or (b) a simpler substring/`ILIKE`-based match, which may be an
+  acceptable Tier 2 deviation if a per-user RAG-conversation corpus is
+  expected to be small enough that full-text indexing is unwarranted
+  overhead — mirroring the YAGNI reasoning already recorded in
+  `DECISIONS.md`'s `tenant-pagination-search` entry. Either way, the
+  choice and its rationale must be written into PLAN.md explicitly, not
+  silently defaulted.
+- Access control: the ownership predicate (REQ-29) must be applied
+  **before** any text-matching predicate, identical to the "before any
+  other criterion, re-derived per request" posture REQ-17/REQ-23 already
+  establish for every other entity-search result kind — a turn-content
+  match must never be found first and then filtered by ownership as a
+  post-step.
+- No oversight bypass: identical to REQ-18 — a `STAFF_ADMIN`/
+  `MEMBER_ADMIN` caller's turn-content matches are scoped exactly as any
+  other caller's, with no admin exception, consistent with entity
+  search's existing, unchanged posture (see the "Unified entity search"
+  section's framing note above).
+- Locale: if PLAN chooses the FTS-based matching mechanism (option (a)
+  above), it shall follow REQ-13/REQ-14/REQ-15's existing locale-
+  resolution rule identically (the caller's own server-side-resolved
+  locale, never a per-turn auto-detected language, never a
+  client-supplied override) — reusing, not duplicating, that resolution
+  logic.
+- UI: this section's REQ-30 (snippet/highlight) is a backend-contract
+  requirement only; the actual rendering (how the snippet is
+  highlighted, truncated, or laid out in the search dropdown) belongs to
+  the frontend counterpart SPEC(s)
+  (`knowly-app/specify/features/chat-message-search/SPEC.md`,
+  `knowly-app/specify/features/chat-unified-ui/SPEC.md`), which must be
+  amended in turn to consume this new match reason — not pinned here.
+
+**Status.** Final — resolved by the product owner, including the
+explicit article-content-vs-turn-content clarification recorded in
+"Tier 3 — status" above. Ready for PLAN.md/TASKS.md work by
+`software-architect` against `ChatEntitySearchService` (extending its
+existing RAG-conversation branch, REQ-22's current implementation) once
+this document is read back and approved — no AppSec-blocking concern is
+introduced beyond what REQ-17/REQ-18/REQ-29's existing, unchanged
+ownership/no-bypass posture already covers, but a standard AppSec review
+of the PLAN (per this project's standing "AppSec gate is mandatory, not
+optional" rule) is still expected before TASKS.md, consistent with how
+every other access-control-relevant change in this document was
+reviewed.
