@@ -249,6 +249,8 @@ export interface ChatMessageSearchResultDto {
   senderNickname: string;
   content: string;
   createdAt: string;
+  isParticipant: boolean;
+  visibility: ChatGroupVisibility | null;
 }
 
 export interface MatchSplit {

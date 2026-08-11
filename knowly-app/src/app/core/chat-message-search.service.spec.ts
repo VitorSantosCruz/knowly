@@ -28,6 +28,8 @@ describe('ChatMessageSearchService', () => {
     senderNickname: 'Ana',
     content: 'reunião amanhã',
     createdAt: '2026-08-09T10:00:00Z',
+    isParticipant: true,
+    visibility: null,
     ...overrides,
   });
 

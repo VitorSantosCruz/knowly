@@ -555,3 +555,96 @@
       feature's own already-landed `PROJECT_STATUS.md` entry for this
       same amendment (commits `33ee585`, `2543f04`, `89cb0ff`, `0347a79`)
       so both sides of the amendment are traceable from one place.
+
+## Amendment (2026-08-11, message-result participancy routing fix) — REQ-47–REQ-51
+
+> Continues numbering from task 141 above. Derived from PLAN.md's
+> "Amended (2026-08-11, message-result participancy routing fix) —
+> REQ-47 through REQ-51" section.
+>
+> **BLOCKED — do not start task 142 until BOTH of the following are
+> true:**
+> 1. The companion backend amendment
+>    (`knowly-api/specify/features/chat-message-search/PLAN.md`'s
+>    "Amended (2026-08-11, message-result participancy/visibility
+>    signal)" section, `ChatMessageSearchResultDto`'s `isParticipant`/
+>    `visibility` fields) has a clean AppSec PASS, is implemented, all
+>    its tests are green, and is committed.
+> 2. This frontend PLAN section's own AppSec review (see its "AppSec
+>    review scope") returns a clean PASS.
+>
+> The orchestrator, not this subagent, confirms both gates and triggers
+> the reviews; no task below is to be implemented before a PASS is
+> recorded for each in `PROJECT_STATUS.md`/this file.
+
+### 12.1 Model
+
+- [x] 142. Widen `ChatMessageSearchResultDto` in `core/chat.model.ts`
+      to add `isParticipant: boolean` and `visibility: ChatGroupVisibility
+      | null` (both required, not optional — REQ-46/REQ-47's "always
+      populated" contract), matching PLAN.md's "Amended (2026-08-11,
+      message-result participancy routing fix)" section verbatim.
+      Update every existing test fixture in this suite that constructs
+      a `ChatMessageSearchResultDto` to include both fields (compile-
+      time forcing function, no new runtime test). Run `npm run build`
+      after this task to confirm.
+
+### 12.2 `onMessageSelect` — participant branch
+
+- [x] 143. Test: a message result with `isParticipant: true` clicked
+      still calls `router.navigate(['/chat', result.conversationId],
+      { state: { jumpToMessageId, jumpToQuery } })` exactly as today —
+      direct regression test for REQ-48, using the widened DTO (Red if
+      the widened type broke this, expected Green/no-op otherwise).
+- [x] 144. Test: a message result with `isParticipant: false` clicked
+      never calls `router.navigate` with `/chat/:conversationId`
+      directly; instead `rowsService.onGroupClick` is called with a
+      `GroupRow` whose `id`/`displayName`/`visibility`/`isMember` are
+      built from that result's `conversationId`/`conversationTitle`/
+      `visibility`/`false` respectively (REQ-49) (Red).
+- [x] 145. Implement the `isParticipant === false` branch in
+      `onMessageSelect`, exactly per PLAN.md's code block (Green for
+      task 144).
+- [x] 146. Test: a message result with `isParticipant` absent/undefined
+      (off-contract fixture) clicked still takes the direct-navigation
+      path (REQ-51's fail-open default), not the join/request branch
+      (Red then confirm Green — the strict `=== false` check from task
+      145 should already satisfy this without further code changes).
+- [x] 147. Test: clicking a `isParticipant: false` message result still
+      closes the dropdown (`this.open()` becomes `false`) and resets
+      the query input, exactly as every other result kind's click does
+      (REQ-26) (Red then Green, or confirm by omission if task 145's
+      `this.dismiss()` placement already satisfies it).
+
+### 12.3 Regression — whole-feature no-raw-403 guard
+
+- [x] 148. Test (table-driven, one shared test per SPEC's own
+      "Regression, whole-feature scope" acceptance criterion): for each
+      result kind (person, group, Support, RAG, message) with a fixture
+      marking it non-participant/non-eligible where applicable, clicking
+      it never produces a direct `router.navigate` call to a bare
+      `/chat/:id`-shaped path — asserts the join/request/handled flow is
+      used instead wherever one exists (group and message kinds), and
+      that person/Support/RAG (which have no such carve-out) are
+      unaffected (Red only if a gap is found — expected mostly
+      confirmatory given tasks 143–147 and the pre-existing, unchanged
+      `onEntitySelect` `'group'` case).
+- [x] 149. Fix any gap task 148 exposes (Green), or confirm none
+      needed.
+
+### 12.4 Final verification
+
+- [x] 150. Run
+      `npm run format:check && npm test && npm run build && npm run lint`
+      and confirm everything is green.
+- [x] 151. Update `SPEC.md`'s "Acceptance criteria (this subsection)"
+      under "Message-result participancy routing" to check off all four
+      items now that REQ-47 through REQ-51 are implemented and verified
+      by tests; update the top-level "Acceptance criteria" list's
+      "(New, 2026-08-11, message-result participancy routing fix)" entry
+      from unchecked to checked.
+- [x] 152. Update `../../../../PROJECT_STATUS.md` to record this
+      amendment's completion on both sides (frontend routing fix +
+      backend `isParticipant`/`visibility` fields), cross-referencing
+      the backend feature's own `PROJECT_STATUS.md` entry for this same
+      amendment so both halves are traceable from one place.

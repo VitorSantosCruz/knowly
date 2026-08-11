@@ -34,6 +34,26 @@
 > role indicator ("Você perguntou" / "A IA respondeu"), while a result
 > that still only matched by title renders exactly as before. See that
 > section for the full ruleset.
+>
+> **Amended (2026-08-11, message-result participancy routing fix) — this
+> amendment is companion to
+> `knowly-api/specify/features/chat-message-search/SPEC.md`'s own
+> "Amended (2026-08-11, message-result participancy/visibility signal)"
+> section (backend — `ChatMessageSearchResultDto` now carries
+> `isParticipant`/`visibility`, the identical shape
+> `ChatGroupSearchResultDto` already carries for entity-search group
+> results).** Closes a real, confirmed UX/contract gap, not a new
+> feature: `onMessageSelect` navigates unconditionally to
+> `/chat/{conversationId}`, but a message result can legitimately point
+> to a `PUBLIC`/`REQUEST_TO_JOIN` group conversation the caller has not
+> yet joined (an intentional discoverability carve-out on the backend's
+> message-content search, REQ-5l/REQ-5n/REQ-5o/REQ-5p there) — and
+> `ChatConversationService#requireReadableConversation` correctly
+> rejects that with an untreated 403. `onEntitySelect`'s `'group'` case
+> already handles the identical situation correctly today; this
+> amendment makes `onMessageSelect` do the same thing. See the new
+> "Message-result participancy routing" subsection near the end of the
+> "Unified search" section for the full ruleset.
 
 ## Context and motivation
 
@@ -178,6 +198,11 @@ document.
   matched" confidence REQ-32/REQ-36 already give me for a message
   result — instead of only the conversation's title, which I may never
   have set to anything memorable.
+- **(Amended 2026-08-11, message-result participancy routing fix):** As
+  a user who finds a message result inside a public/joinable group I
+  haven't joined yet, I want clicking that result to offer me the same
+  join/request-to-join step I'd get finding that same group by name —
+  not a raw error I have no way to recover from.
 
 ## Requirements (EARS/GEARS)
 
@@ -323,14 +348,24 @@ document.
   column, using the existing conversation view for its kind unchanged
   — carried forward from the original REQ-11 unchanged in substance.
   **(Superseded 2026-08-10 by REQ-32 through REQ-36 below — the
-  "remains v1-out-of-scope" note no longer applies.)**
+  "remains v1-out-of-scope" note no longer applies.) (Amended 2026-08-11,
+  message-result participancy routing fix): further extended, not
+  reversed, by REQ-47 through REQ-51 below — REQ-24's "open that
+  message's conversation" now applies only when the result's
+  `isParticipant` is `true`; see that subsection for the
+  not-yet-joined-group case.**
 - **REQ-25 [Event-Driven]** When the user clicks a "recent places"
   entry (REQ-19), the system shall open that conversation the same way
   REQ-23 does for its kind.
 - **REQ-26 [Ubiquitous]** Clicking any result (REQ-23/REQ-24/REQ-25)
   shall close the search dropdown and return focus to the conversation
   column, mirroring Slack's own behavior of dismissing the results
-  panel once a destination is chosen.
+  panel once a destination is chosen. **(Amended 2026-08-11,
+  message-result participancy routing fix): where REQ-49 routes a
+  message result through the join/request-to-join flow instead of a
+  direct navigation, the dropdown still closes exactly as this
+  requirement specifies — only the destination action differs, not the
+  dismissal behavior.**
 
 #### Feedback states
 
@@ -428,6 +463,125 @@ document.
   behavior analogous to REQ-33 through REQ-36's message-result jump; see
   "Out of scope" below.
 
+### Message-result participancy routing (Amended 2026-08-11, message-result participancy routing fix)
+
+> **New subsection.** Backend companion:
+> `knowly-api/specify/features/chat-message-search/SPEC.md`'s new REQ-44
+> through REQ-46 — `ChatMessageSearchResultDto` now carries
+> `isParticipant` (boolean) and `visibility` (`ChatGroupVisibility`,
+> nullable), the identical shape `ChatGroupSearchResultDto` already
+> carries for entity-search group results (REQ-19 there). This
+> subsection closes a real, confirmed bug: `onEntitySelect`'s `'group'`
+> case (`chat-unified-search.component.ts`) already checks
+> `result.isParticipant` and routes to `rowsService.onGroupClick` — the
+> existing join/request-to-join flow — when `false`, but
+> `onMessageSelect` navigates to `/chat/{conversationId}`
+> unconditionally, with no such check. Since backend message-content
+> search intentionally, correctly includes results from
+> `PUBLIC`/`REQUEST_TO_JOIN` group conversations the caller has not yet
+> joined (the discoverability carve-out documented in
+> `knowly-api/specify/features/chat-message-search/SPEC.md`'s
+> REQ-5l/REQ-5n/REQ-5o/REQ-5p, "mirroring the same discoverability I
+> already get browsing groups"), and
+> `ChatConversationService#requireReadableConversation` correctly
+> rejects a non-participant's direct open with a 403, a user clicking
+> such a message result today gets an untreated 403 with no recovery
+> path — discovered because the message points into a group the user
+> never joined. This subsection extends REQ-24's unconditional
+> "open that message's conversation" behavior to branch on the new
+> `isParticipant` field, reusing `onEntitySelect`'s existing flow rather
+> than inventing a second one.
+
+- **REQ-47 [Ubiquitous]** The frontend's message-result model (whatever
+  type backs `ChatSearchRowResult`'s message-kind variant) shall carry
+  the new `isParticipant`/`visibility` fields the backend now returns
+  on `ChatMessageSearchResultDto` (backend REQ-44), consumed verbatim —
+  the frontend never re-derives or infers either value client-side,
+  the same "reflect exactly what the backend response contains" posture
+  this document already establishes elsewhere (see "Relationship to
+  `chat-unified-ui`'s SPEC").
+- **REQ-48 [Event-Driven]** When the user clicks a message result whose
+  `isParticipant` is `true` (the common case — a `PEER_DIRECT` result,
+  or a `PEER_GROUP` result the caller already participates in), the
+  system shall behave exactly as REQ-24/REQ-33 already specify: open
+  the conversation directly and jump to the matched message. This is
+  unchanged from today's behavior for every result that was already
+  reachable without a 403.
+- **REQ-49 [Event-Driven]** When the user clicks a message result whose
+  `isParticipant` is `false` (a `PUBLIC`/`REQUEST_TO_JOIN` group the
+  caller has not yet joined, surfaced only via the backend's
+  message-content discoverability carve-out), the system shall route
+  through the same join/request-to-join flow `onEntitySelect`'s
+  `'group'` case already uses for the identical situation
+  (`rowsService.onGroupClick`, built from the result's
+  `conversationId`/`conversationTitle`/`visibility`), instead of
+  navigating directly to the conversation — the system shall never
+  attempt a direct navigation for a message result whose `isParticipant`
+  is `false`.
+- **REQ-50 [Unwanted Behavior]** If a message result is routed through
+  REQ-49's join/request-to-join flow, then the jump-to-message behavior
+  (REQ-33/REQ-34's automatic scroll-and-flash) is not required to fire
+  for that click — joining, or requesting to join, a group does not by
+  itself grant the same immediate in-thread context that opening an
+  already-joined conversation does, and `rowsService.onGroupClick`'s own
+  existing post-join/post-request navigation (unchanged by this
+  amendment) governs what the user sees next, not this document's
+  jump-to-message mechanism. A future amendment could add
+  jump-to-message-after-join symmetrically if the product owner wants
+  it; it is not requested here and not assumed by this amendment.
+- **REQ-51 [Unwanted Behavior]** If a message result's `isParticipant`
+  field is absent/undefined (an off-contract, defensive case — should
+  not occur once backend REQ-44 ships, since it is always populated),
+  then the system shall treat it identically to `isParticipant: true`
+  (attempt the direct-navigation path, REQ-48) rather than throwing or
+  silently doing nothing — consistent with this document's existing
+  "degrade to the safer/older behavior on an unexpected but plausible
+  off-contract shape" posture (see REQ-41's `matchedRole`-absent
+  handling), since direct navigation is what every message result did
+  before this amendment and remains the correct outcome for any caller
+  who does, in fact, already have participant access.
+
+**Acceptance criteria (this subsection):**
+
+- [x] A message result whose `isParticipant` is `true` opens its
+      conversation directly and jumps to the matched message, unchanged
+      from today's behavior.
+- [x] A message result whose `isParticipant` is `false` never navigates
+      directly to `/chat/{conversationId}` — clicking it routes through
+      the same join/request-to-join UI `onEntitySelect`'s `'group'`
+      case already uses, confirmed with a fixture asserting no 403 is
+      ever surfaced to the user for this click path.
+- [x] **Regression, whole-feature scope:** no search result of any kind
+      (person, group, Support, RAG, message) ever produces a raw,
+      untreated 403 when clicked — every result whose target may not
+      yet be directly open-able (currently: a non-participant group
+      result via `onEntitySelect`'s `'group'` case, and, per this
+      amendment, a non-participant message result via `onMessageSelect`)
+      is routed through the appropriate join/request/handled flow
+      instead of a bare navigation.
+- [x] A message result with `isParticipant` absent/undefined still
+      opens directly (REQ-51's fail-open default), not blocked or
+      errored.
+
+**Out of scope (this subsection):**
+
+- Any change to `onEntitySelect`'s `'group'` case itself — it is
+  already correct today and is reused unchanged, not modified.
+- Any change to which messages/conversations the backend returns for a
+  search — backend REQ-1 through REQ-15/REQ-5r through REQ-5v are
+  unaffected; this is purely a client-side routing fix consuming a new,
+  additive backend field.
+- Jump-to-message behavior after a successful join/request initiated
+  from a message result (REQ-50) — explicitly deferred, not assumed by
+  this amendment.
+- Any equivalent fix for a hypothetical non-participant Support or RAG
+  message-content result — REQ-1 (backend) already scopes
+  message-content search to `PEER_DIRECT`/`PEER_GROUP` only, and RAG
+  turn-content matches (REQ-27–REQ-33 backend, REQ-38–REQ-43 here) are
+  strictly owner-scoped with no discoverability carve-out (backend
+  REQ-29) — so this class of bug structurally cannot occur for either
+  of those result kinds, and no equivalent branch is added for them.
+
 ### Original acceptance criteria (message-content-only, filter-form shape) are retired along with `chat-search-dialog.component.ts`
 
 > Kept for history, not reproduced as checkable items — see "Acceptance
@@ -459,7 +613,10 @@ same convention as REQ-1(5)'s "grouped by type" call above.
 - **REQ-33 [Event-Driven]** When the user clicks a message result
   (REQ-24), in addition to opening the conversation, the system shall
   scroll the conversation column's message thread to the specific
-  matched message once it is loaded into the thread.
+  matched message once it is loaded into the thread. **(Amended
+  2026-08-11, message-result participancy routing fix): this applies
+  only to the REQ-48 (`isParticipant: true`) path — see REQ-50 for the
+  not-yet-joined-group case.**
 - **REQ-34 [Complex]** While the matched message is not yet among the
   conversation's currently-loaded messages, the system shall load
   older pages (the same "Load older messages" mechanism REQ-2 already
@@ -590,7 +747,12 @@ same convention as REQ-1(5)'s "grouped by type" call above.
   unchanged posture from the original document. **(Amended
   2026-08-11):** this includes `matchedSnippet`/`matchedRole` — the
   frontend never infers or re-derives which turn matched, only displays
-  what the backend already resolved and truncated.
+  what the backend already resolved and truncated. **(Amended 2026-08-11,
+  message-result participancy routing fix):** this also includes
+  `isParticipant`/`visibility` on a message result — the frontend never
+  infers participancy client-side (e.g. by guessing from conversation
+  kind), it only branches on what the backend response already
+  resolved.
 - Localization: unchanged from the original document — locale continues
   to be driven entirely by the app's existing in-app language selection,
   consumed automatically by the existing `localeInterceptor`; no new
@@ -646,6 +808,16 @@ same convention as REQ-1(5)'s "grouped by type" call above.
       turn-content amendment)" above for REQ-38 through REQ-43's own
       checklist — implemented and verified by tests as of this SPEC
       amendment.
+- [x] **(New, 2026-08-11, message-result participancy routing fix)**
+      See "Acceptance criteria (this subsection)" under "Message-result
+      participancy routing" above for REQ-47 through REQ-51's own
+      checklist — implemented and verified by tests as of this SPEC
+      amendment. Note: the admin/oversight-access routing gap identified
+      during AppSec review (a `STAFF_ADMIN`/`MEMBER_ADMIN` reaching a
+      conversation via oversight, not genuine non-participation) is
+      **not** covered by REQ-47–51 as written and remains open — see
+      `PROJECT_STATUS.md`'s "Next up" section for tracking; a future
+      SPEC amendment is needed before that case is addressed.
 
 ## Out of scope
 
@@ -698,6 +870,13 @@ same convention as REQ-1(5)'s "grouped by type" call above.
   amendment)" above for the scope boundaries specific to REQ-38 through
   REQ-43 (no scroll-to-turn, no all-occurrences highlighting, no pixel
   design decisions).
+- **(New, 2026-08-11, message-result participancy routing fix)** See
+  "Out of scope (this subsection)" under "Message-result participancy
+  routing" above for the scope boundaries specific to REQ-47 through
+  REQ-51 (no change to `onEntitySelect`'s already-correct `'group'`
+  case, no jump-to-message-after-join, no equivalent fix for Support/RAG
+  message-content results since that class of bug cannot occur for
+  either).
 
 ## Tier 3 — status
 
@@ -727,3 +906,21 @@ recorded with reasoning, not Tier 3 stops. **This subsection is ready
 for PLAN** — see the companion PLAN.md/TASKS.md amendment for the
 low-risk, additive task breakdown (consuming two new optional DTO
 fields, no route/contract change).
+
+**Amended (2026-08-11, message-result participancy routing fix) —
+status:** REQ-47 through REQ-51 above have **no open Tier 3 question**
+— this is a bug fix, not a product/business decision: the intended
+behavior (route a not-yet-joined group's message result through the
+existing join/request-to-join flow, exactly like the already-correct
+`onEntitySelect`'s `'group'` case) follows directly from decisions
+already made and confirmed (REQ-19's `isParticipant`/`visibility`
+shape; the backend's own REQ-5l/REQ-5n/REQ-5o/REQ-5p discoverability
+carve-out, which was itself a confirmed product decision, not
+reopened here). **This subsection is blocked on the companion backend
+amendment landing first** (`ChatMessageSearchResultDto`'s
+`isParticipant`/`visibility` fields, backend REQ-44 through REQ-46) —
+PLAN/TASKS.md for this subsection should not be scheduled ahead of
+that backend work. Once both are read back and approved, this is a
+low-risk, additive PLAN (one new field pair consumed, one new
+conditional branch reusing an existing flow, no new endpoint, no new
+UI component).

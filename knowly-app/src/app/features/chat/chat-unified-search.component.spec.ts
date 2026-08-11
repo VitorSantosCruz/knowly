@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
+import { ChatDirectoryRowsService } from '../../core/chat-directory-rows.service';
 import { ChatEntitySearchService } from '../../core/chat-entity-search.service';
 import { ChatMessageSearchService } from '../../core/chat-message-search.service';
 import { ChatService } from '../../core/chat.service';
@@ -16,6 +17,7 @@ describe('ChatUnifiedSearchComponent', () => {
   let entitySearch: ChatEntitySearchService;
   let messageSearch: ChatMessageSearchService;
   let chatService: ChatService;
+  let rowsService: ChatDirectoryRowsService;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -36,6 +38,7 @@ describe('ChatUnifiedSearchComponent', () => {
     entitySearch = TestBed.inject(ChatEntitySearchService);
     messageSearch = TestBed.inject(ChatMessageSearchService);
     chatService = TestBed.inject(ChatService);
+    rowsService = TestBed.inject(ChatDirectoryRowsService);
     vi.spyOn(router, 'navigate').mockResolvedValue(true);
     fixture.detectChanges();
   });
@@ -307,6 +310,145 @@ describe('ChatUnifiedSearchComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-unified-search-dropdown"]'),
     ).toBeFalsy();
+  });
+
+  function messageResult(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 1,
+      conversationId: 42,
+      conversationTitle: 'G',
+      senderUserId: 1,
+      senderNickname: 'A',
+      content: 'oi',
+      createdAt: '2026-08-09T00:00:00Z',
+      isParticipant: true,
+      visibility: null,
+      ...overrides,
+    };
+  }
+
+  it('REQ-48: a message result with isParticipant true still navigates directly (regression)', () => {
+    type('ana');
+    vi.advanceTimersByTime(400);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/messages/search')
+      .flush({ results: [messageResult({ isParticipant: true })], nextCursor: null });
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/search' && r.params.has('q'))
+      .flush(entityResponse());
+    fixture.detectChanges();
+
+    const onGroupClickSpy = vi.spyOn(rowsService, 'onGroupClick');
+    fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+    fixture.detectChanges();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/chat', 42], {
+      state: { jumpToMessageId: 1, jumpToQuery: 'ana' },
+    });
+    expect(onGroupClickSpy).not.toHaveBeenCalled();
+  });
+
+  it('REQ-49: a message result with isParticipant false routes through rowsService.onGroupClick instead of navigating directly', () => {
+    type('ana');
+    vi.advanceTimersByTime(400);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/messages/search')
+      .flush({
+        results: [
+          messageResult({
+            isParticipant: false,
+            visibility: 'PUBLIC',
+            conversationId: 99,
+            conversationTitle: 'Some Group',
+          }),
+        ],
+        nextCursor: null,
+      });
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/search' && r.params.has('q'))
+      .flush(entityResponse());
+    fixture.detectChanges();
+
+    const onGroupClickSpy = vi.spyOn(rowsService, 'onGroupClick').mockImplementation(() => void 0);
+    fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+    fixture.detectChanges();
+
+    expect(router.navigate).not.toHaveBeenCalledWith(['/chat', 99], expect.anything());
+    expect(onGroupClickSpy).toHaveBeenCalledWith({
+      kind: 'group',
+      key: 'group:99',
+      id: 99,
+      displayName: 'Some Group',
+      visibility: 'PUBLIC',
+      isMember: false,
+      icon: undefined,
+    });
+    // REQ-26: dropdown still closes
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="chat-unified-search-dropdown"]'),
+    ).toBeFalsy();
+  });
+
+  it('REQ-51: a message result with isParticipant absent/undefined (off-contract) still navigates directly, not through the join flow', () => {
+    type('ana');
+    vi.advanceTimersByTime(400);
+    const offContractResult = messageResult();
+    delete (offContractResult as Record<string, unknown>)['isParticipant'];
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/messages/search')
+      .flush({ results: [offContractResult], nextCursor: null });
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/search' && r.params.has('q'))
+      .flush(entityResponse());
+    fixture.detectChanges();
+
+    const onGroupClickSpy = vi.spyOn(rowsService, 'onGroupClick');
+    fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+    fixture.detectChanges();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/chat', 42], {
+      state: { jumpToMessageId: 1, jumpToQuery: 'ana' },
+    });
+    expect(onGroupClickSpy).not.toHaveBeenCalled();
+  });
+
+  it('regression, whole-feature scope: no result kind ever navigates directly to /chat/:id for a non-participant/non-eligible fixture', () => {
+    type('ana');
+    vi.advanceTimersByTime(400);
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/messages/search')
+      .flush({
+        results: [messageResult({ isParticipant: false, visibility: 'PUBLIC', conversationId: 7 })],
+        nextCursor: null,
+      });
+    httpMock
+      .expectOne((r) => r.url === '/api/chat/search' && r.params.has('q'))
+      .flush({
+        people: { results: [], hasMore: false },
+        groups: {
+          results: [
+            {
+              id: 8,
+              title: 'Not joined group',
+              memberCount: 3,
+              visibility: 'PUBLIC',
+              isParticipant: false,
+            },
+          ],
+          hasMore: false,
+        },
+        support: null,
+        rag: { results: [], hasMore: false },
+      });
+    fixture.detectChanges();
+
+    vi.spyOn(rowsService, 'onGroupClick').mockImplementation(() => void 0);
+    const rows = fixture.nativeElement.querySelectorAll('[data-testid="chat-search-result-row"]');
+    rows.forEach((row: HTMLElement) => row.click());
+    fixture.detectChanges();
+
+    expect(router.navigate).not.toHaveBeenCalledWith(['/chat', 7], expect.anything());
+    expect(router.navigate).not.toHaveBeenCalledWith(['/chat', 8], expect.anything());
   });
 
   it('bug fix: clicking a message result whose conversation is already open calls ChatService#requestJump instead of a same-URL navigation the Router silently ignores, on every click (not just the first)', () => {

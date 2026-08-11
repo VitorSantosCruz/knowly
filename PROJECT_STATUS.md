@@ -87,11 +87,36 @@ REQ-47-51) to proceed with its own PLAN/TASKS — see the still-open
 oversight-admin routing gap noted below, which that frontend work still
 needs to account for.**
 
-**Follow-up item queued, not started (2026-08-11): AppSec review of the
-`chat-message-search` REQ-44-51 amendment (frontend `onMessageSelect`
-oversight-routing, REQ-44-46 backend done above / REQ-47-51 frontend —
-amendment approved, backend implemented, frontend not yet implemented,
-see that feature's own SPEC.md/PLAN.md)
+**Current state (2026-08-11): frontend half of this same amendment
+(REQ-47-51, `knowly-app/specify/features/chat-message-search/TASKS.md`
+items 142-152) is also done and committed.**
+`ChatMessageSearchResultDto` (`knowly-app/src/app/core/chat.model.ts`)
+now carries `isParticipant: boolean` and `visibility:
+ChatGroupVisibility | null` verbatim from the backend response (no
+client-side derivation), and `onMessageSelect`
+(`knowly-app/src/app/features/chat/chat-unified-search.component.ts`)
+gains a strict `result.isParticipant === false` branch at its top that
+routes through `rowsService.onGroupClick` (the same join/request-to-join
+flow `onEntitySelect`'s `'group'` case already uses) instead of
+navigating straight into the conversation; an absent/undefined
+`isParticipant` (off-contract) still fails open to direct navigation
+per REQ-51, since `undefined === false` is `false` in JS. Full frontend
+verification green (`npm run format:check && npm test && npm run build
+&& npm run lint`, 1007/1007 tests). **The admin/oversight-access routing
+gap flagged in the AppSec follow-up below is explicitly NOT addressed
+by this implementation** — per the SPEC/TASKS wording, REQ-47-51 route
+every `isParticipant:false` message result through the join/request
+flow uniformly, including the `STAFF_ADMIN`/`MEMBER_ADMIN`-via-oversight
+case, which is a known, accepted limitation pending a future SPEC
+amendment (not silently folded in here) — see the AppSec follow-up item
+immediately below, still queued/not started.
+
+**Follow-up item queued, not started (2026-08-11, still open after
+REQ-44-51 shipped on both sides): AppSec review of the
+`chat-message-search` amendment (frontend `onMessageSelect`
+oversight-routing — REQ-44-46 backend and REQ-47-51 frontend are both
+now done and committed, see that feature's own SPEC.md/PLAN.md/TASKS.md;
+this is the still-open oversight-admin gap those did not cover)
 found a UX/correctness gap in the amendment's own design, not an
 authz hole (backend already enforces everything correctly; a
 tenant-scope admin joining a group in their own tenant is an action

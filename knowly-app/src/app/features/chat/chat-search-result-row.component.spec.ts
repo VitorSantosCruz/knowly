@@ -16,6 +16,8 @@ const MESSAGE_RESULT: ChatSearchRowResult = {
   senderNickname: 'Ana',
   content: 'vamos falar sobre a reunião',
   createdAt: '2026-08-09T10:00:00.000Z',
+  isParticipant: true,
+  visibility: null,
 };
 
 describe('ChatSearchResultRowComponent', () => {

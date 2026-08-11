@@ -447,6 +447,21 @@ export class ChatUnifiedSearchComponent {
    * `ConversationDetailComponent`'s own effect watches — instead of a navigation that would
    * silently be dropped. */
   protected onMessageSelect(result: Extract<ChatSearchRowResult, { kind: 'message' }>): void {
+    if (result.isParticipant === false) {
+      const groupRow: GroupRow = {
+        kind: 'group',
+        key: `group:${result.conversationId}`,
+        id: result.conversationId,
+        displayName: result.conversationTitle,
+        visibility: result.visibility ?? undefined,
+        isMember: false,
+        icon: undefined,
+      };
+      this.dismiss();
+      this.rowsService.onGroupClick(groupRow);
+      return;
+    }
+
     const query = this.queryInput();
     this.dismiss();
     if (this.isConversationAlreadyOpen(result.conversationId)) {

@@ -1311,3 +1311,248 @@ beyond the additive DTO fields already shipped.
   PLAN's own scope was message-content highlighting only) — no
   outstanding backend or cross-repo dependency remains for REQ-38
   through REQ-43.
+
+## Amended (2026-08-11, message-result participancy routing fix) — REQ-47 through REQ-51
+
+> Derived from SPEC.md's "Message-result participancy routing (Amended
+> 2026-08-11)" section. Backend companion:
+> `knowly-api/specify/features/chat-message-search/SPEC.md`'s REQ-44
+> through REQ-46, and this document's own
+> `knowly-api/specify/features/chat-message-search/PLAN.md` "Amended
+> (2026-08-11, message-result participancy/visibility signal)" section.
+> **This PLAN section, and the TASKS.md tasks it produces, are BLOCKED
+> until that backend amendment lands (its own AppSec PASS + green
+> tests + commit)** — `ChatMessageSearchResultDto`'s `isParticipant`/
+> `visibility` fields must exist and be served before any frontend code
+> here can be implemented or even meaningfully tested against a real
+> response shape. **Per this project's standing AppSec gate rule, this
+> PLAN section itself also needs its own light AppSec confirmation
+> before TASKS.md's tasks below are implemented** — see "AppSec review
+> scope" at the end of this section; that review can happen in parallel
+> with the backend work landing, but implementation (TASKS.md) waits on
+> both.
+
+### What changes
+
+- **`ChatMessageSearchResultDto` (frontend model, `core/chat.model.ts`)
+  gains two new, always-populated fields**, mirroring
+  `ChatGroupSearchResultDto`'s existing shape in the same file
+  verbatim (REQ-47):
+
+  ```ts
+  export interface ChatMessageSearchResultDto {
+    id: number;
+    conversationId: number;
+    conversationTitle: string;
+    senderUserId: number;
+    senderNickname: string;
+    content: string;
+    createdAt: string;
+    isParticipant: boolean; // NEW
+    visibility: ChatGroupVisibility | null; // NEW
+  }
+  ```
+
+  Consumed verbatim from the backend response — no client-side
+  derivation, matching this document's existing "reflect exactly what
+  the backend response contains" posture (see SPEC's "Relationship to
+  `chat-unified-ui`'s SPEC"). `ChatMessageSearchService`
+  (`core/chat-message-search.service.ts`) needs no code change beyond
+  the widened DTO — it already fans the backend response straight into
+  its `_results` signal without per-field transformation, identical to
+  how `ChatEntitySearchService` needed no change for the RAG
+  amendment's two new fields.
+
+### `onMessageSelect` branching (REQ-48/REQ-49/REQ-51)
+
+- **`onMessageSelect` (`chat-unified-search.component.ts`, currently
+  lines ~439–445) gains an `isParticipant` branch at its top**,
+  reusing `onEntitySelect`'s `'group'` case's own
+  `rowsService.onGroupClick` call rather than a second implementation:
+
+  ```ts
+  protected onMessageSelect(
+    result: Extract<ChatSearchRowResult, { kind: 'message' }>,
+  ): void {
+    if (result.isParticipant === false) {
+      const groupRow: GroupRow = {
+        kind: 'group',
+        key: `group:${result.conversationId}`,
+        id: result.conversationId,
+        displayName: result.conversationTitle,
+        visibility: result.visibility ?? undefined,
+        isMember: false,
+        icon: undefined,
+      };
+      this.dismiss();
+      this.rowsService.onGroupClick(groupRow);
+      return;
+    }
+
+    const query = this.queryInput();
+    this.dismiss();
+    this.router.navigate(['/chat', result.conversationId], {
+      state: { jumpToMessageId: result.id, jumpToQuery: query },
+    });
+  }
+  ```
+
+  - `result.isParticipant === false` (strict equality, not falsy-check)
+    is the REQ-49 branch condition — REQ-51's off-contract
+    absent/undefined case must **not** take this branch (`undefined ===
+    false` is `false` in JS, so this condition already fails open
+    correctly without an explicit `?? true` default; called out here so
+    a future edit doesn't "simplify" this into `!result.isParticipant`,
+    which would incorrectly route an absent/undefined value through the
+    join flow instead of REQ-51's required direct-navigation fallback).
+  - `groupRow` is built directly from the message result's own
+    `conversationId`/`conversationTitle`/`visibility` — no extra
+    lookup/round-trip, per REQ-49's explicit "built from the result's
+    ... fields" framing. `key` uses the `group:${id}` convention
+    `onEntitySelect`'s own `groupRow` construction already establishes,
+    so any existing per-row error-state tracking in
+    `ChatDirectoryRowsService` (`clearRowError`/`setRowError`, keyed by
+    `row.key`) behaves consistently whether the group was reached via
+    directory browsing or via this new message-result path.
+  - `visibility: result.visibility ?? undefined` bridges the backend
+    DTO's `ChatGroupVisibility | null` to `GroupRow`'s existing
+    `ChatGroupVisibility | undefined` field type (`GroupRow` was never
+    `null`-typed since it's built from multiple existing call sites that
+    never had a `null` case before) — a straightforward type-narrowing
+    conversion, not a behavior change; `onGroupClick` itself only
+    branches on `'PUBLIC'`/`'REQUEST_TO_JOIN'` string values, for which
+    `undefined` and `null` behave identically (neither matches either
+    branch, falling through with no action taken, which cannot occur in
+    practice per REQ-46's "never null a `PEER_GROUP` result's
+    visibility" guarantee — this bridge exists for TypeScript's type
+    system, not for a reachable runtime case).
+  - **REQ-50 (no jump-to-message after join/request)** is satisfied by
+    construction: the join/request branch above never sets
+    `state: { jumpToMessageId, jumpToQuery }` and never itself
+    navigates to `/chat/:conversationId` — `rowsService.onGroupClick`'s
+    own existing post-join/post-request navigation (unchanged by this
+    amendment) is what runs next, exactly as REQ-50 requires.
+  - **REQ-26 (dropdown still closes)** is satisfied unchanged — `this
+    .dismiss()` is called in both branches, before either navigation
+    path, identical placement to the pre-amendment function.
+
+### No changes elsewhere
+
+- **`onEntitySelect`'s `'group'` case is not touched** — it already
+  builds its own `groupRow` from a `ChatSearchRowResult` of `kind:
+  'group'`, a structurally different result type than `kind: 'message'`;
+  the two branches share behavior (both call `rowsService.onGroupClick`
+  with an equivalent `GroupRow`) but are not merged into one function,
+  since they read from different result shapes and this document's own
+  "Out of scope" explicitly rules out modifying the already-correct
+  entity-select path.
+- **No new component.** This is a single conditional branch inside an
+  existing method — consistent with this feature's established pattern
+  of extending `chat-unified-search.component.ts`/
+  `chat-search-result-row.component.ts` in place rather than
+  introducing new files for small, additive behavior changes (see the
+  RAG turn-content amendment immediately above, which took the same
+  approach).
+- **No change to `ChatDirectoryRowsService`/`onGroupClick`** — REQ-49
+  reuses it exactly as-is, per its own "Out of scope" line.
+
+### Consumed API contract (cross-reference)
+
+This document does not re-derive the backend contract — see
+`knowly-api/specify/features/chat-message-search/PLAN.md`'s "Amended
+(2026-08-11, message-result participancy/visibility signal)" section
+for the authoritative shape. Summary for reference only:
+
+| Method | Path | Response change |
+|---|---|---|
+| GET | `/api/chat/messages/search?q=...` | Every item in `results` gains `isParticipant: boolean` and `visibility: ChatGroupVisibility \| null`, always populated. |
+
+### Components changed
+
+```
+core/
+  chat.model.ts                       // CHANGED — ChatMessageSearchResultDto
+                                       //   gains isParticipant/visibility
+
+features/chat/
+  chat-unified-search.component.ts    // CHANGED — onMessageSelect gains
+                                       //   the isParticipant branch
+```
+
+No change to `chat-message-search.service.ts`, `chat-entity-search
+.service.ts`, `chat-search-result-row.component.ts`, or
+`chat-directory-rows.service.ts`.
+
+### Testing strategy (Vitest)
+
+- `chat.model.spec.ts`: no new tests needed (pure type widening); build
+  confirms no existing fixture breaks (both fields are required in the
+  type but every fixture that constructs this interface for a test must
+  be updated to include them — a compile-time forcing function, not a
+  runtime test).
+- `chat-unified-search.component.spec.ts` (extended):
+  - A message result with `isParticipant: true` clicked still opens
+    directly and sets `jumpToMessageId`/`jumpToQuery` navigation state,
+    unchanged from today (REQ-48 regression guard).
+  - A message result with `isParticipant: false` clicked never calls
+    `router.navigate(['/chat', ...])` directly — asserts
+    `rowsService.onGroupClick` is called instead, with a `GroupRow`
+    built from that result's `conversationId`/`conversationTitle`/
+    `visibility` (REQ-49).
+  - A message result with `isParticipant` absent/undefined (an
+    off-contract fixture, REQ-51) clicked still opens directly, exactly
+    like the `true` case — confirms the strict-equality branch
+    condition's fail-open behavior.
+  - Clicking a `isParticipant: false` message result closes the
+    dropdown (REQ-26) before/without waiting on `onGroupClick`'s own
+    async join/request call resolving.
+  - **Regression, whole-feature scope**: a table-driven test across
+    every result kind (person, group, Support, RAG, message) asserting
+    none of them ever produces a call to `router.navigate` with a raw
+    `/chat/:id` path for a result the fixture marks non-participant/
+    non-eligible — the SPEC's own explicit regression acceptance
+    criterion, implemented as one shared test rather than duplicated
+    per-kind.
+
+### Open items carried forward
+
+- None new. This amendment closes the message-result half of the
+  `isParticipant`/`visibility` signal `ChatGroupSearchResultDto`
+  already modeled for entity-search group results — no outstanding
+  backend or cross-repo dependency remains for REQ-47 through REQ-51
+  once the companion backend amendment lands.
+
+### AppSec review scope
+
+- **New, needs review**: (1) confirm the `result.isParticipant ===
+  false` strict-equality branch condition is the correct fail-open
+  shape for REQ-51 (an absent/undefined field must route through
+  direct navigation, not the join flow) and cannot be bypassed/spoofed
+  in a way that matters — this is a UX-routing decision consuming an
+  already-authoritative backend field, not itself an access-control
+  boundary (the actual authorization check is
+  `ChatConversationService#requireReadableConversation` server-side,
+  unchanged by this amendment; this branch only decides which
+  *client-side flow* to show before that server check runs); (2)
+  confirm `rowsService.onGroupClick`'s existing join/request-to-join
+  calls (`ChatGroupService#join`/`#requestToJoin`), now reachable from
+  a second call site (message results, not just directory browsing),
+  carry no assumption specific to being invoked only from directory
+  context that this new call site would violate — expected finding:
+  none, since `onGroupClick` takes a `GroupRow` value object with no
+  hidden dependency on how it was constructed, but worth an explicit
+  confirmation before this is marked done.
+- **Provably unchanged, do not re-review**: `onEntitySelect`'s `'group'`
+  case (unchanged, reused only as the pattern this branch mirrors);
+  `ChatDirectoryRowsService#onGroupClick` itself (unchanged);
+  `ChatConversationService#requireReadableConversation`/any backend
+  authorization logic (unchanged — this is the actual enforcement
+  boundary, and it is not touched by a client-side routing fix).
+
+**TASKS.md generation for this section proceeds once (a) the backend
+amendment (`knowly-api/specify/features/chat-message-search/PLAN.md`'s
+"Amended (2026-08-11, message-result participancy/visibility signal)"
+section) has landed with a clean AppSec PASS and is committed, and (b)
+this section's own AppSec review above returns a clean PASS —
+consistent with this feature's standing gate. Do not begin the tasks
+below until both are true.**
