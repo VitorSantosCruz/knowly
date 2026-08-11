@@ -435,13 +435,32 @@ export class ChatUnifiedSearchComponent {
    * router navigation `state`, not a query param — the SPEC's amendment explicitly excludes
    * deep-linking a message via a shareable/bookmarkable URL, so this is a one-shot,
    * in-session-only signal `ConversationDetailComponent` reads off
-   * `router.getCurrentNavigation()?.extras.state` in its own constructor. */
+   * `router.getCurrentNavigation()?.extras.state` in its own constructor.
+   *
+   * **Bug fix (found live: "search twice inside the same open conversation and only the first
+   * jump ever works")**: a result whose conversation is the one already open at `/chat/:id`
+   * would `router.navigate` to that exact same URL — a no-op under this app's default
+   * `onSameUrlNavigation: 'ignore'` (no override in `app.config.ts`), so `history.state` never
+   * changes and nothing re-fires. Detected here by comparing the clicked result's
+   * `conversationId` against the Router's own current URL, and handled via
+   * `ChatService#requestJump()` — the route-independent channel
+   * `ConversationDetailComponent`'s own effect watches — instead of a navigation that would
+   * silently be dropped. */
   protected onMessageSelect(result: Extract<ChatSearchRowResult, { kind: 'message' }>): void {
     const query = this.queryInput();
     this.dismiss();
+    if (this.isConversationAlreadyOpen(result.conversationId)) {
+      this.chatService.requestJump(result.conversationId, result.id, query);
+      return;
+    }
     this.router.navigate(['/chat', result.conversationId], {
       state: { jumpToMessageId: result.id, jumpToQuery: query },
     });
+  }
+
+  private isConversationAlreadyOpen(conversationId: number): boolean {
+    const path = this.router.url.split('?')[0].split(';')[0];
+    return path === `/chat/${conversationId}`;
   }
 
   protected onRecentPlaceSelect(place: ChatRecentPlaceDto): void {

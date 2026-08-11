@@ -6,6 +6,7 @@ import { provideTransloco } from '@jsverse/transloco';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
 import { ChatEntitySearchService } from '../../core/chat-entity-search.service';
 import { ChatMessageSearchService } from '../../core/chat-message-search.service';
+import { ChatService } from '../../core/chat.service';
 import { ChatUnifiedSearchComponent } from './chat-unified-search.component';
 
 describe('ChatUnifiedSearchComponent', () => {
@@ -14,6 +15,7 @@ describe('ChatUnifiedSearchComponent', () => {
   let router: Router;
   let entitySearch: ChatEntitySearchService;
   let messageSearch: ChatMessageSearchService;
+  let chatService: ChatService;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -33,6 +35,7 @@ describe('ChatUnifiedSearchComponent', () => {
     router = TestBed.inject(Router);
     entitySearch = TestBed.inject(ChatEntitySearchService);
     messageSearch = TestBed.inject(ChatMessageSearchService);
+    chatService = TestBed.inject(ChatService);
     vi.spyOn(router, 'navigate').mockResolvedValue(true);
     fixture.detectChanges();
   });
@@ -304,6 +307,60 @@ describe('ChatUnifiedSearchComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="chat-unified-search-dropdown"]'),
     ).toBeFalsy();
+  });
+
+  it('bug fix: clicking a message result whose conversation is already open calls ChatService#requestJump instead of a same-URL navigation the Router silently ignores, on every click (not just the first)', () => {
+    // Reported live: "search inside the currently open conversation and only the FIRST jump ever
+    // works" — `router.navigate(['/chat', sameId], { state: {...} })` is a no-op under this app's
+    // default `onSameUrlNavigation: 'ignore'` (no override in app.config.ts), so `history.state`
+    // never changes and ConversationDetailComponent's paramMap-driven read never re-fires for the
+    // second/third/... click. Simulated here by pointing the Router at `/chat/42` (as if
+    // ConversationDetailComponent were already mounted there) before each search-result click.
+    Object.defineProperty(router, 'url', { value: '/chat/42', configurable: true });
+    const requestJumpSpy = vi.spyOn(chatService, 'requestJump');
+
+    const respondWithMessageResult = () => {
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/messages/search')
+        .flush({
+          results: [
+            {
+              id: 1,
+              conversationId: 42,
+              conversationTitle: 'G',
+              senderUserId: 1,
+              senderNickname: 'A',
+              content: 'oi',
+              createdAt: '2026-08-09T00:00:00Z',
+            },
+          ],
+          nextCursor: null,
+        });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/search' && r.params.has('q'))
+        .flush(entityResponse());
+      fixture.detectChanges();
+    };
+
+    type('ana');
+    vi.advanceTimersByTime(400);
+    respondWithMessageResult();
+    fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+    fixture.detectChanges();
+
+    expect(requestJumpSpy).toHaveBeenNthCalledWith(1, 42, 1, 'ana');
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    // A second, later search + click against the SAME already-open conversation — must resolve
+    // exactly the same way, not silently do nothing.
+    type('oi');
+    vi.advanceTimersByTime(400);
+    respondWithMessageResult();
+    fixture.nativeElement.querySelector('[data-testid="chat-search-result-row"]').click();
+    fixture.detectChanges();
+
+    expect(requestJumpSpy).toHaveBeenNthCalledWith(2, 42, 1, 'oi');
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
   it('REQ-31: Escape resets both services; reopening re-fetches recentPlaces, not stale results', () => {

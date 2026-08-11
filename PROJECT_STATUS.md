@@ -56,7 +56,110 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
-**Current state (2026-08-11): two more chat bugs found live via
+**Follow-up item queued, not started (2026-08-11): AppSec review of the
+`chat-message-search` REQ-44-51 amendment (frontend `onMessageSelect`
+oversight-routing, REQ-44-46 backend / REQ-47-51 frontend — amendment
+approved, not yet implemented, see that feature's own SPEC.md/PLAN.md)
+found a UX/correctness gap in the amendment's own design, not an
+authz hole (backend already enforces everything correctly; a
+tenant-scope admin joining a group in their own tenant is an action
+they can already take regardless).** The amendment has
+`onMessageSelect` route any search result with `isParticipant:false`
+through `rowsService.onGroupClick` (the existing "join / request to
+join" flow) instead of navigating straight into the conversation, to
+avoid a raw 403 for a genuine non-participant. The gap: for a
+`STAFF_ADMIN`/`MEMBER_ADMIN` reaching a conversation via
+oversight/bypass (not an actual participant, but with legitimate
+read access through their admin role), that same `isParticipant:false`
+routing is wrong in two different ways depending on group type —
+(1) PRIVATE group reached via oversight: `onGroupClick` only handles
+`PUBLIC`/`REQUEST_TO_JOIN`, so this is a dead click, nothing happens;
+(2) PUBLIC/REQUEST_TO_JOIN group reached via oversight: this actually
+fires a real join/request-to-join state-change call under the admin's
+own identity, as an unintended side effect of what should just be
+"open this search result via my existing oversight read access" — the
+admin didn't ask to join anything. Needs a fix that distinguishes two
+different reasons `isParticipant` can be `false`: genuine
+non-participant discovery (correct to route to join/request-to-join,
+current behavior) vs. admin-with-oversight-access (should navigate
+straight in via oversight instead, no join call). The client already
+has an admin-role signal usable for this — `ActiveTenantService`/
+`AuthService`, same pattern `ChatSidebarComponent` already uses for
+tenant-gating — so this doesn't need a new backend field, just
+`onMessageSelect` branching on that signal before deciding whether to
+call `rowsService.onGroupClick` or navigate directly. Not implemented;
+pick up as part of finishing REQ-44-51 (or as an explicit follow-up
+task after it ships) — do not silently fold it into REQ-47-51's
+current wording, since the current SPEC text doesn't yet call out the
+oversight-admin case at all.
+
+**Current state (2026-08-11): two more chat jump-to-message bugs found
+live via Playwright — a stale-cache race distinct from every fix below
+it, plus a same-URL-navigation gap the user asked to prioritize out of
+what had been left as an optional note — both fixed and
+regression-tested.**
+
+1. *Jumping back to a conversation just re-opened after visiting a
+   different one silently dropped the highlight/scroll, no error* — a
+   race distinct from every fix below it. Repro: open a conversation
+   with 30+ messages, jump (via search) to an old message (forcing
+   `before=` pagination), navigate to a DIFFERENT conversation, then
+   jump (via search) back to that same old message in the first
+   conversation. The old request-storm bug (fixed below) doesn't
+   recur — but the target message just never appears highlighted or
+   scrolled to; the thread silently shows only the latest page. Root
+   cause: re-entering a conversation is a genuinely new
+   `ChatService.openConversation(id)` call (correctly — see fix 1 in
+   the "Previous state" entry below), which synchronously flips
+   `entry.loading = true` on the cache entry BEFORE its HTTP responses
+   land — but that cache entry still holds whatever an earlier visit
+   had paginated in (target included), unchanged until the response
+   arrives. `ConversationDetailComponent`'s `jumpToMessageEffect` used
+   to check `entry.messages.some(...)` ("found") BEFORE checking
+   `entry.loading`, so it could run in that window, "resolve" the jump
+   against the about-to-be-discarded stale cache, and clear
+   `jumpRequestedMessageId`. Moments later `ChatService#seedFirstPage`
+   overwrites `messages` back down to just the latest page, silently
+   losing the already-"resolved" target with nothing left to retry it.
+   Fixed by checking `loading` before `found` — a jump re-entering a
+   conversation mid-reseed now defers resolution until the fresh page
+   actually lands, then either resolves against the real data or falls
+   through to the normal REQ-34 re-pagination path. New regression test
+   in `conversation-detail.component.spec.ts` (forces a `detectChanges`
+   between the sync `openConversation` call and its HTTP response to
+   reproduce the same race window fake-timers/synchronous test code
+   would otherwise never hit).
+2. *Searching and jumping to a message already in the currently-open
+   conversation only ever worked on the FIRST click — every subsequent
+   click on a same-conversation result did nothing* (previously noted
+   as an optional/lower-priority item, now confirmed as a real bug and
+   fixed in the same scope). Root cause:
+   `ChatUnifiedSearchComponent#onMessageSelect` always went through
+   `router.navigate(['/chat', conversationId], { state: {...} })` —
+   when the clicked result's conversation is the one already open,
+   that's a same-URL navigation, and this app doesn't override the
+   Router's default `onSameUrlNavigation: 'ignore'` (no override in
+   `app.config.ts`), so the navigation is silently dropped:
+   `history.state` never changes and `ConversationDetailComponent`'s
+   `route.paramMap`-driven read (the only channel that existed) never
+   re-fires. Fixed with a new route-independent channel: `ChatService`
+   gained a `jumpRequest`/`requestJump()`/`clearJumpRequest()` signal;
+   `onMessageSelect` now detects "clicked result's conversation is
+   already open" by comparing against the Router's current URL and
+   calls `requestJump()` instead of navigating in that case;
+   `ConversationDetailComponent` consumes it via its own new
+   `sameConversationJumpEffect`, independent of `paramMap`. New
+   regression tests in both `chat-unified-search.component.spec.ts`
+   (two clicks in a row against an already-open conversation, both must
+   resolve) and `conversation-detail.component.spec.ts` (consuming the
+   signal directly).
+
+All 1003 frontend tests green (10 new/changed across both fixes),
+`format`/`format:check`/`npm test`/`build`/`lint` all clean. Not yet
+independently re-verified live in a browser as of this write-up —
+flagging for whoever picks this up next if that hasn't happened yet.
+
+**Previous state (2026-08-11): two more chat bugs found live via
 Playwright, both distinct root causes from every fix below them,
 both fixed and regression-tested.**
 

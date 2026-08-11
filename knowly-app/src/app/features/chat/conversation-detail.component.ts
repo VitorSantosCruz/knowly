@@ -158,15 +158,29 @@ export class ConversationDetailComponent implements OnInit {
     }
 
     const entry = this.entry();
+
+    // Bug fix (found live via Playwright: jumping back into a conversation just re-opened after
+    // visiting a different one left the target un-highlighted, no scroll, no error) — `found` used
+    // to be checked BEFORE `loading`. `ChatService#openConversation()` synchronously flips
+    // `entry.loading = true` on the STILL-STALE cache entry (still holding whatever an earlier
+    // visit to this same conversation had paginated in, target included) before its HTTP responses
+    // land — so this effect could run in that window, "find" the target against cache about to be
+    // discarded, and clear `jumpRequestedMessageId` as resolved. Moments later
+    // `ChatService#seedFirstPage()` overwrites `messages` back down to just the latest page,
+    // silently losing the already-"resolved" target with nothing left to retry it. Checking
+    // `loading` first defers any decision until the in-flight reseed (if any) actually settles —
+    // once it does, this effect re-runs against the FRESH cache and, if the target still isn't
+    // there, falls through to the normal REQ-34 re-pagination path below instead of having already
+    // (wrongly) declared victory.
+    if (entry.loading) {
+      return;
+    }
+
     const found = entry.messages.some((message) => message.id === targetId);
     if (found) {
       this.jumpTargetMessageId.set(targetId);
       this.jumpRequestedMessageId.set(null);
       this.jumpLoadAttempts = 0;
-      return;
-    }
-
-    if (entry.loading) {
       return;
     }
 
@@ -184,6 +198,24 @@ export class ConversationDetailComponent implements OnInit {
 
     this.jumpLoadAttempts += 1;
     this.chatService.loadOlderMessages(this.conversationId());
+  });
+
+  /** See `ChatService#jumpRequest`'s Javadoc — the direct, route-independent counterpart of the
+   * `history.state`-driven jump read in `ngOnInit`'s `paramMap` subscription, for the case where a
+   * search-result click targets a message in the conversation that's already open (a same-URL
+   * navigation the Router itself silently ignores, so `paramMap` never re-emits). Runs
+   * independently of that subscription; consumes (clears) the shared request once it applies it
+   * to this conversation, so a click meant for a different, not-yet-open conversation is left
+   * alone for that conversation's own `paramMap`-driven mount to pick up instead. */
+  private readonly sameConversationJumpEffect = effect(() => {
+    const request = this.chatService.jumpRequest();
+    if (!request || request.conversationId !== this.conversationId()) {
+      return;
+    }
+    this.jumpRequestedMessageId.set(request.messageId);
+    this.jumpToQuery.set(request.query);
+    this.jumpTargetMessageId.set(undefined);
+    this.chatService.clearJumpRequest();
   });
 
   protected readonly detail = computed(() => this.chatService.details().get(this.conversationId()));

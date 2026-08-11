@@ -53,6 +53,38 @@ export class ChatService {
   private readonly _detailErrors = signal<Set<number>>(new Set());
   readonly detailErrors = this._detailErrors.asReadonly();
 
+  /**
+   * Bug fix (found live: "search twice inside the same open conversation and only the first jump
+   * ever works") — `ChatUnifiedSearchComponent#onMessageSelect()` used to *always* go through
+   * `router.navigate(['/chat', conversationId], { state: {...} })`. When the clicked result
+   * belongs to the conversation that's already open, that's a same-URL navigation, and this app
+   * doesn't override the Router's default `onSameUrlNavigation: 'ignore'` (see `app.config.ts`)
+   * — Angular silently drops it, `history.state` never changes, and
+   * `ConversationDetailComponent`'s `route.paramMap` subscription (the only place that used to
+   * read a jump request) never re-fires. Every jump to a message already in view after the first
+   * one was a no-op: no scroll, no highlight, no error.
+   *
+   * This signal is the direct, route-independent channel for that specific case:
+   * `ChatUnifiedSearchComponent` detects "clicked result's conversation === currently open
+   * conversation" itself (comparing against the Router's current URL) and calls `requestJump()`
+   * instead of navigating; `ConversationDetailComponent` watches this signal in its own effect and
+   * consumes (clears) it once read, independent of any `paramMap` emission.
+   */
+  private readonly _jumpRequest = signal<{
+    conversationId: number;
+    messageId: number;
+    query: string;
+  } | null>(null);
+  readonly jumpRequest = this._jumpRequest.asReadonly();
+
+  requestJump(conversationId: number, messageId: number, query: string): void {
+    this._jumpRequest.set({ conversationId, messageId, query });
+  }
+
+  clearJumpRequest(): void {
+    this._jumpRequest.set(null);
+  }
+
   fetchConversations(): void {
     this.http
       .get<ConversationSummary[]>('/api/chat/conversations')

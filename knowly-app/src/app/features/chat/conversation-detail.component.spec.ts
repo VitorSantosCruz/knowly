@@ -6,6 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { provideTransloco } from '@jsverse/transloco';
 import { FakeTranslocoLoader } from '../../testing/fake-transloco-loader';
+import { ChatService } from '../../core/chat.service';
 import { ConversationDetailComponent } from './conversation-detail.component';
 
 describe('ConversationDetailComponent', () => {
@@ -661,6 +662,187 @@ describe('ConversationDetailComponent', () => {
       httpMock.expectNone((r) => r.url === '/api/chat/conversations/1/messages');
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('again');
+    });
+
+    it('regression: jumping back into a conversation being re-opened (after visiting a different conversation) must not resolve against the stale pre-reseed cache and then lose the target when seedFirstPage overwrites it', () => {
+      // Reported live via Playwright: open conversation 1, paginate back to an old message
+      // (loading it into the cache), switch to conversation 2, then jump back to that SAME old
+      // message in conversation 1. The old race: `openConversation(1)` synchronously flips
+      // `entry.loading = true` on the STILL-STALE cache entry (still holding the previously
+      // paginated messages, including the target) before the effect's next microtask runs. The
+      // jump effect used to check `found` against that stale-but-still-populated cache BEFORE
+      // checking `loading`, so it declared the jump "resolved" and cleared
+      // `jumpRequestedMessageId` — moments before the real `seedFirstPage` response overwrote
+      // `messages` back down to just the latest page, silently discarding the target with no
+      // highlight, no scroll, and no error. Fixed by checking `loading` before `found`, so a jump
+      // re-entering a conversation that's mid-reseed defers resolution until the fresh page lands,
+      // then (correctly) re-paginates via the normal REQ-34 mechanism if the target isn't in it.
+      const paramMap$ = new Subject<ReturnType<typeof convertToParamMap>>();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ConversationDetailComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideTransloco({
+            config: { availableLangs: ['en'], defaultLang: 'en' },
+            loader: FakeTranslocoLoader,
+          }),
+          { provide: ActivatedRoute, useValue: { paramMap: paramMap$ } },
+        ],
+      });
+      router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const historyStateSpy = vi
+        .spyOn(window.history, 'state', 'get')
+        .mockReturnValue({ jumpToMessageId: 999, jumpToQuery: 'hi' });
+      fixture = TestBed.createComponent(ConversationDetailComponent);
+      httpMock = TestBed.inject(HttpTestingController);
+
+      // First navigation: open conversation 1, jump to older message id 999 (forces pagination).
+      fixture.detectChanges();
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: 'c0',
+        });
+      httpMock
+        .expectOne('/api/users/me/profile')
+        .flush({ userId: 1, email: 'me@x.com', fields: {}, avatarUrl: null });
+      fixture.detectChanges();
+
+      httpMock
+        .expectOne(
+          (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('before') === 'c0',
+        )
+        .flush({
+          messages: [
+            {
+              id: 999,
+              senderUserId: 2,
+              senderNickname: 'Bob',
+              content: 'hi again',
+              createdAt: 'earlier',
+            },
+          ],
+          nextCursor: null,
+        });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('hi');
+
+      // Switch to conversation 2 — a genuinely new conversation, so `openConversation` fires.
+      historyStateSpy.mockReturnValue(null);
+      paramMap$.next(convertToParamMap({ conversationId: '2' }));
+      httpMock.expectOne('/api/chat/conversations/2').flush({
+        id: 2,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group 2',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/2/messages')
+        .flush({
+          messages: [
+            { id: 20, senderUserId: 2, senderNickname: 'Bob', content: 'oi', createdAt: 'now' },
+          ],
+          nextCursor: null,
+        });
+      fixture.detectChanges();
+
+      // Jump back to conversation 1's message 999 — a genuinely different conversation than what's
+      // currently open (2), so `isNewConversation` is true and `openConversation(1)` re-fires,
+      // re-seeding the cache. The target must still end up highlighted once that settles, not
+      // silently dropped.
+      historyStateSpy.mockReturnValue({ jumpToMessageId: 999, jumpToQuery: 'again' });
+      paramMap$.next(convertToParamMap({ conversationId: '1' }));
+      // Simulate the real-world gap between `openConversation(1)` synchronously flipping
+      // `entry.loading = true` (over the STILL-STALE, not-yet-overwritten cache) and its HTTP
+      // response actually arriving — in production this is real network latency; here, forcing a
+      // change-detection/effect flush at this exact point (before either response is flushed)
+      // reproduces the same window in which `jumpToMessageEffect` can run against that stale-but-
+      // populated cache.
+      fixture.detectChanges();
+      httpMock.expectOne('/api/chat/conversations/1').flush({
+        id: 1,
+        kind: 'PEER_GROUP',
+        tenantId: null,
+        title: 'Group',
+        participantUserIds: [1, 2],
+        participantNicknames: {},
+        visibility: 'PRIVATE',
+        archivedAt: null,
+        adminUserIds: [],
+      });
+      httpMock
+        .expectOne((r) => r.url === '/api/chat/conversations/1/messages' && !r.params.has('before'))
+        .flush({
+          messages: [
+            { id: 10, senderUserId: 2, senderNickname: 'Bob', content: 'hi', createdAt: 'now' },
+          ],
+          nextCursor: 'c0',
+        });
+      fixture.detectChanges();
+
+      // Target 999 isn't in the freshly reseeded latest page — the jump must re-paginate for it
+      // rather than having already (wrongly) declared victory against the stale pre-reseed cache.
+      httpMock
+        .expectOne(
+          (r) => r.url === '/api/chat/conversations/1/messages' && r.params.get('before') === 'c0',
+        )
+        .flush({
+          messages: [
+            {
+              id: 999,
+              senderUserId: 2,
+              senderNickname: 'Bob',
+              content: 'hi again',
+              createdAt: 'earlier',
+            },
+          ],
+          nextCursor: null,
+        });
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('again');
+    });
+
+    it('bug fix: consumes ChatService#jumpRequest for the currently open conversation, resolving a search-result click on an already-loaded message every time (not just via history.state on a route change)', () => {
+      // Counterpart to ChatUnifiedSearchComponent's own coverage — that component now calls
+      // `ChatService#requestJump()` directly (instead of navigating to the SAME URL, which the
+      // Router's default `onSameUrlNavigation: 'ignore'` silently drops) whenever the clicked
+      // result's conversation is the one already open. This asserts the consuming side: this
+      // component must pick that request up via its own effect, resolve it exactly like an
+      // ordinary jump, and clear it so it isn't re-applied.
+      fixture.detectChanges();
+      flushOpen([1, 2]); // seeds message id 10, content 'hi'
+      fixture.detectChanges();
+
+      const chatService = TestBed.inject(ChatService);
+      chatService.requestJump(1, 10, 'hi');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('mark')?.textContent).toBe('hi');
+      expect(chatService.jumpRequest()).toBeNull();
     });
 
     it('gives up once hasMore is false without an error state', () => {
