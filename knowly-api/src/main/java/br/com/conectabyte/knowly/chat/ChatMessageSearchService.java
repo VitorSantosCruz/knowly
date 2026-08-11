@@ -138,6 +138,7 @@ public class ChatMessageSearchService {
                     // only.
                     rows =
                             tenantUnrestrictedSearch(
+                                    actor.getId(),
                                     tenantId,
                                     q,
                                     senderId,
@@ -172,6 +173,7 @@ public class ChatMessageSearchService {
                 // fragment a MEMBER_ADMIN would.
                 rows =
                         tenantUnrestrictedSearch(
+                                actor.getId(),
                                 tenantId,
                                 q,
                                 senderId,
@@ -199,7 +201,8 @@ public class ChatMessageSearchService {
                                     dateFrom,
                                     dateTo,
                                     decodedCursor,
-                                    pageSize)
+                                    pageSize,
+                                    actor.getId())
                             : chatMessageSearchRepository.searchStaffScopeUnrestrictedEn(
                                     q,
                                     senderId,
@@ -207,7 +210,8 @@ public class ChatMessageSearchService {
                                     dateFrom,
                                     dateTo,
                                     decodedCursor,
-                                    pageSize);
+                                    pageSize,
+                                    actor.getId());
         } else if (tenantContext.isStaff()) {
             // REQ-5f: PARTICIPANT_AND_DISCOVERABLE, unbound to any tenant (staff-chat parity).
             Long[] additionalVisibleConversationIds =
@@ -253,7 +257,9 @@ public class ChatMessageSearchService {
                                                 row.getSenderUserId(),
                                                 row.getSenderNickname(),
                                                 row.getContent(),
-                                                row.getCreatedAt()))
+                                                row.getCreatedAt(),
+                                                row.getIsParticipant(),
+                                                row.getVisibility()))
                         .toList();
 
         String nextCursor =
@@ -281,6 +287,7 @@ public class ChatMessageSearchService {
 
     /** REQ-5g/REQ-5j/REQ-5s(a)/REQ-5s(b): TENANT_UNRESTRICTED, bound to {@code tenantId}. */
     private List<ChatMessageSearchRepository.ChatMessageSearchRow> tenantUnrestrictedSearch(
+            Long callerId,
             Long tenantId,
             String q,
             Long senderId,
@@ -299,7 +306,8 @@ public class ChatMessageSearchService {
                         dateFrom,
                         dateTo,
                         decodedCursor,
-                        pageSize)
+                        pageSize,
+                        callerId)
                 : chatMessageSearchRepository.searchTenantUnrestrictedEn(
                         tenantId,
                         q,
@@ -308,7 +316,8 @@ public class ChatMessageSearchService {
                         dateFrom,
                         dateTo,
                         decodedCursor,
-                        pageSize);
+                        pageSize,
+                        callerId);
     }
 
     /** REQ-5h/REQ-5i: PARTICIPANT_AND_DISCOVERABLE, bound to {@code tenantId}. */

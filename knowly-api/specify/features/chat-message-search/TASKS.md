@@ -895,3 +895,67 @@ tests it calls out below.
       `knowly-app/specify/features/chat-unified-ui/SPEC.md`) still need
       their own amendment to consume `matchedSnippet`/`matchedRole`
       before this is visibly usable end-to-end.
+
+## Amendment (2026-08-11, message-result participancy/visibility signal) — REQ-44–REQ-46
+
+> Continues numbering from task 168 above. Derived from PLAN.md's
+> "Amended (2026-08-11, message-result participancy/visibility signal)
+> — REQ-44 through REQ-46 implementation" section.
+>
+> **BLOCKED — do not start task 169 until AppSec returns a clean PASS
+> on that PLAN section.** Same standing gate this feature's every prior
+> amendment went through (see PLAN.md's "AppSec review scope" for this
+> section, and the two prior amendments' identical gate language above
+> in this same file). The orchestrator, not this subagent, triggers
+> that review; no task below is to be implemented before a PASS is
+> recorded in `PROJECT_STATUS.md`/this file.
+
+- [x] 169. Write `ChatMessageSearchRepositoryTest` cases (one per scope
+      fragment) asserting the new `isParticipant`/`visibility`
+      projected columns: a participant's own `PEER_GROUP` message
+      returns `isParticipant: true`; a `PUBLIC`/`REQUEST_TO_JOIN` group
+      message reached only via the discoverability carve-out returns
+      `isParticipant: false` with the group's real `visibility` (never
+      `null`); a `PEER_DIRECT` result always returns `isParticipant:
+      true`/`visibility: null`; an admin-unrestricted-fragment row
+      (`searchTenantUnrestrictedPt`/`En`,
+      `searchStaffScopeUnrestrictedPt`/`En`) for a conversation the
+      admin caller holds no participant row on reports ground-truth
+      `isParticipant: false` (not forced `true`) — per PLAN's
+      "Admin-fragment rows" note (Red — columns don't exist yet).
+- [x] 170. Add the two projected columns
+      (`isParticipant`/`visibility`) to `SELECT_AND_JOIN` and the
+      `:callerId` parameter to the two `*Unrestricted*` query variants'
+      parameter lists, plus the two new accessor methods on
+      `ChatMessageSearchRow`, exactly per PLAN's SQL block (Green for
+      task 169).
+- [x] 171. Add `isParticipant`/`visibility` fields to
+      `ChatMessageSearchResultDto` (record, additive, both
+      always-populated per REQ-44/REQ-46) and update
+      `ChatMessageSearchDtoTest` (or wherever this record's existing
+      serialization test lives) to assert a `PEER_DIRECT` result
+      serializes `visibility: null` and a `PEER_GROUP` result serializes
+      its actual enum value (Red then Green).
+- [x] 172. Extend `ChatMessageSearchService#search`'s mapping block to
+      pass `row.getIsParticipant()`/`row.getVisibility()` through into
+      the DTO verbatim; extend `ChatMessageSearchServiceTest` with a
+      thin pass-through assertion for both new fields (Red then Green).
+- [x] 173. Write a `ChatMessageSearchControllerIntegrationTest` case
+      (REQ-46, end-to-end): a caller searches content matching a
+      `PUBLIC` group they haven't joined (discoverability carve-out) and
+      the raw JSON response for that result carries
+      `"isParticipant": false` and `"visibility": "PUBLIC"` — confirming
+      the fields survive Jackson serialization with the exact
+      name/casing the frontend's `ChatMessageSearchResultDto`
+      TypeScript interface expects (Red).
+- [x] 174. Fix any gap task 173 exposes (Green), or confirm none
+      needed.
+- [x] 175. Run `./mvnw spotless:apply` then
+      `./mvnw test -Dtest="br.com.conectabyte.knowly.chat.**"` and
+      confirm all green — no `./mvnw verify`.
+- [x] 176. Update `PROJECT_STATUS.md` to record this amendment's
+      completion: the two new `ChatMessageSearchResultDto` fields, the
+      SQL projection extension, and a note that the frontend
+      counterpart (`knowly-app/specify/features/chat-message-search/SPEC.md`'s
+      "Amended (2026-08-11, message-result participancy routing fix)"
+      section, its own PLAN/TASKS) is now unblocked and can proceed.

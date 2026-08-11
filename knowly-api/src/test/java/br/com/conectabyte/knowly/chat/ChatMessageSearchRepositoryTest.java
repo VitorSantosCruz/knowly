@@ -530,4 +530,105 @@ class ChatMessageSearchRepositoryTest {
         assertThat(combinedIds).containsExactlyInAnyOrderElementsOf(ids);
         assertThat(new java.util.HashSet<>(combinedIds)).hasSize(5);
     }
+
+    // --- tasks 169/170 (REQ-44/45/46): isParticipant/visibility projected columns ---
+
+    @Test
+    void participantsOwnPeerGroupMessageReportsIsParticipantTrue() {
+        Tenant t = tenant("Participancy PeerGroup Co");
+        User caller = user("participancy-peergroup@example.com");
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Participancy Group");
+        participate(conversation, caller);
+        message(conversation, caller, "widgetflurry participant message");
+
+        List<ChatMessageSearchRow> results =
+                searchEn(caller.getId(), t.getId(), "widgetflurry", null, null, null, null, null);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getIsParticipant()).isTrue();
+    }
+
+    @Test
+    void discoverableGroupReachedOnlyViaCarveOutReportsIsParticipantFalseWithRealVisibility() {
+        Tenant t = tenant("Participancy Discoverable Co");
+        User caller = user("participancy-discoverable@example.com");
+        User other = user("participancy-discoverable-other@example.com");
+        ChatConversation publicGroup =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Participancy Public Group");
+        publicGroup.setVisibility(br.com.conectabyte.knowly.chat.ChatGroupVisibility.PUBLIC);
+        publicGroup = chatConversationRepository.saveAndFlush(publicGroup);
+        participate(publicGroup, other);
+        message(publicGroup, other, "widgetflurry discoverable message");
+
+        List<ChatMessageSearchRow> results =
+                chatMessageSearchRepository.searchScopedEn(
+                        caller.getId(),
+                        t.getId(),
+                        new Long[] {publicGroup.getId()},
+                        "widgetflurry",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        30);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getIsParticipant()).isFalse();
+        assertThat(results.get(0).getVisibility())
+                .isEqualTo(br.com.conectabyte.knowly.chat.ChatGroupVisibility.PUBLIC);
+    }
+
+    @Test
+    void peerDirectResultAlwaysReportsIsParticipantTrueAndNullVisibility() {
+        Tenant t = tenant("Participancy PeerDirect Co");
+        User caller = user("participancy-peerdirect@example.com");
+        ChatConversation conversation = conversation(ChatConversationKind.PEER_DIRECT, t, null);
+        participate(conversation, caller);
+        message(conversation, caller, "widgetflurry direct message");
+
+        List<ChatMessageSearchRow> results =
+                searchEn(caller.getId(), t.getId(), "widgetflurry", null, null, null, null, null);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getIsParticipant()).isTrue();
+        assertThat(results.get(0).getVisibility()).isNull();
+    }
+
+    @Test
+    void
+            adminUnrestrictedFragmentRowReportsGroundTruthIsParticipantFalseWhenCallerNotAParticipant() {
+        Tenant t = tenant("Participancy Admin Unrestricted Co");
+        User admin = user("participancy-admin-unrestricted@example.com");
+        User other = user("participancy-admin-unrestricted-other@example.com");
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, t, "Participancy Admin Group");
+        participate(conversation, other);
+        message(conversation, other, "widgetflurry admin unrestricted message");
+
+        List<ChatMessageSearchRow> results =
+                chatMessageSearchRepository.searchTenantUnrestrictedEn(
+                        t.getId(), "widgetflurry", null, null, null, null, null, 30, admin.getId());
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getIsParticipant()).isFalse();
+    }
+
+    @Test
+    void staffScopeAdminUnrestrictedFragmentRowReportsGroundTruthIsParticipantFalse() {
+        User admin = user("participancy-staff-admin-unrestricted@example.com");
+        User other = user("participancy-staff-admin-unrestricted-other@example.com");
+        ChatConversation conversation =
+                conversation(ChatConversationKind.PEER_GROUP, null, "Participancy Staff Group");
+        participate(conversation, other);
+        message(conversation, other, "widgetflurry staff unrestricted message");
+
+        List<ChatMessageSearchRow> results =
+                chatMessageSearchRepository.searchStaffScopeUnrestrictedEn(
+                        "widgetflurry", null, null, null, null, null, 30, admin.getId());
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getIsParticipant()).isFalse();
+    }
 }

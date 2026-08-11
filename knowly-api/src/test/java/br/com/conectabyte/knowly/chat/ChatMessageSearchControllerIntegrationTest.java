@@ -653,6 +653,32 @@ class ChatMessageSearchControllerIntegrationTest {
         assertThat(body).doesNotContain("private group message");
     }
 
+    // task 173 (REQ-46, end-to-end): a discoverability-carve-out result carries isParticipant:
+    // false and its real visibility in the raw JSON response.
+    @Test
+    void discoverableGroupResultCarriesIsParticipantFalseAndRealVisibilityInJson()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ46 Discoverable Co"));
+        member("req46-caller@example.com", tenant);
+        User other = member("req46-other@example.com", tenant);
+
+        ChatConversation publicGroup =
+                conversation(ChatConversationKind.PEER_GROUP, tenant, "REQ46 Public Group");
+        publicGroup.setVisibility(ChatGroupVisibility.PUBLIC);
+        chatConversationRepository.saveAndFlush(publicGroup);
+        participate(publicGroup, other);
+        message(publicGroup, other, "snickerdoodlequartz public group message");
+
+        Cookie session = logIn("req46-caller@example.com");
+
+        var response = search(session, "snickerdoodlequartz");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("\"isParticipant\":false");
+        assertThat(body).contains("\"visibility\":\"PUBLIC\"");
+    }
+
     // TASKS.md items 53/54 (REQ-1)
     @Test
     void supportConversationMessageNeverAppearsInResultsEvenForTicketOwner() throws Exception {

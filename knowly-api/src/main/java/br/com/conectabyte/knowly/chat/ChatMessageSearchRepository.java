@@ -71,7 +71,11 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
     String SELECT_AND_JOIN =
             "SELECT m.id AS id, m.conversation_id AS conversationId, cc.title AS"
                     + " conversationTitle, m.sender_user_id AS senderUserId, COALESCE(up.full_name,"
-                    + " u.email) AS senderNickname, m.content AS content, m.created_at AS createdAt"
+                    + " u.email) AS senderNickname, m.content AS content, m.created_at AS createdAt,"
+                    + " (EXISTS (SELECT 1 FROM chat_participants cp2 WHERE cp2.conversation_id ="
+                    + " cc.id AND cp2.user_id = :callerId AND cp2.deleted_at IS NULL)) AS"
+                    + " isParticipant, (CASE WHEN cc.kind = 'PEER_GROUP' THEN cc.visibility ELSE"
+                    + " NULL END) AS visibility"
                     + " FROM chat_messages m JOIN chat_conversations cc ON cc.id ="
                     + " m.conversation_id JOIN users u ON u.id = m.sender_user_id LEFT JOIN"
                     + " user_profiles up ON up.user_id = m.sender_user_id ";
@@ -155,7 +159,8 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
             @Param("dateFrom") Instant dateFrom,
             @Param("dateTo") Instant dateTo,
             @Param("cursor") Long cursor,
-            @Param("limit") int limit);
+            @Param("limit") int limit,
+            @Param("callerId") Long callerId);
 
     @Query(
             value =
@@ -174,7 +179,8 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
             @Param("dateFrom") Instant dateFrom,
             @Param("dateTo") Instant dateTo,
             @Param("cursor") Long cursor,
-            @Param("limit") int limit);
+            @Param("limit") int limit,
+            @Param("callerId") Long callerId);
 
     // --- REQ-5g: TENANT_UNRESTRICTED (active-tenant MEMBER_ADMIN) ---
 
@@ -196,7 +202,8 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
             @Param("dateFrom") Instant dateFrom,
             @Param("dateTo") Instant dateTo,
             @Param("cursor") Long cursor,
-            @Param("limit") int limit);
+            @Param("limit") int limit,
+            @Param("callerId") Long callerId);
 
     @Query(
             value =
@@ -216,7 +223,8 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
             @Param("dateFrom") Instant dateFrom,
             @Param("dateTo") Instant dateTo,
             @Param("cursor") Long cursor,
-            @Param("limit") int limit);
+            @Param("limit") int limit,
+            @Param("callerId") Long callerId);
 
     // --- REQ-5f/REQ-5h/REQ-5i: PARTICIPANT_AND_DISCOVERABLE (every non-admin) ---
 
@@ -278,5 +286,9 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
         String getContent();
 
         Instant getCreatedAt();
+
+        Boolean getIsParticipant();
+
+        ChatGroupVisibility getVisibility();
     }
 }

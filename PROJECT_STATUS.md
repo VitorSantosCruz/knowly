@@ -56,10 +56,42 @@
 >    `<feature>` — TASKS.md items 5-12 remain, currently on item 7:
 >    <what it is>"), not just "in progress."
 
+**Current state (2026-08-11): backend half of the `chat-message-search`
+REQ-44-46 amendment (`isParticipant`/`visibility` on
+`ChatMessageSearchResultDto`) is done and committed — TASKS.md items
+169-176. `ChatMessageSearchResultDto` now always carries `isParticipant`
+(boolean) and `visibility` (`ChatGroupVisibility`, nullable) alongside
+its existing fields, mirroring `ChatGroupSearchResultDto`'s shape.
+Sourced via two new projected columns on `ChatMessageSearchRepository`'s
+`SELECT_AND_JOIN` (`(EXISTS (SELECT 1 FROM chat_participants cp2 WHERE
+cp2.conversation_id = cc.id AND cp2.user_id = :callerId AND
+cp2.deleted_at IS NULL)) AS isParticipant`, and `(CASE WHEN cc.kind =
+'PEER_GROUP' THEN cc.visibility ELSE NULL END) AS visibility` — the
+`CASE` guard is a deviation from PLAN.md's literal `cc.visibility AS
+visibility`, added because `chat_conversations.visibility` defaults to
+`PRIVATE` even for `PEER_DIRECT` rows, which would otherwise violate
+REQ-44's "null for PEER_DIRECT" contract; PLAN.md itself is unchanged,
+this is an implementation-level correction worth folding into the PLAN
+text if this section is revisited). `:callerId` is now also bound on
+the two `*Unrestricted*` query variants (added as their last
+parameter, both Pt/En, staff-scope and tenant-scope) purely to populate
+this projection — no change to those fragments' own inclusion
+predicate. No new migration (projection-only over existing columns), no
+change to which messages/conversations match (REQ-1 through REQ-15
+untouched). `ChatMessageSearchService#search`'s mapping block passes
+`row.getIsParticipant()`/`row.getVisibility()` through verbatim. This
+unblocks the frontend counterpart
+(`knowly-app/specify/features/chat-message-search/SPEC.md`'s "Amended
+(2026-08-11, message-result participancy routing fix)" section,
+REQ-47-51) to proceed with its own PLAN/TASKS — see the still-open
+oversight-admin routing gap noted below, which that frontend work still
+needs to account for.**
+
 **Follow-up item queued, not started (2026-08-11): AppSec review of the
 `chat-message-search` REQ-44-51 amendment (frontend `onMessageSelect`
-oversight-routing, REQ-44-46 backend / REQ-47-51 frontend — amendment
-approved, not yet implemented, see that feature's own SPEC.md/PLAN.md)
+oversight-routing, REQ-44-46 backend done above / REQ-47-51 frontend —
+amendment approved, backend implemented, frontend not yet implemented,
+see that feature's own SPEC.md/PLAN.md)
 found a UX/correctness gap in the amendment's own design, not an
 authz hole (backend already enforces everything correctly; a
 tenant-scope admin joining a group in their own tenant is an action

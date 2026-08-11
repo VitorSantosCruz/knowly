@@ -218,14 +218,21 @@ class ChatMessageSearchServiceTest {
         when(tenantContext.isStaffAdmin()).thenReturn(true);
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchStaffScopeUnrestrictedEn(
-                        eq("hello"), eq(null), eq(null), eq(null), eq(null), eq(null), anyInt()))
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        anyInt(),
+                        eq(1L)))
                 .thenReturn(List.of());
 
         service.search(actor(), "hello", null, null, null, null, null, null, null);
 
         verify(chatMessageSearchRepository)
                 .searchStaffScopeUnrestrictedEn(
-                        "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
+                        "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE, 1L);
         verifyNoInteractions(tenantMembershipRepository);
     }
 
@@ -254,7 +261,8 @@ class ChatMessageSearchServiceTest {
         service.search(actor(), "hello", null, null, null, null, null, null, null);
 
         verify(chatMessageSearchRepository, org.mockito.Mockito.never())
-                .searchStaffScopeUnrestrictedEn(any(), any(), any(), any(), any(), any(), anyInt());
+                .searchStaffScopeUnrestrictedEn(
+                        any(), any(), any(), any(), any(), any(), anyInt(), any());
         verify(chatMessageSearchRepository)
                 .searchScopedEn(
                         eq(1L),
@@ -291,14 +299,23 @@ class ChatMessageSearchServiceTest {
                         eq(null),
                         eq(null),
                         eq(null),
-                        anyInt()))
+                        anyInt(),
+                        eq(1L)))
                 .thenReturn(List.of());
 
         service.search(actor(), "hello", null, null, null, null, null, null, null);
 
         verify(chatMessageSearchRepository)
                 .searchTenantUnrestrictedEn(
-                        42L, "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
+                        42L,
+                        "hello",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        ChatCursor.DEFAULT_PAGE_SIZE,
+                        1L);
     }
 
     // REQ-5j: a stale MEMBER_ADMIN role held in a *different* (non-active) tenant must never
@@ -359,14 +376,23 @@ class ChatMessageSearchServiceTest {
                         eq(null),
                         eq(null),
                         eq(null),
-                        anyInt()))
+                        anyInt(),
+                        eq(1L)))
                 .thenReturn(List.of());
 
         service.search(actor(), "hello", null, null, null, null, null, null, null);
 
         verify(chatMessageSearchRepository)
                 .searchTenantUnrestrictedEn(
-                        42L, "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
+                        42L,
+                        "hello",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        ChatCursor.DEFAULT_PAGE_SIZE,
+                        1L);
         verify(chatMessageSearchRepository, org.mockito.Mockito.never())
                 .searchScopedEn(
                         any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt());
@@ -415,7 +441,7 @@ class ChatMessageSearchServiceTest {
                         eq(ChatCursor.DEFAULT_PAGE_SIZE));
         verify(chatMessageSearchRepository, org.mockito.Mockito.never())
                 .searchTenantUnrestrictedEn(
-                        any(), any(), any(), any(), any(), any(), any(), anyInt());
+                        any(), any(), any(), any(), any(), any(), any(), anyInt(), any());
         verify(globalPermissionService, org.mockito.Mockito.never()).hasPermission(any(), any());
     }
 
@@ -437,14 +463,23 @@ class ChatMessageSearchServiceTest {
                         eq(null),
                         eq(null),
                         eq(null),
-                        anyInt()))
+                        anyInt(),
+                        eq(1L)))
                 .thenReturn(List.of());
 
         service.search(actor(), "hello", null, null, null, null, null, null, null);
 
         verify(chatMessageSearchRepository)
                 .searchTenantUnrestrictedEn(
-                        42L, "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
+                        42L,
+                        "hello",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        ChatCursor.DEFAULT_PAGE_SIZE,
+                        1L);
     }
 
     // REQ-5s(e): non-admin STAFF WITHOUT TENANT_ACT_AS_ANY, with no membership in the active
@@ -543,5 +578,47 @@ class ChatMessageSearchServiceTest {
                         .reduce("", String::concat);
         assertThat(logged).doesNotContain("super-secret-query");
         assertThat(logged).contains(String.valueOf(actor().getId()));
+    }
+
+    // task 172 (REQ-44/45): the mapping block passes isParticipant/visibility through verbatim.
+    @Test
+    void searchPassesThroughIsParticipantAndVisibilityFromTheRowVerbatim() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(tenantMembershipRepository.findByUserAndActiveTrue(any()))
+                .thenReturn(List.of(memberMembershipOf(42L)));
+        when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
+
+        ChatMessageSearchRepository.ChatMessageSearchRow row =
+                org.mockito.Mockito.mock(ChatMessageSearchRepository.ChatMessageSearchRow.class);
+        when(row.getId()).thenReturn(1L);
+        when(row.getConversationId()).thenReturn(2L);
+        when(row.getConversationTitle()).thenReturn("Title");
+        when(row.getSenderUserId()).thenReturn(3L);
+        when(row.getSenderNickname()).thenReturn("Nick");
+        when(row.getContent()).thenReturn("content");
+        when(row.getCreatedAt()).thenReturn(Instant.now());
+        when(row.getIsParticipant()).thenReturn(false);
+        when(row.getVisibility())
+                .thenReturn(br.com.conectabyte.knowly.chat.ChatGroupVisibility.PUBLIC);
+
+        when(chatMessageSearchRepository.searchScopedEn(
+                        eq(1L),
+                        eq(42L),
+                        any(Long[].class),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        anyInt()))
+                .thenReturn(List.of(row));
+
+        var page = service.search(actor(), "hello", null, null, null, null, null, null, null);
+
+        assertThat(page.results()).hasSize(1);
+        assertThat(page.results().get(0).isParticipant()).isFalse();
+        assertThat(page.results().get(0).visibility())
+                .isEqualTo(br.com.conectabyte.knowly.chat.ChatGroupVisibility.PUBLIC);
     }
 }

@@ -1756,3 +1756,197 @@ No new endpoint or DTO wrapper — this extends the existing
 
 **TASKS.md generation for this section proceeds once this AppSec pass
 returns a clean PASS**, consistent with this feature's standing gate.
+
+## Amended (2026-08-11, message-result participancy/visibility signal) — REQ-44 through REQ-46 implementation
+
+> Derived from SPEC.md's "Amended (2026-08-11, message-result
+> participancy/visibility signal) — `ChatMessageSearchResultDto`
+> extension (REQ-44 through REQ-46)" section. Small, additive,
+> DTO-only change — no new query, no new access-control branch. **This
+> PLAN section is a Tier-2 write-up of an already-scoped change; per
+> this project's standing rule, it still needs a clean AppSec PASS
+> before TASKS.md's tasks below are implemented** (see "AppSec review
+> scope" at the end of this section — flagged explicitly, mirroring how
+> every prior amendment to this same feature was gated).
+
+### What changes
+
+- **`ChatMessageSearchResultDto` gains two new, always-populated
+  fields**, mirroring `ChatGroupSearchResultDto`'s existing shape
+  verbatim (REQ-44):
+
+  ```java
+  public record ChatMessageSearchResultDto(
+      Long id,
+      Long conversationId,
+      String conversationTitle,
+      Long senderUserId,
+      String senderNickname,
+      String content,
+      Instant createdAt,
+      boolean isParticipant,
+      ChatGroupVisibility visibility) {}
+  ```
+
+  Unlike `ChatRagConversationSearchResultDto`'s `matchedSnippet`/
+  `matchedRole` (nullable, absent-on-title-only-match), these two
+  fields are **never null/omitted** — REQ-46 is explicit that a
+  non-participant result still carries its real `visibility`, never a
+  nulled-out placeholder. `visibility` is itself nullable only in the
+  sense that a `PEER_DIRECT` result has no group visibility concept at
+  all (`null`), not in the sense of "unknown."
+
+### Where `isParticipant`/`visibility` come from (REQ-45 — re-derived, never cached)
+
+- **No new query.** `ChatMessageSearchRepository.ChatMessageSearchRow`
+  already reflects, per row, exactly one of two situations by
+  construction of which scope fragment produced it
+  (`ChatMessageSearchService#search`, see that class's own Javadoc):
+  a row came from the `chat_participants` `EXISTS` half of
+  `SCOPE_PARTICIPANT_AND_DISCOVERABLE`, the `additionalVisibleConversationIds`
+  discoverable-group half of that same fragment, or one of the two
+  unrestricted fragments (`SCOPE_STAFF_SCOPE_UNRESTRICTED`/
+  `SCOPE_TENANT_UNRESTRICTED`, which carry no participant/discoverable
+  distinction at all — every row from those fragments is, by that
+  fragment's own admin-oversight semantics, always `isParticipant:
+  true` for this DTO's purpose, since REQ-44's carve-out is *only* the
+  REQ-5l/REQ-5n/REQ-5o/REQ-5p **non-admin** discoverability rule, not a
+  general "does the caller have a participant row" question — see
+  "Admin-fragment rows" below for why this framing is correct and not
+  a widening of REQ-46's rule).
+- **The SQL projection itself is extended, not a Java-side lookup**,
+  to keep REQ-45's "before any other criterion, re-derived per
+  request" posture intact (no N+1, no second participant-check query
+  per row): `SELECT_AND_JOIN` gains a `(EXISTS (SELECT 1 FROM
+  chat_participants cp2 WHERE cp2.conversation_id = cc.id AND
+  cp2.user_id = :callerId AND cp2.deleted_at IS NULL)) AS
+  isParticipant, cc.visibility AS visibility` pair of projected
+  columns, using the identical `chat_participants` predicate the
+  `SCOPE_PARTICIPANT_AND_DISCOVERABLE` fragment's own `EXISTS` clause
+  already uses (copy, not reuse-by-reference, since it's a second,
+  independently-aliased `EXISTS` inside the same `SELECT` list — SQL
+  doesn't let a `WHERE`-clause `EXISTS` be referenced from `SELECT`).
+  `:callerId` is already a bound parameter on every query variant that
+  needs it (`searchScopedPt`/`En`) and is added to the two
+  `*Unrestricted*` variants' parameter lists purely to populate this
+  new projected column (it was not previously bound there since those
+  fragments never needed a participant check to decide *inclusion*).
+- **Admin-fragment rows (`searchStaffScopeUnrestrictedPt`/`En`,
+  `searchTenantUnrestrictedPt`/`En`)**: the new `isParticipant` column
+  is still computed per-row via the same `EXISTS` sub-select (so it
+  correctly reports `false` for a row the admin caller happens to have
+  no actual participant row on) — **but this is a display-only signal
+  for this class of caller, not an access decision**: REQ-46's
+  join/request-to-join framing is written for the non-admin
+  discoverability carve-out specifically. An admin-unrestricted row
+  with `isParticipant: false` would, if opened, hit the *admin's own*
+  unrestricted read path (`ChatConversationService`'s admin-oversight
+  branch, unaffected by this amendment), not REQ-46's join flow — this
+  PLAN does not change that a `STAFF_ADMIN`/`MEMBER_ADMIN` can already
+  open any conversation their own unrestricted grant covers. The field
+  reports ground truth (REQ-45's "actual, current state") regardless of
+  which fragment produced the row; how a *consumer* interprets
+  `isParticipant: false` for an admin-fragment row is a frontend
+  concern already carved out of this amendment's scope (frontend
+  SPEC's REQ-47 through REQ-51 are scoped to the ordinary
+  non-admin/discoverability case only — see that document).
+- **`ChatMessageSearchRow` interface gains two accessor methods**,
+  `getIsParticipant()`/`getVisibility()`, backing the two new projected
+  columns (Spring Data projection convention, identical mechanism to
+  every existing accessor on this interface).
+- **`ChatMessageSearchService#search`'s mapping block** (the
+  `rows.stream().map(row -> new ChatMessageSearchResultDto(...))` call)
+  is extended to pass `row.getIsParticipant()`/`row.getVisibility()`
+  through verbatim — no new branching, no new service-level logic.
+
+### DTO shape
+
+Shown above — `visibility`'s Java type is `ChatGroupVisibility`
+(nullable, existing enum, unchanged), imported into
+`ChatMessageSearchResultDto` exactly as `ChatGroupSearchResultDto`
+already imports it.
+
+### API contract
+
+| Method | Path | Change |
+|---|---|---|
+| GET | `/api/chat/messages/search?q=...` | Every item in `ChatMessageSearchPageDto.results` gains two new, always-populated fields: `isParticipant` (boolean) and `visibility` (`ChatGroupVisibility`, nullable — `null` for a `PEER_DIRECT` result). No request-shape change, no new status code, no change to which messages match. |
+
+### What does not change
+
+- Which messages/conversations match or are excluded — REQ-1 through
+  REQ-15/REQ-5r through REQ-5v govern that, unchanged; this amendment
+  adds two projected columns, it does not touch any `WHERE` predicate.
+- `ChatEntitySearchService`/`ChatGroupSearchResultDto` — REQ-19's
+  already-correct `isParticipant`/`visibility` handling for entity
+  search is untouched; this amendment only extends the sibling
+  message-search DTO to carry the equivalent signal.
+- `ChatController`'s `/api/chat/messages/search` route, request
+  parameters, and CSRF posture — read-only `GET`, no new authenticated
+  endpoint added to `SecurityConfig`.
+- The frontend's routing decision consuming this new field — that is
+  `knowly-app/specify/features/chat-message-search/SPEC.md`'s own
+  "Amended (2026-08-11, message-result participancy routing fix)"
+  section and its own PLAN/TASKS amendment, not this document.
+
+### Testing strategy (additions)
+
+- `ChatMessageSearchRepositoryTest`: a participant row's own message
+  returns `isParticipant: true`; a `PUBLIC`/`REQUEST_TO_JOIN` group
+  message reached only via the discoverability carve-out returns
+  `isParticipant: false` with the group's real `visibility` (never
+  `null`); a `PEER_DIRECT` result always returns `isParticipant: true`
+  and `visibility: null` — one test per scope fragment
+  (`searchScopedPt`/`En`, `searchStaffScopeUnrestrictedPt`/`En`,
+  `searchTenantUnrestrictedPt`/`En`) confirming the new columns project
+  correctly for that fragment's own row shape.
+- `ChatMessageSearchServiceTest`: confirm the mapping block passes both
+  new fields through unchanged from the row projection (a thin
+  pass-through test, mirrors how every other field on this DTO is
+  already tested).
+- `ChatMessageSearchDtoTest`/existing DTO serialization test: extend
+  for the two new fields, confirming a `PEER_DIRECT` result serializes
+  `visibility: null` and a `PEER_GROUP` result serializes its actual
+  enum value.
+- `ChatMessageSearchControllerIntegrationTest`: one end-to-end case per
+  REQ-46 — a `PUBLIC` group the caller hasn't joined, matched only via
+  the discoverability carve-out, returns `isParticipant: false` and
+  `visibility: "PUBLIC"` in the raw JSON response (not merely at the
+  service layer), confirming the field survives Jackson serialization
+  with the correct name/casing the frontend's `ChatMessageSearchResultDto`
+  TypeScript interface expects.
+
+### AppSec review scope
+
+- **New, needs review**: (1) the new `isParticipant`/`visibility`
+  projected columns' `EXISTS` sub-select uses `:callerId` bound as a
+  parameter (never string-concatenated), identical binding shape to
+  every existing predicate on this query family — confirm this
+  extension doesn't introduce a second, subtly-different definition of
+  "participant" that could drift from `SCOPE_PARTICIPANT_AND_DISCOVERABLE`'s
+  own `EXISTS` clause over time (they are two independent copies of the
+  same predicate text, not a shared constant — confirm this
+  duplication is acceptable given SQL's syntactic constraint, or
+  require it be reviewed together whenever either predicate changes);
+  (2) confirm the "admin-fragment rows still report ground-truth
+  `isParticipant`" framing above does not, by itself, create a new way
+  for a `STAFF_ADMIN`/`MEMBER_ADMIN` caller's client to infer
+  participant-state information about *other* callers or leak anything
+  beyond what REQ-19/`ChatGroupSearchResultDto` already exposes for the
+  identical admin-fragment case in entity search (this is the exact
+  precedent to compare against, not a novel exposure); (3) confirm
+  `visibility`'s addition to the response reveals nothing beyond what
+  REQ-19's entity-search `ChatGroupSearchResultDto.visibility` already
+  reveals for the same conversation, since a caller could already learn
+  a group's `PUBLIC`/`REQUEST_TO_JOIN`/`PRIVATE` visibility via entity
+  search today — this is not new information disclosure, only a second
+  endpoint surfacing an already-disclosed fact.
+- **Provably unchanged, do not re-review**: every `WHERE`-clause
+  predicate on every existing query method (untouched — only the
+  `SELECT` list gains two columns); `SecurityConfig` (no change);
+  `ChatEntitySearchService`/`ChatGroupSearchResultDto` (untouched,
+  referenced only as the shape precedent this amendment mirrors).
+
+**TASKS.md generation for this section proceeds once this AppSec pass
+returns a clean PASS**, consistent with this feature's standing gate —
+**do not begin the tasks below until that review returns.**

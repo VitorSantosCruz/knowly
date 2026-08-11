@@ -1,5 +1,6 @@
 package br.com.conectabyte.knowly.chat.dto;
 
+import br.com.conectabyte.knowly.chat.ChatGroupVisibility;
 import java.time.Instant;
 
 public record ChatMessageSearchResultDto(
@@ -9,4 +10,6 @@ public record ChatMessageSearchResultDto(
         Long senderUserId,
         String senderNickname,
         String content,
-        Instant createdAt) {}
+        Instant createdAt,
+        boolean isParticipant,
+        ChatGroupVisibility visibility) {}

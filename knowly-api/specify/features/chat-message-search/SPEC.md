@@ -74,6 +74,26 @@
 > unaffected and apply identically to this new match kind. See the final
 > section for the full ruleset, UI-placement decision, and acceptance
 > criteria.
+>
+> **Amended (2026-08-11, message-result participancy/visibility signal):
+> new REQ-44 through REQ-46 at the very end of this document, companion
+> to `knowly-app/specify/features/chat-message-search/SPEC.md`'s own
+> "Amended (2026-08-11, message-result participancy routing fix)"
+> section.** Closes a real, confirmed frontend/UX gap this document
+> itself never surfaced: message-content search (REQ-1 through REQ-15,
+> REQ-5r through REQ-5v) already intentionally returns matches from
+> `PUBLIC`/`REQUEST_TO_JOIN` group conversations the caller is eligible
+> for but has not yet joined (REQ-5l/REQ-5n/REQ-5o/REQ-5p's
+> discoverability carve-out — "mirroring the same discoverability I
+> already get browsing groups"), but `ChatMessageSearchResultDto` never
+> carried a field a client could use to tell that apart from a result
+> the caller can already open directly, unlike `ChatGroupSearchResultDto`
+> (entity search's own group-result DTO), which already carries
+> `isParticipant`/`visibility` for exactly this purpose (REQ-19). This is
+> a small, additive DTO extension — it changes no query, no
+> access-control branch, and no set of matched/excluded conversations;
+> REQ-1 through REQ-15 and REQ-5r through REQ-5v are entirely unaffected
+> in substance.
 
 ## Context and motivation
 
@@ -326,6 +346,12 @@ requires; both explicitly defer it here. This amendment supplies it.
   conversation by the content of what was actually said — not only by
   the conversation's title, which I may never have set to anything
   memorable.
+- **(Amended 2026-08-11, message-result participancy/visibility
+  signal):** As a client consuming message-content search, I want each
+  result to tell me whether the caller can already open its conversation
+  directly, or whether it's a discoverable-but-not-yet-joined group, so
+  I can route the user through the right flow instead of letting them
+  hit an access error.
 
 ## Requirements (EARS/GEARS)
 
@@ -1025,6 +1051,19 @@ requires; both explicitly defer it here. This amendment supplies it.
       under "Base de artigos," never under "Mensagens" — confirms REQ-33
       and that REQ-1's `PEER_DIRECT`/`PEER_GROUP`-only scope for the
       "Mensagens" group is unaffected by this amendment.
+- [ ] **(Amended 2026-08-11, message-result participancy/visibility
+      signal)** A message result whose conversation is one the caller
+      already directly participates in has `isParticipant: true` and a
+      `visibility` matching that conversation's actual
+      `ChatGroupVisibility` (or `null` for a `PEER_DIRECT` result).
+- [ ] **(Amended 2026-08-11, message-result participancy/visibility
+      signal)** A message result whose conversation is a `PUBLIC`/
+      `REQUEST_TO_JOIN` group the caller has not yet joined (surfaced
+      only via the REQ-5l/REQ-5n/REQ-5o/REQ-5p discoverability
+      carve-out) has `isParticipant: false` and a non-null `visibility`
+      reflecting that group's actual `PUBLIC`/`REQUEST_TO_JOIN` state —
+      confirming REQ-44/REQ-46 and giving a consuming client a signal it
+      previously had no way to derive.
 
 ## Out of scope
 
@@ -1210,6 +1249,26 @@ requires; both explicitly defer it here. This amendment supplies it.
   content as a side effect of this amendment** — turns remain exactly as
   currently persisted; this amendment only adds a way to find them via
   search.
+- **(Amended 2026-08-11, message-result participancy/visibility
+  signal — new) Any change to which conversations/messages
+  message-content search matches or excludes** — REQ-1 through REQ-15
+  and REQ-5r through REQ-5v govern that, entirely unaffected by this
+  amendment; REQ-44 through REQ-46 only add fields to an
+  already-computed, already-included result.
+- **(Amended 2026-08-11, message-result participancy/visibility
+  signal — new) Any change to `ChatGroupSearchResultDto`/entity
+  search's own `isParticipant`/`visibility` handling (REQ-19)** — that
+  contract is already correct and is reused, not modified; this
+  amendment only extends the separate message-search DTO to carry the
+  equivalent signal.
+- **(Amended 2026-08-11, message-result participancy/visibility
+  signal — new) The frontend's own routing of a non-participant message
+  result through a join/request-to-join flow** — that is the companion
+  frontend SPEC amendment
+  (`knowly-app/specify/features/chat-message-search/SPEC.md`'s
+  "Amended (2026-08-11, message-result participancy routing fix)"
+  section), not this document; this document only supplies the signal
+  a client needs to make that routing decision.
 
 ## Tier 3 — status
 
@@ -1316,10 +1375,22 @@ technical investigation had mapped it. See REQ-27 through REQ-33 at the
 end of this document for the resulting ruleset, and the "Out of scope"
 entry above making the article-content boundary explicit.**
 
+**Amendment (2026-08-11, message-result participancy/visibility
+signal): not a new Tier 3 question — the underlying product decision
+(message-content search intentionally includes discoverable,
+not-yet-joined `PUBLIC`/`REQUEST_TO_JOIN` group results,
+REQ-5l/REQ-5n/REQ-5o/REQ-5p) was already confirmed by the product owner
+in the role-based-scoping/context-boundary correction rounds above; this
+amendment only closes a DTO gap so the frontend can act on a distinction
+the backend already computes. Confirmed by prior technical investigation
+against the existing source (`ChatMessageSearchResultDto`,
+`ChatGroupSearchResultDto`, `ChatEntitySearchService`), not re-derived
+here. REQ-44 through REQ-46 are ready for PLAN.**
+
 **This document, in full, is now ready for read-back and sign-off** —
-every requirement (REQ-1 through REQ-33, plus the final REQ-5r through
-REQ-5v below), acceptance criterion, and "Out of scope" line is final,
-with no remaining open Tier 3 item.
+every requirement (REQ-1 through REQ-33, REQ-44 through REQ-46, plus the
+final REQ-5r through REQ-5v below), acceptance criterion, and "Out of
+scope" line is final, with no remaining open Tier 3 item.
 
 ## Superseded — Amended (2026-08-10, role-based scoping) — REQ-5 completion (v1 — DO NOT IMPLEMENT, contains the reported bug)
 
@@ -2381,3 +2452,98 @@ of the PLAN (per this project's standing "AppSec gate is mandatory, not
 optional" rule) is still expected before TASKS.md, consistent with how
 every other access-control-relevant change in this document was
 reviewed.
+
+---
+
+## Amended (2026-08-11, message-result participancy/visibility signal) — `ChatMessageSearchResultDto` extension (REQ-44 through REQ-46)
+
+> **New, small, additive section.** Closes a real UX/contract gap
+> confirmed by prior technical investigation against this codebase's
+> existing source, not a security issue: message-content search (REQ-1
+> through REQ-15, REQ-5r through REQ-5v) already correctly, and
+> intentionally, returns matches from `PUBLIC`/`REQUEST_TO_JOIN` group
+> conversations the caller is `ChatEligibilityService`-eligible for but
+> has not yet joined (REQ-5l/REQ-5n/REQ-5o/REQ-5p's discoverability
+> carve-out, "mirroring the same discoverability I already get browsing
+> groups"). But `ChatMessageSearchResultDto` — unlike
+> `ChatGroupSearchResultDto`, unified entity search's own group-result
+> DTO, which already carries `isParticipant`/`visibility` for exactly
+> this purpose (REQ-19's "matched non-participant group opens exactly as
+> it already does from column 3 today [join/request-to-join per its
+> visibility]") — carries no equivalent field. A client consuming this
+> endpoint has no way, from the response alone, to tell "this result's
+> conversation is one I can open directly" from "this result's
+> conversation is a discoverable group I haven't joined yet" before
+> attempting to open it. This amendment closes that gap by extending the
+> DTO the same way `ChatGroupSearchResultDto` already models it, not by
+> inventing a new shape.
+
+- **REQ-44 [Ubiquitous]** `ChatMessageSearchResultDto` shall carry two
+  additional fields, populated for every returned result: `isParticipant`
+  (boolean — `true` when the caller currently holds a non-removed,
+  non-soft-deleted `chat_participants` row on that result's
+  `conversationId`; `false` when the result is present only via the
+  `PUBLIC`/`REQUEST_TO_JOIN` group-discoverability carve-out established
+  by REQ-5l/REQ-5n/REQ-5o/REQ-5p) and `visibility`
+  (`ChatGroupVisibility`, nullable — the conversation's group visibility
+  when it is a `PEER_GROUP`, `null` for a `PEER_DIRECT` result, where
+  `isParticipant` is always `true` per REQ-2/REQ-5's baseline rule since
+  no non-participant discoverability carve-out exists for 1:1
+  conversations). This mirrors `ChatGroupSearchResultDto`'s existing
+  `isParticipant`/`visibility` shape verbatim, for the identical reason:
+  letting the consuming client distinguish "open directly" from
+  "join/request-to-join" without a second round-trip, rather than
+  inventing a new, differently-shaped signal for the same underlying
+  distinction.
+- **REQ-45 [Ubiquitous]** The system shall derive `isParticipant`
+  (REQ-44) from the caller's actual, current `chat_participants` state at
+  request time — never from a cached value, never inferred client-side —
+  identical posture to REQ-2/REQ-17's existing "re-derived per request"
+  rule for every other access-control-relevant field this endpoint or
+  its sibling entity-search endpoint returns.
+- **REQ-46 [Unwanted Behavior]** If a result's conversation is a
+  `PEER_GROUP` the caller is not currently a participant of (surfaced
+  only via the REQ-5l/REQ-5n/REQ-5o/REQ-5p discoverability carve-out),
+  then the system shall set `isParticipant` to `false` and `visibility`
+  to that group's actual `ChatGroupVisibility` (`PUBLIC` or
+  `REQUEST_TO_JOIN` — a `PRIVATE` group the caller isn't in is never
+  matched at all, per REQ-5p, so `PRIVATE` never appears here) — never
+  omit or null out `isParticipant`/`visibility` for a non-participant
+  result, since the whole point of this amendment is that the client can
+  no longer assume every returned result is directly openable.
+
+**Non-functional addition:** this is a **DTO-only, additive** change —
+no new query, no new access-control branch, no change to which
+conversations/messages are matched or returned (REQ-1 through REQ-15,
+REQ-5r through REQ-5v are entirely unaffected in substance). The
+`isParticipant`/`visibility` values are read off exactly the same
+`chat_participants`/`ChatGroupVisibility` state
+`ChatMessageSearchService` already resolves internally to decide
+inclusion/exclusion (REQ-2/REQ-5's join, REQ-5l/REQ-5n/REQ-5o/REQ-5p's
+discoverability predicate) — this amendment only serializes a value the
+service already computes, it does not compute anything new.
+
+**Out of scope (this amendment):**
+
+- Any change to which conversations/messages match or are excluded —
+  REQ-1 through REQ-15/REQ-5r through REQ-5v govern that, unchanged.
+- Any change to `ChatGroupSearchResultDto`/entity search's own,
+  already-correct `isParticipant`/`visibility` handling (REQ-19) — this
+  amendment only extends the message-search DTO to carry the equivalent
+  signal, it does not touch entity search's existing, already-working
+  contract.
+- The frontend's own use of this new field to route a non-participant
+  message result through the join/request-to-join flow instead of
+  navigating directly — that is the companion frontend SPEC amendment,
+  `knowly-app/specify/features/chat-message-search/SPEC.md`'s own
+  "Amended (2026-08-11, message-result participancy routing fix)"
+  section, not this document.
+
+**Status.** Ready for PLAN.md/TASKS.md — small, additive, no new
+AppSec-relevant surface beyond what REQ-2/REQ-5/REQ-17's existing
+"re-derived per request, before any other criterion" posture already
+covers (this amendment only serializes an already-computed value); a
+light AppSec confirmation that no new field leaks anything beyond what
+`isParticipant`/`visibility` already convey for entity search (REQ-19)
+is still expected before TASKS.md, per this project's standing AppSec
+gate rule.
