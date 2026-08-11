@@ -467,35 +467,83 @@ class ChatMessageSearchControllerIntegrationTest {
         assertThat(body).doesNotContain("tenant-owned message");
     }
 
-    // REQ-5e: STAFF_ADMIN gets platform-wide unrestricted search, including a conversation they
-    // hold no participant row on, with or without an active tenant.
+    // REQ-5e: STAFF_ADMIN gets unrestricted search within staff scope, including a conversation
+    // they hold no participant row on -- but (REQ-5e/REQ-5j, context-boundary correction) never a
+    // conversation belonging to any tenant, even one they separately hold a membership in.
     @Test
-    void staffAdminWithNoActiveTenantGetsUnrestrictedResultsRegardlessOfParticipation()
+    void staffAdminWithNoActiveTenantGetsUnrestrictedStaffScopeResultsButNeverTenantContent()
             throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5e Staff Admin No Active Co"));
         User owner = member("req5e-owner@example.com", tenant);
-        ChatConversation conversation =
+        ChatConversation tenantConversation =
                 conversation(
                         ChatConversationKind.PEER_GROUP, tenant, "Staff Admin No Active Group");
-        participate(conversation, owner);
-        message(conversation, owner, "ratatouillewhisk staff admin no active message");
+        participate(tenantConversation, owner);
+        message(tenantConversation, owner, "ratatouillewhisk staff admin no active message");
 
-        staff("req5e-staffadmin-noactive@example.com", GlobalRole.STAFF_ADMIN);
+        // Staff-scope (tenant-less) conversation the staff admin holds no participant row on --
+        // must still be unrestricted-within-staff-scope per REQ-5e.
+        ChatConversation staffScopeConversation =
+                conversation(
+                        ChatConversationKind.PEER_GROUP, null, "Staff Admin Staff Scope Group");
+        message(staffScopeConversation, owner, "ratatouillewhisk staff scope owner message");
+
+        User staffAdmin = staff("req5e-staffadmin-noactive@example.com", GlobalRole.STAFF_ADMIN);
+        // Reported-bug reproduction: the staff admin ALSO holds a genuine tenant relationship --
+        // this must never widen the staff-scope search into that tenant's content (REQ-5j).
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(staffAdmin, tenant, MembershipRole.MEMBER));
 
         Cookie session = logIn("req5e-staffadmin-noactive@example.com");
 
         var response = search(session, "ratatouillewhisk");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("ratatouillewhisk");
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("staff scope owner message");
+        assertThat(body).doesNotContain("staff admin no active message");
     }
 
-    // TASKS.md items 51/52, superseded by REQ-5e/REQ-5g: STAFF_ADMIN/MEMBER_ADMIN now DO get
-    // results from a conversation with zero participant rows, since their admin grant is an
-    // explicit, bounded, unrestricted-within-scope privilege, not a REQ-2-style participancy
-    // check.
+    // Mirror direction of the fix: a MEMBER_ADMIN active in a tenant must never match staff-scope
+    // (tenant_id IS NULL) content, even one they separately hold a staff-scope participant row on.
+    // (Largely already covered by memberAdminUnrestrictedGrantNeverCrossesTenantBoundaries for the
+    // cross-tenant case; this asserts the staff-scope side of the same invariant explicitly.)
     @Test
-    void staffAdminWithZeroParticipantRowsStillGetsResultsUnrestricted() throws Exception {
+    void memberAdminActiveInATenantNeverMatchesStaffScopeContentEvenAsAParticipant()
+            throws Exception {
+        Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5g Staff Scope Boundary Co"));
+        User memberAdmin = userRepository.saveAndFlush(new User("req5g-boundary@example.com"));
+        tenantMembershipRepository.saveAndFlush(
+                new TenantMembership(memberAdmin, tenant, MembershipRole.MEMBER_ADMIN));
+
+        ChatConversation tenantConversation =
+                conversation(
+                        ChatConversationKind.PEER_GROUP, tenant, "REQ5g Boundary Tenant Group");
+        message(tenantConversation, memberAdmin, "marmaladequill tenant group message");
+
+        ChatConversation staffScopeConversation =
+                conversation(ChatConversationKind.PEER_GROUP, null, "REQ5g Boundary Staff Group");
+        participate(staffScopeConversation, memberAdmin);
+        message(staffScopeConversation, memberAdmin, "marmaladequill staff scope message");
+
+        Cookie session = logIn("req5g-boundary@example.com");
+        switchActiveTenant(session, tenant.getId());
+
+        var response = search(session, "marmaladequill");
+
+        assertThat(response).hasStatus(HttpStatus.OK);
+        String body = response.getResponse().getContentAsString();
+        assertThat(body).contains("tenant group message");
+        assertThat(body).doesNotContain("staff scope message");
+    }
+
+    // Fixed by the context-boundary correction: a STAFF_ADMIN active in a tenant only as an
+    // ordinary MEMBER (not MEMBER_ADMIN) is no longer unrestricted within that tenant -- the admin
+    // bypass is scoped to the specific role held in the current context, per REQ-5g/REQ-5j, not to
+    // the caller's global STAFF_ADMIN role.
+    @Test
+    void staffAdminActiveInATenantAsOrdinaryMemberDoesNotGetUnrestrictedTenantAccess()
+            throws Exception {
         Tenant tenant = tenantRepository.saveAndFlush(new Tenant("REQ5e Staff Admin Co"));
         User owner = member("req5e-owner2@example.com", tenant);
         ChatConversation conversation =
@@ -512,7 +560,7 @@ class ChatMessageSearchControllerIntegrationTest {
         var response = search(session, "splendifantastic");
 
         assertThat(response).hasStatus(HttpStatus.OK);
-        assertThat(response.getResponse().getContentAsString()).contains("splendifantastic");
+        assertThat(response.getResponse().getContentAsString()).doesNotContain("splendifantastic");
     }
 
     @Test

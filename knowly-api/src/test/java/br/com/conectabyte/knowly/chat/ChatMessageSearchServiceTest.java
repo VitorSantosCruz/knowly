@@ -74,7 +74,7 @@ class ChatMessageSearchServiceTest {
                 .thenReturn(List.of());
         lenient().when(chatConversationRepository.findDiscoverableIds(any())).thenReturn(List.of());
         lenient()
-                .when(chatConversationRepository.findDiscoverableIdsPlatformWide())
+                .when(chatConversationRepository.findDiscoverableIdsStaffScope())
                 .thenReturn(List.of());
     }
 
@@ -126,7 +126,6 @@ class ChatMessageSearchServiceTest {
     // REQ-5h: ordinary tenant MEMBER dispatches to searchScopedPt/En, tenant-bound.
     @Test
     void tenantMemberDispatchesToScopedSearchWithResolvedLocaleAndFilters() {
-        when(tenantContext.isStaffAdmin()).thenReturn(false);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
         when(chatMessageSearchLocaleResolver.resolve("pt-BR")).thenReturn(ChatSearchLocale.PT);
         when(chatMessageSearchRepository.searchScopedPt(
@@ -160,7 +159,6 @@ class ChatMessageSearchServiceTest {
 
     @Test
     void enResolvedLocaleDispatchesToScopedSearchEnWithSuppliedFilters() {
-        when(tenantContext.isStaffAdmin()).thenReturn(false);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchScopedEn(
@@ -194,28 +192,67 @@ class ChatMessageSearchServiceTest {
                         eq(10));
     }
 
-    // REQ-5e: STAFF_ADMIN gets platform-wide, unrestricted search regardless of active tenant.
+    // REQ-5e (corrected): STAFF_ADMIN with no active tenant gets unrestricted search within staff
+    // scope only -- never the old platform-wide fragment, which no longer exists.
     @Test
-    void staffAdminDispatchesToUnrestrictedSearchRegardlessOfActiveTenant() {
+    void staffAdminWithNoActiveTenantDispatchesToStaffScopeUnrestrictedSearch() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.empty());
         when(tenantContext.isStaffAdmin()).thenReturn(true);
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
-        when(chatMessageSearchRepository.searchUnrestrictedEn(
+        when(chatMessageSearchRepository.searchStaffScopeUnrestrictedEn(
                         eq("hello"), eq(null), eq(null), eq(null), eq(null), eq(null), anyInt()))
                 .thenReturn(List.of());
 
         service.search(actor(), "hello", null, null, null, null, null, null, null);
 
         verify(chatMessageSearchRepository)
-                .searchUnrestrictedEn(
+                .searchStaffScopeUnrestrictedEn(
                         "hello", null, null, null, null, null, ChatCursor.DEFAULT_PAGE_SIZE);
         verifyNoInteractions(tenantMembershipRepository);
+    }
+
+    // REQ-5j (context-boundary correction): a STAFF_ADMIN who ALSO has an active tenant must never
+    // reach the staff-scope-unrestricted fragment -- context (tenant-present) is resolved before
+    // the admin role check, so this dispatches like an ordinary tenant caller instead.
+    @Test
+    void staffAdminWithAnActiveTenantNeverDispatchesToStaffScopeUnrestrictedSearch() {
+        when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
+        when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
+        when(chatMessageSearchRepository.searchScopedEn(
+                        eq(1L),
+                        eq(42L),
+                        any(Long[].class),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        anyInt()))
+                .thenReturn(List.of());
+
+        service.search(actor(), "hello", null, null, null, null, null, null, null);
+
+        verify(chatMessageSearchRepository, org.mockito.Mockito.never())
+                .searchStaffScopeUnrestrictedEn(any(), any(), any(), any(), any(), any(), anyInt());
+        verify(chatMessageSearchRepository)
+                .searchScopedEn(
+                        eq(1L),
+                        eq(42L),
+                        any(Long[].class),
+                        eq("hello"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(ChatCursor.DEFAULT_PAGE_SIZE));
     }
 
     // REQ-5g/REQ-5j: an active-tenant MEMBER_ADMIN gets tenant-unrestricted search, never
     // cross-tenant.
     @Test
     void tenantMemberAdminDispatchesToTenantUnrestrictedSearchBoundToActiveTenant() {
-        when(tenantContext.isStaffAdmin()).thenReturn(false);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
         TenantMembership membership = new TenantMembership();
         Tenant tenant = new Tenant("Tenant 42");
@@ -248,7 +285,6 @@ class ChatMessageSearchServiceTest {
     // trigger the tenant-unrestricted branch for the active tenant.
     @Test
     void memberAdminInADifferentTenantDoesNotTriggerTenantUnrestrictedForActiveTenant() {
-        when(tenantContext.isStaffAdmin()).thenReturn(false);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
         TenantMembership staleMembership = new TenantMembership();
         Tenant otherTenant = new Tenant("Other Tenant");
@@ -341,7 +377,6 @@ class ChatMessageSearchServiceTest {
 
     @Test
     void logsActorHasQueryFilterPresenceAndResultCountButNeverTheRawQuery() {
-        when(tenantContext.isStaffAdmin()).thenReturn(false);
         when(tenantContext.getActiveTenantId()).thenReturn(Optional.of(42L));
         when(chatMessageSearchLocaleResolver.resolve(null)).thenReturn(ChatSearchLocale.EN);
         when(chatMessageSearchRepository.searchScopedEn(

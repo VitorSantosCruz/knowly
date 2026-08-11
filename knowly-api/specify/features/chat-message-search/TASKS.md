@@ -691,6 +691,66 @@ tests it calls out below.
 - [ ] 142. Update `PROJECT_STATUS.md` to reflect this amendment's
       completion.
 
+## Amended (2026-08-10, context-boundary correction) — REQ-5e–REQ-5j fix
+
+- [x] 143. Write/rewrite the regression test proving the reported bug is
+      fixed: a `STAFF_ADMIN` in staff scope (no active tenant), who also
+      holds a tenant membership elsewhere, must never match a
+      tenant-owned conversation's message via message search — only
+      staff-scope (`tenant_id IS NULL`) content
+      (`ChatMessageSearchControllerIntegrationTest`). Confirm it fails
+      (Red) against the current `PLATFORM_UNRESTRICTED` code path before
+      any production code changes.
+- [x] 144. Delete `PLATFORM_UNRESTRICTED` entirely:
+      `searchUnrestrictedPt`/`En` and their Javadoc bullet from
+      `ChatMessageSearchRepository`, `findDiscoverableIdsPlatformWide`
+      renamed to `findDiscoverableIdsStaffScope` (no behavior change,
+      cosmetic per PLAN.md) in `ChatConversationRepository`. Add the new
+      `STAFF_SCOPE_UNRESTRICTED` fragment (`searchStaffScopeUnrestrictedPt`/
+      `En`, `cc.tenant_id IS NULL`, no bind param) mirroring
+      `TENANT_UNRESTRICTED`'s shape, plus its Javadoc bullet.
+- [x] 145. Restructure `ChatMessageSearchService.search()` to resolve
+      `activeTenantId` first, then branch admin-vs-non-admin within that
+      resolved context (tenant-present: `MEMBER_ADMIN` ->
+      `TENANT_UNRESTRICTED` else `PARTICIPANT_AND_DISCOVERABLE` with the
+      relocated `IllegalStateException` invariant; tenant-absent:
+      `STAFF_ADMIN` -> `STAFF_SCOPE_UNRESTRICTED`, else `STAFF` ->
+      `PARTICIPANT_AND_DISCOVERABLE` unbound, else fail closed). Rename
+      `additionalVisibleConversationIdsPlatformWide` to
+      `...StaffScope`. Rewrite the service and repository class Javadocs
+      to the corrected five-branch precedence — no stale v1 description
+      left behind (Green for task 143).
+- [x] 146. Update `ChatMessageSearchServiceTest`: rename
+      `findDiscoverableIdsPlatformWide` stub to
+      `findDiscoverableIdsStaffScope`; rewrite the `STAFF_ADMIN` test to
+      assert dispatch to `searchStaffScopeUnrestrictedEn`/`Pt` (never
+      `searchUnrestrictedEn`/`Pt`, which no longer exist); confirm the
+      mirror direction (tenant member never matching staff-scope
+      content) is already covered by
+      `tenantMemberDispatchesToScopedSearchWithResolvedLocaleAndFilters`/
+      `memberAdminInADifferentTenantDoesNotTriggerTenantUnrestrictedForActiveTenant`
+      — no duplicate needed.
+- [x] 147. Update `ChatConversationRepositoryTest`: rename
+      `findDiscoverableIdsPlatformWideReturnsAcrossTenantsButNeverPrivateGroups`
+      to `findDiscoverableIdsStaffScopeReturnsAcrossTenantsButNeverPrivateGroups`
+      calling the renamed repository method (assertions unchanged — this
+      id-set's cross-tenant candidates are still safely filtered by the
+      caller's own `tenant_id IS NULL` SQL guard, per PLAN.md).
+- [x] 148. Fix
+      `ChatMessageSearchControllerIntegrationTest#staffAdminWithZeroParticipantRowsStillGetsResultsUnrestricted`,
+      which relied on the pre-fix "`STAFF_ADMIN` always unrestricted
+      regardless of context" behavior while active in a tenant as a mere
+      `MEMBER` (not `MEMBER_ADMIN`) — under the corrected precedence this
+      caller now correctly falls into the restricted
+      `PARTICIPANT_AND_DISCOVERABLE` branch like any other tenant
+      `MEMBER`. Rewrite to assert the corrected behavior instead of the
+      superseded one.
+- [x] 149. Run `./mvnw spotless:apply` then
+      `./mvnw test -Dtest="br.com.conectabyte.knowly.chat.**"` and
+      confirm all green — no `./mvnw verify`.
+- [x] 150. Update `PROJECT_STATUS.md` to record this correction and its
+      regression test.
+
 ## Wrap-up (original)
 
 - [x] 135. Update `PROJECT_STATUS.md` to reflect this amendment's

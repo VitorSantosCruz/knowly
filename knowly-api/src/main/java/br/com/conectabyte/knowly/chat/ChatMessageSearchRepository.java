@@ -26,16 +26,23 @@ import org.springframework.data.repository.query.Param;
  * other predicate -- never a post-filter step in Java, and never omittable by a future edit that
  * adds a new filter without re-reading this Javadoc.
  *
- * <p><b>Role-based scoping (REQ-5e-REQ-5j, 2026-08-10 amendment):</b> {@code BASE_PREDICATE} is
- * always applied (conversation kind, archive/delete state, and the optional {@code senderId}/{@code
- * conversationId}/date-range/cursor filters); one of three mutually exclusive <b>scope
- * fragments</b> is appended on top of it, selected in Java by {@code ChatMessageSearchService}
- * before the query method is chosen -- never combined, and never a post-filter step:
+ * <p><b>Role-based scoping (REQ-5e-REQ-5j, 2026-08-10 amendment, context-boundary correction):</b>
+ * {@code BASE_PREDICATE} is always applied (conversation kind, archive/delete state, and the
+ * optional {@code senderId}/{@code conversationId}/date-range/cursor filters); one of three
+ * mutually exclusive <b>scope fragments</b> is appended on top of it, selected in Java by {@code
+ * ChatMessageSearchService} -- after it first resolves the caller's current context (active tenant
+ * vs. staff scope) and only then branches admin-vs-non-admin within that context -- before the
+ * query method is chosen -- never combined, and never a post-filter step:
  *
  * <ul>
- *   <li>{@code searchUnrestrictedPt}/{@code En} (REQ-5e, {@code STAFF_ADMIN}): no tenant predicate,
- *       no participant/discoverability predicate at all -- fully platform-wide within {@code
- *       PEER_DIRECT}/{@code PEER_GROUP} scope.
+ *   <li>{@code searchStaffScopeUnrestrictedPt}/{@code En} (REQ-5e, corrected, {@code STAFF_ADMIN}
+ *       currently in staff scope): {@code cc.tenant_id IS NULL} only, no participant/
+ *       discoverability predicate -- unrestricted within staff scope, but never a tenant-owned
+ *       conversation, even one the caller separately holds a participant row on (REQ-5j). <b>There
+ *       used to be a {@code searchUnrestrictedPt}/{@code En} pair here with no tenant predicate at
+ *       all ("platform-wide") -- deleted 2026-08-10 after a live Playwright test confirmed it let a
+ *       {@code STAFF_ADMIN} viewing chat in staff scope see a tenant member's message. Do not
+ *       reintroduce a fragment with no {@code tenant_id} predicate for any role.</b>
  *   <li>{@code searchTenantUnrestrictedPt}/{@code En} (REQ-5g, active-tenant {@code MEMBER_ADMIN}):
  *       {@code cc.tenant_id = :activeTenantId} only, no participant/ discoverability predicate --
  *       unrestricted within that one tenant, never cross-tenant.
@@ -77,6 +84,8 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
                     + " NULL OR m.created_at >= :dateFrom) AND (CAST(:dateTo AS timestamptz) IS NULL"
                     + " OR m.created_at <= :dateTo) AND (:cursor IS NULL OR m.id < :cursor) ";
 
+    String SCOPE_STAFF_SCOPE_UNRESTRICTED = "AND cc.tenant_id IS NULL ";
+
     String SCOPE_TENANT_UNRESTRICTED = "AND cc.tenant_id = :activeTenantId ";
 
     String SCOPE_PARTICIPANT_AND_DISCOVERABLE =
@@ -88,17 +97,17 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
 
     String ORDER_AND_LIMIT = "ORDER BY m.id DESC LIMIT :limit";
 
-    // --- REQ-5e: PLATFORM_UNRESTRICTED (STAFF_ADMIN) ---
+    // --- REQ-5e (corrected): STAFF_SCOPE_UNRESTRICTED (STAFF_ADMIN, currently in staff scope) ---
 
     @Query(
             value =
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
-                            + "AND m.content_tsv_pt @@"
-                            + " websearch_to_tsquery('portuguese', :q) "
+                            + SCOPE_STAFF_SCOPE_UNRESTRICTED
+                            + "AND m.content_tsv_pt @@ websearch_to_tsquery('portuguese', :q) "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
-    List<ChatMessageSearchRow> searchUnrestrictedPt(
+    List<ChatMessageSearchRow> searchStaffScopeUnrestrictedPt(
             @Param("q") String q,
             @Param("senderId") Long senderId,
             @Param("conversationId") Long conversationId,
@@ -111,11 +120,11 @@ public interface ChatMessageSearchRepository extends Repository<ChatMessage, Lon
             value =
                     SELECT_AND_JOIN
                             + BASE_PREDICATE
-                            + "AND m.content_tsv_en @@"
-                            + " websearch_to_tsquery('english', :q) "
+                            + SCOPE_STAFF_SCOPE_UNRESTRICTED
+                            + "AND m.content_tsv_en @@ websearch_to_tsquery('english', :q) "
                             + ORDER_AND_LIMIT,
             nativeQuery = true)
-    List<ChatMessageSearchRow> searchUnrestrictedEn(
+    List<ChatMessageSearchRow> searchStaffScopeUnrestrictedEn(
             @Param("q") String q,
             @Param("senderId") Long senderId,
             @Param("conversationId") Long conversationId,

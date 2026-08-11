@@ -92,7 +92,7 @@ class ChatConversationRepositoryTest {
     }
 
     @Test
-    void findDiscoverableIdsPlatformWideReturnsAcrossTenantsButNeverPrivateGroups() {
+    void findDiscoverableIdsStaffScopeReturnsAcrossTenantsButNeverPrivateGroups() {
         Tenant tenantA =
                 tenantRepository.saveAndFlush(new Tenant("Discoverable Ids Platform Tenant A"));
         Tenant tenantB =
@@ -116,7 +116,7 @@ class ChatConversationRepositoryTest {
         privateGroup.setVisibility(ChatGroupVisibility.PRIVATE);
         chatConversationRepository.saveAndFlush(privateGroup);
 
-        var ids = chatConversationRepository.findDiscoverableIdsPlatformWide();
+        var ids = chatConversationRepository.findDiscoverableIdsStaffScope();
 
         assertThat(ids).contains(publicGroupA.getId(), publicGroupB.getId());
         assertThat(ids).doesNotContain(privateGroup.getId());

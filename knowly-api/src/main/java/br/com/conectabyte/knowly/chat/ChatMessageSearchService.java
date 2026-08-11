@@ -22,22 +22,36 @@ import org.springframework.transaction.annotation.Transactional;
  * (REQ-11/12), locale resolution (REQ-13-15), role-based scope resolution (REQ-5e-REQ-5j), and
  * delegation to {@link ChatMessageSearchRepository}.
  *
- * <p><b>Role-based scoping (2026-08-10 amendment, supersedes the original "never reads {@code
- * isStaff()}/{@code isStaffAdmin()}" no-bypass posture for this method).</b> This method now
- * computes one of three scopes, in strict precedence order so no caller can satisfy two branches
- * ambiguously, per SPEC.md's "Amended (2026-08-10, role-based scoping) -- REQ-5 completion":
+ * <p><b>Role-based scoping (2026-08-10 amendment, context-boundary correction -- supersedes the
+ * original "never reads {@code isStaff()}/{@code isStaffAdmin()}" no-bypass posture for this
+ * method, and supersedes this same amendment's own first (buggy) draft).</b> The confirmed bug: the
+ * v1 draft checked {@code tenantContext.isStaffAdmin()} <i>before</i> resolving the caller's
+ * current context, so a {@code STAFF_ADMIN} viewing chat in staff scope could match a tenant
+ * member's message. The fix resolves context <i>first</i>, then branches admin-vs-non-admin
+ * strictly within that resolved context, per SPEC.md's "Amended (2026-08-10, context-boundary
+ * correction) -- REQ-5 completion (final)":
  *
  * <ol>
- *   <li>{@code tenantContext.isStaffAdmin()} -&gt; platform-wide, unrestricted (REQ-5e).
- *   <li>Else, an active tenant is present and the caller is that tenant's active {@code
- *       MEMBER_ADMIN} -&gt; unrestricted within that tenant only (REQ-5g), never cross-tenant
- *       (REQ-5j).
- *   <li>Else, an active tenant is present (ordinary {@code MEMBER}) -&gt; participant +
- *       discoverable-group scope, bound to that tenant (REQ-5h/REQ-5i).
- *   <li>Else, {@code tenantContext.isStaff()} with no active tenant -&gt; participant +
- *       discoverable-group scope, unbound to any tenant -- the staff-chat-parity fix (REQ-5f).
- *   <li>Else (no active tenant, not staff) -&gt; fail closed: empty result, no query executed at
- *       all -- REQ-2's original baseline for the one caller shape this amendment doesn't touch.
+ *   <li>Resolve {@code activeTenantId = tenantContext.getActiveTenantId()} first, unconditionally,
+ *       before any role check.
+ *   <li>If {@code activeTenantId} is present (tenant-X context):
+ *       <ol type="a">
+ *         <li>the caller is that tenant's active {@code MEMBER_ADMIN} -&gt; unrestricted within
+ *             that tenant only (REQ-5g), never cross-tenant, never staff scope (REQ-5j).
+ *         <li>else -&gt; participant + discoverable-group scope, bound to that tenant (REQ-5h/
+ *             REQ-5i), including the AppSec-required {@code IllegalStateException} invariant on a
+ *             null tenant id.
+ *       </ol>
+ *   <li>Else ({@code activeTenantId} empty, staff-scope context):
+ *       <ol type="a">
+ *         <li>{@code tenantContext.isStaffAdmin()} -&gt; unrestricted within staff scope only
+ *             (REQ-5e, corrected) -- reachable only when there is no active tenant, so a {@code
+ *             STAFF_ADMIN} can no longer short-circuit into a tenant's content.
+ *         <li>else {@code tenantContext.isStaff()} -&gt; participant + discoverable-group scope,
+ *             unbound to any tenant -- the staff-chat-parity fix (REQ-5f).
+ *         <li>else -&gt; fail closed: empty result, no query executed at all -- REQ-2's original
+ *             baseline for the one caller shape this amendment doesn't touch.
+ *       </ol>
  * </ol>
  *
  * The active tenant id and role state are both re-derived fresh, per request, from {@link
@@ -96,72 +110,78 @@ public class ChatMessageSearchService {
 
         List<ChatMessageSearchRepository.ChatMessageSearchRow> rows;
 
-        if (tenantContext.isStaffAdmin()) {
-            // REQ-5e: PLATFORM_UNRESTRICTED.
-            rows =
-                    locale == ChatSearchLocale.PT
-                            ? chatMessageSearchRepository.searchUnrestrictedPt(
-                                    q,
-                                    senderId,
-                                    conversationId,
-                                    dateFrom,
-                                    dateTo,
-                                    decodedCursor,
-                                    pageSize)
-                            : chatMessageSearchRepository.searchUnrestrictedEn(
-                                    q,
-                                    senderId,
-                                    conversationId,
-                                    dateFrom,
-                                    dateTo,
-                                    decodedCursor,
-                                    pageSize);
-        } else if (activeTenantId.isPresent()
-                && isActiveMemberAdminOf(actor, activeTenantId.get())) {
-            // REQ-5g/REQ-5j: TENANT_UNRESTRICTED, bound to the caller's own active tenant only.
-            Long tenantId = activeTenantId.get();
-            rows =
-                    locale == ChatSearchLocale.PT
-                            ? chatMessageSearchRepository.searchTenantUnrestrictedPt(
-                                    tenantId,
-                                    q,
-                                    senderId,
-                                    conversationId,
-                                    dateFrom,
-                                    dateTo,
-                                    decodedCursor,
-                                    pageSize)
-                            : chatMessageSearchRepository.searchTenantUnrestrictedEn(
-                                    tenantId,
-                                    q,
-                                    senderId,
-                                    conversationId,
-                                    dateFrom,
-                                    dateTo,
-                                    decodedCursor,
-                                    pageSize);
-        } else if (activeTenantId.isPresent()) {
-            // REQ-5h/REQ-5i: PARTICIPANT_AND_DISCOVERABLE, bound to the caller's active tenant.
+        if (activeTenantId.isPresent()) {
+            // Tenant-X context: resolve admin-vs-non-admin strictly within this tenant.
             Long tenantId = activeTenantId.get();
             if (tenantId == null) {
                 // AppSec-required invariant: must never happen -- Optional#isPresent() already
                 // guarantees a non-null value here. Guards against a future refactor of the
                 // precedence chain silently falling through into the nullable-aware
                 // PARTICIPANT_AND_DISCOVERABLE fragment with a null id, which would widen this
-                // branch (an ordinary tenant MEMBER) to the platform-wide scope only branch 4's
+                // branch (an ordinary tenant MEMBER) to the staff-scope-unrestricted branch's
                 // legitimate null-tenant case is allowed to hit.
                 throw new IllegalStateException(
                         "activeTenantId must be non-null when TenantContext#getActiveTenantId()"
                                 + " reports present");
             }
-            Long[] additionalVisibleConversationIds =
-                    additionalVisibleConversationIds(actor, tenantId);
+
+            if (isActiveMemberAdminOf(actor, tenantId)) {
+                // REQ-5g/REQ-5j: TENANT_UNRESTRICTED, bound to the caller's own active tenant only.
+                rows =
+                        locale == ChatSearchLocale.PT
+                                ? chatMessageSearchRepository.searchTenantUnrestrictedPt(
+                                        tenantId,
+                                        q,
+                                        senderId,
+                                        conversationId,
+                                        dateFrom,
+                                        dateTo,
+                                        decodedCursor,
+                                        pageSize)
+                                : chatMessageSearchRepository.searchTenantUnrestrictedEn(
+                                        tenantId,
+                                        q,
+                                        senderId,
+                                        conversationId,
+                                        dateFrom,
+                                        dateTo,
+                                        decodedCursor,
+                                        pageSize);
+            } else {
+                // REQ-5h/REQ-5i: PARTICIPANT_AND_DISCOVERABLE, bound to the caller's active tenant.
+                Long[] additionalVisibleConversationIds =
+                        additionalVisibleConversationIds(actor, tenantId);
+                rows =
+                        locale == ChatSearchLocale.PT
+                                ? chatMessageSearchRepository.searchScopedPt(
+                                        actor.getId(),
+                                        tenantId,
+                                        additionalVisibleConversationIds,
+                                        q,
+                                        senderId,
+                                        conversationId,
+                                        dateFrom,
+                                        dateTo,
+                                        decodedCursor,
+                                        pageSize)
+                                : chatMessageSearchRepository.searchScopedEn(
+                                        actor.getId(),
+                                        tenantId,
+                                        additionalVisibleConversationIds,
+                                        q,
+                                        senderId,
+                                        conversationId,
+                                        dateFrom,
+                                        dateTo,
+                                        decodedCursor,
+                                        pageSize);
+            }
+        } else if (tenantContext.isStaffAdmin()) {
+            // REQ-5e (corrected): STAFF_SCOPE_UNRESTRICTED -- only reachable here, with no active
+            // tenant, so this branch can never see a tenant-owned conversation.
             rows =
                     locale == ChatSearchLocale.PT
-                            ? chatMessageSearchRepository.searchScopedPt(
-                                    actor.getId(),
-                                    tenantId,
-                                    additionalVisibleConversationIds,
+                            ? chatMessageSearchRepository.searchStaffScopeUnrestrictedPt(
                                     q,
                                     senderId,
                                     conversationId,
@@ -169,10 +189,7 @@ public class ChatMessageSearchService {
                                     dateTo,
                                     decodedCursor,
                                     pageSize)
-                            : chatMessageSearchRepository.searchScopedEn(
-                                    actor.getId(),
-                                    tenantId,
-                                    additionalVisibleConversationIds,
+                            : chatMessageSearchRepository.searchStaffScopeUnrestrictedEn(
                                     q,
                                     senderId,
                                     conversationId,
@@ -183,7 +200,7 @@ public class ChatMessageSearchService {
         } else if (tenantContext.isStaff()) {
             // REQ-5f: PARTICIPANT_AND_DISCOVERABLE, unbound to any tenant (staff-chat parity).
             Long[] additionalVisibleConversationIds =
-                    additionalVisibleConversationIdsPlatformWide(actor);
+                    additionalVisibleConversationIdsStaffScope(actor);
             rows =
                     locale == ChatSearchLocale.PT
                             ? chatMessageSearchRepository.searchScopedPt(
@@ -264,10 +281,10 @@ public class ChatMessageSearchService {
                 actor, chatConversationRepository.findDiscoverableIds(tenantId));
     }
 
-    /** REQ-5f: platform-wide sibling of {@link #additionalVisibleConversationIds(User, Long)}. */
-    private Long[] additionalVisibleConversationIdsPlatformWide(User actor) {
+    /** REQ-5f: staff-scope sibling of {@link #additionalVisibleConversationIds(User, Long)}. */
+    private Long[] additionalVisibleConversationIdsStaffScope(User actor) {
         return resolveEligibleDiscoverableIds(
-                actor, chatConversationRepository.findDiscoverableIdsPlatformWide());
+                actor, chatConversationRepository.findDiscoverableIdsStaffScope());
     }
 
     private Long[] resolveEligibleDiscoverableIds(User actor, List<Long> candidateIds) {

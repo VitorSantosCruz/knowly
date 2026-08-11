@@ -88,11 +88,20 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
     List<Long> findDiscoverableIds(@Param("tenantId") Long tenantId);
 
     /**
-     * Platform-wide sibling of {@link #findDiscoverableIds(Long)}, backing the REQ-5f staff-
+     * Staff-scope sibling of {@link #findDiscoverableIds(Long)}, backing the REQ-5f staff-
      * no-active-tenant branch of {@code ChatMessageSearchService} (no {@code tenant_id} predicate
      * at all -- deliberate, mirrors that branch's own no-tenant-restriction posture for its
      * participant/discoverability scope). Same {@code LIMIT 100} cap and rationale as {@link
      * #findDiscoverableIds(Long)}.
+     *
+     * <p><b>Naming note (2026-08-10, context-boundary correction):</b> renamed from {@code
+     * findDiscoverableIdsPlatformWide} -- despite having no {@code tenant_id} predicate itself,
+     * this method's candidate ids are only ever folded into {@code ChatMessageSearchRepository}'s
+     * {@code SCOPE_PARTICIPANT_AND_DISCOVERABLE} fragment, whose own {@code cc.tenant_id IS NULL}
+     * guard (for a {@code null} {@code activeTenantId}) already restricts the effective result set
+     * to staff-scope conversations only -- this method was never actually platform-wide in
+     * practice, and the old name implied a scope that doesn't exist anywhere in this feature. No
+     * behavior change.
      */
     @Query(
             value =
@@ -100,5 +109,5 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
                             + " c.archived_at is null and c.deleted_at is null and c.visibility in"
                             + " ('PUBLIC','REQUEST_TO_JOIN') order by c.id LIMIT 100",
             nativeQuery = true)
-    List<Long> findDiscoverableIdsPlatformWide();
+    List<Long> findDiscoverableIdsStaffScope();
 }
