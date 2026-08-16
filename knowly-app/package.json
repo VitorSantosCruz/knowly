@@ -22,7 +22,7 @@
     "@angular/platform-browser": "^22.0.8",
     "@angular/router": "^22.0.8",
     "@jsverse/transloco": "^8.4.0",
-    "@lucide/angular": "^1.27.0",
+    "@lucide/angular": "^1.31.0",
     "chart.js": "^4.5.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
